@@ -1,0 +1,22 @@
+digraph NrGnbRrcStates {
+
+
+NO_CONTEXT [shape="ellipse", label="no context"]
+INITIAL_RANDOM_ACCESS [shape="box",width=3]
+CONNECTION_SETUP [shape="box",width=3]
+CONNECTION_REJECTED [shape="box",width=3]
+CONNECTED_NORMALLY [shape="box",width=3]
+CONNECTION_RECONFIGURATION [shape="box",width=3]
+
+// connection establishment
+NO_CONTEXT -> INITIAL_RANDOM_ACCESS [label="rx RA\npreamble"]
+INITIAL_RANDOM_ACCESS -> CONNECTION_REJECTED [label="rx RRC CONN REQ,\nAdmit = false"]
+CONNECTION_REJECTED -> CONTEXT_DESTROYED [label="connection\nrejected\ntimeout"]
+INITIAL_RANDOM_ACCESS -> CONTEXT_DESTROYED [label="connection\nrequest\ntimeout"]
+INITIAL_RANDOM_ACCESS -> CONNECTION_SETUP [label="rx RRC CONN REQ,\nAdmit = true"]
+CONNECTION_SETUP -> CONTEXT_DESTROYED [label="connection\nsetup\ntimeout"]
+CONNECTION_SETUP -> CONNECTED_NORMALLY [label="rx RRC CONN SETUP\nCOMPLETED"]
+CONNECTED_NORMALLY -> CONNECTION_RECONFIGURATION [label="reconfiguration\ntrigger"]
+CONNECTION_RECONFIGURATION -> CONNECTED_NORMALLY [label="rx RRC CONN RECONF\nCOMPLETED"]
+
+}
