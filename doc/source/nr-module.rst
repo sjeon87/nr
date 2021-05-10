@@ -28,7 +28,12 @@ As the NR specification is developed and evolves, a network simulator that is ca
 
 In this document, we describe the implementation that we have initiated to generate a 3GPP-compliant NR module able to provide ns-3 simulation capabilities in the bands above and below 6 GHz, aligned with 3GPP NR Release-15, following the description in [TS38300]_. The work has been initially funded by InterDigital Communications Inc, and continues with funding from the Lawrence Livermore National Lab (LLNL) and a grant from the National Institute of Standards and Technologies (NIST).
 
-The 'NR' module is a hard fork of the 'mmWave' simulator,  focused on targeting the 3GPP Release-15 NR specification. As such, it incorporates fundamental PHY-MAC NR features like a flexible frame structure by means of multiple numerologies support, bandwidth parts (BWPs), Frequency Division Multiplexing (FDM) of numerologies, Orthogonal Frequency-Division Multiple Access (OFDMA), flexible time- and frequency- resource allocation and scheduling, Low-Density Parity Check (LDPC) coding for data channels, modulation and coding schemes (MCSs) with up to 256-QAM, and dynamic TDD, among others. The NR module still relies on higher layers and core network (RLC, PDCP, RRC, NAS, EPC) based on ns-3 'LTE' module, thus providing an NR non-standalone (NSA) implementation.
+The 'NR' module is focused on targeting the 3GPP Release-15 NR specification. As such, it incorporates fundamental PHY-MAC NR features like
+a flexible frame structure by means of multiple numerologies support, bandwidth parts (BWPs), Frequency Division Multiplexing (FDM) of numerologies,
+Orthogonal Frequency-Division Multiple Access (OFDMA), flexible time- and frequency- resource allocation and scheduling, Low-Density Parity Check (LDPC)
+coding for data channels, modulation and coding schemes (MCSs) with up to 256-QAM, and dynamic TDD, among others.
+The NR higher layers and core network (RLC, PDCP, RRC, NAS, EPC) are mainly based on the higher layers implementation
+from |ns3| 'LTE' module. The NR module provides an NR non-standalone (NSA) implementation.
 
 The source code for the 'NR' module lives currently in the directory ``src/nr``.
 
@@ -59,7 +64,16 @@ Other settings are actually configurable according to the standard, and will be 
 
 Architecture
 ************
-The 'NR' module has been designed to perform end-to-end simulations of 3GPP-oriented cellular networks. The end-to-end overview of a typical simulation with the 'NR' module is drawn in :numref:`fig-e2e`. In dark gray, we represent the existing, and unmodified, ns-3 and LENA components. In light gray, we describe the NR components. On one side, we have a remote host (depicted as a single node in the Figure, for simplicity, but there can be multiple nodes) that connects to an PGW/SGW (Packet Gateway and Service Gateway), through a link. Such a connection can be defined with any technology that is currently available in ns-3.  The diagram illustrates a single link, but there are no limits on the topology, including any number of remote hosts. Inside the SGW/PGW, the ``NrEpcSgwPgwApp`` encapsulates the packet using the GTP protocol. Through an IP connection, which represents the backhaul of the NR network (again, described with a single link in the Figure, but the topology can vary), the GTP packet is received by the gNB. There, after decapsulating the payload, the packet is transmitted inside the NR stack through the entry point represented by the class ``NrGnbNetDevice``. The packet, if received correctly at the UE, is passed to higher layers by the class ``NrUeNetDevice``. The path crossed by packets in the UL case is the same as the one described above but in the opposite direction.
+The 'NR' module has been designed to perform end-to-end simulations of 3GPP-oriented cellular networks. The end-to-end overview of a typical
+simulation with the 'NR' module is drawn in Figure :ref:`fig-e2e`. In dark gray, we represent the existing, and unmodified, ns-3 and LENA components.
+In light gray, we describe the NR components. On one side, we have a remote host (depicted as a single node in the Figure, for simplicity,
+but there can be multiple nodes) that connects to an PGW/SGW (Packet Gateway and Service Gateway), through a link. Such a connection can be
+defined with any technology that is currently available in ns-3. The diagram illustrates a single link, but there are no limits on the topology,
+including any number of remote hosts. Inside the SGW/PGW, the ``EpcSgwPgwApp`` encapsulates the packet using the GTP protocol. Through an IP
+connection, which represents the backhaul of the NR network (again, described with a single link in the Figure, but the topology can vary),
+the GTP packet is received by the gNB. There, after decapsulating the payload, the packet is transmitted inside the NR stack through the entry
+point represented by the class ``NRGnbNetDevice``. The packet, if received correctly at the UE, is passed to higher layers by the class
+``NRUeNetDevice``. The path crossed by packets in the UL case is the same as the one described above but in the opposite direction.
 
 .. _fig-e2e:
 
@@ -69,7 +83,12 @@ The 'NR' module has been designed to perform end-to-end simulations of 3GPP-orie
 
    End-to-end class overview
 
-Concerning the RAN, we detail what is happening between ``NrGnbNetDevice`` and ``NrUeNetDevice`` in :numref:`fig-ran`. The ``NrGnbMac`` and ``NrUeMac`` MAC classes implement the LTE module Service Access Point (SAP) provider and user interfaces, enabling the communication with the LTE RLC layer. The module supports RLC TM, SM, UM, and AM modes. The MAC layer contains the scheduler (``NrMacScheduler`` and derived classes). Every scheduler also implements an SAP for LTE RRC layer configuration (``NrGnbRrc``). The ``NrPhy`` classes are used to perform the directional communication for both downlink (DL) and uplink (UL), to transmit/receive the data and control channels. Each ``NrPhy`` class writes into an instance of the ``NrSpectrumPhy`` class, which is shared between the UL and DL parts.
+Concerning the RAN, we detail what is happening between ``NRGnbNetDevice`` and ``NRUeNetDevice`` in Figure :ref:`fig-ran`. The ``NRGnbMac``
+and ``NRUeMac`` MAC classes implement the module Service Access Point (SAP) provider and user interfaces, enabling the communication with
+the RLC layer. The module supports RLC TM, SM, UM, and AM modes. The MAC layer contains the scheduler (``NRMacScheduler`` and derived classes).
+Every scheduler also implements an SAP for RRC layer configuration (``NrGnbRrc``). The ``NrPhy`` classes are used to perform the directional
+communication for both downlink (DL) and uplink (UL), to transmit/receive the data and control channels. Each ``NrPhy`` class writes into an
+instance of the ``NrSpectrumPhy`` class, which is shared between the UL and DL parts.
 
 .. _fig-ran:
 
@@ -79,25 +98,44 @@ Concerning the RAN, we detail what is happening between ``NrGnbNetDevice`` and `
 
    RAN class overview
 
-Two interesting blocks in :numref:`fig-ran` are the ``NrGnbBwpM`` and ``NrUeBwpM`` layers. 3GPP does not explicitly define them, and as such, they are virtual layers. Still, they help construct a fundamental feature of our simulator: the multiplexing of different BWPs. NR has included the definition of 3GPP BWPs for energy-saving purposes, as well as to multiplex a variety of services with different QoS requirements. The component carrier concept was already introduced in LTE, and persists in NR through our general BWP concept, as a way to aggregate carriers and thereby improve the system capacity. In the 'NR' simulator, it is possible to divide the entire bandwidth into different BWPs. Each BWP can have its own PHY and MAC configuration (e.g., specific numerology, scheduler rationale, and so on). We added the possibility for any node to transmit and receive flows in different BWPs, by either assigning each bearer to a specific BWP or distributing the data flow among different BWPs, according to the rules of the manager. The introduction of a proxy layer to multiplex and demultiplex the data was necessary to glue everything together, and this is the purpose of these two new classes (``NrGnbBwpM`` and ``NrUeBwpM``).
+Two interesting blocks in Figure :ref:`fig-ran` are the ``NRGnbBwpM`` and ``NRUeBwpM`` layers. 3GPP does not explicitly define them, and as such,
+they are virtual layers. Still, they help construct a fundamental feature of our simulator: the multiplexing of different BWPs. NR has included
+the definition of 3GPP BWPs for energy-saving purposes, as well as to multiplex a variety of services with different QoS requirements.
+The component carrier concept was already introduced in LTE, and persists in NR through our general BWP concept, as a way to aggregate carriers
+and thereby improve the system capacity. In the 'NR' simulator, it is possible to divide the entire bandwidth into different BWPs.
+Each BWP can have its own PHY and MAC configuration (e.g., specific numerology, scheduler rationale, and so on). We added the possibility
+for any node to transmit and receive flows in different BWPs by assigning each bearer to a specific BWP. Distributing the data flow
+among different BWPs could be done by implementing another variant of the BWP manager. The introduction of a proxy layer to multiplex and demultiplex
+the data was necessary to glue everything together, and this is the purpose of these two new classes (``NRGnbBwpM`` and ``NRUeBwpM``).
 
-Note: The 3GPP definition for "Bandwidth Part" (BWP) is made for energy-saving purposes at the UE nodes. As per the 3GPP standard, the active 3GPP BWP at a UE can vary semi-statically, and multiple 3GPP BWPs can span over the same frequency spectrum region. In this text, and through the code, we use the word BWP to refer to various things that are not always in line with the 3GPP definition.
+Note: The 3GPP definition for "Bandwidth Part" (BWP) is made for energy-saving purposes at the UE nodes. As per the 3GPP standard,
+the active 3GPP BWP at a UE can vary semi-statically, and multiple 3GPP BWPs can span over the same frequency spectrum region.
+In this text, and through the code, we use the word BWP to refer to various things that are not always in line with the 3GPP definition.
 
-First of all, we use it to indicate the minimum piece of spectrum that can be modeled. In this regard, a BWP has a center frequency and a bandwidth, plus some characteristics for the 3GPP channel model (e.g., the scenario). Each device can handle multiple BWPs, but such BWPs must be orthogonal in frequency (i.e., they must span over different frequency spectrum regions, that can be contiguous or not, depending on the user-defined configuration).
+First of all, we use it to indicate the minimum piece of spectrum that can be modeled. In this regard, a BWP has a center frequency and a bandwidth,
+plus some characteristics for the 3GPP channel model (e.g., the scenario). Each device can handle multiple BWPs, but such BWPs must be orthogonal in
+frequency (i.e., they must span over different frequency spectrum regions, that can be contiguous or not, depending on the user-defined configuration).
 
-Secondly, the 'NR' module is communicating through each BWP with a PHY and a MAC entity, as well as with one spectrum channel and one antenna instance. In other words, for every spectrum bandwidth part, the module will create a PHY, a MAC, a Spectrum channel, and an antenna. We consider, in the code, that this set of components form a BWP. Moreover, we have a router between the RLC queues and the different MAC entities, which is called the BWP manager.
+Secondly, the 'NR' module is communicating through each BWP with a PHY and a MAC entity, as well as with one spectrum channel and one antenna instance.
+In other words, for every spectrum bandwidth part, the module will create a PHY, a MAC, a Spectrum channel, and an antenna. We consider, in the code,
+that this set of components form a BWP. Moreover, we have a router between the RLC queues and the different MAC entities, which is called the BWP manager.
 
-Summarizing, our BWP terminology can refer to orthogonal 3GPP BWPs, as well as to orthogonal 3GPP Component Carriers, and it is up to the BWP manager to route the flows accordingly based on the behavior the user wants to implement. Our primary use case for BWPs is to avoid interference, as well as to send different flow types through different BWPs, to achieve a dedicated-resource RAN slicing.
+Summarizing, our BWP terminology can refer to orthogonal 3GPP BWPs, as well as to orthogonal 3GPP Component Carriers, and it is up to the BWP manager
+to route the flows accordingly based on the behavior the user wants to implement. Our primary use case for BWPs is to avoid interference, as well as to
+send different flow types through different BWPs, to achieve a dedicated-resource RAN slicing.
 
 Identifying components
 **********************
 
-Often, a simulation user will need to identify the object from which some messages come from, or to be able to read the output traces correctly. Each message will be associated with one tuple -- ccId and bwpId. The meaning of these names does not reflect the natural sense that we could give to these words. In particular, the definition is the following:
+Often, a simulation user will need to identify the object from which some messages come from, or to be able to read the output traces correctly.
+Each message will be associated with one tuple -- ccId and bwpId. The meaning of these names does not reflect the natural sense that we could give to
+these words. In particular, the definition is the following:
 
 * the bwpId is the index of an imaginary vector that holds all the instances of BWP (as a paired MAC/PHY) in the node. It is assigned at the creation time by the helper, and the BWP with ID 0 will be the primary carrier;
 * the ccId is a number that identifies the MAC/PHY pair uniquely in the entire simulation.
 
-All the nodes in the simulation will have the same number of BWPs. Each one will be numbered from 0 to n-1, where n is the total number of spectrum parts. For example:
+All the nodes in the simulation will have the same number of BWPs. Each one will be numbered from 0 to n-1, where n is the total number of spectrum parts.
+For example:
 
 .. _tab-example-spectrum:
 
@@ -696,7 +734,7 @@ or in both flexible and UL slots by setting the attribute ``EnableSrsInUlSlots``
 Uplink power control
 ====================
 
-Uplink Power Control (ULPC) allows an gNB to adjust the transmission power
+Uplink Power Control (ULPC) allows an eNB to adjust the transmission power
 of an UE, and as such it plays a critical role in reducing inter-cell Interference.
 In LTE and NR, the standardized procedure can have two forms: open and closed loop,
 where closed loop relies on open loop functionality, and extends it with control
@@ -1037,8 +1075,6 @@ the value and it updates it only at the next transmission occasion.
 .. figure:: figures/ulpc/nr-clpc.*
    :align: center
    :scale: 35 %
-
-   Closed Loop Power Control sequence diagram
 
 LTE/NR CLPC collaboration diagram: TPC command being sent by NrGnbPhy with DCI,
 and the TPC command reception, reporting to NrUePowerControl and applying for
@@ -2095,6 +2131,93 @@ UFA in 5G-LENA can be simulated with the :ref:`notchingExample` example describe
 in detail in :ref:`Examples` section, while the notching functionality is tested
 with the UNIT Test :ref:`notchingTest` described in :ref:`Validation` section.
 
+
+.. _sec-random-access:
+
+Random Access
+=============
+
+The NR model includes a model of the Random Access procedure based on
+some simplifying assumptions, which are detailed in the following for
+each of the messages and signals described in the specs [TS36321]_.
+
+   - **Random Access (RA) preamble**: in real LTE/NR systems this
+     corresponds to a Zadoff-Chu (ZC)
+     sequence using one of several formats available and sent in the
+     PRACH slots which could in principle overlap with PUSCH.
+     PRACH Configuration Index 14 is assumed, i.e., preambles can be
+     sent on any system frame number and subframe number.
+     The RA preamble is modeled using the NrControlMessage class,
+     i.e., as an ideal message that does not consume any radio
+     resources. The collision of preamble transmission by multiple UEs
+     in the same cell are modeled using a protocol interference model,
+     i.e., whenever two or more identical preambles are transmitted in
+     same cell at the same TTI, no one of these identical preambles
+     will be received by the gNB. Other than this collision model, no
+     error model is associated with the reception of a RA preamble.
+
+   - **Random Access Response (RAR)**: in real LTE/NR systems, this is a
+     special MAC PDU sent on the DL-SCH. Since MAC control elements are not
+     accurately modeled in the simulator (only RLC and above PDUs
+     are), the RAR is modeled as an NrControlMessage that does not
+     consume any radio resources. Still, during the RA procedure, the
+     NrGnbMac will request to the scheduler the allocation of
+     resources for the RAR using the FF MAC Scheduler primitive
+     SCHED_DL_RACH_INFO_REQ. Hence, an enhanced scheduler
+     implementation (not available at the moment) could allocate radio
+     resources for the RAR, thus modeling the consumption of Radio
+     Resources for the transmission of the RAR.
+
+   - **Message 3**:  in real LTE/NR systems, this is an RLC TM
+     SDU sent over resources specified in the UL Grant in the RAR. In
+     the simulator, this is modeled as a real RLC TM RLC PDU
+     whose UL resources are allocated by the scheduler upon call to
+     SCHED_DL_RACH_INFO_REQ.
+
+   - **Contention Resolution (CR)**: in real LTE/NR system, the CR phase
+     is needed to address the case where two or more UE sent the same
+     RA preamble in the same TTI, and the gNB was able to detect this
+     preamble in spite of the collision. Since this event does not
+     occur due to the protocol interference model used for the
+     reception of RA preambles, the CR phase is not modeled in the
+     simulator, i.e., the CR MAC CE is never sent by the gNB and the
+     UEs consider the RA to be successful upon reception of the
+     RAR. As a consequence, the radio resources consumed for the
+     transmission of the CR MAC CE are not modeled.
+
+
+Figure :ref:`fig-mac-random-access-contention` and
+:ref:`fig-mac-random-access-noncontention` shows the sequence diagrams
+of respectively the contention-based and non-contention-based MAC
+random access procedure, highlighting the interactions between the MAC
+and the other entities.
+
+
+.. _fig-mac-random-access-contention:
+
+.. figure:: figures/rach/mac-random-access-contention.*
+   :align: center
+
+   Sequence diagram of the Contention-based MAC Random Access procedure
+
+
+.. _fig-mac-random-access-noncontention:
+
+.. figure:: figures/rach/mac-random-access-noncontention.*
+   :align: center
+
+   Sequence diagram of the Non-contention-based MAC Random Access procedure
+
+
+
+.. only:: latex
+
+    .. raw:: latex
+
+        \clearpage
+
+
+
 RLC layer
 *********
 The simulator currently uses a ported version of the RLC layer available in LENA ns-3 LTE.
@@ -2218,11 +2341,6 @@ SDAP layer is not present yet in the 'NR' module.
 
 RRC layer
 *********
-The simulator currently uses a ported version of the RRC layer available in LENA ns-3 LTE.
-The RRC related files were copied and renamed, replacing the ``lte-`` prefix with ``nr-``.
-Similarly, the ported classes/structures/tests had their ``Lte`` prefix replaced with ``Nr``.
-For example, LTE's ``LteRrc`` is the counterpart for NR's ``NrRrc``.
-For model details see: https://www.nsnam.org/docs/models/html/lte-design.html#rrc
 
 We are still in the process of porting all documentation, but we have already
 made significant changes to the ``NrRrcSap::MasterInformationBlock`` (MIB) to include the cell numerology.
@@ -2313,6 +2431,334 @@ Beamforming is not currently configured, using quasi-omni beam by default.
 Tests were performed with TDD.
 
 RSRP measurement range was adjusted to the 5G-NR range, as per 3GPP [TS38133]_.
+
+This section describes in detail the different models supported and developed at the RRC layer.
+The RRC model in the simulator provides the following functionality:
+
+ - generation (at the gNB) and interpretation (at the UE) of System Information (in particular the Master Information Block and,
+   only System Information Block Type 1 and 2)
+ - RRC connection establishment procedure
+ - RRC reconfiguration procedure, supporting the following use cases:
+   + reconfiguration of the PHYs
+   + reconfiguration of UE measurements
+   + data radio bearer setup
+ - RRC measurements
+ - idle cell selection
+ - handover
+ - radio link failure
+
+
+The RRC model is divided into the following components:
+
+ - the RRC entities `NrUeRrc` and `NrGnbRrc`, which implement the state machines of the RRC entities respectively at the UE and the gNB;
+ - the RRC SAPs `NrUeRrcSapProvider`, `NrUeRrcSapUser`, `NrGnbRrcSapProvider`, `NrGnbRrcSapUser`, which allow the RRC
+   entities to send and receive RRC messages and information elements;
+ - the RRC protocol classes `NrUeRrcProtocolIdeal`, `NrGnbRrcProtocolIdeal`, `NrUeRrcProtocolReal`, `NrGnbRrcProtocolReal`,
+   which implement two different models for the transmission of RRC messages.
+
+Additionally, the RRC components use various other SAPs in order to
+interact with the rest of the protocol stack.
+
+UE RRC State Machine
+====================
+
+In Figure :ref:`fig-nr-ue-rrc-states` we represent the state machine
+as implemented in the RRC UE entity.
+
+.. _fig-nr-ue-rrc-states:
+
+.. figure:: figures/rrc/nr-ue-rrc-states.*
+   :scale: 60 %
+   :align: center
+
+   UE RRC State Machine
+
+Radio link failure (RLF) detection and the subsequent re-establishment or cell
+reselection are modeled; see the radio-link-failure description above and the
+``nr-rlf-*`` test suites.
+
+gNB RRC State Machine
+=====================
+
+The gNB RRC maintains the state for each UE that is attached to the cell. From an implementation point of view, the state of each UE is
+contained in an instance of the UeManager class. The state machine is represented in Figure :ref:`fig-nr-gnb-rrc-states`.
+
+.. _fig-nr-gnb-rrc-states:
+
+.. figure:: figures/rrc/nr-gnb-rrc-states.*
+   :scale: 70 %
+   :align: center
+
+   gNB RRC State Machine for each UE
+
+
+Broadcast of System Information
+===============================
+
+System information blocks are broadcasted by gNB to UEs at predefined time intervals, adapted from Section 5.2.1.2 of [TS36331]_. The supported system
+information blocks are:
+
+ - Master Information Block (MIB)
+      Contains parameters related to the PHY layer, generated during cell
+      configuration and broadcasted every 10 slots as a control message.
+
+ - System Information Block Type 1 (SIB1)
+      Contains information regarding network access, broadcasted every 20 slots at
+      the middle of radio frame as a control message. Not used in manual
+      attachment method. UE must have decoded MIB before it can receive SIB1.
+
+ - System Information Block Type 2 (SIB2)
+      Contains UL- and RACH-related settings, scheduled to transmit via RRC
+      protocol at 16 slots after cell configuration, and then repeats every 80 slots
+      (configurable through `NrGnbRrc::SystemInformationPeriodicity` attribute.
+      UE must be camped to a cell in order to be able to receive its SIB2.
+
+Reception of system information is fundamental for UE to advance in its lifecycle. MIB enables the UE to increase the initial DL bandwidth to
+the actual operating bandwidth of the network. SIB2 is required before the UE is allowed to switch to CONNECTED state.
+
+
+Radio Admission Control
+=======================
+
+Radio Admission Control is supported by having the gNB RRC reply to an RRC CONNECTION REQUEST message sent by the UE with either
+an RRC CONNECTION SETUP message or an RRC CONNECTION REJECT message, depending on whether the new UE is to be admitted or not. In the
+current implementation, the behavior is determined by the boolean attribute ``ns3::NrGnbRrc::AdmitRrcConnectionRequest``.
+There is currently no Radio Admission Control algorithm that dynamically decides whether a new connection shall be admitted or not.
+
+Radio Bearer Configuration
+==========================
+
+Some implementation choices have been made in the RRC regarding the setup of radio bearers:
+
+ - three Logical Channel Groups (out of four available) are configured for uplink buffer status report purposes, according to the following policy:
+
+   + LCG 0 is for signaling radio bearers
+   + LCG 1 is for GBR data radio bearers
+   + LCG 2 is for Non-GBR data radio bearers
+
+
+RRC sequence diagrams
+=====================
+
+In this section we provide some sequence diagrams that explain the
+most important RRC procedures being modeled.
+
+.. _sec-rrc-connection-establishment:
+
+RRC connection establishment
+############################
+
+Figure :ref:`fig-rrc-connection-establishment` shows how the RRC Connection Establishment procedure is modeled, highlighting the role
+of the RRC layer at both the UE and the gNB, as well as the interaction with the other layers.
+
+.. _fig-rrc-connection-establishment:
+
+.. figure:: figures/rrc/rrc-connection-establishment.*
+   :align: center
+
+   Sequence diagram of the RRC Connection Establishment procedure
+
+There are several timeouts related to this procedure, which are listed in the
+following Table :ref:`tab-rrc-connection_establishment_timer`. If any of these
+timers expired, the RRC connection establishment procedure is terminated in
+failure.
+
+At the UE side, as per TS 38.331, if T300 timer is expired consecutively
+*connEstFailCount* times on the same cell, it should perform an initial cell selection
+again.
+
+.. _tab-rrc-connection_establishment_timer:
+
+.. table:: Timers in RRC connection establishment procedure
+
+   +------------+----------+------------+-------------+----------+------------+
+   | Name       | Location | Timer      | Timer       | Default  | When timer |
+   |            |          | starts     | stops       | duration | expired    |
+   +============+==========+============+=============+==========+============+
+   | Connection | gNB      | New UE     | Receive RRC | 15 ms    | Remove UE  |
+   | request    | RRC      | context    | CONNECTION  | (Max)    | context    |
+   | timeout    |          | added      | REQUEST     |          |            |
+   +------------+----------+------------+-------------+----------+------------+
+   | Connection | UE RRC   | Send RRC   | Receive RRC | 100 ms   | Reset UE   |
+   | timeout    |          | CONNECTION | CONNECTION  |          | MAC        |
+   | (T300      |          | REQUEST    | SETUP or    |          |            |
+   | timer)     |          |            | REJECT      |          |            |
+   +------------+----------+------------+-------------+----------+------------+
+   | Connection | gNB      | Send RRC   | Receive RRC | 100 ms   | Remove UE  |
+   | setup      | RRC      | CONNECTION | CONNECTION  |          | context    |
+   | timeout    |          | SETUP      | SETUP       |          |            |
+   |            |          |            | COMPLETE    |          |            |
+   +------------+----------+------------+-------------+----------+------------+
+   | Connection | gNB      | Send RRC   | Never       | 30 ms    | Remove UE  |
+   | rejected   | RRC      | CONNECTION |             |          | context    |
+   | timeout    |          | REJECT     |             |          |            |
+   +------------+----------+------------+-------------+----------+------------+
+
+
+.. _tab-rrc-connection_establishment_counter:
+
+.. table:: Counters in RRC connection establishment procedure
+
+   +------------------+----------+------------------+-----------+---------+----------------------+------------------------+
+   | Name             | Location | Msg              | Monitored | Default | Limit not            | Limit reached          |
+   |                  |          |                  | by        | value   | reached              |                        |
+   +==================+==========+==================+===========+=========+======================+========================+
+   |ConnEstFailCount  | gNB MAC  | RachConfigCommon | UE RRC    | 1       | Counter              | *See the beginning     |
+   |                  |          | in SIB2, HO REQ  |           |         | **not incremented**. | of this section for a  |
+   |                  |          | and HO Ack       |           |         | Invalidate the prev  | detailed explanation.* |
+   |                  |          |                  |           |         | SIB2 msg and try     |                        |
+   |                  |          |                  |           |         | random access        |                        |
+   |                  |          |                  |           |         | with the same cell.  |                        |
+   +------------------+----------+------------------+-----------+---------+----------------------+------------------------+
+
+
+.. _sec-rrc-connection-reconfiguration:
+
+RRC connection reconfiguration
+##############################
+
+Figure :ref:`fig-rrc-connection-reconfiguration` shows how the RRC
+Connection Reconfiguration procedure is modeled for the case where
+MobilityControlInfo is not provided, i.e., handover is not
+performed.
+
+
+.. _fig-rrc-connection-reconfiguration:
+
+.. figure:: figures/rrc/rrc-connection-reconfiguration.*
+   :align: center
+
+   Sequence diagram of the RRC Connection Reconfiguration procedure
+
+
+RRC protocol models
+===================
+
+As previously anticipated, we provide two different models  for the
+transmission and reception of RRC messages: *Ideal*
+and *Real*. Each of them is described in one of the following
+subsections.
+
+Ideal RRC protocol model
+########################
+
+According to this model, implemented in the classes and `NrUeRrcProtocolIdeal` and
+`NrGnbRrcProtocolIdeal`, all RRC messages and information elements are transmitted between the gNB and the UE in an ideal fashion,
+without consuming radio resources and without errors. From an implementation point of view, this is achieved by passing the RRC data
+structure directly between the UE and gNB RRC entities, without involving the lower layers (PDCP, RLC, MAC, scheduler).
+
+Real RRC protocol model
+#######################
+
+This model is implemented in the classes `NrUeRrcProtocolReal` and `NrGnbRrcProtocolReal` and aims at modeling the transmission of RRC
+PDUs as commonly performed in real LTE and NR systems. In particular:
+
+ - for every RRC message being sent, a real RRC PDUs is created
+   following the ASN.1 encoding of RRC PDUs and information elements (IEs)
+   specified in [TS36331]_. Some simplifications are made with respect
+   to the IEs included in the PDU, i.e., only those IEs that are
+   useful for simulation purposes are included. For a detailed list,
+   please see the IEs defined in `nr-rrc-sap.h` and compare with
+   [TS36331]_.
+ - the encoded RRC PDUs are sent on Signaling Radio Bearers and are
+   subject to the same transmission modeling used for data
+   communications, thus including scheduling, radio resource
+   consumption, channel errors, delays, retransmissions, etc.
+
+
+Signaling Radio Bearer model
+############################
+
+We now describe the NR Signaling Radio Bearer model that is used for the
+*Real* RRC protocol model.
+
+ * **SRB0** messages (over CCCH):
+
+   - **RrcConnectionRequest**: in real NR systems, this is an RLC TM SDU sent over resources specified in the UL Grant in the RAR (not
+     in UL DCIs); the reason is that C-RNTI is not known yet at this stage. In the simulator, this is modeled as a real RLC TM RLC PDU
+     whose UL resources are allocated by the scheduler upon call to SCHED_DL_RACH_INFO_REQ.
+
+   - **RrcConnectionSetup**: in the simulator this is implemented as in real NR systems, i.e., with an RLC TM SDU sent over resources
+     indicated by a regular UL DCI, allocated with SCHED_DL_RLC_BUFFER_REQ triggered by the RLC TM instance that is
+     mapped to LCID 0 (the CCCH).
+
+ * **SRB1** messages (over DCCH):
+
+   - All the SRB1 messages modeled in the simulator (e.g., **RrcConnectionCompleted**) are implemented as in real NR systems,
+     i.e., with a real RLC SDU sent over RLC AM using DL resources allocated via Buffer Status Reports. See the RLC model
+     documentation for details.
+
+ * **SRB2** messages (over DCCH):
+
+   - According to [TS38331]_, "*SRB1 is for RRC messages (which may include a piggybacked NAS message) as well as for NAS messages
+     prior to the establishment of SRB2, all using DCCH logical channel*", whereas "*SRB2 is for NAS messages, using DCCH
+     logical channel*" and "*SRB2 has a lower-priority than SRB1 and is always configured by E-UTRAN after security
+     activation*". Modeling security-related aspects is not a requirement of the NR simulation model, hence we always use
+     SRB1 and never activate SRB2.
+
+Additionally, according to [TS38331]_, SRB3 is used for specific NR RRC messages when UE is in E-UTRA NR Dual Connectivity.
+Since NR dual connectivity is not supported yet, SRB3 is also not implemented.
+
+
+
+ASN.1 encoding of RRC IE's
+==========================
+
+The messages defined in RRC SAP, common to all Ue/gNB SAP Users/Providers, are transported in a transparent container to/from a Ue/gNB. The encoding format for the different Information Elements are specified in [TS36331]_, using ASN.1 rules in the unaligned variant. The implementation in nr has been divided in the following classes:
+
+  * NrRrcAsn1Header : Inherits Asn1Header which is implemented in ns-3 LTE module and contains the encoding / decoding of basic ASN types. NrRrcAsn1Header contains the encoding / decoding of common IE's defined in [TS36331]_ and should be extended to support also commong IE's defined in [TS38331]_.
+
+  * Rrc specific messages/IEs classes : A class for each of the messages defined in RRC SAP header
+
+
+NrRrcAsn1Header : Common IEs
+============================
+
+As some Information Elements are being used for several RRC messages, this class implements the following common IE's:
+
+  * SrbToAddModList
+
+  * DrbToAddModList
+
+  * LogicalChannelConfig
+
+  * RadioResourceConfigDedicated
+
+  * PhysicalConfigDedicated
+
+  * SystemInformationBlockType1
+
+  * SystemInformationBlockType2
+
+  * RadioResourceConfigCommonSIB
+
+
+Rrc specific messages/IEs classes
+=================================
+
+The following RRC SAP have been implemented:
+
+  * RrcConnectionRequest
+
+  * RrcConnectionSetup
+
+  * RrcConnectionSetupCompleted
+
+  * RrcConnectionReconfiguration
+
+  * RrcConnectionReconfigurationCompleted
+
+  * HandoverPreparationInfo
+
+  * RrcConnectionReestablishmentRequest
+
+  * RrcConnectionReestablishment
+
+  * RrcConnectionReestablishmentComplete
+
+  * RrcConnectionReestablishmentReject
+
+  * RrcConnectionRelease
 
 NAS layer
 *********
@@ -3923,6 +4369,99 @@ schedulers:
     - Check whether round-robin queue ordering is preserved after removing UEs and respective beams, and adding them back.
     - Check whether PF memory is preserved across subframes, to maintain fairness over time.
 
+RRC test
+========
+
+The test suite ``nr-rrc-test`` tests the correct functionality of the following aspects:
+
+ #. MAC Random Access
+ #. RRC System Information Acquisition
+ #. RRC Connection Establishment
+ #. RRC Reconfiguration
+
+The test suite considers a type of scenario with four gNBs aligned in a square
+layout with 100-meter edges. Multiple UEs are located at a specific spot on the
+diagonal of the square and are instructed to connect to the first gNB. Each test
+case implements an instance of this scenario with specific values of the
+following parameters:
+
+ - number of UEs
+ - number of Data Radio Bearers to be activated for each UE
+ - time :math:`t^c_0` at which the first UE is instructed to start connecting to the gNB
+ - time interval :math:`d^i` between the start of connection of UE :math:`n` and UE :math:`n+1`; the time at which user :math:`n` connects is thus determined as :math:`t^c_n = t^c_0 + n d^i` sdf
+ - the relative position of the UEs on the diagonal of the square, where higher
+   values indicate larger distance from the serving gNB, i.e., higher
+   interference from the other gNBs
+ - a boolean flag indicating whether the ideal or the real RRC protocol model is used
+
+Each test case passes if a number of test conditions are positively evaluated for each UE after a delay :math:`d^e` from the time it started connecting to the gNB. The delay :math:`d^e` is determined as
+
+.. math::
+
+   d^e = d^{si} + d^{ra} + d^{ce} + d^{cr}
+
+where:
+
+ - :math:`d^{si}` is the max delay necessary for the acquisition of System Information. We set it to 90ms accounting for 10ms for the MIB acquisition and 80ms for the subsequent SIB2 acquisition
+ - :math:`d^{ra}` is the delay for the MAC Random Access (RA) procedure. This depends on preamble collisions as well as on the
+   availability of resources for the UL grant allocation. The total amount of
+   necessary RA attempts depends on preamble collisions and failures
+   to allocate the UL grant because of lack of resources. The number
+   of collisions depends on the number of UEs that try to access
+   simultaneously; we estimated that for a :math:`0.99` RA success
+   probability, 5 attempts are sufficient for up to 20 UEs, and  10 attempts for up
+   to 50 UEs.
+   For the UL grant, considered the system bandwidth and the
+   default MCS used for the UL grant (MCS 0), at most 4 UL grants can
+   be assigned in a TTI; so for :math:`n` UEs trying to
+   do RA simultaneously the max number of attempts due to the UL grant
+   issue is :math:`\lceil n/4 \rceil`. The time for
+   a RA attempt  is determined by 3ms + the value of
+   "NrGnbMac::RaResponseWindowSize" attribute, which defaults to 3ms, plus 1ms
+   for the scheduling of the new transmission.
+ - :math:`d^{ce}` is the delay required for the transmission of RRC CONNECTION
+   SETUP + RRC CONNECTION SETUP COMPLETED. We consider a round trip
+   delay of 10ms plus :math:`\lceil 2n/4 \rceil` considering that 2
+   RRC packets have to be transmitted and that at most 4 such packets
+   can be transmitted per TTI. In cases where interference is high, we
+   accommodate one retry attempt by the UE, so we double the :math:`d^{ce}`
+   value and then add :math:`d^{si}` on top of it (because the timeout has
+   reset the previously received SIB2).
+ - :math:`d^{cr}` is the delay required for eventually needed RRC
+   CONNECTION RECONFIGURATION transactions. The number of transactions needed is
+   1 for each bearer activation. Similarly to what done for
+   :math:`d^{ce}`, for each transaction we consider a round trip
+   delay of 10ms plus :math:`\lceil 2n/4 \rceil`.
+
+The base version of the test ``NrRrcConnectionEstablishmentTestCase``
+tests for correct RRC connection establishment in absence of channel
+errors. The conditions that are evaluated for this test case to pass
+are, for each UE:
+
+ - the RRC state at the UE is CONNECTED_NORMALLY
+ - the UE is configured with the CellId, DlBandwidth, UlBandwidth,
+   DlEarfcn and UlEarfcn of the gNB
+ - the IMSI of the UE stored at the gNB is correct
+ - the number of active Data Radio Bearers is the expected one, both
+   at the gNB and at the UE
+ - for each Data Radio Bearer, the following identifiers match between
+   the UE and the gNB: EPS bearer id, DRB id, LCID
+
+The test variant ``NrRrcConnectionEstablishmentErrorTestCase`` is
+similar except for the presence of errors in the transmission of a
+particular RRC message of choice during the first connection
+attempt. The error is obtained by temporarily moving the UE to a far
+away location; the time of movement has been determined empirically
+for each instance of the test case based on the message that it was
+desired to be in error. The test case checks that at least one of the following
+conditions is false at the time right before the UE is moved back to
+the original location:
+
+ - the RRC state at the UE is CONNECTED_NORMALLY
+ - the UE context at the gNB is present
+ - the RRC state of the UE Context at the gNB is CONNECTED_NORMALLY
+
+
 Open issues and future work
 ---------------------------
 
@@ -3972,7 +4511,7 @@ Open issues and future work
 
 .. [SIMPAT-calibration] Katerina Koutlia, Biljana Bojovic, Z. Ali, S. Laǵen. "Calibration of the 5G-LENA system level simulator in 3GPP reference scenarios". Simulation Modelling Practice and Theory 119, 2022.
 
-.. [TR38901] 3GPP. "Study on Channel Model for Frequencies from 0.5 to 100 GHz". (Release 15) TR 38.901v16.1.0 (2020), 3rd Generation Partnership Project, 2020.
+.. [TS38331]  3GPP  TS  38.331, Radio Resource Control (RRC). (Rel. 15). 2018.
 
 .. [RP180524] Huawei. "RP-180524 Summary of Calibration Results for IMT-2020 Self Evaluation". 3GPP TSG RAN Meeting #79, 2018.
 
