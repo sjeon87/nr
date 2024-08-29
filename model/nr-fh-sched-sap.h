@@ -49,6 +49,7 @@ class NR_EXPORT NrFhSchedSapProvider
                                          uint32_t mcs,
                                          uint32_t rnti,
                                          uint8_t dlRank) = 0;
+    virtual uint8_t GetFunctionalSplit() = 0;
 };
 
 /**
@@ -102,6 +103,7 @@ class MemberNrFhSchedSapProvider : public NrFhSchedSapProvider
                                  uint32_t mcs,
                                  uint32_t rnti,
                                  uint8_t dlRank) override;
+    uint8_t GetFunctionalSplit() override;
 
   private:
     C* m_owner; ///< the owner class
@@ -180,6 +182,13 @@ MemberNrFhSchedSapProvider<C>::GetMaxRegAssignable(uint16_t bwpId,
                                                    uint8_t dlRank)
 {
     return m_owner->DoGetMaxRegAssignable(bwpId, mcs, rnti, dlRank);
+}
+
+template <class C>
+uint8_t
+MemberNrFhSchedSapProvider<C>::GetFunctionalSplit()
+{
+    return m_owner->DoGetFunctionalSplit();
 }
 
 /**

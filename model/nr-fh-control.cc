@@ -75,6 +75,19 @@ NrFhControl::GetTypeId()
                           BooleanValue(true),
                           MakeBooleanAccessor(&NrFhControl::SetEnableModComp),
                           MakeBooleanChecker())
+            .AddAttribute("FunctionalSplit",
+                          "Select the functional split applied in the gNB",
+                          EnumValue(NrFhControl::FS_7_2),
+                          MakeEnumAccessor<FunctionalSplit>(&NrFhControl::SetFunctionalSplit,
+                                                            &NrFhControl::GetFunctionalSplit),
+                          MakeEnumChecker(NrFhControl::FS_6,
+                                          "FS_6",
+                                          NrFhControl::FS_7_3,
+                                          "FS_7_3",
+                                          NrFhControl::FS_7_2,
+                                          "FS_7_2",
+                                          NrFhControl::FS_7_1,
+                                          "FS_7_1"))
             .AddTraceSource(
                 "RequiredFhDlThroughput",
                 "Report required fronthaul throughput in DL per BWP (Sfnfn, bwpId, reqFhThr)",
@@ -192,6 +205,21 @@ NrFhControl::SetEnableModComp(bool v)
 {
     NS_LOG_FUNCTION(this);
     m_enableModComp = v;
+}
+
+void
+NrFhControl::SetFunctionalSplit(FunctionalSplit fs)
+{
+    NS_LOG_FUNCTION(this);
+    NS_LOG_DEBUG("Set the selected functional split: " << fs);
+    m_funcSplit = fs;
+}
+
+NrFhControl::FunctionalSplit
+NrFhControl::GetFunctionalSplit() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_funcSplit;
 }
 
 void
@@ -675,20 +703,48 @@ NrFhControl::GetFhThr(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRa
                   " Numerology has not been configured properly for bwpId: " << bwpId);
     Time slotLength =
         MicroSeconds(static_cast<uint16_t>(1000 / std::pow(2, numerology))); // slot length
-    auto overheadMac = static_cast<uint32_t>(
-        10e6 * 1e-3 / std::pow(2, numerology)); // bits (10e6 (bps) x slot length (in s))
 
-    uint32_t effectiveModulationOrder =
-        m_enableModComp
-            ? (m_mcsTable == 1 ? nrEesmT1.m_mcsMTable->at(mcs) : nrEesmT2.m_mcsMTable->at(mcs))
-            : 32;
+    auto overheadMac = 0;
+    auto effectiveModulationOrder = 32;
 
-    uint8_t overheadDyn = (m_enableModComp ? m_overheadDyn : 0);
-    thr = ((12 * effectiveModulationOrder * nRegs * dlRank) + overheadDyn + overheadMac +
-           (12 * 2 * 10)) /
-          slotLength.GetSeconds();
-    // added 10 RBs of DCI overhead over 1 symbol, encoded with QPSK
+    // Calculate the transmitted FH throughput based on the selected functional split
+    switch (m_funcSplit)
+    {
+    case FS_6: {
+        // It is handled in the MAC layer. It represents the amount of data transmitted from the MAC
+        // layer to the PHY layer, including packets and control information
+        NS_LOG_INFO("Calculate FH throughput when FS 6 is configured");
+        break;
+    }
+    case FS_7_3: {
+        NS_LOG_INFO("Calculate FH throughput when FS 7.3 is configured");
+        break;
+    }
+    case FS_7_2: {
+        overheadMac = static_cast<uint32_t>(
+            10e6 * 1e-3 / std::pow(2, numerology)); // bits (10e6 (bps) x slot length (in s))
 
+        effectiveModulationOrder =
+            m_enableModComp
+                ? (m_mcsTable == 1 ? nrEesmT1.m_mcsMTable->at(mcs) : nrEesmT2.m_mcsMTable->at(mcs))
+                : 32;
+
+        uint8_t overheadDyn = (m_enableModComp ? m_overheadDyn : 0);
+        thr = ((12 * effectiveModulationOrder * nRegs * dlRank) + overheadDyn + overheadMac +
+               (12 * 2 * 10)) /
+              slotLength.GetSeconds();
+        // added 10 RBs of DCI overhead over 1 symbol, encoded with QPSK
+        break;
+    }
+    case FS_7_1: {
+        NS_LOG_INFO("Calculate FH throughput when FS 7.1 is configured");
+        break;
+    }
+    default: {
+        NS_ABORT_MSG("This split cannot be configured in the current version of 5G-LENA.");
+        break;
+    }
+    }
     return thr;
 }
 

@@ -38,6 +38,7 @@ class NR_EXPORT NrFhPhySapProvider
                                                 uint32_t nSymb,
                                                 uint8_t dlRank) = 0;
     virtual void NotifyEndSlot(uint16_t bwpId, SfnSf currentSlot) = 0;
+    virtual uint8_t GetFunctionalSplit() = 0;
 };
 
 /**
@@ -83,6 +84,7 @@ class MemberNrFhPhySapProvider : public NrFhPhySapProvider
                                         uint32_t nSymb,
                                         uint8_t dlRank) override;
     void NotifyEndSlot(uint16_t bwpId, SfnSf currentSlot) override;
+    uint8_t GetFunctionalSplit() override;
 
   private:
     C* m_owner; ///< the owner class
@@ -128,6 +130,13 @@ void
 MemberNrFhPhySapProvider<C>::NotifyEndSlot(uint16_t bwpId, SfnSf currentSlot)
 {
     return m_owner->DoNotifyEndSlot(bwpId, currentSlot);
+}
+
+template <class C>
+uint8_t
+MemberNrFhPhySapProvider<C>::GetFunctionalSplit()
+{
+    return m_owner->DoGetFunctionalSplit();
 }
 
 /**
