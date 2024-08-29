@@ -172,6 +172,23 @@ class NR_EXPORT NrFhControl : public Object
      */
     void SetFhNumerology(uint16_t bwpId, uint16_t num);
 
+    /**
+     * @brief Different functional splits (FS) options
+     */
+    enum FunctionalSplit
+    {
+        FS_6,
+        FS_7_3,
+        FS_7_2,
+        FS_7_1,
+    };
+
+    /**
+     * @brief Set the functional split number.
+     * @param fs The functional split type
+     */
+    void SetFunctionalSplit(FunctionalSplit fs);
+
   private:
     /**
      * @brief Get the FH Control method.
@@ -327,6 +344,18 @@ class NR_EXPORT NrFhControl : public Object
      */
     uint8_t GetMaxMcs(uint8_t mcsTable, uint16_t modOrder) const;
 
+    /**
+     * @brief Get the functional split option number.
+     * @return the functional split number/type
+     */
+    FunctionalSplit GetFunctionalSplit() const;
+
+    /**
+     * @brief Get the functional split number through the SAP interfaces.
+     * @return the functional split number (uint8_t)
+     */
+    uint8_t DoGetFunctionalSplit() const;
+
     uint16_t m_physicalCellId; //!< Physical cell ID to which the NrFhControl instance belongs to.
 
     // FH Control - PHY SAP
@@ -338,6 +367,7 @@ class NR_EXPORT NrFhControl : public Object
         m_fhSchedSapUser;                       //!< FH Control - PHY SAP User (per bwpId)
     NrFhSchedSapProvider* m_fhSchedSapProvider; //!< FH Control -  SCHED SAP Provider
 
+    enum FunctionalSplit m_funcSplit;
     enum FhControlMethod m_fhControlMethod;
     uint64_t m_fhCapacity{
         1000}; //!< the available FH capacity (in Mbps) for DL and UL (full-duplex FH link)
