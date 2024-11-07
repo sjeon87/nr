@@ -32,7 +32,8 @@ class NR_EXPORT NrFhSchedSapProvider
     virtual bool DoesAllocationFit(uint16_t bwpId,
                                    uint32_t mcs,
                                    uint32_t nRegs,
-                                   uint8_t dlRank) = 0;
+                                   uint8_t dlRank,
+                                   uint8_t numSym) = 0;
     virtual uint8_t GetFhControlMethod() = 0;
     virtual uint16_t GetNrFhPhysicalCellId() = 0;
     virtual void SetActiveUe(uint16_t bwpId, uint16_t rnti, uint32_t bytes) = 0;
@@ -86,7 +87,11 @@ class MemberNrFhSchedSapProvider : public NrFhSchedSapProvider
 
     MemberNrFhSchedSapProvider() = delete;
 
-    bool DoesAllocationFit(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank) override;
+    bool DoesAllocationFit(uint16_t bwpId,
+                           uint32_t mcs,
+                           uint32_t nRegs,
+                           uint8_t dlRank,
+                           uint8_t numSym) override;
     uint8_t GetFhControlMethod() override;
     uint16_t GetNrFhPhysicalCellId() override;
     void SetActiveUe(uint16_t bwpId, uint16_t rnti, uint32_t bytes) override;
@@ -121,9 +126,10 @@ bool
 MemberNrFhSchedSapProvider<C>::DoesAllocationFit(uint16_t bwpId,
                                                  uint32_t mcs,
                                                  uint32_t nRegs,
-                                                 uint8_t dlRank)
+                                                 uint8_t dlRank,
+                                                 uint8_t numSym)
 {
-    return m_owner->DoGetDoesAllocationFit(bwpId, mcs, nRegs, dlRank);
+    return m_owner->DoGetDoesAllocationFit(bwpId, mcs, nRegs, dlRank, numSym);
 }
 
 template <class C>
@@ -188,7 +194,7 @@ template <class C>
 uint8_t
 MemberNrFhSchedSapProvider<C>::GetFunctionalSplit()
 {
-    return m_owner->DoGetFunctionalSplit();
+    return static_cast<uint8_t>(m_owner->GetFunctionalSplit());
 }
 
 /**

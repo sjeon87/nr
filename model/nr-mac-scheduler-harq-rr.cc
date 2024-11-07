@@ -66,7 +66,8 @@ NrMacSchedulerHarqRr::InstallGetFhControlMethodFn(const std::function<uint8_t()>
 
 void
 NrMacSchedulerHarqRr::InstallDoesFhAllocationFitFn(
-    const std::function<bool(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank)>& fn)
+    const std::function<
+        bool(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank, uint8_t numSym)>& fn)
 {
     m_getDoesAllocationFit = fn;
 }
@@ -225,7 +226,8 @@ NrMacSchedulerHarqRr::ScheduleDlHarq(
                 if (GetDoesFhAllocationFit(GetBwpId(),
                                            dciInfoReTx->m_mcs,
                                            rbgAssigned,
-                                           dciInfoReTx->m_rank) == 0)
+                                           dciInfoReTx->m_rank,
+                                           dciInfoReTx->m_numSym) == 0)
                 {
                     NS_LOG_INFO("No FH resources for this retx, we have to buffer it");
                     BufferHARQFeedback(dlHarqFeedback,
@@ -593,9 +595,10 @@ bool
 NrMacSchedulerHarqRr::GetDoesFhAllocationFit(uint16_t bwpId,
                                              uint32_t mcs,
                                              uint32_t nRegs,
-                                             uint8_t dlRank) const
+                                             uint8_t dlRank,
+                                             uint8_t numSym) const
 {
-    return m_getDoesAllocationFit(bwpId, mcs, nRegs, dlRank);
+    return m_getDoesAllocationFit(bwpId, mcs, nRegs, dlRank, numSym);
 }
 
 void

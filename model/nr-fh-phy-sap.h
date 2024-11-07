@@ -31,7 +31,8 @@ class NR_EXPORT NrFhPhySapProvider
     virtual bool DoesAllocationFit(uint16_t bwpId,
                                    uint32_t mcs,
                                    uint32_t nRegs,
-                                   uint8_t dlRank) = 0;
+                                   uint8_t dlRank,
+                                   uint8_t numSym) = 0;
     virtual void UpdateTracesBasedOnDroppedData(uint16_t bwpId,
                                                 uint32_t mcs,
                                                 uint32_t nRbgs,
@@ -57,6 +58,7 @@ class NR_EXPORT NrFhPhySapUser
     virtual ~NrFhPhySapUser();
 
     virtual uint16_t GetNumerology() const = 0;
+    virtual uint16_t GetNumAntennaPorts() const = 0;
 };
 
 /**
@@ -77,7 +79,11 @@ class MemberNrFhPhySapProvider : public NrFhPhySapProvider
     MemberNrFhPhySapProvider() = delete;
 
     uint8_t GetFhControlMethod() override;
-    bool DoesAllocationFit(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank) override;
+    bool DoesAllocationFit(uint16_t bwpId,
+                           uint32_t mcs,
+                           uint32_t nRegs,
+                           uint8_t dlRank,
+                           uint8_t numSym) override;
     void UpdateTracesBasedOnDroppedData(uint16_t bwpId,
                                         uint32_t mcs,
                                         uint32_t nRbgs,
@@ -109,9 +115,10 @@ bool
 MemberNrFhPhySapProvider<C>::DoesAllocationFit(uint16_t bwpId,
                                                uint32_t mcs,
                                                uint32_t nRegs,
-                                               uint8_t dlRank)
+                                               uint8_t dlRank,
+                                               uint8_t numSym)
 {
-    return m_owner->DoGetDoesAllocationFit(bwpId, mcs, nRegs, dlRank);
+    return m_owner->DoGetDoesAllocationFit(bwpId, mcs, nRegs, dlRank, numSym);
 }
 
 template <class C>
@@ -136,7 +143,7 @@ template <class C>
 uint8_t
 MemberNrFhPhySapProvider<C>::GetFunctionalSplit()
 {
-    return m_owner->DoGetFunctionalSplit();
+    return static_cast<uint8_t>(m_owner->GetFunctionalSplit());
 }
 
 /**
@@ -158,6 +165,7 @@ class MemberNrFhPhySapUser : public NrFhPhySapUser
     MemberNrFhPhySapUser() = delete;
 
     uint16_t GetNumerology() const override;
+    uint16_t GetNumAntennaPorts() const override;
 
   private:
     C* m_owner; ///< the owner class
@@ -175,6 +183,13 @@ uint16_t
 MemberNrFhPhySapUser<C>::GetNumerology() const
 {
     return m_owner->GetNumerology();
+}
+
+template <class C>
+uint16_t
+MemberNrFhPhySapUser<C>::GetNumAntennaPorts() const
+{
+    return m_owner->GetNumAntennaPorts();
 }
 
 } // namespace ns3
