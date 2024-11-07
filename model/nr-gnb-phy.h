@@ -455,6 +455,12 @@ class NR_EXPORT NrGnbPhy : public NrPhy
      */
     void ChangeToQuasiOmniBeamformingVector();
 
+    /**
+     * @brief Get the number of antenna ports configured in the PHY.
+     * @return the number of antenna ports
+     */
+    uint16_t GetNumAntennaPorts() const;
+
   protected:
     /**
      * @brief DoDispose method inherited from Object
@@ -469,10 +475,15 @@ class NR_EXPORT NrGnbPhy : public NrPhy
      * @param mcs the allocated MCS
      * @param nRegs the number of allocated REGs (1 REG = 1 RB (12 subcarriers) x 1 symbol)
      * @param dlRank the DL rank (number of MIMO layers)
+     * @param numSym number of allocated symbols
      *
      * @return true if the current allocation can fit, false if not
      */
-    bool DoesFhAllocationFit(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank) const;
+    bool DoesFhAllocationFit(uint16_t bwpId,
+                             uint32_t mcs,
+                             uint32_t nRegs,
+                             uint8_t dlRank,
+                             uint8_t numSym) const;
 
     // FFR SAPs
     NrFhPhySapUser* m_nrFhPhySapUser{nullptr};         //!< FH Control SAP user

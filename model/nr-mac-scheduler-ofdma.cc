@@ -340,7 +340,8 @@ NrMacSchedulerOfdma::DeallocateResourcesDueToFronthaulConstraint(
             if (DoesFhAllocationFit(GetBwpId(),
                                     GetUe(schedInfoIt)->GetDlMcs(),
                                     numAssignedResourcesToUe,
-                                    GetUe(schedInfoIt)->m_dlRank) == 0)
+                                    GetUe(schedInfoIt)->m_dlRank,
+                                    beamSym) == 0)
             {
                 // remove allocation if the UE does not fit in the available FH
                 // capacity

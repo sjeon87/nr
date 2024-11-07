@@ -2437,11 +2437,12 @@ bool
 NrMacSchedulerNs3::DoesFhAllocationFit(uint16_t bwpId,
                                        uint32_t mcs,
                                        uint32_t nRegs,
-                                       uint8_t dlRank) const
+                                       uint8_t dlRank,
+                                       uint8_t numSym) const
 {
     NS_LOG_FUNCTION(this);
     NS_ASSERT(m_nrFhSchedSapProvider);
-    return m_nrFhSchedSapProvider->DoesAllocationFit(bwpId, mcs, nRegs, dlRank);
+    return m_nrFhSchedSapProvider->DoesAllocationFit(bwpId, mcs, nRegs, dlRank, numSym);
 }
 
 /**
