@@ -15,6 +15,7 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/xr-traffic-mixer-helper.h"
 
+#include <unordered_map>
 #include <vector>
 
 /**
@@ -132,6 +133,7 @@ void ConfigureXrApp(NodeContainer& ueContainer,
                     double cgDataRate,
                     Ipv4Address remoteHostAddress,
                     uint16_t remoteHostPort);
+static NrFhControl::FunctionalSplit StringToEnum(const std::string& str);
 
 int
 main(int argc, char* argv[])
@@ -228,8 +230,10 @@ main(int argc, char* argv[])
     std::string errorModel = "ns3::NrEesmIrT2";
 
     // modulation compression parameters:
-    uint32_t fhCapacity = 100000;                // in Mbps
-    uint8_t ohDyn = 100;                         // in bits
+    uint32_t fhCapacity = 100000; // in Mbps
+    uint8_t ohDyn = 100;          // in bits
+    // Functional Split configuration and FH control method
+    std::string functionalSplit = "FS_7_2";
     std::string fhControlMethod = "OptimizeMcs"; // The FH Control Method to be applied
     // (Dropping, Postponing, OptimizeMcs, OptimizeRBs)
 
@@ -402,6 +406,9 @@ main(int argc, char* argv[])
         "The FH Control Method to be applied. Choose among: Dropping, Postponing, OptimmizeMcs, "
         "OptimizeRBs",
         fhControlMethod);
+    cmd.AddValue("functionalSplit",
+                 "Select the functional split to evaluate its impact",
+                 functionalSplit);
 
     cmd.Parse(argc, argv);
 
@@ -568,6 +575,10 @@ main(int argc, char* argv[])
     Config::SetDefault("ns3::NrGnbRrc::QosFlowToRlcMapping",
                        EnumValue(useUdp ? NrGnbRrc::RLC_UM_ALWAYS : NrGnbRrc::RLC_AM_ALWAYS));
     Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(999999999));
+
+    // Convert the string to enum value
+    NrFhControl::FunctionalSplit functionalSplitEnum = StringToEnum(functionalSplit);
+    Config::SetDefault("ns3::NrFhControl::FunctionalSplit", EnumValue(functionalSplitEnum));
 
     // Create Hex Deployment
     ScenarioParameters scenarioParams;
@@ -2461,4 +2472,22 @@ ReportAiTrace(const SfnSf& sfn, uint16_t physCellId, uint16_t bwpId, uint32_t ai
         }
     }
     m_aiTraceFile << physCellId << "\t" << bwpId << "\t" << airRbs << std::endl;
+}
+
+// Function to convert string to enum
+static NrFhControl::FunctionalSplit
+StringToEnum(const std::string& str)
+{
+    static const std::unordered_map<std::string, NrFhControl::FunctionalSplit> stringToEnumMap = {
+        {"FS_6", NrFhControl::FS_6},
+        {"FS_7_3", NrFhControl::FS_7_3},
+        {"FS_7_2", NrFhControl::FS_7_2},
+        {"FS_7_1", NrFhControl::FS_7_1}};
+
+    auto it = stringToEnumMap.find(str);
+    if (it != stringToEnumMap.end())
+    {
+        return it->second;
+    }
+    throw std::invalid_argument("Invalid functional split string: " + str);
 }
