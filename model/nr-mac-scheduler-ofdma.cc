@@ -797,4 +797,107 @@ NrMacSchedulerOfdma::CreateRbgBitmaskFromAllocatedRbgs(
     return rbgBitmask;
 }
 
+std::vector<DciInfoElementTdma>
+NrMacSchedulerOfdma::DoReshapeAllocation(
+    const std::vector<DciInfoElementTdma>& dcis,
+    uint8_t& startingSymbol,
+    uint8_t& numSymbols,
+    std::vector<bool>& bitmask,
+    const bool isDl,
+    const std::unordered_map<uint16_t, std::shared_ptr<NrMacSchedulerUeInfo>>& ueMap)
+{
+    // clang-format off
+    /**
+     * OFDMA DCI consolidation/defragmentation follows these steps
+     * 1. Pick a DCI
+     * 2. Compute number of resources required by DCI
+     * 3. Sort available RBGs based on UE sub-band MCS related to DCI, from lowest to highest sub-band MCS
+     * 4. Pick last RBG to UE
+     * 5. Check if any multiple of that RBG from symbols from 0 to numSymbols satisfy the needs of DCI
+     * 5.1 If not, we try to add another RBG (go back to 4).
+     * 5.2 If yes, we found our allocation, continue.
+     * 6. If this is not the last DCI and there are remaining RBGs, go back to 1. Else, continue.
+     */
+    // clang-format on
+    std::vector<DciInfoElementTdma> reshapedDcis{};
+
+    // Populate list of available RBGs
+    std::vector<uint16_t> availableRbgs;
+    for (std::size_t i = 0; i < bitmask.size(); i++)
+    {
+        if (bitmask.at(i))
+        {
+            availableRbgs.push_back(i);
+        }
+    }
+
+    // Step 1, select DCI
+    for (auto& dci : dcis)
+    {
+        uint16_t rnti = dci.m_rnti;
+        const auto& ueInfo = ueMap.at(rnti);
+        std::vector<uint16_t> allocatedRbgs;
+        uint8_t symbolsUsed = 0;
+
+        // Step 2, compute number of required resources
+        uint32_t numResources =
+            dci.m_numSym * std::count(dci.m_rbgBitmask.begin(), dci.m_rbgBitmask.end(), true);
+
+        // Step 3, sort available RBGs based on UE sub-band MCS
+        if (isDl && !ueInfo->m_dlSbMcsInfo.empty())
+        {
+            std::stable_sort(availableRbgs.begin(),
+                             availableRbgs.end(),
+                             [&](uint16_t a, uint16_t b) {
+                                 return ueInfo->m_dlSbMcsInfo.at(ueInfo->m_rbgToSb.at(a)).mcs <
+                                        ueInfo->m_dlSbMcsInfo.at(ueInfo->m_rbgToSb.at(b)).mcs;
+                             });
+        }
+
+        while (symbolsUsed == 0 && !availableRbgs.empty())
+        {
+            // Step 4, pick last RBG (highest MCS) to UE
+            allocatedRbgs.push_back(availableRbgs.back());
+            availableRbgs.pop_back();
+
+            // Step 5, check if a multiple of the number of RBGs satisfy the resources
+            for (int i = 1; i <= numSymbols; i++)
+            {
+                if (numResources == allocatedRbgs.size() * i)
+                {
+                    // Step 5.2, our allocation is done
+                    symbolsUsed = i;
+                    break;
+                }
+            }
+            // Step 5.1, we need to add another RBG
+        }
+
+        // Step 5.2, our allocation should be done. But double check.
+        if (symbolsUsed == 0)
+        {
+            // Our available resources won't be able to handle this DCI, so reclaim resources
+            for (auto& rbg : allocatedRbgs)
+            {
+                availableRbgs.push_back(rbg);
+            }
+            allocatedRbgs.clear();
+        }
+        else
+        {
+            std::vector<bool> allocatedBitmask(bitmask.size(), false);
+            for (auto rbg : allocatedRbgs)
+            {
+                allocatedBitmask.at(rbg) = true;
+                bitmask.at(rbg) = false;
+            }
+            // Our allocation did work, so we need to create the reshaped DCI
+            reshapedDcis.emplace_back(startingSymbol, symbolsUsed, allocatedBitmask, dci);
+        }
+        // Step 6, if this is not the last DCI and there are still resources available.
+    }
+
+    return reshapedDcis;
+}
+
 } // namespace ns3
