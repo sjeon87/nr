@@ -3481,6 +3481,105 @@ An additional pair of gNB and UE can be enabled to simulate the interference (se
 Example creates one DL flow that goes through only BWP. The example prints on-screen and
 into the database the end-to-end result of the flow of interest.
 
+gsoc-leo-demo-example.cc
+========================
+This example demonstrates how to integrate LEO satellite mobility with the 3GPP NTN channel
+and propagation models, using ``NrChannelHelper`` to configure the gNBs through ``NrHelper``.
+It builds a small NTN (Non-Terrestrial Network) scenario where satellites move along circular
+orbits and exchange traffic with a ground node in both the downlink (satellite to ground) and
+the uplink (ground to satellite).
+
+The example instantiates satellite nodes following circular LEO orbits using the
+``LeoCircularOrbitMobilityModel``. To simplify node creation it uses the ``LeoOrbitNodeHelper``,
+which is parameterized by the constellation altitude, inclination, number of orbital planes and
+number of satellites per plane. These values are grouped in a ``LeoOrbitalShell`` data class.
+Both classes now live in the ns-3 ``mobility`` module.
+
+On the ground, a node with fixed geographic position connects to the satellites within a given
+3GPP NTN scenario, selectable via ``--scenario`` (default ``NTN-Rural``; the available choices
+are listed in ``helper/nr-channel-helper.h``). A bidirectional UDP traffic pattern is installed:
+a downlink flow from a remote host to the ground node and an uplink flow from the ground node
+back to the remote host, each carrying 15000 bytes. The example prints the bytes received in
+each direction at the end of the run.
+
+**Deployment presets.** The ``--application`` option selects a representative NTN deployment,
+setting the carrier frequency, bandwidth, satellite EIRP density, terminal transmit power, antenna
+gains, satellite receiver noise figure and orbit altitude. Any of those values can still be
+overridden individually on the command line (e.g. ``--satNoiseFigure``, ``--altitudeKm``). Default
+values are taken from 3GPP TR 38.821 and public system parameters.
+
+.. list-table::
+   :header-rows: 1
+
+   * - ``--application``
+     - Band
+     - Bandwidth
+     - Sat EIRP
+     - Terminal Tx
+     - Sat gain
+     - Terminal gain
+     - Sat NF
+     - Altitude
+   * - ``dtm`` (direct-to-mobile handheld)
+     - 0.7 GHz
+     - 5 MHz
+     - 50 dBW/MHz
+     - 23 dBm
+     - 60 dBi
+     - 0 dBi
+     - 1.5 dB
+     - 550 km
+   * - ``vsat`` (broadband terminal, default)
+     - Ka, 20 GHz
+     - 100 MHz
+     - 24 dBW/MHz
+     - 33 dBm
+     - 38.5 dBi
+     - 40 dBi
+     - 5 dB
+     - 1200 km
+   * - ``backhaul`` (ground gateway dish)
+     - Ka, 20 GHz
+     - 400 MHz
+     - 20 dBW/MHz
+     - 40 dBm
+     - 38.5 dBi
+     - 50 dBi
+     - 5 dB
+     - 1200 km
+
+The ``dtm`` case is the most challenging: a 0 dBi, 23 dBm handheld return link is severely
+power-limited. To close it, the preset mirrors how real direct-to-cell systems are dimensioned --
+a low (~550 km) orbit, a low cellular band, a low-noise satellite receiver (1.5 dB) and a very
+large satellite antenna. The 60 dBi satellite gain is an *effective* value: beyond the physical
+array, it stands in for the narrowband uplink processing gain that real direct-to-cell systems
+(NB-IoT-like) use to concentrate the handheld's limited power, which the 5 MHz NR waveform here
+cannot represent directly. With these values both directions deliver in full in the smoke test and
+partially under ``--realisticPower`` (the uplink remains the marginal direction).
+
+**Power configuration.** By default the example intentionally
+over-drives the link as a connectivity smoke test: the configured ``--satEIRP`` is applied as the
+conducted transmit power and the antenna gains are set on every element of the antenna array, so
+the radiated EIRP and the effective gains end up well above the configured values. This
+guarantees connectivity but is not a physically faithful link budget. Passing ``--realisticPower``
+compensates for this: the conducted power is reduced by the satellite antenna gain so the radiated
+EIRP matches ``--satEIRP``, and the per-element gains are reduced by the array factor
+(``10*log10(numElements)``) so the array boresight gain matches the configured
+``--satAntennaGainDb`` / ``--vsatAntennaGainDb``. The resulting SINRs are then representative of an
+operational NTN link.
+
+A mobility/antenna trace can be written with ``--traceFile``, and a custom constellation can be
+loaded from a CSV file with ``--orbitFile`` (see ``LeoOrbitNodeHelper`` for the file format).
+This example is loosely based on the ns-3 ``leo-satellite-example`` (orbital mobility and antenna
+pointing) and ``cttc-3gpp-channel-example``.
+
+To execute it:
+
+.. sourcecode:: bash
+
+    $ ./ns3 run gsoc-leo-demo-example -- --application=vsat --realisticPower --duration=4
+
+
 Configuring SU-MIMO
 ###################
 
