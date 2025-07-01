@@ -7,6 +7,7 @@
 #ifndef SRC_NR_MODEL_NR_PHY_MAC_COMMON_H
 #define SRC_NR_MODEL_NR_PHY_MAC_COMMON_H
 
+#include "beam-id.h"
 #include "nr-error-model.h"
 #include "sfnsf.h"
 
@@ -850,6 +851,27 @@ struct MacCeListElement_s
 uint8_t CountUsedSymbolsFromVarAllocTtiRange(uint8_t startSym,
                                              std::deque<VarTtiAllocInfo>::iterator begin,
                                              std::deque<VarTtiAllocInfo>::iterator end);
+
+struct AllocInfoHole
+{
+    std::vector<bool> bitmask;    ///< Bitmask of available RBGs
+    std::vector<uint8_t> symbols; ///< List of available symbols
+};
+
+/**
+ * Retrieves the bitmask of available RBGs, starting symbol and number of symbols of largest block
+ * not occupied by DCIs in VarTtiAllocInfo per symbol.
+ *
+ * This allows OFDMA schedulers to co-schedule HARQ and data in same symbols.
+ *
+ * @param allocInfo
+ * @return The total count of used symbols within the specified range starting from the given
+ * symbol.
+ */
+std::unordered_map<BeamId, AllocInfoHole, BeamIdHash> RetrieveAllocInfoAvailableResources(
+    const std::vector<bool>& bitmask,
+    const std::map<uint16_t, BeamId>& rntiToBeamMap,
+    const std::deque<VarTtiAllocInfo>& allocInfo);
 
 } // namespace nr
 

@@ -244,6 +244,12 @@ NrMacSchedulerTdma::AssignDLRBG(uint32_t symAvail, const ActiveUeMap& activeDl) 
 {
     NS_LOG_FUNCTION(this);
 
+    // No symbols available, in TDMA, means no more scheduling
+    if (symAvail == 0)
+    {
+        return {};
+    }
+
     BeforeSchedFn beforeSched = std::bind(&NrMacSchedulerTdma::BeforeDlSched,
                                           this,
                                           std::placeholders::_1,
