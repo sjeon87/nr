@@ -218,6 +218,7 @@ Ptr<NrGnbPhy>
 NrPhyPatternTestCase::CreatePhy(const Ptr<NrGnbMac>& mac) const
 {
     Ptr<NrSpectrumPhy> channelPhy = CreateObject<NrSpectrumPhy>();
+    channelPhy->AssignStreams(0);
     Ptr<NrGnbPhy> phy = CreateObject<NrGnbPhy>();
     Ptr<UniformPlanarArray> antenna = CreateObject<UniformPlanarArray>();
 
@@ -255,7 +256,7 @@ NrPhyPatternTestCase::CreateMac(const Ptr<NrMacScheduler>& sched) const
 
     mac->SetNrMacSchedSapProvider(sched->GetMacSchedSapProvider());
     mac->SetNrMacCschedSapProvider(sched->GetMacCschedSapProvider());
-
+    sched->AssignStreams(100);
     return mac;
 }
 
