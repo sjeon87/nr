@@ -234,6 +234,7 @@ set(source_files
     utils/traffic-generators/model/traffic-generator-ngmn-voip.cc
     utils/traffic-generators/model/traffic-generator.cc
     utils/nr-wraparound-utils.cc
+    ${opengym_sources}
 )
 
 set(header_files
@@ -448,6 +449,7 @@ set(header_files
     utils/traffic-generators/model/traffic-generator-ngmn-voip.h
     utils/traffic-generators/model/traffic-generator.h
     utils/nr-wraparound-utils.h
+    ${opengym_headers}
 )
 
 set(test_sources
@@ -508,6 +510,7 @@ set(test_sources
     test/system-scheduler-test.cc
     test/ul-scheduling-test.cc
     utils/traffic-generators/test/traffic-generator-test.cc
+    ${opengym_tests}
     # cmake-format: off
     # todo:
     # test/nr-test-x2-handover.cc               \
