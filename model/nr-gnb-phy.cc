@@ -2496,11 +2496,13 @@ NrGnbPhy::SetGnbIAState (bool iaPerformed)
   
   if(m_noOfInitialAccessUes>0){
     IAisPerformed = true;
-    DynamicCast<ThreeGppSpectrumPropagationLossModel>(m_spectrumPropagationLossModel)->SetBeamSweepState (true);
+    // Not used now! Used when Ray Tracing is implemented as well!
+    // DynamicCast<ThreeGppSpectrumPropagationLossModel>(m_spectrumPropagationLossModel)->SetBeamSweepState (true);
   }
   else{
     IAisPerformed = false;
-    DynamicCast<ThreeGppSpectrumPropagationLossModel>(m_spectrumPropagationLossModel)->SetBeamSweepState (false);
+    // Not used now! Used when Ray Tracing is implemented as well!
+    // DynamicCast<ThreeGppSpectrumPropagationLossModel>(m_spectrumPropagationLossModel)->SetBeamSweepState (false);
   }
 }
 

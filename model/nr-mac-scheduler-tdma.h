@@ -252,6 +252,11 @@ class NrMacSchedulerTdma : public NrMacSchedulerNs3
     virtual void SortUeVector(std::vector<UePtrAndBufferReq>* ueVector,
                               [[maybe_unused]] const GetCompareUeFn& GetCompareFn) const;
 
+    // ----------------------- MODIFIED ------------------------------
+    virtual void
+    DoSetGnbBeamVectorList (std::vector<BeamId> gnbBeamVectorList) override;
+    // ---------------------------------------------------------------
+
   private:
     /**
      * @brief Retrieve the UE vector from an ActiveUeMap

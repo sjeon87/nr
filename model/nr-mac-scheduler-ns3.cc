@@ -2,11 +2,6 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
-#define NS_LOG_APPEND_CONTEXT                                                                      \
-    do                                                                                             \
-    {                                                                                              \
-        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
-    } while (false);
 
 #include "nr-mac-scheduler-ns3.h"
 
@@ -28,6 +23,13 @@
 #include <memory>
 #include <ranges>
 #include <unordered_set>
+
+#undef NS_LOG_APPEND_CONTEXT
+#define NS_LOG_APPEND_CONTEXT                                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
+    } while (false);
 
 namespace ns3
 {
@@ -594,6 +596,8 @@ NrMacSchedulerNs3::DoCschedUeConfigReq(
 
         NrMacSchedulerSrs::SrsPeriodicityAndOffset srs = m_schedulerSrs->AddUe();
 
+        IAisPerformed.insert(std::make_pair(params.m_rnti, true));
+
         if (!srs.m_isValid)
         {
             bool ret = m_schedulerSrs->IncreasePeriodicity(
@@ -636,6 +640,7 @@ NrMacSchedulerNs3::DoCschedUeReleaseReq(
 
     m_schedulerSrs->RemoveUe(itUe->second->m_srsOffset);
     m_ueMap.erase(itUe);
+    IAisPerformed.erase(params.m_rnti);
 
     // When it will be the case of reducing the periodicity? Question for the
     // future...
@@ -1342,6 +1347,7 @@ NrMacSchedulerNs3::ComputeActiveUe(ActiveUeMap* activeUe,
     {
         uint32_t totBuffer = 0;
         const auto& ue = ueInfo.second;
+        uint16_t rnti = ueInfo.first;
 
         // compute total DL and UL bytes buffered
         for (const auto& lcgInfo : GetLCGFn(ue))
@@ -1358,18 +1364,22 @@ NrMacSchedulerNs3::ComputeActiveUe(ActiveUeMap* activeUe,
 
         auto harqV = GetHarqVector(ue);
 
-        if (totBuffer > 0 && harqV.CanInsert())
+        // If BF performed and no omni fallback this jumps any scheduling thus no packets are transmitted
+        if (!IAisPerformed.at(rnti))
         {
-            auto it = activeUe->find(ue->m_beamId);
-            if (it == activeUe->end())
+            if (totBuffer > 0 && harqV.CanInsert())
             {
-                std::vector<std::pair<std::shared_ptr<NrMacSchedulerUeInfo>, uint32_t>> tmp;
-                tmp.emplace_back(ue, totBuffer);
-                activeUe->insert(std::make_pair(ue->m_beamId, tmp));
-            }
-            else
-            {
-                it->second.emplace_back(ue, totBuffer);
+                auto it = activeUe->find(ue->m_beamId);
+                if (it == activeUe->end())
+                {
+                    std::vector<std::pair<std::shared_ptr<NrMacSchedulerUeInfo>, uint32_t>> tmp;
+                    tmp.emplace_back(ue, totBuffer);
+                    activeUe->insert(std::make_pair(ue->m_beamId, tmp));
+                }
+                else
+                {
+                    it->second.emplace_back(ue, totBuffer);
+                }
             }
         }
     }
@@ -1823,6 +1833,8 @@ NrMacSchedulerNs3::ScheduleDl(const NrMacSchedSapProvider::SchedDlTriggerReqPara
     }
     auto& ulAllocations = ulAllocationIt->second;
 
+    SetDlCtrlSyms(1);
+
     // add slot for DL control, at symbol 0
     PrependCtrlSym(0,
                    m_dlCtrlSymbols,
@@ -1841,6 +1853,16 @@ NrMacSchedulerNs3::ScheduleDl(const NrMacSchedSapProvider::SchedDlTriggerReqPara
         ulAllocations.m_totUlSym += m_ulCtrlSymbols;
         dlSlot.m_slotAllocInfo.m_numSymAlloc += m_ulCtrlSymbols;
     }
+
+    // RACH
+    for (const auto & rachReq : m_rachList)
+    {
+        BuildRarListElement_s newRar;
+        newRar.m_rnti = rachReq.m_rnti;
+        // newRar.m_ulGrant is not used
+        dlSlot.m_buildRarList.push_back(newRar);
+    }
+    m_rachList.clear();
 
     // compute active ue in the current subframe, group them by BeamId
     ActiveHarqMap activeDlHarq;
@@ -2048,141 +2070,150 @@ NrMacSchedulerNs3::DoScheduleUl(const std::vector<UlHarqInfo>& ulHarqFeedback,
                                   << " starting from (" << +ulAssignationStartPoint.m_rbg << ", "
                                   << +ulAssignationStartPoint.m_sym << ")");
 
-    // RACH
-    uint8_t usedMsg3 = 0;
-    if (!m_rachList.empty() && (type == LteNrTddSlotType::F || type == LteNrTddSlotType::UL))
+
+    if (!m_macSchedSapUser->IsSSBRequired(ulSfn))
     {
-        usedMsg3 = DoScheduleUlMsg3(&ulAssignationStartPoint, ulSymAvail, allocInfo);
-        NS_ASSERT_MSG(ulSymAvail >= usedMsg3,
-                      "Available: " << +ulSymAvail << " used by UL MSG3: " << +usedMsg3);
-        NS_LOG_INFO("For the slot " << ulSfn << " reserved " << static_cast<uint32_t>(usedMsg3)
-                                    << " symbols for UL MSG3");
-        ulSymAvail -= usedMsg3;
-        allocInfo->m_numSymAlloc += usedMsg3;
-    }
-
-    if (!activeUlHarq.empty())
-    {
-        uint8_t usedHarq = ScheduleUlHarq(&ulAssignationStartPoint,
-                                          ulSymAvail,
-                                          m_ueMap,
-                                          &m_ulHarqToRetransmit,
-                                          ulHarqFeedback,
-                                          allocInfo);
-        NS_ASSERT_MSG(ulSymAvail >= usedHarq,
-                      "Available: " << +ulSymAvail << " used by HARQ: " << +usedHarq);
-        NS_LOG_INFO("For the slot " << ulSfn << " reserved " << static_cast<uint32_t>(usedHarq)
-                                    << " symbols for UL HARQ retx");
-        ulSymAvail -= usedHarq;
-    }
-
-    NS_ASSERT(ulAssignationStartPoint.m_rbg == 0);
-
-    if (ulSymAvail > 0 && !m_srList.empty())
-    {
-        DoScheduleUlSr(&ulAssignationStartPoint, m_srList);
-        m_srList.clear();
-    }
-
-    ActiveUeMap activeUlUe;
-    ComputeActiveUe(&activeUlUe,
-                    &NrMacSchedulerUeInfo::GetUlLCG,
-                    &NrMacSchedulerUeInfo::GetUlHarqVector,
-                    "UL");
-
-    GetSecond GetUeInfoList;
-    for (const auto& alloc : allocInfo->m_varTtiAllocInfo)
-    {
-        for (auto it = activeUlUe.begin(); it != activeUlUe.end(); /* no incr */)
+        // RACH
+        uint8_t usedMsg3 = 0;
+        if (!m_rachList.empty() && (type == LteNrTddSlotType::F || type == LteNrTddSlotType::UL))
         {
-            auto& ueInfos = GetUeInfoList(*it);
-            for (auto ueIt = ueInfos.begin(); ueIt != ueInfos.end(); /* no incr */)
+            usedMsg3 = DoScheduleUlMsg3(&ulAssignationStartPoint, ulSymAvail, allocInfo);
+            NS_ASSERT_MSG(ulSymAvail >= usedMsg3,
+                        "Available: " << +ulSymAvail << " used by UL MSG3: " << +usedMsg3);
+            NS_LOG_INFO("For the slot " << ulSfn << " reserved " << static_cast<uint32_t>(usedMsg3)
+                                        << " symbols for UL MSG3");
+            ulSymAvail -= usedMsg3;
+            allocInfo->m_numSymAlloc += usedMsg3;
+        }
+
+        if (!activeUlHarq.empty())
+        {
+            uint8_t usedHarq = ScheduleUlHarq(&ulAssignationStartPoint,
+                                            ulSymAvail,
+                                            m_ueMap,
+                                            &m_ulHarqToRetransmit,
+                                            ulHarqFeedback,
+                                            allocInfo);
+            NS_ASSERT_MSG(ulSymAvail >= usedHarq,
+                        "Available: " << +ulSymAvail << " used by HARQ: " << +usedHarq);
+            NS_LOG_INFO("For the slot " << ulSfn << " reserved " << static_cast<uint32_t>(usedHarq)
+                                        << " symbols for UL HARQ retx");
+            ulSymAvail -= usedHarq;
+        }
+
+        NS_ASSERT(ulAssignationStartPoint.m_rbg == 0);
+
+        if (ulSymAvail > 0 && !m_srList.empty())
+        {
+            DoScheduleUlSr(&ulAssignationStartPoint, m_srList);
+            m_srList.clear();
+        }
+
+        ActiveUeMap activeUlUe;
+        ComputeActiveUe(&activeUlUe,
+                        &NrMacSchedulerUeInfo::GetUlLCG,
+                        &NrMacSchedulerUeInfo::GetUlHarqVector,
+                        "UL");
+
+        GetSecond GetUeInfoList;
+        for (const auto& alloc : allocInfo->m_varTtiAllocInfo)
+        {
+            for (auto it = activeUlUe.begin(); it != activeUlUe.end(); /* no incr */)
             {
-                GetFirst GetUeInfoPtr;
-                if (GetUeInfoPtr(*ueIt)->m_rnti == alloc.m_dci->m_rnti)
+                auto& ueInfos = GetUeInfoList(*it);
+                for (auto ueIt = ueInfos.begin(); ueIt != ueInfos.end(); /* no incr */)
                 {
-                    NS_LOG_INFO("Removed RNTI " << alloc.m_dci->m_rnti
-                                                << " from active ue list "
-                                                   "because it has already an HARQ scheduled");
-                    ueInfos.erase(ueIt);
-                    break;
+                    GetFirst GetUeInfoPtr;
+                    if (GetUeInfoPtr(*ueIt)->m_rnti == alloc.m_dci->m_rnti)
+                    {
+                        NS_LOG_INFO("Removed RNTI " << alloc.m_dci->m_rnti
+                                                    << " from active ue list "
+                                                    "because it has already an HARQ scheduled");
+                        ueInfos.erase(ueIt);
+                        break;
+                    }
+                    else
+                    {
+                        ++ueIt;
+                    }
+                }
+                if (!ueInfos.empty())
+                {
+                    ++it;
                 }
                 else
                 {
-                    ++ueIt;
+                    activeUlUe.erase(it);
+                    break;
                 }
             }
-            if (!ueInfos.empty())
-            {
-                ++it;
-            }
-            else
-            {
-                activeUlUe.erase(it);
-                break;
-            }
         }
-    }
 
-    if (ulSymAvail > 0 && !activeUlUe.empty())
-    {
-        uint8_t usedUl =
-            DoScheduleUlData(&ulAssignationStartPoint, ulSymAvail, activeUlUe, allocInfo);
-        NS_LOG_INFO("For the slot " << ulSfn << " reserved " << static_cast<uint32_t>(usedUl)
-                                    << " symbols for UL data tx");
-        ulSymAvail -= usedUl;
-    }
-
-    std::vector<uint32_t> symToAl;
-    symToAl.resize(15, 0);
-
-    auto& totUlSym = m_ulAllocationMap.at(ulSfn.GetEncoding()).m_totUlSym;
-    auto& allocations = m_ulAllocationMap.at(ulSfn.GetEncoding()).m_ulAllocations;
-    for (const auto& alloc : allocInfo->m_varTtiAllocInfo)
-    {
-        if (alloc.m_dci->m_format == DciInfoElementTdma::UL)
+        if (ulSymAvail > 0 && !activeUlUe.empty())
         {
-            // Here we are assuming (with the assignment) that all the
-            // allocations starting at a particular symbol will have the same
-            // length.
-            symToAl[alloc.m_dci->m_symStart] = alloc.m_dci->m_numSym;
-            NS_LOG_INFO("UL Allocation. RNTI " << alloc.m_dci->m_rnti << ", symStart "
-                                               << static_cast<uint32_t>(alloc.m_dci->m_symStart)
-                                               << " numSym " << +alloc.m_dci->m_numSym);
+            uint8_t usedUl =
+                DoScheduleUlData(&ulAssignationStartPoint, ulSymAvail, activeUlUe, allocInfo);
+            NS_LOG_INFO("For the slot " << ulSfn << " reserved " << static_cast<uint32_t>(usedUl)
+                                        << " symbols for UL data tx");
+            ulSymAvail -= usedUl;
+        }
 
-            if (alloc.m_dci->m_type == DciInfoElementTdma::DATA ||
-                alloc.m_dci->m_type == DciInfoElementTdma::MSG3)
+        std::vector<uint32_t> symToAl;
+        symToAl.resize(15, 0);
+
+        auto& totUlSym = m_ulAllocationMap.at(ulSfn.GetEncoding()).m_totUlSym;
+        auto& allocations = m_ulAllocationMap.at(ulSfn.GetEncoding()).m_ulAllocations;
+        for (const auto& alloc : allocInfo->m_varTtiAllocInfo)
+        {
+            if (alloc.m_dci->m_format == DciInfoElementTdma::UL)
             {
-                NS_LOG_INFO("Placed the above allocation in the CQI map");
-                allocations.emplace_back(alloc.m_dci->m_rnti,
-                                         alloc.m_dci->m_tbSize,
-                                         alloc.m_dci->m_symStart,
-                                         alloc.m_dci->m_numSym,
-                                         alloc.m_dci->m_mcs,
-                                         alloc.m_dci->m_rank,
-                                         alloc.m_dci->m_rbgBitmask);
+                // Here we are assuming (with the assignment) that all the
+                // allocations starting at a particular symbol will have the same
+                // length.
+                symToAl[alloc.m_dci->m_symStart] = alloc.m_dci->m_numSym;
+                NS_LOG_INFO("UL Allocation. RNTI " << alloc.m_dci->m_rnti << ", symStart "
+                                                << static_cast<uint32_t>(alloc.m_dci->m_symStart)
+                                                << " numSym " << +alloc.m_dci->m_numSym);
+
+                if (alloc.m_dci->m_type == DciInfoElementTdma::DATA ||
+                    alloc.m_dci->m_type == DciInfoElementTdma::MSG3)
+                {
+                    NS_LOG_INFO("Placed the above allocation in the CQI map");
+                    allocations.emplace_back(alloc.m_dci->m_rnti,
+                                            alloc.m_dci->m_tbSize,
+                                            alloc.m_dci->m_symStart,
+                                            alloc.m_dci->m_numSym,
+                                            alloc.m_dci->m_mcs,
+                                            alloc.m_dci->m_rank,
+                                            alloc.m_dci->m_rbgBitmask);
+                }
             }
         }
-    }
 
-    for (const auto& v : symToAl)
+        for (const auto& v : symToAl)
+        {
+            totUlSym += v;
+        }
+
+        NS_ASSERT_MSG((dataSymPerSlot + m_ulCtrlSymbols) - ulSymAvail == totUlSym,
+                    "UL symbols available: "
+                        << static_cast<uint32_t>(dataSymPerSlot + m_ulCtrlSymbols)
+                        << " UL symbols available at end of sched: "
+                        << static_cast<uint32_t>(ulSymAvail)
+                        << " total of symbols registered in the allocation: "
+                        << static_cast<uint32_t>(totUlSym) << " slot type " << type);
+
+        NS_LOG_INFO("For the slot " << ulSfn << " registered a total of "
+                                    << static_cast<uint32_t>(totUlSym) << " symbols and "
+                                    << allocations.size() << " data allocations, with a total of "
+                                    << allocInfo->m_varTtiAllocInfo.size());
+        NS_ASSERT(m_ulAllocationMap.at(ulSfn.GetEncoding()).m_totUlSym == totUlSym);
+    }
+    else
     {
-        totUlSym += v;
+        // Slot used for SSB, don't schedule anything!
+        ulSymAvail -= ulSymAvail;
     }
-
-    NS_ASSERT_MSG((dataSymPerSlot + m_ulCtrlSymbols) - ulSymAvail == totUlSym,
-                  "UL symbols available: "
-                      << static_cast<uint32_t>(dataSymPerSlot + m_ulCtrlSymbols)
-                      << " UL symbols available at end of sched: "
-                      << static_cast<uint32_t>(ulSymAvail)
-                      << " total of symbols registered in the allocation: "
-                      << static_cast<uint32_t>(totUlSym) << " slot type " << type);
-
-    NS_LOG_INFO("For the slot " << ulSfn << " registered a total of "
-                                << static_cast<uint32_t>(totUlSym) << " symbols and "
-                                << allocations.size() << " data allocations, with a total of "
-                                << allocInfo->m_varTtiAllocInfo.size());
-    NS_ASSERT(m_ulAllocationMap.at(ulSfn.GetEncoding()).m_totUlSym == totUlSym);
 
     return dataSymPerSlot - ulSymAvail;
 }
@@ -2372,66 +2403,82 @@ NrMacSchedulerNs3::DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
                  << " Active Beams DL HARQ: " << activeDlHarq.size()
                  << " sym available: " << static_cast<uint32_t>(dlSymAvail) << " starting from sym "
                  << static_cast<uint32_t>(m_dlCtrlSymbols));
-
-    if (!activeDlHarq.empty())
+    
+    if (!m_macSchedSapUser->IsSSBRequired(dlSfnSf))
     {
-        uint8_t usedHarq = ScheduleDlHarq(&dlAssignationStartPoint,
-                                          dlSymAvail,
-                                          activeDlHarq,
-                                          m_ueMap,
-                                          &m_dlHarqToRetransmit,
-                                          dlHarqFeedback,
-                                          allocInfo);
-        NS_ASSERT_MSG(dlSymAvail >= usedHarq,
-                      "DlSymAvail (" << +dlSymAvail << ") < usedHarq (" << +usedHarq << ")");
-        dlSymAvail -= usedHarq;
-        dlAssignationStartPoint.m_sym += usedHarq;
-        allocInfo->m_numSymAlloc += usedHarq;
-    }
-
-    GetSecond GetUeInfoList;
-
-    for (const auto& alloc : allocInfo->m_varTtiAllocInfo)
-    {
-        for (auto it = activeDlUe->begin(); it != activeDlUe->end(); /* no incr */)
+        if (!activeDlHarq.empty())
         {
-            auto& ueInfos = GetUeInfoList(*it);
-            for (auto ueIt = ueInfos.begin(); ueIt != ueInfos.end(); /* no incr */)
+            uint8_t usedHarq = ScheduleDlHarq(&dlAssignationStartPoint,
+                                            dlSymAvail,
+                                            activeDlHarq,
+                                            m_ueMap,
+                                            &m_dlHarqToRetransmit,
+                                            dlHarqFeedback,
+                                            allocInfo);
+            NS_ASSERT_MSG(dlSymAvail >= usedHarq,
+                        "DlSymAvail (" << +dlSymAvail << ") < usedHarq (" << +usedHarq << ")");
+            dlSymAvail -= usedHarq;
+            dlAssignationStartPoint.m_sym += usedHarq;
+            allocInfo->m_numSymAlloc += usedHarq;
+        }
+
+        GetSecond GetUeInfoList;
+
+        for (const auto& alloc : allocInfo->m_varTtiAllocInfo)
+        {
+            for (auto it = activeDlUe->begin(); it != activeDlUe->end(); /* no incr */)
             {
-                GetFirst GetUeInfoPtr;
-                if (GetUeInfoPtr(*ueIt)->m_rnti == alloc.m_dci->m_rnti)
+                auto& ueInfos = GetUeInfoList(*it);
+                for (auto ueIt = ueInfos.begin(); ueIt != ueInfos.end(); /* no incr */)
                 {
-                    NS_LOG_INFO("Removed RNTI " << alloc.m_dci->m_rnti
-                                                << " from active ue list "
-                                                   "because it has already an HARQ scheduled");
-                    ueInfos.erase(ueIt);
-                    break;
+                    GetFirst GetUeInfoPtr;
+                    if (GetUeInfoPtr(*ueIt)->m_rnti == alloc.m_dci->m_rnti)
+                    {
+                        NS_LOG_INFO("Removed RNTI " << alloc.m_dci->m_rnti
+                                                    << " from active ue list "
+                                                    "because it has already an HARQ scheduled");
+                        ueInfos.erase(ueIt);
+                        break;
+                    }
+                    else
+                    {
+                        ++ueIt;
+                    }
+                }
+                if (!ueInfos.empty())
+                {
+                    ++it;
                 }
                 else
                 {
-                    ++ueIt;
+                    activeDlUe->erase(it);
+                    break;
                 }
             }
-            if (!ueInfos.empty())
-            {
-                ++it;
-            }
-            else
-            {
-                activeDlUe->erase(it);
-                break;
-            }
+        }
+
+        NS_ASSERT(dlAssignationStartPoint.m_rbg == 0);
+
+        if (dlSymAvail > 0 && !activeDlUe->empty())
+        {
+            uint8_t usedDl =
+                DoScheduleDlData(&dlAssignationStartPoint, dlSymAvail, *activeDlUe, allocInfo);
+            NS_ASSERT(dlSymAvail >= usedDl);
+            dlSymAvail -= usedDl;
         }
     }
-
-    NS_ASSERT(dlAssignationStartPoint.m_rbg == 0);
-
-    if (dlSymAvail > 0 && !activeDlUe->empty())
+    else
     {
-        uint8_t usedDl =
-            DoScheduleDlData(&dlAssignationStartPoint, dlSymAvail, *activeDlUe, allocInfo);
-        NS_ASSERT(dlSymAvail >= usedDl);
-        dlSymAvail -= usedDl;
+        FormSSBlock (false, &dlAssignationStartPoint, allocInfo, dlSymAvail);
+
+        if (dlSymAvail == 12)
+        {
+            dlSymAvail -= 12;
+        }
+        else if (dlSymAvail == 13)
+        {
+            dlSymAvail -= 13;
+        }
     }
 
     return (dataSymPerSlot - ulAllocations.m_totUlSym) - dlSymAvail;
@@ -2491,7 +2538,7 @@ NrMacSchedulerNs3::DoSchedDlTriggerReq(
             auto& process = ueInfo->m_dlHarq.Find(it->m_harqProcessId)->second;
             NS_LOG_INFO("Analyzing feedback for UE " << it->m_rnti << " process "
                                                      << static_cast<uint32_t>(it->m_harqProcessId));
-            if (!process.m_active)
+            if (!process.m_active || IAisPerformed.at(it->m_rnti) == true)
             {
                 NS_LOG_INFO("Feedback for UE " << it->m_rnti << " process "
                                                << static_cast<uint32_t>(it->m_harqProcessId)
@@ -2746,6 +2793,170 @@ NrMacSchedulerNs3::ReshapeAllocation(const std::vector<DciInfoElementTdma>& dcis
         return {};
     }
     return DoReshapeAllocation(dcis, startingSymbol, numSymbols, bitmask, isDl, m_ueMap);
+}
+
+// ---------------------- MODIFIED -----------------------
+uint8_t
+NrMacSchedulerNs3::FormSSBlock (bool hasAccompanyingData, PointInFTPlane *startingPoint, SlotAllocInfo *slotAlloc, uint8_t availSym)
+{
+  if (hasAccompanyingData)
+  {
+    std::shared_ptr<DciInfoElementTdma> ssbDciInfo = std::make_shared<DciInfoElementTdma>
+                (startingPoint->m_sym, 4, DciInfoElementTdma::DL, DciInfoElementTdma::CTRL,
+                std::vector<bool> (GetBandwidthInRbg (),1));
+
+    ssbDciInfo->ssbBeamId = GetSSBBeamId (slotAlloc, startingPoint->m_sym);
+    VarTtiAllocInfo ssbVarTti (ssbDciInfo);
+    slotAlloc->m_varTtiAllocInfo.emplace_back (ssbVarTti);
+    startingPoint->m_rbg = 0;
+    startingPoint->m_sym += 4;
+    slotAlloc->m_numSymAlloc += 4;
+    return ssbDciInfo->m_numSym;
+  }
+  else
+  {
+    auto usedSymbols = 0;
+
+    // HAS NO ACCOMPANYING DATA: HENCE SEND EMPTY DCI ON SYMBOLS WITH INDEX 1, 6, 7, 12
+    std::shared_ptr<DciInfoElementTdma> emptySlotDciInfo = std::make_shared<DciInfoElementTdma>
+                (startingPoint->m_sym, 1, DciInfoElementTdma::DL, DciInfoElementTdma::CTRL,
+                std::vector<bool> (GetBandwidthInRbg (), 0));
+    VarTtiAllocInfo emptySlotVarTti (emptySlotDciInfo);
+    slotAlloc->m_varTtiAllocInfo.emplace_back (emptySlotVarTti);
+
+    startingPoint->m_rbg = 0;
+    startingPoint->m_sym += 1;
+    
+    // FIRST SSB WITHIN THE SLOT
+    std::shared_ptr<DciInfoElementTdma> ssbDciInfo = std::make_shared<DciInfoElementTdma>
+                (startingPoint->m_sym, 4, DciInfoElementTdma::DL, DciInfoElementTdma::CTRL,
+                std::vector<bool> (GetBandwidthInRbg (),1));
+
+    ssbDciInfo->ssbBeamId = GetSSBBeamId (slotAlloc, startingPoint->m_sym);
+    VarTtiAllocInfo ssbVarTti (ssbDciInfo);
+    slotAlloc->m_varTtiAllocInfo.emplace_back (ssbVarTti);
+    startingPoint->m_rbg = 0;
+    startingPoint->m_sym += 4;
+    usedSymbols += 4;
+
+    //EMPTY SYMBOLS FOR INDEXES 6 AND 7
+    std::shared_ptr<DciInfoElementTdma> emptySlotDciInfo2 = std::make_shared<DciInfoElementTdma>
+                (startingPoint->m_sym, 2, DciInfoElementTdma::DL, DciInfoElementTdma::CTRL,
+                std::vector<bool> (GetBandwidthInRbg (), 0));
+    VarTtiAllocInfo emptySlotVarTti2 (emptySlotDciInfo2);
+    slotAlloc->m_varTtiAllocInfo.emplace_back (emptySlotVarTti2);
+
+    startingPoint->m_rbg = 0;
+    startingPoint->m_sym += 2;
+
+    // SECOND SSB WITHIN THE SLOT
+    std::shared_ptr<DciInfoElementTdma> ssbDciInfo2 = std::make_shared<DciInfoElementTdma>
+                (startingPoint->m_sym, 4, DciInfoElementTdma::DL, DciInfoElementTdma::CTRL,
+                std::vector<bool> (GetBandwidthInRbg (),1));
+    if (m_gnbBeamVectorList.size () % 2 == 1           && 
+        slotAlloc->m_sfnSf.GetSubframe () == 3         &&
+        slotAlloc->m_sfnSf.GetSlot () == 7)
+    {
+      ///THIS IS THE CASE WHERE WE HAVE ODD NUMBER OF SECTIONS (SECTOR/ELEVATION PAIR)
+      ///LAST SLOT IN A SEQUENCE SHOULD BE EMPTY
+      std::shared_ptr<DciInfoElementTdma> emptySlotDciInfo2 = std::make_shared<DciInfoElementTdma>
+                (startingPoint->m_sym, 4, DciInfoElementTdma::DL, DciInfoElementTdma::CTRL,
+                std::vector<bool> (GetBandwidthInRbg (), 0));
+      VarTtiAllocInfo emptySlotVarTti2 (emptySlotDciInfo2);
+      slotAlloc->m_varTtiAllocInfo.emplace_back (emptySlotVarTti2);
+
+      startingPoint->m_rbg = 0;
+      startingPoint->m_sym += 4;
+      usedSymbols += 8;
+    }
+    else
+    {
+      ssbDciInfo2->ssbBeamId = GetSSBBeamId (slotAlloc, startingPoint->m_sym);
+      VarTtiAllocInfo ssbVarTti2 (ssbDciInfo2);
+      slotAlloc->m_varTtiAllocInfo.emplace_back (ssbVarTti2);
+      startingPoint->m_rbg = 0;
+      startingPoint->m_sym += 4;
+      usedSymbols += 4;  
+    }   
+
+    //EMPTY SYMBOL FOR THE INDEX 12
+    uint8_t lastEmptySymbolLength;
+    if (availSym == 12)
+    {
+      lastEmptySymbolLength = 1;
+    }
+    else if (availSym == 13)
+    {
+      lastEmptySymbolLength = 2;
+    }
+    else
+    {
+      lastEmptySymbolLength = 0;
+    }
+    
+    std::shared_ptr<DciInfoElementTdma> emptySlotDciInfo3 = std::make_shared<DciInfoElementTdma>
+                (startingPoint->m_sym, lastEmptySymbolLength, DciInfoElementTdma::DL, DciInfoElementTdma::CTRL,
+                std::vector<bool> (GetBandwidthInRbg (), 0));
+    VarTtiAllocInfo emptySlotVarTti3 (emptySlotDciInfo3);
+    slotAlloc->m_varTtiAllocInfo.emplace_back (emptySlotVarTti3);
+
+    startingPoint->m_rbg = 0;
+    startingPoint->m_sym += lastEmptySymbolLength;
+    // slotAlloc->m_numSymAlloc += (usedSymbols + lastEmptySymbolLength);
+    slotAlloc->m_numSymAlloc += usedSymbols;
+  }
+  
+  return 0;
+}
+
+BeamId
+NrMacSchedulerNs3::GetSSBBeamId (SlotAllocInfo *slotAlloc, uint8_t symbolLocation)
+{
+  NS_ASSERT_MSG (m_sfsnBeamVectorMap.size () != 0, "Subframe/Slot Number - BeamVector Map should not be zero");
+  if (symbolLocation == 2)
+  {
+    return m_sfsnBeamVectorMap[slotAlloc->m_sfnSf.GetSubframe()][slotAlloc->m_sfnSf.GetSlot()][0];
+  }
+  else if (symbolLocation == 8)
+  {
+    return m_sfsnBeamVectorMap[slotAlloc->m_sfnSf.GetSubframe()][slotAlloc->m_sfnSf.GetSlot()][1];
+  }
+  else
+  {
+    NS_ABORT_MSG("Invalid symbol start for the SSB");
+    return BeamId (0,0);
+  }
+
+}
+
+void 
+NrMacSchedulerNs3::DoSetGnbBeamVectorList (std::vector<BeamId> gnbBeamVectorList)
+{
+  NS_ASSERT(gnbBeamVectorList.size() >= 64);
+  
+  m_gnbBeamVectorList = gnbBeamVectorList;
+  for (uint8_t sfn = 0; sfn < 4; sfn++)
+  {
+    for (uint8_t sn = 0; sn < 8; sn++)
+    {
+      m_sfsnBeamVectorMap[sfn][sn][0] = gnbBeamVectorList.at((16 * sfn) + 2 * sn);
+      m_sfsnBeamVectorMap[sfn][sn][1] = gnbBeamVectorList.at((16 * sfn) + 2 * sn + 1);
+    }
+  }
+}
+
+void
+NrMacSchedulerNs3::DoSetIAStateOfMacSched (bool iaPerformed, uint16_t rnti)
+{
+  if (IAisPerformed.find(rnti) == IAisPerformed.end())
+  {
+    IAisPerformed.insert({rnti, iaPerformed});
+  }
+  else
+  {
+    IAisPerformed.at(rnti) = iaPerformed;
+  }
+  m_dlHarqToRetransmit.clear ();
 }
 
 } // namespace ns3

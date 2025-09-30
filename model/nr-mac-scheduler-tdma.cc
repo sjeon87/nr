@@ -665,4 +665,27 @@ NrMacSchedulerTdma::DoReshapeAllocation(
     }
     return reshapedDcis;
 }
+
+// -------------------------- MODIFIED ---------------------------
+void 
+NrMacSchedulerTdma::DoSetGnbBeamVectorList (std::vector<BeamId> gnbBeamVectorList)
+{
+  if (m_gnbBeamVectorList.size() == 0)
+  {
+    m_gnbBeamVectorList = gnbBeamVectorList;
+
+    for (uint8_t sfn = 0; sfn < 4; sfn++)
+    {
+      for (uint8_t sn = 0; sn < 8; sn++)
+      {
+        m_sfsnBeamVectorMap[sfn][sn][0] = gnbBeamVectorList.at((16 * sfn) + 2 * sn);
+        if (!(sn == 7 && sfn == 3)|| gnbBeamVectorList.size() % 2 != 1)
+        {
+          m_sfsnBeamVectorMap[sfn][sn][1] = gnbBeamVectorList.at((16 * sfn) + 2 * sn + 1);
+        }        
+      }
+    }
+  }  
+}
+
 } // namespace ns3
