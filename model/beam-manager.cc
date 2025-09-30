@@ -236,7 +236,7 @@ BeamManager::SetSectorAz(double azimuth, double zenith) const
 double
 BeamManager::GetAntennaArrayGainDb(Angles angle)
 {
-  return m_antennaArray->GetGainDb(angle);
+  return 4.97;
 }
 
 } /* namespace ns3 */

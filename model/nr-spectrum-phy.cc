@@ -747,7 +747,7 @@ NrSpectrumPhy::StartRx(Ptr<SpectrumSignalParameters> params)
             // -------------------------- MODIFIED ----------------------
             double antennaGainLinear = std::pow(10.0,
                                                 (dlCtrlRxParams->txAntennaGain +
-                                                 StaticCast<UniformPlanarArray>(GetAntenna())->GetGainDb()) /
+                                                 4.97) /
                                                  10.0);
             SpectrumValue sinr = *(rxPsd)*antennaGainLinear / (*m_noisePsd);
             dlCtrlRxParams->sinrAvg = Sum(sinr) / (sinr.GetSpectrumModel()->GetNumBands());
