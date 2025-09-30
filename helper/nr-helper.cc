@@ -143,7 +143,37 @@ NrHelper::GetTypeId()
                           StringValue("ns3::NrNoOpHandoverAlgorithm"),
                           MakeStringAccessor(&NrHelper::SetHandoverAlgorithmType,
                                              &NrHelper::GetHandoverAlgorithmType),
-                          MakeStringChecker());
+                          MakeStringChecker())
+            .AddAttribute ("AdaptiveBeamforming",
+                        "Boolean which indicates whether adaptive or periodic beamforming is performed",
+                        BooleanValue (true),
+                        MakeBooleanAccessor (&NrHelper::m_adaptiveBF),
+                        MakeBooleanChecker ())
+            .AddAttribute ("RealisticIA",
+                        "Boolean which indicates whether realistic IA scheme will be employed or not",
+                        BooleanValue (false),
+                        MakeBooleanAccessor (&NrHelper::m_realisticIA),
+                        MakeBooleanChecker ())
+            .AddAttribute ("RadioLinkMonitoring",
+                        "Boolean which indicates whether radio link monitoring will be performed",
+                        BooleanValue (false),
+                        MakeBooleanAccessor (&NrHelper::m_rlmOn),
+                        MakeBooleanChecker ())
+            .AddAttribute ("NumberOfSSBsPerSlot",
+                           "Number of SS Blocks within a single slot",
+                            UintegerValue(2),
+                            MakeUintegerAccessor (&NrHelper::m_noOfSSBsPerSlot),
+                            MakeUintegerChecker<uint8_t> (0,10))
+            .AddAttribute ("NumberOfRLMDirections",
+                   "Number of Beam Pair Links that will be monitored by RLM",
+                   UintegerValue (8),
+                   MakeUintegerAccessor (&NrHelper::m_noOfBeamsTbRLM),
+                   MakeUintegerChecker<uint8_t> (0, 1000))
+            .AddAttribute ("NumberOfRLMBeamsTbReported",
+                        "Number of Beam Pair Links that will be reported",
+                        UintegerValue (4),
+                        MakeUintegerAccessor (&NrHelper::m_noOfBeamsTbReported),
+                        MakeUintegerChecker<uint8_t> (0,1000));
     return tid;
 }
 
@@ -390,16 +420,20 @@ NrHelper::CreateUePhy(const Ptr<Node>& n,
 
     bool usingUniformPlanarArray =
         m_ueAntennaFactory.GetTypeId() == UniformPlanarArray::GetTypeId();
+
     // Create n antenna panels and beam manager for Ue
     for (auto i = 0; i < channelPhy->GetNumPanels(); i++)
     {
         auto antenna = m_ueAntennaFactory.Create(); // Create antenna object per panel
+        
         channelPhy->AddPanel(antenna);
         // Check if the antenna is a uniform planar array type
         if (usingUniformPlanarArray)
         {
             Ptr<BeamManager> beamManager = m_ueBeamManagerFactory.Create<BeamManager>();
             auto uniformPlanarArray = DynamicCast<UniformPlanarArray>(antenna);
+            uniformPlanarArray->SetAttribute("HorizontalBeamStep", DoubleValue(phy->GetUeHorizontalAngleStep()));
+            uniformPlanarArray->SetAttribute("VerticalBeamStep", DoubleValue(phy->GetUeVerticalAngleStep()));
             beamManager->Configure(uniformPlanarArray);
             channelPhy->AddBeamManager(beamManager);
         }
@@ -465,6 +499,14 @@ NrHelper::CreateUePhy(const Ptr<Node>& n,
     channelPhy->SetPhyRxCtrlEndOkCallback(phyRxCtrlCallback);
     channelPhy->SetPhyRxPssCallback(MakeCallback(&NrUePhy::ReceivePss, phy));
     phy->InstallSpectrumPhy(channelPhy);
+
+    if (m_realisticIA)
+    {
+        // bwp->GetChannel()->AddRx(channelPhy);
+    }
+
+    phy->DoSetInitialIAState(m_realisticIA);
+    // phy->InstallAntenna(antenna);
     return phy;
 }
 
@@ -479,6 +521,7 @@ NrHelper::InstallSingleUeDevice(
     dev->SetNode(n);
 
     std::map<uint8_t, Ptr<BandwidthPartUe>> ueCcMap;
+    uint16_t beamVectorMapSize;
 
     // Create, for each ue, its bandwidth parts
     for (uint32_t bwpId = 0; bwpId < allBwps.size(); ++bwpId)
@@ -503,6 +546,29 @@ NrHelper::InstallSingleUeDevice(
             std::bind(&NrUeNetDevice::RouteIngoingCtrlMsgs, dev, std::placeholders::_1, bwpId));
 
         phy->SetBwpId(bwpId);
+        // ---------------------- MODIFIED ----------------
+        phy->SetDevice (dev);
+        phy->GetSpectrumPhy ()->SetDevice (dev);
+
+        if (m_realisticIA)
+        {
+            phy->GetSpectrumPhy ()->SetIAState (true);
+        }      
+        else
+        {
+            phy->GetSpectrumPhy ()->SetIAState (false);
+        }
+        
+        phy->SetNoOfBeamsTbRLM (m_noOfBeamsTbRLM);
+        phy->SetNoOfBeamsTbReported (m_noOfBeamsTbReported);
+        phy->SetNoOfSSBsPerSlot (m_noOfSSBsPerSlot);
+        beamVectorMapSize = phy->DoGenerateBeamVectorMap().size ();
+        phy->m_beamSweepTimer = TimeValue (MilliSeconds(double(beamVectorMapSize) * 20.0 * 1.25));
+        phy->SetAdaptiveBFProperty (m_adaptiveBF);
+        phy->m_realisticIA = m_realisticIA;
+        phy->m_rlmOn = m_rlmOn;
+        phy->SetPHYEpcHelper (m_nrEpcHelper);
+
         cc->SetPhy(phy);
 
         if (bwpId == 0)
@@ -517,6 +583,12 @@ NrHelper::InstallSingleUeDevice(
         ueCcMap.insert(std::make_pair(bwpId, cc));
     }
 
+    // ----------------------- MODIFIED ---------------------
+    TimeValue beamSweepTimer = TimeValue (MilliSeconds (20.0 * double (beamVectorMapSize) * 1.25));
+    Config::SetDefault ("ns3::NrUeRrc::BeamSweepTimer", beamSweepTimer);
+    Config::SetDefault ("ns3::NrUeRrc::StartBeamSweepTimer", beamSweepTimer);
+    Config::SetDefault ("ns3::NrGnbRrc::BeamSweepTimeoutDuration", beamSweepTimer);
+    
     Ptr<NrUeComponentCarrierManager> ccmUe =
         DynamicCast<NrUeComponentCarrierManager>(CreateObject<BwpManagerUe>());
     DynamicCast<BwpManagerUe>(ccmUe)->SetBwpManagerAlgorithm(
@@ -571,6 +643,9 @@ NrHelper::InstallSingleUeDevice(
     nas->SetForwardUpCallback(MakeCallback(&NrUeNetDevice::Receive, dev));
 
     rrc->SetAsSapUser(nas->GetAsSapUser());
+    // ------------------ MODIFIED -----------------
+    rrc->m_rlmOn = m_rlmOn;
+    // ---------------------------------------------
 
     for (auto& it : ueCcMap)
     {
@@ -607,6 +682,8 @@ NrHelper::InstallSingleUeDevice(
     }
 
     rrc->InitializeSrb0();
+    dev->Initialize();
+
     return dev;
 }
 
@@ -619,6 +696,9 @@ NrHelper::CreateGnbPhy(const Ptr<Node>& n,
     NS_LOG_FUNCTION(this);
 
     Ptr<NrGnbPhy> phy = m_gnbPhyFactory.Create<NrGnbPhy>();
+    // Ptr<UniformPlanarArray> antenna = m_gnbAntennaFactory.Create <UniformPlanarArray> ();
+    // antenna->SetAttribute ("HorizontalBeamStep", DoubleValue (phy->GetGnbHorizontalAngleStep ()));
+    // antenna->SetAttribute ("VerticalBeamStep", DoubleValue (phy->GetGnbVerticalAngleStep ()));
 
     DoubleValue frequency;
     phy->InstallCentralFrequency(bwp->m_centralFrequency);
@@ -695,6 +775,7 @@ NrHelper::CreateGnbPhy(const Ptr<Node>& n,
     {
         phy->EnableCsiRs();
     }
+    phy->InstallSpectrumPhy(channelPhy);
     return phy;
 }
 
@@ -741,7 +822,8 @@ NrHelper::InstallSingleGnbDevice(
     Ptr<NrGnbNetDevice> dev = m_gnbNetDeviceFactory.Create<NrGnbNetDevice>();
 
     NS_LOG_DEBUG("Creating gNB, cellId = " << m_cellIdCounter);
-    uint16_t cellId = m_cellIdCounter++; // New cellId
+    // uint16_t cellId = m_cellIdCounter++; // New cellId
+    uint16_t cellId = m_cellIdCounter; // New cellId
     dev->SetCellId(cellId);
     dev->SetNode(n);
 
@@ -766,10 +848,10 @@ NrHelper::InstallSingleGnbDevice(
 
         cc->SetUlBandwidth(static_cast<uint16_t>(bwInKhz / 100));
         cc->SetDlBandwidth(static_cast<uint16_t>(bwInKhz / 100));
-        cc->SetDlEarfcn(0);              // Argh... handover not working
-        cc->SetUlEarfcn(0);              // Argh... handover not working
-        cc->SetCellId(cellId);           // All CCs have the same cellId
-        cc->SetCsgId(m_cellIdCounter++); // CSG IDs starts matching cellId, then gets incremented
+        cc->SetDlEarfcn(bwpId + 1);              // Argh... handover not working
+        cc->SetUlEarfcn(bwpId + 1);              // Argh... handover not working
+        cc->SetCellId(m_cellIdCounter++);           // All CCs have the same cellId
+        cc->SetCsgId(m_cellIdCounter); // CSG IDs starts matching cellId, then gets incremented
 
         auto phy = CreateGnbPhy(
             n,
@@ -777,6 +859,16 @@ NrHelper::InstallSingleGnbDevice(
             dev,
             std::bind(&NrGnbNetDevice::RouteIngoingCtrlMsgs, dev, std::placeholders::_1, bwpId));
         phy->SetBwpId(bwpId);
+        // -------------------- MODIFIED ----------------------
+        phy->SetAdaptiveBFProperty(m_adaptiveBF);
+        phy->m_realisticIA = m_realisticIA;
+        phy->m_rlmOn = m_rlmOn;
+        phy->SetNoOfBeamsTbRLM (m_noOfBeamsTbRLM);
+        phy->SetNoOfBeamsTbReported (m_noOfBeamsTbReported);
+        phy->SetNoOfSSBsPerSlot (m_noOfSSBsPerSlot);
+        phy->SetPHYEpcHelper (m_nrEpcHelper);
+        // ----------------------------------------------------
+
         cc->SetPhy(phy);
 
         auto mac = CreateGnbMac();
@@ -822,6 +914,10 @@ NrHelper::InstallSingleGnbDevice(
 
     ccmGnbManager->SetNumberOfComponentCarriers(ccMap.size());
     rrc->ConfigureCarriers(ccPhyConfMap);
+
+    // ------------------------ MODIFIED ------------------
+    rrc->m_realisticIA = m_realisticIA;
+    // ----------------------------------------------------
 
     // nr module currently uses only RRC ideal mode
     if (m_useIdealRrc)
@@ -887,6 +983,10 @@ NrHelper::InstallSingleGnbDevice(
         // Scheduler SAP END
 
         it.second->GetMac()->SetNrCcmMacSapUser(ccmGnbManager->GetNrCcmMacSapUser());
+        // ------------------------------ MODIFIED ------------------
+        it.second->GetMac()->m_realisticIA = m_realisticIA;
+        it.second->GetMac()->m_rlmON = m_rlmOn;
+        // ----------------------------------------------------------
         ccmGnbManager->SetCcmMacSapProviders(it.first,
                                              it.second->GetMac()->GetNrCcmMacSapProvider());
 
@@ -1111,7 +1211,45 @@ NrHelper::AttachToClosestGnb(const Ptr<NetDevice>& ueDevice, const NetDeviceCont
     }
     NS_ASSERT(closestGnbDevice);
 
-    AttachToGnb(ueDevice, closestGnbDevice);
+    // ------------------------------- MODIFIED ----------------------------------
+    if (m_realisticIA)
+    {
+        Ptr<NrUeNetDevice> ueNetDev = ueDevice->GetObject<NrUeNetDevice>();
+
+        for (NetDeviceContainer::Iterator i = gnbDevices.Begin(); i != gnbDevices.End(); i++)
+        {
+            Ptr<NrGnbNetDevice> gnbNetDev = (*i)->GetObject<NrGnbNetDevice>();
+
+            std::map<uint8_t, Ptr<BandwidthPartGnb>> gnbBwpMap = gnbNetDev->GetCcMap();
+
+            for (std::map<uint8_t, Ptr<BandwidthPartGnb>>::iterator itGnb = gnbBwpMap.begin (); itGnb != gnbBwpMap.end (); ++itGnb)
+            {
+                uint16_t nrCellId = itGnb->second->GetCellId ();
+                itGnb->second->GetPhy ()->RegisterUe (ueNetDev->GetImsi (), ueNetDev);
+                //Register to other GNB using BWP ID as well
+                itGnb->second->GetPhy ()->GetBwpId ();
+
+                std::map<uint8_t, Ptr<BandwidthPartUe>> ueCcMap = ueNetDev->GetCcMap ();
+                for (std::map<uint8_t, Ptr<BandwidthPartUe>>::iterator itUe = ueCcMap.begin (); itUe != ueCcMap.end (); ++itUe)
+                {
+                    itUe->second->GetPhy ()->RegisterOtherGnb (nrCellId, gnbNetDev);
+                }
+                NS_LOG_INFO ("nrCellId " << nrCellId);
+            }
+            // if (!m_realisticIA)
+            // {
+            //     m_beamformingHelper->AddBeamformingTask (gnbNetDev, ueNetDev);
+            // }
+            // gnbNetDev->GetPhy(0)->GetBeamManager()->SetSector(0, 50);
+            gnbNetDev->GetPhy(0)->GetSpectrumPhy()->GetBeamManager()->SetSector(0, 50);
+            ueNetDev->GetPhy(0)->GetSpectrumPhy()->GetBeamManager()->SetSector(0, 70);
+            // ueNetDev->GetPhy(0)->GetBeamManager()->SetSector(0, 70);
+        }
+    }
+    else
+    {
+        AttachToGnb(ueDevice, closestGnbDevice);
+    }
 }
 
 void
@@ -1673,6 +1811,7 @@ NrHelper::EnableTraces()
     EnableDlMacSchedTraces();
     EnableUlMacSchedTraces();
     EnablePathlossTraces();
+    EnableBeamSweepTrace ();
 }
 
 Ptr<NrPhyRxTrace>
@@ -1693,6 +1832,22 @@ NrHelper::GetMacRxTrace()
         m_macStats = CreateObject<NrMacRxTrace>();
     }
     return m_macStats;
+}
+
+void
+NrHelper::EnableBeamSweepTrace (void)
+{
+    Config::Connect ("/NodeList/*/DeviceList/*/BandwidthPartMap/*/NrGnbPhy/BeamSweepTrace",
+                    MakeBoundCallback(&NrPhyRxTrace::BeamSweepTraceCallback, GetPhyRxTrace()));
+
+    Config::Connect ("/NodeList/*/DeviceList/*/ComponentCarrierMapUe/*/NrUePhy/BeamSweepTrace",
+                    MakeBoundCallback(&NrPhyRxTrace::BeamSweepTraceCallback, GetPhyRxTrace()));
+
+    Config::Connect ("/NodeList/*/DeviceList/*/NrGnbRrc/BeamSweepInitialization",
+                    MakeBoundCallback(&NrPhyRxTrace::BeamSweepTraceCallback, GetPhyRxTrace()));
+
+    Config::Connect ("/NodeList/*/DeviceList/*/NrUeRrc/BeamSweepTrace",
+                    MakeBoundCallback(&NrPhyRxTrace::BeamSweepTraceCallback, GetPhyRxTrace()));
 }
 
 void

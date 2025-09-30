@@ -166,6 +166,8 @@ class MacUeMemberPhySapUser : public NrUePhySapUser
 
     uint8_t GetNumHarqProcess() const override;
 
+    virtual void NotifyMacForRA (Time delay) override;
+
   private:
     NrUeMac* m_mac;
 };
@@ -197,6 +199,12 @@ uint8_t
 MacUeMemberPhySapUser::GetNumHarqProcess() const
 {
     return m_mac->GetNumHarqProcess();
+}
+
+void 
+MacUeMemberPhySapUser::NotifyMacForRA (Time delay)
+{
+  m_mac->ScheduleRAProcedure (delay);
 }
 
 //-----------------------------------------------------------------------
@@ -1240,13 +1248,16 @@ NrUeMac::SendRaPreamble(bool contention)
     Time raWindowBegin = m_phySapProvider->GetSlotPeriod();
     Time raWindowEnd = m_phySapProvider->GetSlotPeriod() * (6 + m_rachConfig.raResponseWindowSize);
     Simulator::Schedule(raWindowBegin, &NrUeMac::StartWaitingForRaResponse, this);
+    
     m_noRaResponseReceivedEvent =
         Simulator::Schedule(raWindowEnd, &NrUeMac::RaResponseTimeout, this, contention);
+    
 
     // Tracing purposes
     Ptr<NrRachPreambleMessage> rachMsg = Create<NrRachPreambleMessage>();
     rachMsg->SetSourceBwp(GetBwpId());
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), rachMsg);
+    
 }
 
 void
@@ -1359,6 +1370,13 @@ NrUeMac::DoAssignStreams(int64_t stream)
     NS_LOG_FUNCTION(this << stream);
     m_raPreambleUniformVariable->SetStream(stream);
     return 1;
+}
+
+void
+NrUeMac::ScheduleRAProcedure (Time delay)
+{
+  //Simulator::Schedule (delay, &NrUeMac::SendRaPreamble, this, false);
+  Simulator::Schedule (delay, &NrUeMac::SendRaPreamble, this, true);
 }
 
 } // namespace ns3

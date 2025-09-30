@@ -10,6 +10,12 @@
 
 #include "ns3/nr-spectrum-value-helper.h"
 
+// #include "ns3/spectrum-value.h"
+#include "ns3/propagation-loss-model.h"
+#include "ns3/spectrum-propagation-loss-model.h"
+#include "ns3/three-gpp-propagation-loss-model.h"
+#include "ns3/nr-epc-helper.h"
+
 namespace ns3
 {
 
@@ -18,6 +24,7 @@ class NrControlMessage;
 class NrSpectrumPhy;
 class AntennaArrayBasicModel;
 class UniformPlanarArray;
+class BeamManager;
 
 /**
  * @ingroup ue-phy
@@ -81,6 +88,12 @@ class NrPhy : public Object
      * @return the TypeId of the Object
      */
     static TypeId GetTypeId();
+
+    enum AntennaConfiguration
+    {
+      AntennaConfigDefault,
+      AntennaConfigInets,
+    };
 
     // Called by SAP
     /**
@@ -181,6 +194,12 @@ class NrPhy : public Object
      * @return the noise figure
      */
     double GetNoiseFigure() const;
+
+    // ------------------------ MODIFIED ----------------------
+    /**
+     * \return The antena array that is being used by this PHY
+     */
+    Ptr<const UniformPlanarArray> GetAntenna () const;
 
     /**
      * @brief Retrieve the Tx power
@@ -397,6 +416,52 @@ class NrPhy : public Object
      */
     enum NrSpectrumValueHelper::PowerAllocationType GetPowerAllocationType() const;
 
+    // -------------------------- MODIFIED ---------------------
+
+    /**
+     * \brief Install the antenna in the PHY
+     * \param antenna pointer to the antenna model
+     *
+     * Usually called by the helper. It will install a new BeamManager object.
+     */
+    void InstallAntenna (const Ptr<UniformPlanarArray> &antenna);
+
+    // Note: Returning a BeamManger, it means that someone outside this class
+    // can change the beamforming vector, BUT the phy will not learn it.
+    /**
+     * \brief Get the BeamManager object of the class
+     * \return a pointer to the BeamManager instance
+     *
+     * Valid only after a call to InstallAntenna
+     */
+    Ptr<BeamManager> GetBeamManager () const;
+
+    // ------------------------- MODIFIED ----------------------
+
+    void SetAdaptiveBFProperty (bool adaptiveBF);
+
+    void SetNoOfBeamsTbRLM (uint8_t noOfBeamsTbRLM);
+
+    void SetNoOfBeamsTbReported (uint8_t noOfBeamsTbReported);
+
+    void SetNoOfSSBsPerSlot (uint8_t noOfSSBsPerSlot);
+
+    virtual std::vector<BeamId> DoGenerateBeamVectorMap () = 0;
+
+    // ------------------------- MODIFIED ----------------------
+    bool m_realisticIA;
+
+    bool m_rlmOn;
+    bool m_ssbRlmOn;
+
+    enum BeamSweepType
+    {
+      IASweep,        //!< Indicates that an IA process should be started
+      BeamTracking,   //!< Indicates that beam tracking prcess should be started
+    };
+
+    AntennaConfiguration GetAntennaConfig ();
+
   protected:
     /**
      * @brief DoDispose method inherited from Object
@@ -553,6 +618,9 @@ class NrPhy : public Object
      */
     virtual std::list<Ptr<NrControlMessage>> PopCurrentSlotCtrlMsgs();
 
+    // ------------------- MODIFIED ---------------------------
+    virtual void SetPHYEpcHelper (Ptr<NrEpcHelper> epcHelper);
+
   protected:
     Ptr<NrNetDevice> m_netDevice;     //!< Pointer to the owner netDevice.
     Ptr<NrSpectrumPhy> m_spectrumPhy; //!< Pointer to the (owned) spectrum phy
@@ -571,6 +639,25 @@ class NrPhy : public Object
     std::list<Ptr<NrControlMessage>> m_ctrlMsgs; //!< CTRL messages to be sent
 
     std::vector<LteNrTddSlotType> m_tddPattern = {F, F, F, F, F, F, F, F, F, F}; //!< Pattern
+
+    // -------------------- MODIFIED -------------------
+    Ptr<NrEpcHelper> m_phyEpcHelper;
+    bool m_adaptiveBF;
+    uint8_t m_noOfBeamsTbRLM;
+    uint8_t m_noOfBeamsTbReported;
+    uint8_t m_noOfSSBsPerSlot;
+
+    std::map<uint64_t, std::vector<std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, double>>>> m_csiRSTbReported;
+
+      // hack to allow eNB to compute the SINR, periodically, without pilots
+    Ptr<SpectrumPropagationLossModel> m_spectrumPropagationLossModel;
+    Ptr<PropagationLossModel> m_propagationLoss;
+
+    AntennaConfiguration m_antennaConfig;
+
+    Ptr<BeamManager> m_beamManager; //!< Pointer to the beam manager object
+
+    std::map<uint64_t, std::vector<std::pair< uint8_t, BeamId>>> m_beamsTbRLM;   //BEAMS TB Monitored via Radio-Link-Monitoring procedure
 
   private:
     std::list<SlotAllocInfo> m_slotAllocInfo; //!< slot allocation info list
@@ -596,6 +683,7 @@ class NrPhy : public Object
                                      //!< can be 15KHz, 30KHz, 60KHz, 120KHz, ...
     uint32_t m_rbNum{0};             //!< number of resource blocks within the channel bandwidth
     double m_rbOh{0.04};             //!< Overhead for the RB calculation
+
 
     enum NrSpectrumValueHelper::PowerAllocationType m_powerAllocationType{
         NrSpectrumValueHelper::UNIFORM_POWER_ALLOCATION_USED}; //!< The type of power allocation,

@@ -449,6 +449,9 @@ class NrUeMac : public Object
      */
     void SendTxData(uint32_t usefulTbs, uint32_t activeTx);
 
+    // ------------------- MODIFIED --------------------
+    void ScheduleRAProcedure (Time delay);
+
   private:
     NrUeCmacSapUser* m_cmacSapUser{nullptr};
     NrUeCmacSapProvider* m_cmacSapProvider{nullptr};

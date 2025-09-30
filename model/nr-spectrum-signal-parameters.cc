@@ -32,6 +32,8 @@ NrSpectrumSignalParametersDataFrame::NrSpectrumSignalParametersDataFrame(
         packetBurst = p.packetBurst->Copy();
     }
     ctrlMsgList = p.ctrlMsgList;
+    imsi = p.imsi;
+    slotInd = p.slotInd;
 }
 
 Ptr<SpectrumSignalParameters>
@@ -62,6 +64,10 @@ NrSpectrumSignalParametersDlCtrlFrame::NrSpectrumSignalParametersDlCtrlFrame(
     cellId = p.cellId;
     pss = p.pss;
     ctrlMsgList = p.ctrlMsgList;
+    // ------------------------- MODIFIED -------------------
+    isSSB = p.isSSB;
+    txAntennaGain = p.txAntennaGain;
+    // ------------------------------------------------------
 }
 
 Ptr<SpectrumSignalParameters>

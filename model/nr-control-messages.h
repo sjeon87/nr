@@ -9,6 +9,7 @@
 #include "nr-rrc-sap.h"
 
 #include "ns3/simple-ref-count.h"
+#include "ns3/ff-mac-common.h"
 
 namespace ns3
 {
@@ -24,6 +25,8 @@ enum LteNrTddSlotType : uint8_t
     F = 2,  //!< DL CTRL + DL DATA + UL DATA + UL CTRL
     UL = 3, //!< UL DATA + UL CTRL
 };
+
+typedef std::pair<uint8_t, std::pair<uint8_t, uint8_t>> SfnSfKey;
 
 std::ostream& operator<<(std::ostream& os, const LteNrTddSlotType& item);
 
@@ -54,6 +57,10 @@ class NrControlMessage : public SimpleRefCount<NrControlMessage>
         DL_HARQ,       //!< DL HARQ feedback
         SR,            //!< Scheduling Request: asking for space
         SRS,           //!< SRS
+        PSS,           //!< Primary Synchronization Signal - sent DL
+        PBCH_DMRS,     //!< Physical Broadcast Channel
+        SSS,           //!< Secondary Synchronization Signal
+        CSI_REPORT     //!< Channel State Information Report - sent from UE to gNB
     };
 
     /**
@@ -520,6 +527,154 @@ class NrSrsMessage : public NrControlMessage
      * @brief ~NrDlHarqFeedbackMessage
      */
     ~NrSrsMessage() override = default;
+};
+
+class NrPssMessage : public NrControlMessage
+{
+  public:
+  /**
+   * \brief NrPssMessage constructor
+   */
+  NrPssMessage (void);
+  /**
+   * \brief ~NrPssMessage
+   */
+  virtual ~NrPssMessage (void);
+
+  /**
+   * \brief set CellID that will be carried on this PSS
+   */
+  void SetCellId (uint8_t cellId);
+
+  void SetSNRAvg (double snrAvg);
+
+  void SetDestinationImsi (uint64_t destinationImsi);
+
+  void SetSymbolOffset (uint8_t symbolOffset);
+
+  /**
+   * \brief get CellID that is carried on this PSS
+   */
+  uint8_t GetCellId ();
+
+  double GetSNRAvg ();
+
+  uint64_t GetDestinationImsi ();
+
+  uint8_t GetSymbolOffset ();
+
+  private:
+
+  uint8_t m_cellId;
+  double m_snrAvg;
+  uint64_t m_destinationImsi;
+  uint8_t m_symbolOffset;
+};
+
+class NrSssMessage : public NrControlMessage
+{
+  public:
+  /**
+   * \brief NrPssMessage constructor
+   */
+  NrSssMessage (void);
+  /**
+   * \brief ~NrPssMessage
+   */
+  virtual ~NrSssMessage (void);
+
+  /**
+   * \brief set CellID that will be carried on this SSS
+   */
+  void SetCellId (uint8_t cellId);
+
+  /**
+   * \brief get CellID that is carried on this SSS
+   */
+  uint8_t GetCellId ();
+
+  private:
+
+  uint8_t m_cellId;
+};
+
+class NrPBCHMessage : public NrControlMessage
+{
+  public:
+  /**
+   * \brief NrPBCHMessage constructor
+   */
+  NrPBCHMessage (void);
+  /**
+   * \brief ~NrPBCHMessage
+   */
+  virtual ~NrPBCHMessage (void);
+
+    /**
+   * \brief set CellID that will be carried on this PBCH
+   */
+  void SetCellId (uint8_t cellId);
+
+  /**
+   * \brief get CellID that is carried on this PBCH
+   */
+  uint8_t GetCellId ();
+
+  void SetMib (NrRrcSap::MasterInformationBlock mib);
+
+  NrRrcSap::MasterInformationBlock GetMib();
+
+  private:
+
+  uint8_t m_cellId;
+  NrRrcSap::MasterInformationBlock m_mib;
+};
+
+class NRCSIReportMessage : public NrControlMessage
+{
+  public:
+  /**
+   * \brief NRCSIReportMessage constructor
+   */
+  NRCSIReportMessage (void);
+
+  /**
+   * \brief ~NRCSIReportMessage
+   */
+  virtual ~NRCSIReportMessage (void);
+
+  /**
+   * \brief set CellID that will be carried on this CSI Report
+   */
+  void SetCellId (uint8_t cellId);
+
+  /**
+   * \brief get CellID that is carried on this CSI Report
+   */
+  uint8_t GetCellId ();
+
+  /**
+   * \brief set RNTI of the UE which sends the CSI Report
+   */
+  void SetRnti (uint16_t rnti);
+
+  /**
+   * \brief get RNTI of the UE which sends the CSI Report
+   */
+  uint16_t GetRnti ();
+
+  void SetCSIRSComponent (uint8_t csiRSRank, std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, uint32_t>> csiRSMap);
+
+  std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, uint32_t>> GetCSIRSMap (uint8_t csiRSRank);
+
+  private:
+
+  std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, uint32_t>> m_firstCSIResource;
+  std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, uint32_t>> m_secondCSIResource;
+  std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, uint32_t>> m_thirdCSIResource;
+  std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, uint32_t>> m_fourthCSIResource;
+  uint8_t m_cellId;
+  uint16_t m_rnti;
 };
 
 } // namespace ns3

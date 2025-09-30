@@ -315,6 +315,212 @@ NrSrsMessage::NrSrsMessage()
     SetMessageType(NrControlMessage::SRS);
 }
 
+// ----------------------- MODIFIED -------------------------
+NrPssMessage::NrPssMessage (void)
+{
+  SetMessageType (NrControlMessage::PSS);
+}
+
+NrPssMessage::~NrPssMessage()
+{
+
+}
+
+void 
+NrPssMessage::SetCellId (uint8_t cellId)
+{
+  m_cellId = cellId;
+}
+
+void 
+NrPssMessage::SetSNRAvg (double snrAvg)
+{
+  m_snrAvg = snrAvg;
+}
+
+void 
+NrPssMessage::SetDestinationImsi (uint64_t destinationImsi)
+{
+  m_destinationImsi = destinationImsi;
+}
+
+void
+NrPssMessage::SetSymbolOffset (uint8_t symbolOffset)
+{
+  m_symbolOffset = symbolOffset;
+}
+
+uint8_t
+NrPssMessage::GetCellId ()
+{
+  return m_cellId;
+}
+
+double 
+NrPssMessage::GetSNRAvg ()
+{
+  return m_snrAvg;
+}
+
+uint64_t
+NrPssMessage::GetDestinationImsi ()
+{
+  return m_destinationImsi;
+}
+
+uint8_t
+NrPssMessage::GetSymbolOffset ()
+{
+  return m_symbolOffset;
+}
+
+// ----------------------------------------------------------------------------------------------------------
+
+NrSssMessage::NrSssMessage (void)
+{
+  SetMessageType (NrControlMessage::SSS);
+}
+
+NrSssMessage::~NrSssMessage()
+{
+
+}
+
+void 
+NrSssMessage::SetCellId (uint8_t cellId)
+{
+  m_cellId = cellId;
+}
+
+uint8_t
+NrSssMessage::GetCellId ()
+{
+  return m_cellId;
+}
+
+// ----------------------------------------------------------------------------------------------------------
+
+NrPBCHMessage::NrPBCHMessage (void)
+{
+  SetMessageType (NrPBCHMessage::PBCH_DMRS);
+}
+
+NrPBCHMessage::~NrPBCHMessage ()
+{
+
+}
+
+void 
+NrPBCHMessage::SetCellId (uint8_t cellId)
+{
+  m_cellId = cellId;
+}
+
+uint8_t
+NrPBCHMessage::GetCellId ()
+{
+  return m_cellId;
+}
+
+void 
+NrPBCHMessage::SetMib (NrRrcSap::MasterInformationBlock mib)
+{
+  m_mib = mib;
+}
+
+NrRrcSap::MasterInformationBlock
+NrPBCHMessage::GetMib () 
+{
+  return m_mib;
+}
+
+// ----------------------------------------------------------------------------------------------------------
+
+NRCSIReportMessage::NRCSIReportMessage (void)
+{
+  SetMessageType (NrControlMessage::CSI_REPORT);
+}
+
+NRCSIReportMessage::~NRCSIReportMessage ()
+{
+
+}
+
+void 
+NRCSIReportMessage::SetCellId (uint8_t cellId)
+{
+  m_cellId = cellId;
+}
+
+uint8_t
+NRCSIReportMessage::GetCellId ()
+{
+  return m_cellId;
+}
+
+void 
+NRCSIReportMessage::SetRnti (uint16_t rnti)
+{
+  m_rnti = rnti;
+}
+
+uint16_t
+NRCSIReportMessage::GetRnti ()
+{
+  return m_rnti;
+}
+
+void 
+NRCSIReportMessage::SetCSIRSComponent (uint8_t csiRSRank, std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, uint32_t>> csiRSMap)
+{
+  if (csiRSRank == 0)
+  {
+    m_firstCSIResource = csiRSMap;
+  }
+  else if (csiRSRank == 1)
+  {
+    m_secondCSIResource = csiRSMap;
+  }
+  else if (csiRSRank == 2)
+  {
+    m_thirdCSIResource = csiRSMap;
+  }
+  else if (csiRSRank == 3)
+  {
+    m_fourthCSIResource = csiRSMap;
+  }
+  else
+  {
+    NS_ABORT_MSG ("CSIRSRank should be from 0 to 3");
+  }
+}
+
+std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, uint32_t>> 
+NRCSIReportMessage::GetCSIRSMap (uint8_t csiRSRank)
+{
+  if (csiRSRank == 0)
+  {
+    return m_firstCSIResource;
+  }
+  else if (csiRSRank == 1)
+  {
+    return m_secondCSIResource;
+  }
+  else if (csiRSRank == 2)
+  {
+    return m_thirdCSIResource;
+  }
+  else if (csiRSRank == 3)
+  {
+    return m_fourthCSIResource;
+  }
+  else
+  {
+    NS_ABORT_MSG ("CSIRSRank should be from 0 to 3");
+  }
+}
+// ---------------------------------------------------------
+
 std::ostream&
 operator<<(std::ostream& os, const LteNrTddSlotType& item)
 {
@@ -335,5 +541,7 @@ operator<<(std::ostream& os, const LteNrTddSlotType& item)
     }
     return os;
 }
+
+
 
 } // namespace ns3

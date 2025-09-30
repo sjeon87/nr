@@ -258,11 +258,20 @@ class NrMacScheduler : public Object
      */
     virtual int64_t AssignStreams(int64_t stream) = 0;
 
+    // -------------------- MODIFIED ---------------------------
+    virtual void DoSetGnbBeamVectorList (std::vector<BeamId> gnbBeamVectorList) = 0;
+
+    virtual void DoSetIAStateOfMacSched (bool iaPerformed, uint16_t rnti) = 0;
+
   protected:
     NrMacSchedSapUser* m_macSchedSapUser{nullptr};           //!< SAP user
     NrMacCschedSapUser* m_macCschedSapUser{nullptr};         //!< SAP User
     NrMacCschedSapProvider* m_macCschedSapProvider{nullptr}; //!< SAP Provider
     NrMacSchedSapProvider* m_macSchedSapProvider{nullptr};   //!< SAP Provider
+
+    // ---------------------- MODIFIED ----------------------
+    std::vector<BeamId> m_gnbBeamVectorList;  //Values of this are received from PHY
+    std::map<uint8_t, std::map<uint8_t, std::map<uint8_t, BeamId>>> m_sfsnBeamVectorMap;
 };
 
 } // namespace ns3

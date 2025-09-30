@@ -135,6 +135,14 @@ class NrPhySapProvider
      * @return Get the number of resource blocks configured
      */
     virtual uint32_t GetRbNum() const = 0;
+
+    // ------------------------- MODIFIED ------------------
+
+    /**
+     *  \brief Retrieve BeamVectorMap that will be used by Mac and Mac scheduler
+     *  \return a vector compised of BeamIds 
+     */
+    virtual std::vector<BeamId> GenerateBeamVectorMap () const = 0;
 };
 
 /**
@@ -249,6 +257,13 @@ class NrGnbPhySapUser
      * @return the DL CTRL symbols
      */
     virtual uint8_t GetDlCtrlSymbols() const = 0;
+
+    // -------------------- MODIFIED --------------------
+    virtual bool IsSSBRequired (const SfnSf &dlSfn) = 0;
+
+    virtual void ForwarIASStateToSched (bool iaPerformed, uint64_t imsi) = 0;
+
+
 };
 
 /**
@@ -294,6 +309,13 @@ class NrUePhySapUser
      * @return the number of the configured HARQ processes.
      */
     virtual uint8_t GetNumHarqProcess() const = 0;
+
+    // ------------------------ MODIFIED ----------------------
+    /**
+     * @brief Notify MAC layer that optimal beam has been found, and RA prcedure can be started
+     */
+
+     virtual void NotifyMacForRA (Time delay) = 0;
 };
 
 } // namespace ns3

@@ -76,6 +76,10 @@ NrUeRrcProtocolIdeal::DoSetup(NrUeRrcSapUser::SetupParameters params)
 {
     NS_LOG_FUNCTION(this);
     // We don't care about SRB0/SRB1 since we use ideal RRC messages.
+    if (params.firstConnToNetworkl)
+    {
+        SetGnbRrcSapProvider();
+    }
 }
 
 void
@@ -111,6 +115,9 @@ NrUeRrcProtocolIdeal::DoSendRrcConnectionReconfigurationCompleted(
     // gNB we are currently attached to
     m_rnti = m_rrc->GetRnti();
     SetGnbRrcSapProvider();
+    // --- NEW ---
+    m_gnbRrcSapProvider->RecvRegisterUeFromRRC (m_rrc->GetImsi());
+    // --- END ---
 
     Simulator::Schedule(RRC_IDEAL_MSG_DELAY,
                         &NrGnbRrcSapProvider::RecvRrcConnectionReconfigurationCompleted,
@@ -188,10 +195,68 @@ NrUeRrcProtocolIdeal::SetGnbRrcSapProvider()
     }
     NS_ASSERT_MSG(found, " Unable to find gNB with BwpID =" << bwpId);
     m_gnbRrcSapProvider = gnbDev->GetRrc()->GetNrGnbRrcSapProvider();
+
     Ptr<NrGnbRrcProtocolIdeal> gnbRrcProtocolIdeal =
         gnbDev->GetRrc()->GetObject<NrGnbRrcProtocolIdeal>();
+    
     gnbRrcProtocolIdeal->SetUeRrcSapProvider(m_rnti, m_ueRrcSapProvider);
+    // gnbRrcProtocolIdeal->SetUeRrcSapProvider(m_rrc->GetImsi(), m_ueRrcSapProvider);
 }
+
+void 
+NrUeRrcProtocolIdeal::DoSendOptimalGnbBeamMap (NrRrcSap::CellOptimalGnbBeamMap msg)
+{
+  NS_LOG_FUNCTION (this);
+
+  if (m_gnbRrcSapProvider == nullptr)
+    {
+      // Either: buffer, or reschedule shortly
+      Simulator::Schedule(MilliSeconds(1), &NrUeRrcProtocolIdeal::DoSendOptimalGnbBeamMap, this, msg);
+      return;
+    }
+
+  Simulator::Schedule (RRC_IDEAL_MSG_DELAY,
+                       &NrGnbRrcSapProvider::RecvOptimalGnbBeamMap,
+                       m_gnbRrcSapProvider,
+                       msg);
+
+  //m_lteEnbRrcSapProvider->RecvOptimalGnbBeamReport (msg);
+
+  /*if (SetTempEnbRrcSapProvider ())
+  {
+    m_tempEnbRrcSapProvider->RecvOptimalGnbBeamReport (msg);
+    m_tempEnbRrcSapProvider = nullptr;
+    m_rrc->SetCellToTempCellId (m_rrc->GetTempCellId ());
+  }
+  else
+  {
+    m_enbRrcSapProvider->RecvOptimalGnbBeamReport (msg);
+  }*/
+}
+
+void 
+NrUeRrcProtocolIdeal::DoSendSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params)
+{
+  Simulator::Schedule (RRC_IDEAL_MSG_DELAY,
+                      &NrGnbRrcSapProvider::ForwardSSBRSBeamReport,
+                      m_gnbRrcSapProvider,
+                      params);
+}
+
+void 
+NrUeRrcProtocolIdeal::DoSendClearHandoverEvents (uint64_t imsi)
+{
+  m_gnbRrcSapProvider->RecvClearHandoverEvents (imsi);
+}
+
+void
+NrUeRrcProtocolIdeal::DoTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev)
+{
+  NS_LOG_FUNCTION (this);
+
+  m_gnbRrcSapProvider->RecvTriggerRegisterUe (imsi, netDev);
+}
+
 
 NS_OBJECT_ENSURE_REGISTERED(NrGnbRrcProtocolIdeal);
 

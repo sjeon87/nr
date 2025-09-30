@@ -43,6 +43,8 @@ struct NrSpectrumSignalParametersDataFrame : public SpectrumSignalParameters
     std::list<Ptr<NrControlMessage>> ctrlMsgList; //!< List of control messages
     uint16_t cellId;                              //!< CellId
     uint16_t rnti{0};                             //!< RNTI of the transmitting or receiving UE
+    uint8_t slotInd;
+    uint64_t imsi;
 };
 
 /**
@@ -73,6 +75,9 @@ struct NrSpectrumSignalParametersDlCtrlFrame : public SpectrumSignalParameters
     std::list<Ptr<NrControlMessage>> ctrlMsgList; //!< CTRL message list
     bool pss;                                     //!< PSS (?)
     uint16_t cellId;                              //!< cell id
+    bool isSSB;                                   //!< is varTTI an SS Block
+    double sinrAvg;
+    double txAntennaGain;
 };
 
 /**

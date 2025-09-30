@@ -11,6 +11,8 @@
 #include "nr-phy.h"
 #include "nr-pm-search.h"
 #include "nr-ue-cphy-sap.h"
+#include "ns3/nr-gnb-net-device.h"
+#include "ns3/ideal-beamforming-helper.h"
 
 #include "ns3/traced-callback.h"
 
@@ -24,6 +26,33 @@ class NrChAccessManager;
 class BeamManager;
 class BeamId;
 class NrUePowerControl;
+
+class SSBProcessor : public SimpleRefCount<SSBProcessor>
+  {
+    public:
+      SSBProcessor();
+      virtual ~SSBProcessor ();
+
+      void SetStartingSfn (SfnSf sfnsf);
+
+      void InsertBeamIdSNRPair (uint16_t rxSectorNumber, std::pair<uint16_t, double> txSectorSNRPair);
+
+      uint8_t m_cellId                {0};    
+      uint8_t m_rlmStartingRXIndex    {0};
+      uint8_t m_startingSymbolOffset  {0};
+      bool m_pssReceived              {false};
+      bool m_firstPBCHReceived        {false};
+      bool m_sssReceived              {false};
+      bool sweepComplete              {false};
+      SfnSf m_startingSfn             {};
+      std::map<uint16_t, std::map<uint16_t, double>> rxBeamtxSectorSNRMap;
+      std::map<uint16_t , std::vector<std::pair<BeamId, double>>> symbolBeamIDSNRmap; //Map of SNRs that have been observed from the BeamID
+      uint16_t txSectorNumber       {0};
+      uint16_t rxSectorNumber       {0};
+      uint16_t m_lastSweptUESector  {0};
+      double m_maxSNRPerCell;
+      std::pair<uint8_t, std::pair<uint16_t, BeamId>> m_maxTxRxPairForCell;      
+  };
 
 /**
  * @ingroup ue-phy
@@ -78,6 +107,12 @@ class NrUePhy : public NrPhy
      * @brief ~NrUePhy
      */
     ~NrUePhy() override;
+
+    enum CellSelectionCriterion
+    {
+        PeakSNR,    // Whether cell has the peak SNR accross all sweeo
+        MaxAvgSNR   // Whether cell has the largest Average SNR 
+    };
 
     /**
      * @brief Retrieve the pointer for the C PHY SAP provider (AKA the PHY interface towards the
@@ -542,6 +577,39 @@ class NrUePhy : public NrPhy
     /// @brief Get the precoding matrix search engine
     Ptr<NrPmSearch> GetPmSearch() const;
 
+    // ---------------------------- MODIFIED ---------------------------
+    void AdjustAntennaForBeamSweep ();
+
+    std::vector<BeamId> DoGenerateBeamVectorMap () override;
+
+    void DoStartBeamSweep (BeamSweepType beamSweepType);
+
+    void DoSetPhyIAFlag (bool iaState);
+
+    const Ptr<NetDevice> DoGetDevice ();
+
+    void DoSetInitialIAState (bool initialIAState);
+
+    void SetIdealSNRForGnb (uint8_t cellId, double SNR, BeamId currBeamId);
+
+    TimeValue m_beamSweepTimer;
+
+    void SetUeHorizontalAngleStep (double horizAngleStep);
+
+    double GetUeHorizontalAngleStep () const;
+
+    void SetUeVerticalAngleStep (double verticalAngleStep);
+
+    double GetUeVerticalAngleStep () const;
+
+    virtual void SetPHYEpcHelper (Ptr<NrEpcHelper> epcHelper) override;
+
+    void RegisterOtherGnb (uint16_t cellId, Ptr<NrGnbNetDevice> gnb);
+
+    void UpdateSinrEstimate (uint16_t cellId, double sinr);
+
+    void DoSetDlBandwidthWp(uint16_t ulBandwidth); // wraper for the private fn DoSetDlBandwidth to be used in other files
+
   protected:
     /**
      * @brief DoDispose method inherited from Object
@@ -766,7 +834,7 @@ class NrUePhy : public NrPhy
     void SendDataChannels(const Ptr<PacketBurst>& pb,
                           const std::list<Ptr<NrControlMessage>>& ctrlMsg,
                           const std::shared_ptr<DciInfoElementTdma>& dci,
-                          const Time& duration);
+                          const Time& duration, uint8_t slotInd);
     /**
      * @brief Transmit the control channel
      *
@@ -901,6 +969,41 @@ class NrUePhy : public NrPhy
      * @param rarMsg RAR UL grant
      */
     void ProcessRar(const Ptr<NrRarMessage>& rarMsg);
+    
+    // ------------------ MODIFIED -------------------
+    void ResetSSBRLMProcessor ();
+
+    bool SSBTbProcessed (SfnSf currSfn, uint8_t symbolIndex);
+
+    bool IsFirstSSBInBurst (SfnSf currSfn, uint8_t symbolIndex);
+
+    void SetIAStateOfAllGnbs (bool iaState);
+
+    void FinishIdealBeamforming ();
+
+    void ProcessSSBs (Ptr<NrPssMessage> msg);
+
+    void CheckIfSweepIsComplete ();
+
+    std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> RetrieveCellOptimalMap ();
+
+    std::pair<uint8_t, BeamId> RetrieveOptimalGnbFromMap (std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> cellOptimalGnbMap);
+
+    void FindMaximumSNR (Ptr<SSBProcessor> ssbProcessor, uint16_t rxSectorNumber, uint16_t txSectorNumber, uint8_t cellIndex, bool isIAperformed);
+
+    void ReEstablishConnectionWithCell (uint8_t cellId);
+
+    struct OptimalRLMBeamStruct{
+        double snr;
+        uint8_t cellId;
+        BeamId beamId;
+        SfnSf startingSfnSf;
+        uint16_t optimalBeamIndex;
+    };
+
+    std::vector<struct OptimalRLMBeamStruct> RetrieveOptimalRlmBeams (std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> cellOptimalGnbMap, uint8_t cellId);
+
+    // ---------------------------------------------------
 
     NrUePhySapUser* m_phySapUser;             //!< SAP pointer
     NrUeCphySapProvider* m_ueCphySapProvider; //!< SAP pointer
@@ -1054,6 +1157,12 @@ class NrUePhy : public NrPhy
      */
     TracedCallback<uint16_t, uint16_t, double, double, bool, uint8_t> m_reportUeMeasurements;
 
+    // ------------------------ MODIFIED -------------------------------
+    TracedCallback <BeamSweepTraceParams> m_beamSweepTrace;
+
+    TracedCallback <RadioLinkMonitoringTraceParams> m_radioLinkMonitoringTrace;
+    
+
     bool m_isConnected;
     void DoNotifyConnectionSuccessful();
     /**
@@ -1084,6 +1193,75 @@ class NrUePhy : public NrPhy
     SpectrumValue m_ctrlSinrForRlf; ///< the CTRL SINR used for RLF detection
     bool m_enableRlfDetection;      ///< Flag to enable/disable RLF detection
     uint8_t m_csiFeedbackType;      ///< CSI feedback type configured by NrHelper
+
+    // ------------------------------ MODIFIED ----------------
+    std::map<uint16_t, double> m_cellSinrMap;
+
+    double m_lastPerceivedSinr;
+    uint8_t m_consecutiveSinrBelowThreshold;
+
+    double m_ueElevationAngleStep;
+    double m_ueHorizontalAngleStep;
+
+    uint16_t m_gnbSectorNumber;
+    uint16_t m_ueSectorNumber;
+
+    uint16_t m_ssbRLMScanDirectionNumber;
+
+    uint16_t m_noOfTxSSBScanDirections;
+
+    bool m_resetIdealBeamforming;
+    bool m_IAperformed;   
+
+    Time m_idealBFTimer;
+
+    BeamId m_beamTbSwept;
+
+    uint8_t m_ssbRMCounter {0};
+
+    std::vector<BeamId> m_ueBeamVectorList;
+    std::vector<BeamId> m_ueSSBRLMVectorList;
+      
+    std::map<uint8_t, Ptr<SSBProcessor>> m_cellIDSSBMap;
+    std::map<uint16_t, Ptr<SSBProcessor>> m_ssbRLMProcessorMap;
+
+    std::map<uint16_t, Ptr<NrGnbNetDevice> > m_registeredGnb;
+
+    bool m_conveyPacketsToMac;
+    uint16_t m_txSSBCounterPerRx;
+
+    std::map<uint8_t, BeamId> m_tempBeamIdStorage;
+    std::map<uint8_t, BeamId> m_tempBeamIdStorageGnb;
+    std::map<uint8_t, std::pair<double, BeamId>> m_cellIdealSNRMap;
+
+    Time m_completeSSBurstDuration;
+
+    Ptr<IdealBeamformingHelper> m_phyIdealBeamformingHelper;
+
+    bool m_IAalreadyTriggered;
+
+    std::map<uint8_t, double> m_cellToSNRAvgMap;
+
+    BeamformingVector m_currBeamformingVector;
+
+    double m_maxRateThreshold;
+
+    uint16_t m_gnbHorizSectorNumber;
+
+    CellSelectionCriterion m_cellSelectionCriterion;
+
+    uint8_t m_n310;
+
+
+    long double m_beamSweepThreshold;
+    long double m_outageThreshold;   
+
+    uint8_t m_cellIdCounter;
+
+    std::map<SfnSfKey, std::pair<std::pair<BeamId, uint8_t>, std::pair<BeamId,double>>> m_recvCSIMap;
+    std::vector<std::pair<std::pair<SfnSfKey, uint8_t>, std::pair<BeamId, double>>> m_subOptimalCSIBeamMap;
+
+
 };
 
 } // namespace ns3

@@ -196,6 +196,11 @@ class NrUeCphySapProvider
      * @param imsi the IMSI of the UE
      */
     virtual void SetImsi(uint64_t imsi) = 0;
+
+    // ------------------- MODIFIED ------------------
+    virtual void SetPhyIAFlag (bool iaAlreadyTrigger) = 0;
+
+    virtual const Ptr<NetDevice> GetNetDeviceFromPhy() = 0;
 };
 
 /**
@@ -285,6 +290,17 @@ class NrUeCphySapUser
      * is not fulfilled for the number of consecutive frames.
      */
     virtual void ResetSyncIndicationCounter() = 0;
+
+    // -------------------- MODIFIED ---------------
+    virtual void SendSSBRSReport (std::vector<std::pair<uint8_t, uint16_t>> optimalBeamIndex, std::map<uint8_t, SfnSf> mapOfStartingSfn, uint8_t servingCellId, uint8_t noOfBeamsTbReported) = 0;
+
+    virtual bool IsRrcIdleStart () = 0;
+
+    virtual void SetRrcTempCellID (uint8_t tempCellId) = 0;
+
+    virtual void ClearHandoverEventsAtCoordinator () = 0;
+
+    virtual void SendOptimalBeamMapToLteCoordinator (std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> cellOptimalBeamMap) = 0;
 };
 
 /**
@@ -325,6 +341,10 @@ class MemberNrUeCphySapProvider : public NrUeCphySapProvider
     void ResetRlfParams() override;
     void StartInSyncDetection() override;
     void SetImsi(uint64_t imsi) override;
+
+    // --------------------- MODIFIED --------------------
+    virtual void SetPhyIAFlag (bool iaAlreadyTrigger);
+    virtual const Ptr<NetDevice> GetNetDeviceFromPhy();
 
   private:
     C* m_owner; ///< the owner class
@@ -469,6 +489,19 @@ MemberNrUeCphySapProvider<C>::SetImsi(uint64_t imsi)
     m_owner->DoSetImsi(imsi);
 }
 
+// ----------------------------- MODIFIED ----------------------
+template <class C>
+void MemberNrUeCphySapProvider<C>::SetPhyIAFlag (bool iaAlreadyTrigger) 
+{
+  m_owner->DoSetPhyIAFlag (iaAlreadyTrigger);
+}
+
+template <class C>
+const Ptr<NetDevice> MemberNrUeCphySapProvider<C>::GetNetDeviceFromPhy ()
+{
+  return m_owner->DoGetDevice ();
+}
+
 /**
  * Template for the implementation of the NrUeCphySapUser as a member
  * of an owner class of type C to which all methods are forwarded
@@ -495,6 +528,12 @@ class MemberNrUeCphySapUser : public NrUeCphySapUser
     void NotifyOutOfSync() override;
     void NotifyInSync() override;
     void ResetSyncIndicationCounter() override;
+    // ---------------------- MODIFIED --------------------------
+    virtual void SendSSBRSReport (std::vector<std::pair<uint8_t, uint16_t>> optimalBeamIndex, std::map<uint8_t, SfnSf> mapOfStartingSfn, uint8_t servingCellId, uint8_t noOfBeamsTbReported);
+    virtual bool IsRrcIdleStart ();
+    virtual void SetRrcTempCellID (uint8_t tempCellId);
+    virtual void ClearHandoverEventsAtCoordinator ();
+    virtual void SendOptimalBeamMapToLteCoordinator (std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> cellOptimalBeamMap);
 
   private:
     C* m_owner; ///< the owner class
@@ -549,6 +588,42 @@ void
 MemberNrUeCphySapUser<C>::ResetSyncIndicationCounter()
 {
     m_owner->DoResetSyncIndicationCounter();
+}
+
+// ------------------------ MODIFIED ----------------------
+template <class C>
+void
+MemberNrUeCphySapUser<C>::SendSSBRSReport (std::vector<std::pair<uint8_t, uint16_t>> optimalBeamIndex, std::map<uint8_t, SfnSf> mapOfStartingSfn, uint8_t servingCellId, uint8_t noOfBeamsTbReported)
+{
+  m_owner->DoSendSSBRSBeamReport (optimalBeamIndex, mapOfStartingSfn, servingCellId, noOfBeamsTbReported);
+}
+
+template <class C>
+bool 
+MemberNrUeCphySapUser<C>::IsRrcIdleStart ()
+{
+  return m_owner->DoIsRrcIdleStart ();
+}
+
+template <class C>
+void 
+MemberNrUeCphySapUser<C>::SetRrcTempCellID (uint8_t tempCellId)
+{
+  m_owner->SetCellToTempCellId (tempCellId);
+}
+
+template <class C>
+void 
+MemberNrUeCphySapUser<C>::ClearHandoverEventsAtCoordinator ()
+{
+  m_owner->DoClearHandoverEventsAtCoordinator ();
+}
+
+template <class C>
+void 
+MemberNrUeCphySapUser<C>::SendOptimalBeamMapToLteCoordinator (std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> cellOptimalBeamMap)
+{
+  m_owner->DoSendOptimalBeamMapToLteCoordinator (cellOptimalBeamMap);
 }
 
 } // namespace ns3

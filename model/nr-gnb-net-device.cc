@@ -134,6 +134,14 @@ void
 NrGnbNetDevice::DoInitialize()
 {
     NS_LOG_FUNCTION(this);
+    
+    std::map<uint8_t, Ptr<BandwidthPartGnb>>::iterator it;
+    for (it = m_ccMap.begin(); it != m_ccMap.end(); ++it)
+    {
+        it->second->Initialize();
+        it->second->GetPhy()->Initialize();
+    }
+    
     if (!m_isCellConfigured)
     {
         ConfigureCell();
@@ -333,6 +341,12 @@ NrGnbNetDevice::GetCellIdUlEarfcn(uint16_t cellId) const
         }
     }
     return 0;
+}
+
+std::map < uint8_t, Ptr<BandwidthPartGnb> >
+NrGnbNetDevice::GetCcMap ()
+{
+  return m_ccMap;
 }
 
 } // namespace ns3

@@ -370,6 +370,30 @@ UeRrcProtocolReal::DoReceivePdcpSdu(NrPdcpSapUser::ReceivePdcpSduParameters para
     }
 }
 
+void 
+UeRrcProtocolReal::DoSendOptimalGnbBeamMap (NrRrcSap::CellOptimalGnbBeamMap msg)
+{
+  //DOES NOTHING FOR LTERRCPROTOCOLREAL
+}
+
+void 
+UeRrcProtocolReal::DoSendSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params)
+{
+    // PLACEHOLDER
+}
+
+void 
+UeRrcProtocolReal::DoSendClearHandoverEvents (uint64_t imsi)
+{
+    // PLACEHOLDER
+}
+
+void
+UeRrcProtocolReal::DoTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev)
+{
+  //DOES NOTHING FOR LTERRCPROTOCOLREAL
+}
+
 NS_OBJECT_ENSURE_REGISTERED(NrGnbRrcProtocolReal);
 
 NrGnbRrcProtocolReal::NrGnbRrcProtocolReal()

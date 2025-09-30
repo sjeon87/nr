@@ -12,6 +12,13 @@
 #include "nr-harq-phy.h"
 #include "nr-phy-sap.h"
 #include "nr-phy.h"
+#include "ns3/nr-ue-net-device.h"
+#include "ns3/nr-helper.h"
+#include "ns3/nr-epc-ue-nas.h"
+#include "ns3/nr-mac-scheduler-ns3.h"
+#include "ns3/no-backhaul-epc-helper.h"
+
+#include "ns3/nr-phy.h"
 
 #include <functional>
 
@@ -242,6 +249,8 @@ class NrGnbPhy : public NrPhy
      */
     bool RegisterUe(uint64_t imsi, const Ptr<NrUeNetDevice>& ueDevice);
 
+    bool RegisterUe(uint64_t imsi);
+
     /**
      * Assign CSI-RS offset of a user
      * @param ueDevice the user device for which will be assign an offset value
@@ -297,6 +306,10 @@ class NrGnbPhy : public NrPhy
      * @param mes the HARQ feedback
      */
     void ReportUlHarqFeedback(const UlHarqInfo& mes);
+
+    // -------------------------- MODIFIED ----------------
+    void UpdateUeSinrEstimate ();
+    // ----------------------------------------------------
 
     /**
      * @brief Set the pattern that the gnb will utilize.
@@ -451,6 +464,29 @@ class NrGnbPhy : public NrPhy
      * TODO change to private and add documentation
      */
     void ChangeToQuasiOmniBeamformingVector();
+
+    // -------------------------- MODIFIED --------------------
+    std::vector<BeamId> DoGenerateBeamVectorMap () override;
+
+    void SetGnbIAState (bool IAperformed);
+
+    void SetGnbHorizontalAngleStep (double horizontalAngleStep);
+
+    double GetGnbHorizontalAngleStep () const; 
+
+    void SetGnbVerticalAngleStep (double verticalAngleStep);
+
+    double GetGnbVerticalAngleStep () const;
+
+    virtual void SetPHYEpcHelper (Ptr<NrEpcHelper> epcHelper) override;
+
+    void DoDeregisterUeFromRRC (uint64_t imsi, uint16_t rnti);
+
+    void CheckForOmniTX (Ptr<NrUeNetDevice> ueNetDev);
+
+    void SetPhyIdealBeamformingHelper (Ptr<IdealBeamformingHelper> idealBeamformingHelper);
+
+    bool GetIAState ();
 
   protected:
     /**
@@ -692,6 +728,10 @@ class NrGnbPhy : public NrPhy
     void DoSetSystemInformationBlockType1(NrRrcSap::SystemInformationBlockType1 sib1);
     void DoSetEarfcn(uint16_t Earfcn);
 
+    // ------------------ MODIFIED -------------------------
+    void DoAttachUeFromRRC (uint64_t imsi, const Ptr<NetDevice> &netDev);
+    void DoSetOptimalGnbBeamForImsi (uint64_t imsi, SfnSf startingSfn, std::vector<uint16_t> optimalBeamIndex, bool isServingCell, uint8_t numOfBeamsTbRlm);
+
     /**
      * @brief Store the RBG allocation in the symStart, rbg map.
      * @param map the MAP
@@ -808,6 +848,16 @@ class NrGnbPhy : public NrPhy
      */
     void FillTheEvent();
 
+    // --------------------------- MODIFIED --------------------------
+    void ExpireBeamformingTimer ();
+
+    void IAdelay (Time delay);
+    void ResetIAdelay ();
+
+    void QueueSSB (bool pushFront);
+
+    Ptr<SpectrumValue> CalculateRxPsdToUe (Ptr<NrUeNetDevice> ueNetDev, bool isUpdateSinr);
+
   private:
     NrGnbPhySapUser* m_phySapUser{nullptr}; //!< MAC SAP user pointer, MAC is user of services of
                                             //!< PHY, implements e.g. ReceiveRachPreamble
@@ -830,6 +880,11 @@ class NrGnbPhy : public NrPhy
     std::unordered_map<uint8_t, std::vector<bool>>
         m_rbgAllocationPerSymDataStat; //!< RBG allocation in each sym, for statistics (UL and DL
     //!< included, only data)
+
+    // -------------------------- MODIFIED ----------------------
+    bool IAisPerformed;
+
+    std::map <uint64_t, Ptr<NetDevice> > m_ueAttachedImsiMap;
 
     TracedCallback<uint64_t, SpectrumValue&, SpectrumValue&> m_ulSinrTrace; //!< SINR trace
 
@@ -876,6 +931,11 @@ class NrGnbPhy : public NrPhy
 
     TracedCallback<const SfnSf&, uint8_t, const std::vector<int>&, uint16_t, uint16_t>
         m_rbStatistics;
+
+    // --------------------- MODIFIED ------------------------
+    TracedCallback <BeamSweepTraceParams> m_beamSweepTrace;
+
+    Time m_beamformingPeriodicity; //!< Periodicity of beamforming (0 for never)
 
     std::map<uint32_t, std::vector<uint32_t>>
         m_toSendDl; //!< Map that indicates, for each slot, what DL DCI we have to send
@@ -924,6 +984,39 @@ class NrGnbPhy : public NrPhy
     std::map<uint16_t, std::set<Ptr<NrUeNetDevice>>> m_csiRsOffsetToUes; //!< Offset to UE map
 
     Time m_lastBfChange; //!< Saves the timestamp when the beamforming vector changes.
+
+    // ------------------- MODIFIED ----------------------
+    Ptr<IdealBeamformingHelper> m_phyIdealBeamformingHelper;
+    
+    bool m_performBeamforming {true}; //!< True when we have to do beamforming. Default to true or we will not perform beamforming the first time..
+    bool m_adaptiveBF;
+    double m_gnbElevationAngleStep;
+    double m_gnbHorizontalAngleStep;
+    std::vector<BeamId> m_beamVectorMapGnb;
+    uint16_t m_noOfInitialAccessUes = 0; // number of UEs performing IA right now. If > 0, don't stop beamSweep procedures.
+
+    double m_updateSinrPeriod;       // the period of SINR update for eNBs
+    double m_ueUpdateSinrPeriod;       // the period of SINR reporting to the UEs
+    
+    bool m_BFdelay;
+	double m_IAdelay;
+	double m_BFtrainingDelay;
+	bool m_omniFallback;
+    bool m_IAcontinues;
+
+    std::map <uint64_t, double > m_sinrMap;
+    std::map <uint64_t, double > m_prevSinrMap;
+    std::map <uint64_t, Ptr<SpectrumValue>> m_rxPsdMap;
+
+    uint16_t m_roundFromLastUeSinrUpdate;       // the ratio between the two above
+
+    std::vector <int> m_listOfSubchannels;
+
+    std::map<uint64_t, BeamId> m_imsiOptimalBeamId;
+
+    BeamformingVector m_currBeamformingVector;
+    
+
 };
 
 } // namespace ns3

@@ -12,11 +12,13 @@
 #include "nr-ue-net-device.h"
 #include "nr-ue-phy.h"
 
+#include "ns3/phased-array-model.h"
 #include "ns3/boolean.h"
 #include "ns3/double.h"
 #include "ns3/matrix-based-channel-model.h"
 #include "ns3/node.h"
 #include "ns3/trace-source-accessor.h"
+#include "ns3/uniform-planar-array.h"
 
 #include <numeric>
 
@@ -67,6 +69,7 @@ NrSpectrumPhy::NrSpectrumPhy()
     m_random = CreateObject<UniformRandomVariable>();
     m_random->SetAttribute("Min", DoubleValue(0.0));
     m_random->SetAttribute("Max", DoubleValue(1.0));
+    m_IAcontinues = false;
 }
 
 NrSpectrumPhy::~NrSpectrumPhy()
@@ -111,6 +114,14 @@ NrSpectrumPhy::DoDispose()
         m_interferenceCsiIm->Dispose();
         m_interferenceCsiIm = nullptr;
     }
+
+    // ----------------- MODIFIED -----------------
+    // if (m_interferenceSsb)
+    // {
+    //     m_interferenceSsb->Dispose();
+    //     m_interferenceSsb = nullptr;
+    // }
+    // --------------------------------------------
 
     m_interferenceData = nullptr;
     m_interferenceCtrl = nullptr;
@@ -341,6 +352,9 @@ NrSpectrumPhy::SetDevice(Ptr<NetDevice> d)
     }
     else
     {
+        // -------------------------- MODIFIED -------------------------
+        // m_interferenceSsb = CreateObject<NrInterference>();
+        // -------------------------------------------------------------
         m_interferenceCsiRs = CreateObject<NrInterference>();
         m_interferenceCsiIm = CreateObject<NrInterference>();
         m_interferenceData->TraceConnectWithoutContext(
@@ -566,6 +580,7 @@ NrSpectrumPhy::SetNoisePowerSpectralDensity(const Ptr<const SpectrumValue>& nois
 {
     NS_LOG_FUNCTION(this << noisePsd);
     NS_ASSERT(noisePsd);
+    m_noisePsd = noisePsd->Copy();
     m_rxSpectrumModel = noisePsd->GetSpectrumModel();
     m_interferenceData->SetNoisePowerSpectralDensity(noisePsd);
     m_interferenceCtrl->SetNoisePowerSpectralDensity(noisePsd);
@@ -578,6 +593,10 @@ NrSpectrumPhy::SetNoisePowerSpectralDensity(const Ptr<const SpectrumValue>& nois
         m_interferenceCsiRs->SetNoisePowerSpectralDensity(noisePsd);
         m_interferenceCsiIm->SetNoisePowerSpectralDensity(noisePsd);
     }
+    // if (m_interferenceSsb)
+    // {
+    //     m_interferenceSsb->SetNoisePowerSpectralDensity(noisePsd);
+    // }
 }
 
 void
@@ -633,6 +652,14 @@ NrSpectrumPhy::CreateSpectrumChannelMatrix(const Ptr<SpectrumSignalParameters> p
     }
     return channelSpct;
 }
+
+// -------------------------- MODIFIED ---------------------
+uint8_t
+NrSpectrumPhy::GetStreamId() const
+{
+    return m_streamId;
+}
+// ---------------------------------------------------------
 
 void
 NrSpectrumPhy::StartRx(Ptr<SpectrumSignalParameters> params)
@@ -717,6 +744,29 @@ NrSpectrumPhy::StartRx(Ptr<SpectrumSignalParameters> params)
 
         if (!m_isGnb)
         {
+            // -------------------------- MODIFIED ----------------------
+            double antennaGainLinear = std::pow(10.0,
+                                                (dlCtrlRxParams->txAntennaGain +
+                                                 4.97) /
+                                                 10.0);
+            SpectrumValue sinr = *(rxPsd)*antennaGainLinear / (*m_noisePsd);
+            dlCtrlRxParams->sinrAvg = Sum(sinr) / (sinr.GetSpectrumModel()->GetNumBands());
+
+            // double snr = 10*log10(dlCtrlRxParams->sinrAvg);
+            // double imsi = DynamicCast<NrUeNetDevice>(m_device)->GetImsi();
+
+            if (dlCtrlRxParams->isSSB)
+            {
+                if (m_lastCellToSNR.find(dlCtrlRxParams->cellId) == m_lastCellToSNR.end())
+                {
+                    m_lastCellToSNR.insert(std::pair<uint8_t, double>(dlCtrlRxParams->cellId, dlCtrlRxParams->sinrAvg));
+                }
+                else
+                {
+                    m_lastCellToSNR.at(dlCtrlRxParams->cellId) = dlCtrlRxParams->sinrAvg;
+                }
+            }
+            // ----------------------------------------------------------
             if (dlCtrlRxParams->pss)
             {
                 if (dlCtrlRxParams->cellId == GetCellId())
@@ -736,11 +786,15 @@ NrSpectrumPhy::StartRx(Ptr<SpectrumSignalParameters> params)
                 }
             }
 
-            if (dlCtrlRxParams->cellId == GetCellId())
+            if ((dlCtrlRxParams->cellId == GetCellId() || dlCtrlRxParams->isSSB) &&
+                dlCtrlRxParams->txPhy->GetObject<NrSpectrumPhy>()->GetStreamId() == m_streamId)
+                // Needed as SSB & CSIRS can be received by all stations
             {
-                m_interferenceCtrl->StartRxMimo(params);
+                if (!(dlCtrlRxParams->isSSB))
+                {
+                    m_interferenceCtrl->StartRxMimo(params);
+                }
                 StartRxDlCtrl(dlCtrlRxParams);
-
                 if (m_enableDlCtrlPathlossTrace)
                 {
                     Ptr<const SpectrumValue> txPsd =
@@ -816,7 +870,8 @@ void
 NrSpectrumPhy::StartTxDataFrames(const Ptr<PacketBurst>& pb,
                                  const std::list<Ptr<NrControlMessage>>& ctrlMsgList,
                                  const std::shared_ptr<DciInfoElementTdma> dci,
-                                 const Time& duration)
+                                 const Time& duration,
+                                 uint8_t slotInd, uint64_t imsi)
 {
     NS_LOG_FUNCTION(this);
     switch (m_state)
@@ -855,6 +910,9 @@ NrSpectrumPhy::StartTxDataFrames(const Ptr<PacketBurst>& pb,
         txParams->ctrlMsgList = ctrlMsgList;
         txParams->rnti = dci->m_rnti;
         txParams->precodingMatrix = dci->m_precMats;
+        // -------------- 
+        txParams->imsi = imsi;
+        txParams->slotInd = slotInd;
 
         /* This section is used for trace */
         if (m_isGnb)
@@ -909,6 +967,8 @@ NrSpectrumPhy::StartTxDlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
         /* no break */
     case RX_UL_CTRL:
         /* no break*/
+    case RX_DL_SSB:
+        /* no break*/
     case RX_UL_SRS:
         NS_FATAL_ERROR("Cannot TX while RX.");
         break;
@@ -929,6 +989,19 @@ NrSpectrumPhy::StartTxDlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
         txParams->cellId = GetCellId();
         txParams->pss = true;
         txParams->ctrlMsgList = ctrlMsgList;
+        // ---------------------- MODIFIED --------------------
+        txParams->isSSB = false;
+        txParams->txAntennaGain = 4.7;
+
+        for (std::list<Ptr<NrControlMessage> >::const_iterator cMesIt = ctrlMsgList.begin (); cMesIt != ctrlMsgList.end(); cMesIt++)
+        {
+          Ptr<NrControlMessage> msg = (*cMesIt);
+          if (msg->GetMessageType() == NrControlMessage::PSS)
+          {
+            txParams->isSSB = true;
+          }
+        }
+        // ----------------------------------------------------
 
         m_txCtrlTrace(duration);
         if (m_channel)
@@ -961,6 +1034,8 @@ NrSpectrumPhy::StartTxCsiRs(uint16_t rnti, uint16_t beamId)
     case RX_DL_CTRL:
         /* no break */
     case RX_UL_CTRL:
+        /* no break*/
+    case RX_DL_SSB:
         /* no break*/
     case RX_UL_SRS:
         NS_FATAL_ERROR("Cannot TX while RX.");
@@ -1010,6 +1085,8 @@ NrSpectrumPhy::StartTxUlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
         /* no break */
     case RX_UL_CTRL:
         /* no break */
+    case RX_DL_SSB:
+        /* no break*/
     case RX_UL_SRS:
         NS_FATAL_ERROR("Cannot TX while RX.");
         break;
@@ -1313,43 +1390,64 @@ NrSpectrumPhy::StartRxDlCtrl(const Ptr<NrSpectrumSignalParametersDlCtrlFrame>& p
     // The current code of this function assumes:
     // that this function is called only when cellId = m_cellId, which means
     // that UE can start to receive DL CTRL only from its own cellId,
+    // or from other cells if the DL CTRL message is an SSB,
     // and CTRL from other cellIds will be ignored
     NS_LOG_FUNCTION(this);
-    NS_ASSERT(params->cellId == GetCellId() && !m_isGnb);
-    // RDF: method currently supports Downlink control only!
-    switch (m_state)
+    // NS_ASSERT(params->cellId == GetCellId() && !m_isGnb);
+
+    // ------------------------ MODIFIED ---------------------
+    if ((params->cellId == GetCellId () && !IsGnb()) || (params->isSSB == true))
     {
-    case TX:
-        NS_FATAL_ERROR("Cannot RX while TX.");
-        break;
-    case RX_DATA:
-        NS_FATAL_ERROR("Cannot RX CTRL while receiving DATA.");
-        break;
-    case RX_DL_CTRL:
-        NS_FATAL_ERROR("Cannot RX DL CTRL while already receiving DL CTRL.");
-        break;
-    case RX_UL_CTRL:
-        /* no break */
-    case RX_UL_SRS:
-        NS_FATAL_ERROR("UE should never be in RX_UL_CTRL or RX_UL_SRS state.");
-        break;
-    case CCA_BUSY:
-        NS_LOG_INFO("Start receiving CTRL while channel in CCA_BUSY state.");
-        /* no break */
-    case IDLE: {
-        NS_ASSERT(m_rxControlMessageList.empty());
-        NS_LOG_LOGIC(this << "receiving DL CTRL from cellId:" << params->cellId
-                          << "and scheduling EndRx with delay " << params->duration);
-        // store the DCIs
-        m_rxControlMessageList = params->ctrlMsgList;
-        Simulator::Schedule(params->duration, &NrSpectrumPhy::EndRxCtrl, this);
-        ChangeState(RX_DL_CTRL, params->duration);
-        break;
+        // RDF: method currently supports Downlink control only!
+        // std::cout << "m_state = " << m_state << std::endl;
+        switch (m_state)
+        {
+        case TX:
+            NS_FATAL_ERROR("Cannot RX while TX.");
+            break;
+        case RX_DATA:
+            NS_FATAL_ERROR("Cannot RX CTRL while receiving DATA.");
+            break;
+        case RX_DL_CTRL:
+            NS_FATAL_ERROR("Cannot RX DL CTRL while already receiving DL CTRL.");
+            break;
+        case RX_UL_CTRL:
+            /* no break */
+        case RX_UL_SRS:
+            NS_FATAL_ERROR("UE should never be in RX_UL_CTRL or RX_UL_SRS state.");
+            break;
+        case CCA_BUSY:
+            NS_LOG_INFO("Start receiving CTRL while channel in CCA_BUSY state.");
+            /* no break */
+        case IDLE: {
+            NS_ASSERT(m_rxControlMessageList.empty());
+            NS_LOG_LOGIC(this << "receiving DL CTRL from cellId:" << params->cellId
+                            << "and scheduling EndRx with delay " << params->duration);
+            // store the DCIs
+            m_rxControlMessageList = params->ctrlMsgList;
+            // -------------------------- MODIFIED ---------------------------
+            if (!params->isSSB)
+            {
+                Simulator::Schedule (params->duration, &NrSpectrumPhy::EndRxCtrl, this);
+                ChangeState (RX_DL_CTRL, params->duration);
+            }
+            else
+            {
+                m_state = State::RX_DL_SSB;
+                EndRxCtrl ();
+            }
+
+            break;
+        }
+        default: {
+            NS_FATAL_ERROR("Unknown state.");
+            break;
+        }
+        }
     }
-    default: {
-        NS_FATAL_ERROR("Unknown state.");
-        break;
-    }
+    else
+    {
+        return;
     }
 }
 
@@ -1383,7 +1481,7 @@ NrSpectrumPhy::StartRxUlCtrl(const Ptr<NrSpectrumSignalParametersUlCtrlFrame>& p
     case RX_UL_CTRL:
         /* no break */
     case IDLE: {
-        // at the gNB we can receive more UL CTRL signals simultaneously
+        // // at the gNB we can receive more UL CTRL signals simultaneously
         if (m_state == IDLE || m_state == CCA_BUSY)
         {
             // first transmission, i.e., we're IDLE and we start RX
@@ -1404,6 +1502,7 @@ NrSpectrumPhy::StartRxUlCtrl(const Ptr<NrSpectrumSignalParametersUlCtrlFrame>& p
                                           params->ctrlMsgList.begin(),
                                           params->ctrlMsgList.end());
         }
+
         break;
     }
     default: {
@@ -1804,7 +1903,7 @@ NrSpectrumPhy::ProcessReceivedPacketBurst()
             // send HARQ feedback (if not already done for this TB)
             if (!tbInfo.m_harqFeedbackSent)
             {
-                tbInfo.m_harqFeedbackSent = true;
+                 tbInfo.m_harqFeedbackSent = true;
                 if (tbInfo.m_expected.m_isDownlink) // DL TB
                 {
                     NS_ASSERT(harqDlInfoMap.find(rnti) == harqDlInfoMap.end());
@@ -1860,7 +1959,7 @@ void
 NrSpectrumPhy::EndRxCtrl()
 {
     NS_LOG_FUNCTION(this);
-    NS_ASSERT(m_state == RX_DL_CTRL || m_state == RX_UL_CTRL);
+    NS_ASSERT(m_state == RX_DL_CTRL || m_state == RX_UL_CTRL || m_state == RX_DL_SSB);
 
     m_interferenceCtrl->EndRx();
 
@@ -2041,6 +2140,14 @@ NrSpectrumPhy::AddCsiImMimoChunkProcessor(const Ptr<NrMimoChunkProcessor>& p)
     m_interferenceCsiIm->AddMimoChunkProcessor(p);
 }
 
+// ------------------------ MODIFIED ---------------------
+// void
+// NrSpectrumPhy::AddCsiImMimoChunkProcessor(const Ptr<NrMimoChunkProcessor>& p)
+// {
+//     NS_LOG_FUNCTION(this);
+//     m_interferenceSsb->AddMimoChunkProcessor(p);
+// }
+
 void
 NrSpectrumPhy::StartRxCsiRs(const Ptr<NrSpectrumSignalParametersCsiRs>& csiRsParams)
 {
@@ -2119,6 +2226,25 @@ void
 NrSpectrumPhy::AddExpectedDlCtrlEnd(Time ctrlEndTime)
 {
     m_ctrlEndTime = ctrlEndTime;
+}
+
+void
+NrSpectrumPhy::SetIAState(bool iaContinues)
+{
+  if (!IsGnb())
+  {
+    m_IAcontinues = iaContinues;
+  }
+  else
+  {
+    m_IAcontinues = false;
+  }
+}
+
+double 
+NrSpectrumPhy::GetLastReceivedSNR (uint8_t cellId)
+{
+  return m_lastCellToSNR.at (cellId);
 }
 
 } // namespace ns3

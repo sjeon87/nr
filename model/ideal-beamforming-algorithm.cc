@@ -5,6 +5,9 @@
 #include "ideal-beamforming-algorithm.h"
 
 #include "nr-spectrum-phy.h"
+#include "beam-manager.h"
+#include "nr-gnb-phy.h"
+#include "nr-ue-phy.h"
 
 #include "ns3/double.h"
 #include "ns3/integer.h"
@@ -15,6 +18,9 @@
 #include "ns3/string.h"
 #include "ns3/uinteger.h"
 #include "ns3/uniform-planar-array.h"
+
+#include "ns3/three-gpp-spectrum-propagation-loss-model.h"
+
 
 namespace ns3
 {

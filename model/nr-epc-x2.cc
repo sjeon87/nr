@@ -384,6 +384,36 @@ NrEpcX2::RecvFromX2cSocket(Ptr<Socket> socket)
             m_x2SapUser->RecvHandoverCancel(params);
         }
     }
+    else if (procedureCode == NrEpcX2Header::OptimalGnbBeamReport)
+    {
+        EpcX2OptimalGnbBeamReportHeader x2optimalGnbBeamReportHeader;
+        packet->RemoveHeader (x2optimalGnbBeamReportHeader);
+
+        NS_LOG_INFO ("X2 OptimalGnbBeamReport header: " << x2optimalGnbBeamReportHeader);
+
+        NrRrcSap::OptimalGnbBeamReport params;
+        params.ueImsi = x2optimalGnbBeamReportHeader.GetUeImsi();
+        params.startingSfn = SfnSf(x2optimalGnbBeamReportHeader.GetStartingFrame(),
+                                    x2optimalGnbBeamReportHeader.GetStartingSubframe(),
+                                    x2optimalGnbBeamReportHeader.GetStartingSlot(),
+                                    x2optimalGnbBeamReportHeader.GetNumerology());
+        
+        params.optimalBeamIndex = std::vector<uint16_t> ({
+                               x2optimalGnbBeamReportHeader.GetOptimalBeamIndex (),
+                                x2optimalGnbBeamReportHeader.GetSecondBeamIndex (),
+                                x2optimalGnbBeamReportHeader.GetThirdBeamIndex (),
+                                x2optimalGnbBeamReportHeader.GetFourthBeamIndex (),
+                                x2optimalGnbBeamReportHeader.GetFifthBeamIndex (),
+                                x2optimalGnbBeamReportHeader.GetSixthBeamIndex (),
+                                x2optimalGnbBeamReportHeader.GetSeventhBeamIndex (),
+                                x2optimalGnbBeamReportHeader.GetEightBeamIndex ()
+        });
+        params.isServingCell = x2optimalGnbBeamReportHeader.GetServingCell();
+        params.numOfBeamsTbRlm = x2optimalGnbBeamReportHeader.GetNumOfBeamsTbRlm();
+        params.csiCounterVector = x2optimalGnbBeamReportHeader.GetCsiCounter();
+
+        m_x2SapUser->RecvOptimalGnbBeamReport(params);
+    }
     else
     {
         NS_ASSERT_MSG(false, "ProcedureCode NOT SUPPORTED!!!");
@@ -821,6 +851,201 @@ NrEpcX2::DoSendHandoverCancel(NrEpcX2SapProvider::HandoverCancelParams params)
 
     // Send the X2 message through the socket
     localSocket->SendTo(packet, 0, InetSocketAddress(remoteIpAddr, m_x2cUdpPort));
+}
+
+// ---------------------- MODIFIED ------------------
+void 
+NrEpcX2::DoSendSpecificGnbBeamReport (NrEpcX2Sap::OptimalGnbBeamReportParams params)
+{
+  NS_LOG_FUNCTION (this);
+
+  NS_LOG_LOGIC ("sourceCellId = " << params.sourceCellId);
+  NS_LOG_LOGIC ("targetCellId = " << params.targetCellId);
+
+  NS_ASSERT_MSG (m_x2InterfaceSockets.find (params.targetCellId) != m_x2InterfaceSockets.end (),
+                 "Missing infos for targetCellId = " << params.targetCellId);
+
+  NS_ASSERT_MSG (params.numOfBeamsTbRlm <= params.optimalBeamIndex.size(),
+                 "numOfBeams out of bounds = " << std::to_string(params.numOfBeamsTbRlm));
+  Ptr<NrX2IfaceInfo> socketInfo = m_x2InterfaceSockets [params.targetCellId];
+  Ptr<Socket> sourceSocket = socketInfo->m_localUserPlaneSocket;
+  Ipv4Address targetIpAddr = socketInfo->m_remoteIpAddr;
+
+  NS_LOG_LOGIC ("sourceSocket = " << sourceSocket);
+  NS_LOG_LOGIC ("targetIpAddr = " << targetIpAddr);
+
+  // Build the X2 message
+  EpcX2OptimalGnbBeamReportHeader x2optimalGnbBeamReportHeader;
+  x2optimalGnbBeamReportHeader.SetUeImsi (params.ueImsi);
+  x2optimalGnbBeamReportHeader.SetStartingFrame (params.startingSfn.GetFrame ());
+  x2optimalGnbBeamReportHeader.SetStartingSubframe (params.startingSfn.GetSubframe ());
+  x2optimalGnbBeamReportHeader.SetStartingSlot (params.startingSfn.GetSlot ());
+  x2optimalGnbBeamReportHeader.SetNumerology (params.startingSfn.GetNumerology ());
+  x2optimalGnbBeamReportHeader.SetOptimalBeamIndex (params.optimalBeamIndex.at(0));
+  x2optimalGnbBeamReportHeader.SetSecondBeamIndex (params.optimalBeamIndex.at(1));
+  x2optimalGnbBeamReportHeader.SetThirdBeamIndex (params.optimalBeamIndex.at(2));
+  x2optimalGnbBeamReportHeader.SetFourthBeamIndex (params.optimalBeamIndex.at(3));
+  x2optimalGnbBeamReportHeader.SetFifthBeamIndex (params.optimalBeamIndex.at(4));
+  x2optimalGnbBeamReportHeader.SetSixthBeamIndex (params.optimalBeamIndex.at(5));
+  x2optimalGnbBeamReportHeader.SetSeventhBeamIndex (params.optimalBeamIndex.at(6));
+  x2optimalGnbBeamReportHeader.SetEigthBeamIndex (params.optimalBeamIndex.at (7));
+  x2optimalGnbBeamReportHeader.SetServingCell (params.isServingCell);
+  x2optimalGnbBeamReportHeader.SetNumOfBeamsTbRlm(params.numOfBeamsTbRlm);
+  x2optimalGnbBeamReportHeader.SetCsiCounter(params.csiCounterVector);
+
+  NrEpcX2Header x2Header;
+  x2Header.SetMessageType (NrEpcX2Header::InitiatingMessage);
+  x2Header.SetProcedureCode (NrEpcX2Header::OptimalGnbBeamReport);
+  x2Header.SetLengthOfIes (x2optimalGnbBeamReportHeader.GetLengthOfIes ());
+  x2Header.SetNumberOfIes (x2optimalGnbBeamReportHeader.GetNumberOfIes ());
+
+  // Build the X2 packet
+  Ptr<Packet> packet = Create <Packet> ();
+  packet->AddHeader (x2optimalGnbBeamReportHeader);
+  packet->AddHeader (x2Header);
+  NS_LOG_INFO ("packetLen = " << packet->GetSize ());
+
+  // Send the X2 message through the socket
+  sourceSocket->SendTo (packet, 0, InetSocketAddress (targetIpAddr, m_x2cUdpPort));
+}
+
+void
+NrEpcX2::DoSendDeRegisterUeToCell (NrEpcX2Sap::DeRegisterUeParams params)
+{
+  NS_LOG_FUNCTION (this);
+
+  NS_LOG_LOGIC ("targetCellId = " << params.targetCellId);
+
+  NS_ASSERT_MSG (m_x2InterfaceSockets.find (params.targetCellId) != m_x2InterfaceSockets.end (),
+                 "Missing infos for targetCellId = " << params.targetCellId);
+  Ptr<NrX2IfaceInfo> socketInfo = m_x2InterfaceSockets [params.targetCellId];
+  Ptr<Socket> sourceSocket = socketInfo->m_localUserPlaneSocket;
+  Ipv4Address targetIpAddr = socketInfo->m_remoteIpAddr;
+
+  NS_LOG_LOGIC ("sourceSocket = " << sourceSocket);
+  NS_LOG_LOGIC ("targetIpAddr = " << targetIpAddr);
+
+  // Build the X2 message
+  EpcX2DeRegisterUeContextHeader x2deregisterUeContextHeader;
+  x2deregisterUeContextHeader.SetUeImsi (params.imsi);
+  x2deregisterUeContextHeader.SetCellId (params.targetCellId);
+  x2deregisterUeContextHeader.SetServingGnb(params.isServingGnb);
+  
+  switch (params.m_sourceOfCommand)
+  {
+  case NrEpcX2Sap::DeRegisterUeParams::SourceOfCommand::DeRegisterFromCoordinator:
+    x2deregisterUeContextHeader.SetSourceOfCommand ((uint8_t)0);
+    break;
+  case NrEpcX2Sap::DeRegisterUeParams::SourceOfCommand::DeRegisterFromUe:
+    x2deregisterUeContextHeader.SetSourceOfCommand ((uint8_t)1);
+    break;
+  default:
+    break;
+  }
+
+  NrEpcX2Header x2Header;
+  x2Header.SetMessageType (NrEpcX2Header::InitiatingMessage);
+  x2Header.SetProcedureCode (NrEpcX2Header::DeRegisterUeContext);
+  x2Header.SetLengthOfIes (x2deregisterUeContextHeader.GetLengthOfIes ());
+  x2Header.SetNumberOfIes (x2deregisterUeContextHeader.GetNumberOfIes ());
+
+  // Build the X2 packet
+  Ptr<Packet> packet = Create <Packet> ();
+  packet->AddHeader (x2deregisterUeContextHeader);
+  packet->AddHeader (x2Header);
+  NS_LOG_INFO ("packetLen = " << packet->GetSize ());
+
+  // Send the X2 message through the socket
+}
+
+void
+NrEpcX2::DoSendUeSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params)
+{
+  NS_LOG_FUNCTION (this);
+
+  NS_LOG_LOGIC ("targetCellId = " << params.targetCellId);
+
+  NS_ASSERT_MSG (m_x2InterfaceSockets.find (params.targetCellId) != m_x2InterfaceSockets.end (),
+                "Missing infos for targetCellId = " << params.targetCellId);
+  Ptr<NrX2IfaceInfo> socketInfo = m_x2InterfaceSockets [params.targetCellId];
+  Ptr<Socket> sourceSocket = socketInfo->m_localUserPlaneSocket;
+  Ipv4Address targetIpAddr = socketInfo->m_remoteIpAddr;
+
+  NS_LOG_LOGIC ("sourceSocket = " << sourceSocket);
+  NS_LOG_LOGIC ("targetIpAddr = " << targetIpAddr);
+
+  // Build the X2 message
+  EpcX2UeSSBRSBeamUpdateHeader x2UeSSBRSBeamUpdateHeader;
+  x2UeSSBRSBeamUpdateHeader.SetUeImsi (params.ueImsi);
+  x2UeSSBRSBeamUpdateHeader.SetSourceCellId (params.targetCellId);
+  x2UeSSBRSBeamUpdateHeader.SetUeSSRBRSBeamVector (params.optimalBeamIndexVector);
+  x2UeSSBRSBeamUpdateHeader.SetStartingFrame (params.startingSfn.GetFrame ());
+  x2UeSSBRSBeamUpdateHeader.SetStartingSubframe (params.startingSfn.GetSubframe ());
+  x2UeSSBRSBeamUpdateHeader.SetStartingSlot (params.startingSfn.GetSlot ());
+  x2UeSSBRSBeamUpdateHeader.SetNumerology (params.startingSfn.GetNumerology ());
+  x2UeSSBRSBeamUpdateHeader.SetCsiCounter(params.csiCounterVector);
+  x2UeSSBRSBeamUpdateHeader.SetServingCell(params.isServingCellId);
+
+  NrEpcX2Header x2Header;
+  x2Header.SetMessageType (NrEpcX2Header::InitiatingMessage);
+  x2Header.SetProcedureCode (NrEpcX2Header::SSBRSReport);
+  x2Header.SetLengthOfIes (x2UeSSBRSBeamUpdateHeader.GetLengthOfIes ());
+  x2Header.SetNumberOfIes (x2UeSSBRSBeamUpdateHeader.GetNumberOfIes ());
+
+  NS_LOG_INFO ("X2 header: " << x2Header);
+  NS_LOG_INFO ("X2 SSBRSReport: " << x2UeSSBRSBeamUpdateHeader);
+
+  // Build the X2 Socket
+  Ptr<Packet> packet = Create<Packet> ();
+  packet->AddHeader (x2UeSSBRSBeamUpdateHeader);
+  packet->AddHeader (x2Header);
+  NS_LOG_INFO ("packetLen = " << packet->GetSize ());
+
+  sourceSocket->SendTo (packet,0, InetSocketAddress (targetIpAddr, m_x2cUdpPort));
+}
+
+void
+NrEpcX2::DoSendUeSinrUpdate(NrEpcX2Sap::UeImsiSinrParams params)
+{
+  NS_LOG_FUNCTION(this);
+
+  NS_LOG_LOGIC ("sourceCellId = " << params.sourceCellId);
+  NS_LOG_LOGIC ("targetCellId = " << params.targetCellId);
+
+  NS_ASSERT_MSG (m_x2InterfaceSockets.find (params.targetCellId) != m_x2InterfaceSockets.end (),
+                 "Missing infos for targetCellId = " << params.targetCellId);
+  Ptr<NrX2IfaceInfo> socketInfo = m_x2InterfaceSockets [params.targetCellId];
+  Ptr<Socket> sourceSocket = socketInfo->m_localUserPlaneSocket;
+  Ipv4Address targetIpAddr = socketInfo->m_remoteIpAddr;
+
+  NS_LOG_LOGIC ("sourceSocket = " << sourceSocket);
+  NS_LOG_LOGIC ("targetIpAddr = " << targetIpAddr);
+
+  // Build the X2 message
+  EpcX2UeImsiSinrUpdateHeader x2imsiSinrHeader;
+  x2imsiSinrHeader.SetUeImsiSinrMap (params.ueImsiSinrMap);
+  x2imsiSinrHeader.SetSourceCellId (params.sourceCellId);
+
+  NrEpcX2Header x2Header;
+  x2Header.SetMessageType (NrEpcX2Header::InitiatingMessage);
+  x2Header.SetProcedureCode (NrEpcX2Header::UpdateUeSinr);
+  x2Header.SetLengthOfIes (x2imsiSinrHeader.GetLengthOfIes ());
+  x2Header.SetNumberOfIes (x2imsiSinrHeader.GetNumberOfIes ());
+
+  NS_LOG_INFO ("X2 header: " << x2Header);
+  NS_LOG_INFO ("X2 UeImsiSinrUpdate header: " << x2imsiSinrHeader);
+
+  // Build the X2 packet
+  Ptr<Packet> packet = Create <Packet> ();
+  packet->AddHeader (x2imsiSinrHeader);
+  packet->AddHeader (x2Header);
+  NS_LOG_INFO ("packetLen = " << packet->GetSize ());
+//************************************************************************************************
+  //EpcX2Tag tag (Simulator::Now());
+  //packet->AddPacketTag (tag);
+//************************************************************************************************
+  // Send the X2 message through the socket
+  sourceSocket->SendTo (packet, 0, InetSocketAddress (targetIpAddr, m_x2cUdpPort));
 }
 
 } // namespace ns3

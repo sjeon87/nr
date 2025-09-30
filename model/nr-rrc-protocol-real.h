@@ -152,6 +152,15 @@ class UeRrcProtocolReal : public Object
      */
     void DoReceivePdcpSdu(NrPdcpSapUser::ReceivePdcpSduParameters params);
 
+    // ---------------------------- MODIFIED ---------------------------
+    void DoSendOptimalGnbBeamMap (NrRrcSap::CellOptimalGnbBeamMap msg);
+
+    void DoSendSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params);
+
+    void DoSendClearHandoverEvents (uint64_t imsi);
+
+    void DoTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev);
+
     Ptr<NrUeRrc> m_rrc;                       ///< the RRC
     uint16_t m_rnti;                          ///< the RNTI
     NrUeRrcSapProvider* m_ueRrcSapProvider;   ///< UE RRC SAP provider

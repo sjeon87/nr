@@ -14,6 +14,7 @@
 #include "ns3/matrix-array.h"
 #include "ns3/object.h"
 #include "ns3/string.h"
+#include "ns3/beam-id.h"
 
 #include <deque>
 #include <list>
@@ -126,6 +127,7 @@ struct DciInfoElementTdma
         DATA = 1, //!< Used for DL/UL DATA
         CTRL = 2, //!< Used for DL/UL CTRL
         MSG3 = 3, //!< Used for UL MSG3
+        CTRL_SSB = 4,   //!< Used for SSB transmission in the DL
     };
 
     /**
@@ -277,7 +279,7 @@ struct DciInfoElementTdma
     const uint16_t m_rnti{0};     //!< RNTI of the UE
     const DciFormat m_format{DL}; //!< DCI format
     const uint8_t m_symStart{0};  //!< starting symbol index for flexible TTI scheme
-    const uint8_t m_numSym{0};    //!< number of symbols for flexible TTI scheme
+    const uint8_t m_numSym{14};    //!< number of symbols for flexible TTI scheme
     const uint8_t m_mcs{0};       //!< MCS
     const uint8_t m_rank{1};      //!< the rank number (the number of MIMO layers)
     Ptr<const ComplexMatrixArray> m_precMats{nullptr};
@@ -289,6 +291,9 @@ struct DciInfoElementTdma
     uint8_t m_harqProcess{0};         //!< HARQ process id
     std::vector<bool> m_rbgBitmask{}; //!< RBG mask: 0 if the RBG is not used, 1 otherwise
     const uint8_t m_tpc{0};           //!< Tx power control command
+
+    // ------------------ MODIFIED ---------------------------
+    BeamId ssbBeamId {0, 0};
 };
 
 /**
@@ -665,6 +670,56 @@ struct RxPacketTraceParams
     uint16_t m_bwpId{std::numeric_limits<uint16_t>::max()};
     uint32_t m_rbAssignedNum{std::numeric_limits<uint32_t>::max()};
     uint8_t m_cqi{std::numeric_limits<uint8_t>::max()};
+};
+
+// ------------------------- MODIFIED -----------------------
+struct BeamSweepTraceParams
+{
+  enum BeamSweepOrigin
+  {
+    COORDINATOR_INITIATED_OUTAGE,
+    UE_INITIATED_OUTAGE,
+    UE_INITIATED_BEAM_REFINEMENT,
+    COORDINATOR_INITIATED_HANDOVER,
+    UE_COMPLETED_BEAM_SWEEP,
+    GNB_CHECK_OMNI_SWEEP,
+    GNB_RECVD_BEAM_REPORT,
+    UE_BEAM_ADJUSTMENT,
+    GNB_BEAM_ADJUSTMENT
+  } m_beamSweepOrigin {COORDINATOR_INITIATED_OUTAGE};
+
+  uint64_t imsi;
+  uint8_t currentCell;
+  uint8_t maxCellBeforeHandover;
+  uint8_t foundCell;
+  uint16_t foundSector;
+  double foundElevation;
+  double snrBeforeSweep;
+  double snrDiffBeforeHO;
+};
+
+struct RadioLinkMonitoringTraceParams
+{
+  enum RadioLinkMonitoringOrigin
+  {
+    UE_PERIODIC_SWEEP,
+    UE_EXPLICIT_SWEEP,
+    HANDOVER_AFTER_UE_IA_SWEEP,
+    HANDOVER_AFTER_RRC_SWEEP,
+    NO_HANDOVER_AFTER_RRC_SWEEP,
+    HANDOVER_AFTER_UE_SWEEP,
+    NO_HANDOVER_AFTER_UE_SWEEP,
+    HANDOVER_WITHOUT_SWEEP,
+    HANDOVER_ADAPTION,
+    HANDOVER_CANCELLED,
+    HANDOVER_EXECUTED,
+    HANDOVER_LOAD_BALANCING
+  } m_radioLinkMonitoringOrigin;
+
+  uint64_t imsi;
+  std::vector<std::pair< uint8_t, BeamId>> beamsTbRLM;
+  uint8_t sourceCellId;
+  uint8_t targetCellId;
 };
 
 /**

@@ -95,11 +95,21 @@ class NrUeRrcProtocolIdeal : public Object
 
     void SetGnbRrcSapProvider();
 
+    // ------------------------- MODIFIED -----------------------
+    void DoSendOptimalGnbBeamMap (NrRrcSap::CellOptimalGnbBeamMap msg);
+
+    void DoSendSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params);
+
+    void DoSendClearHandoverEvents (uint64_t imsi);
+
+    void DoTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev);
+
     Ptr<NrUeRrc> m_rrc;
     uint16_t m_rnti;
     NrUeRrcSapProvider* m_ueRrcSapProvider;
     NrUeRrcSapUser* m_ueRrcSapUser;
     NrGnbRrcSapProvider* m_gnbRrcSapProvider;
+    NrGnbRrcSapProvider* m_tempGnbRrcSapProvider;
 };
 
 /**

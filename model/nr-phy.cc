@@ -2,11 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
-#define NS_LOG_APPEND_CONTEXT                                                                      \
-    do                                                                                             \
-    {                                                                                              \
-        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
-    } while (false);
+
 
 #include "nr-phy.h"
 
@@ -17,8 +13,16 @@
 #include "ns3/boolean.h"
 #include "ns3/pointer.h"
 #include "ns3/uniform-planar-array.h"
+#include "ns3/enum.h"
 
 #include <algorithm>
+
+#undef NS_LOG_APPEND_CONTEXT
+#define NS_LOG_APPEND_CONTEXT                                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
+    } while (false);
 
 namespace ns3
 {
@@ -59,6 +63,9 @@ class NrMemberPhySapProvider : public NrPhySapProvider
     Time GetSlotPeriod() const override;
 
     uint32_t GetRbNum() const override;
+
+    // ---------------------------- MODIFIED --------------------
+    virtual std::vector<BeamId> GenerateBeamVectorMap () const override;
 
   private:
     NrPhy* m_phy;
@@ -145,6 +152,13 @@ NrMemberPhySapProvider::GetRbNum() const
     return m_phy->GetRbNum();
 }
 
+// ----------------------- MODIFIED -----------------------
+std::vector<BeamId>
+NrMemberPhySapProvider::GenerateBeamVectorMap() const
+{
+  return m_phy->DoGenerateBeamVectorMap();
+}
+
 /* ======= */
 
 TypeId
@@ -156,7 +170,18 @@ NrPhy::GetTypeId()
                                           "NrSpectrumPhy instance",
                                           PointerValue(),
                                           MakePointerAccessor(&NrPhy::m_spectrumPhy),
-                                          MakePointerChecker<NrSpectrumPhy>());
+                                          MakePointerChecker<NrSpectrumPhy>())
+                            .AddAttribute ("SSBRLMOn",
+                                           "Boolean indicating whether SSB RLM should be performed",
+                                           BooleanValue (true),
+                                           MakeBooleanAccessor (&NrPhy::m_ssbRlmOn),
+                                           MakeBooleanChecker ())
+                            .AddAttribute ("AntennaConfiguration",
+                                           "Antenna Configuration that will be used in this device's PHY layer",
+                                           EnumValue (AntennaConfiguration::AntennaConfigInets),
+                                           MakeEnumAccessor <NrPhy::AntennaConfiguration> (&NrPhy::m_antennaConfig),
+                                           MakeEnumChecker (AntennaConfigDefault, "AntennaConfigDefault",
+                                           AntennaConfigInets, "AntennaConfigInets"));
 
     return tid;
 }
@@ -205,6 +230,7 @@ NrPhy::DoDispose()
     m_ctrlMsgs.clear();
     m_tddPattern.clear();
     m_netDevice = nullptr;
+    m_beamManager = nullptr;
     if (m_spectrumPhy)
     {
         m_spectrumPhy->Dispose();
@@ -890,4 +916,65 @@ NrPhy::GetTbDecodeLatency() const
     return m_tbDecodeLatencyUs;
 }
 
+// ---------------- MODIFIED -------------------
+
+void
+NrPhy::InstallAntenna (const Ptr<UniformPlanarArray> &antenna)
+{
+  NS_LOG_FUNCTION (this);
+  NS_ASSERT (m_spectrumPhy != nullptr);
+
+  m_beamManager = m_spectrumPhy->GetBeamManager();
+  NS_ASSERT_MSG(m_beamManager != nullptr, "BeamManager is not initialized!");
+  m_beamManager->Configure(antenna);
+}
+
+Ptr<BeamManager> NrPhy::GetBeamManager() const
+{
+  return m_beamManager;
+}
+
+void 
+NrPhy::SetAdaptiveBFProperty (bool adaptiveBF)
+{
+  m_adaptiveBF = adaptiveBF;
+}
+
+void 
+NrPhy::SetNoOfBeamsTbRLM (uint8_t noOfBeamsTbRLM)
+{
+  m_noOfBeamsTbRLM = noOfBeamsTbRLM;
+}
+
+void 
+NrPhy::SetNoOfBeamsTbReported (uint8_t noOfBeamsTbReported)
+{
+  m_noOfBeamsTbReported = noOfBeamsTbReported;
+}
+
+void 
+NrPhy::SetNoOfSSBsPerSlot (uint8_t noOfSSBsPerSlot)
+{
+  m_noOfSSBsPerSlot = noOfSSBsPerSlot;
+}
+
+Ptr<const UniformPlanarArray>
+NrPhy::GetAntenna() const
+{
+  return m_beamManager->GetAntenna ();
+}
+
+void 
+NrPhy::SetPHYEpcHelper (Ptr<NrEpcHelper> epcHelper)
+{
+  m_phyEpcHelper = epcHelper;
+}
+
+NrPhy::AntennaConfiguration
+NrPhy::GetAntennaConfig ()
+{
+  return m_antennaConfig;
+}
+
 } // namespace ns3
+#undef NS_LOG_APPEND_CONTEXT

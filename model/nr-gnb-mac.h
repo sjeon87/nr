@@ -175,6 +175,9 @@ class NrGnbMac : public Object
      */
     void BeamChangeReport(BeamId beamId, uint8_t rnti);
 
+    // --------------- MODIFIED ------------------
+    void DoForwardIAStateToSched (bool iaPerformed, uint64_t imsi);
+
     /**
      * TracedCallback signature for DL and UL data scheduling events.
      *
@@ -242,6 +245,12 @@ class NrGnbMac : public Object
                                                      const uint16_t rnti,
                                                      const uint8_t bwpId,
                                                      Ptr<NrControlMessage>);
+
+
+    // ----------------------------- MODIFIED --------------------
+    bool m_realisticIA;
+    bool m_rlmON;
+
 
   protected:
     /**
@@ -330,6 +339,14 @@ class NrGnbMac : public Object
      */
     void DoBuildRarList(SlotAllocInfo& slotAllocInfo);
 
+    /**
+     * @brief Checks wheather SSB is required for the current slot
+     * @param dlSfn current subframe number
+     */
+    bool IsSSBRequired (const SfnSf &dlSfn);
+
+    void DoSetRaProcessFlag (bool raProcessContinuing);
+
   private:
     bool HasMsg3Allocations(const SlotAllocInfo& slotInfo);
 
@@ -394,6 +411,8 @@ class NrGnbMac : public Object
      */
     std::map<uint8_t, NcRaPreambleInfo> m_allocatedNcRaPreambleMap;
     std::map<uint8_t, uint32_t> m_receivedRachPreambleCount;
+
+    bool m_gnbRaContinuing = false;
     // end of RACH related member variables
 
     std::unordered_map<uint16_t, std::unordered_map<uint8_t, NrMacSapUser*>> m_rlcAttached;
@@ -436,6 +455,11 @@ class NrGnbMac : public Object
      * Trace DL HARQ info list elements.
      */
     TracedCallback<const DlHarqInfo&> m_dlHarqFeedback;
+
+    std::vector<uint16_t> m_currentRntis;
+    std::vector<uint16_t> m_previousRntis;
+
+    uint8_t m_noOfBeamsTbRLM;
 
     void ProcessRaPreambles(const SfnSf& sfnSf);
     void SetNumberOfRaPreambles(uint8_t numberOfRaPreambles);

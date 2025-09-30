@@ -114,6 +114,12 @@ class NrGnbCphySapProvider
      * @return Reference Signal Power for SIB2
      */
     virtual int8_t GetReferenceSignalPower() = 0;
+
+    virtual void AttachUeFromRRC (uint64_t imsi, const Ptr<NetDevice> &netDev) = 0;
+
+    virtual void RegisterUeFromRRC (uint64_t imsi) = 0;
+
+    virtual void SetOptimalGnbBeamForImsi (uint64_t imsi, SfnSf startingSfn, std::vector<uint16_t> optimalBeamIndex, bool isServingCell, uint8_t numOfBeamsTbRlm) = 0;
 };
 
 /**
@@ -129,6 +135,23 @@ class NrGnbCphySapUser
      * Destructor
      */
     virtual ~NrGnbCphySapUser() = default;
+
+    struct UeAssociatedSinrInfo
+    {
+        uint8_t componentCarrierId;
+        std::map<uint64_t, double> ueImsiSinrMap;
+    };
+
+    struct UeRRCCSIRSReport
+    {
+        uint16_t rnti;
+        uint8_t cellId;
+        std::vector<std::pair<uint8_t, std::pair<double, BeamId>>> csiRSVector;
+    };
+
+    virtual void UpdateUeSinrEstimate(NrGnbCphySapUser::UeAssociatedSinrInfo info) = 0;
+
+    virtual uint64_t GetImsiFromRnti (uint16_t rnti) = 0;
 };
 
 /**
@@ -161,6 +184,10 @@ class MemberNrGnbCphySapProvider : public NrGnbCphySapProvider
     void SetMasterInformationBlock(NrRrcSap::MasterInformationBlock mib) override;
     void SetSystemInformationBlockType1(NrRrcSap::SystemInformationBlockType1 sib1) override;
     int8_t GetReferenceSignalPower() override;
+
+    virtual void AttachUeFromRRC (uint64_t imsi, const Ptr<NetDevice> &netDev);
+    virtual void RegisterUeFromRRC  (uint64_t imsi);
+    virtual void SetOptimalGnbBeamForImsi (uint64_t imsi, SfnSf startingSfn, std::vector<uint16_t> optimalBeamIndex, bool isServingCell, uint8_t numOfBeamsTbRlm);
 
   private:
     C* m_owner; ///< the owner class
@@ -250,6 +277,27 @@ MemberNrGnbCphySapProvider<C>::GetReferenceSignalPower()
     return m_owner->DoGetReferenceSignalPower();
 }
 
+template <class C>
+void 
+MemberNrGnbCphySapProvider<C>::AttachUeFromRRC (uint64_t imsi, const Ptr<NetDevice> &netDev)
+{
+  m_owner->DoAttachUeFromRRC (imsi, netDev);
+}
+
+template <class C>
+void 
+MemberNrGnbCphySapProvider<C>::RegisterUeFromRRC (uint64_t imsi)
+{
+  m_owner->RegisterUe (imsi);
+}
+
+template <class C>
+void
+MemberNrGnbCphySapProvider<C>::SetOptimalGnbBeamForImsi (uint64_t imsi, SfnSf startingSfn, std::vector<uint16_t> optimalBeamIndex, bool isServingCell, uint8_t numOfBeamsTbRlm)
+{
+  m_owner->DoSetOptimalGnbBeamForImsi (imsi, startingSfn, optimalBeamIndex, isServingCell, numOfBeamsTbRlm);
+}
+
 /**
  * Template for the implementation of the NrGnbCphySapUser as a member
  * of an owner class of type C to which all methods are forwarded
@@ -264,6 +312,8 @@ class MemberNrGnbCphySapUser : public NrGnbCphySapUser
      * @param owner the owner class
      */
     MemberNrGnbCphySapUser(C* owner);
+    virtual void UpdateUeSinrEstimate(UeAssociatedSinrInfo info);
+    virtual uint64_t GetImsiFromRnti (uint16_t rnti);
 
     // Delete default constructor to avoid misuse
     MemberNrGnbCphySapUser() = delete;
@@ -278,6 +328,20 @@ template <class C>
 MemberNrGnbCphySapUser<C>::MemberNrGnbCphySapUser(C* owner)
     : m_owner(owner)
 {
+}
+
+template <class C>
+void
+MemberNrGnbCphySapUser<C>::UpdateUeSinrEstimate(UeAssociatedSinrInfo info)
+{
+  return m_owner->DoUpdateUeSinrEstimate(info);
+}
+
+template <class C>
+uint64_t
+MemberNrGnbCphySapUser<C>::GetImsiFromRnti (uint16_t rnti)
+{
+  return m_owner->DoGetImsiFromRnti (rnti);
 }
 
 } // namespace ns3

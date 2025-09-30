@@ -150,6 +150,8 @@ class NrGnbCmacSapProvider
      */
     virtual AllocateNcRaPreambleReturnValue AllocateNcRaPreamble(uint16_t rnti) = 0;
 
+    virtual void SetRAProcessFlag(bool raProcessContinuting) = 0;
+
     /**
      * @brief Check if all SRS periodicity is at the maximum allowed and all offsets have been used
      * @return true if all SRS offsets have been used
@@ -220,6 +222,10 @@ class NrGnbCmacSapUser
      * @return true if the random access in connected mode is completed
      */
     virtual bool IsRandomAccessCompleted(uint16_t rnti) = 0;
+
+    virtual uint64_t GetImsiFromRnti (uint16_t rnti) = 0;
+
+    virtual uint16_t GetRntiFromImsi (uint64_t imsi) = 0;
 };
 
 } // namespace ns3

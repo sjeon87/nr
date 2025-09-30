@@ -11,8 +11,10 @@
 
 #include "ns3/ipv4-address.h"
 #include "ns3/packet.h"
+#include "ns3/nr-rrc-sap.h"
 
 #include <bitset>
+#include <map>
 
 namespace ns3
 {
@@ -339,6 +341,37 @@ class NrEpcX2Sap
         uint16_t targetCellId;   ///< target cell ID
         uint16_t cause;          ///< cause
     };
+
+    struct DeRegisterUeParams
+    {
+        enum SourceOfCommand{
+        DeRegisterFromCoordinator,
+        DeRegisterFromUe
+        };
+        uint8_t targetCellId;
+        uint64_t imsi;
+        SourceOfCommand m_sourceOfCommand;
+        bool isServingGnb;
+    };
+
+    struct OptimalGnbBeamReportParams
+    {
+        uint16_t sourceCellId;
+        uint16_t targetCellId;
+        uint64_t ueImsi;            ///< Imsi of the UE that gNB will steer towards
+        SfnSf startingSfn;          ///< SfnSf where UE started receiving SSBs
+        std::vector<uint16_t> optimalBeamIndex;  ///< Location within SS Burst where optimal SSB was received 
+        bool isServingCell;
+        uint8_t numOfBeamsTbRlm;
+        std::vector<uint8_t> csiCounterVector;
+    };
+
+    struct UeImsiSinrParams
+    {
+        uint16_t    sourceCellId;
+        uint16_t    targetCellId;
+        std::map<uint64_t, double> ueImsiSinrMap;
+    };
 };
 
 /**
@@ -405,6 +438,15 @@ class NrEpcX2SapProvider : public NrEpcX2Sap
      * @param params the handover cancel parameters
      */
     virtual void SendHandoverCancel(HandoverCancelParams params) = 0;
+    
+    // ------------------- MODIFIED -------------------------
+    virtual void SendDeRegisterUeCommand (NrEpcX2Sap::DeRegisterUeParams params) = 0;
+
+    virtual void SendSpecificGnbOptimalBeamReport (NrEpcX2Sap::OptimalGnbBeamReportParams params) = 0;
+
+    virtual void SendUeSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params) = 0;
+
+    virtual void SendUeSinrUpdate (UeImsiSinrParams params) = 0;
 };
 
 /**
@@ -472,6 +514,8 @@ class NrEpcX2SapUser : public NrEpcX2Sap
      *
      */
     virtual void RecvHandoverCancel(HandoverCancelParams params) = 0;
+
+    virtual void RecvOptimalGnbBeamReport (NrRrcSap::OptimalGnbBeamReport params) = 0;
 };
 
 ///////////////////////////////////////
@@ -551,9 +595,25 @@ class NrEpcX2SpecificEpcX2SapProvider : public NrEpcX2SapProvider
      */
     void SendHandoverCancel(HandoverCancelParams params) override;
 
+    // -------------------- MODIFIED ----------------------
+    virtual void SendDeRegisterUeCommand (NrEpcX2Sap::DeRegisterUeParams params);
+
+    virtual void SendSpecificGnbOptimalBeamReport (NrEpcX2Sap::OptimalGnbBeamReportParams params);
+    
+    virtual void SendUeSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params);
+
+    virtual void SendUeSinrUpdate (UeImsiSinrParams params);
+
   private:
     C* m_x2; ///< owner class
 };
+
+template <class C>
+void
+NrEpcX2SpecificEpcX2SapProvider<C>::SendUeSinrUpdate (UeImsiSinrParams params)
+{
+  m_x2->DoSendUeSinrUpdate (params);
+}
 
 template <class C>
 NrEpcX2SpecificEpcX2SapProvider<C>::NrEpcX2SpecificEpcX2SapProvider(C* x2)
@@ -623,6 +683,28 @@ void
 NrEpcX2SpecificEpcX2SapProvider<C>::SendHandoverCancel(HandoverCancelParams params)
 {
     m_x2->DoSendHandoverCancel(params);
+}
+
+// --------------------- MODIFIED ------------------------
+template <class C>
+void 
+NrEpcX2SpecificEpcX2SapProvider<C>::SendDeRegisterUeCommand (NrEpcX2Sap::DeRegisterUeParams params)
+{
+  m_x2->DoSendDeRegisterUeToCell (params);
+}
+
+template <class C>
+void 
+NrEpcX2SpecificEpcX2SapProvider<C>::SendSpecificGnbOptimalBeamReport (NrEpcX2Sap::OptimalGnbBeamReportParams params)
+{
+  m_x2->DoSendSpecificGnbBeamReport (params);
+}
+
+template <class C>
+void 
+NrEpcX2SpecificEpcX2SapProvider<C>::SendUeSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params)
+{
+  m_x2->DoSendUeSSBRSReport (params);
 }
 
 /**
@@ -701,6 +783,8 @@ class NrEpcX2SpecificEpcX2SapUser : public NrEpcX2SapUser
      */
     void RecvHandoverCancel(HandoverCancelParams params) override;
 
+    virtual void RecvOptimalGnbBeamReport (NrRrcSap::OptimalGnbBeamReport params);
+
   private:
     C* m_rrc; ///< owner class
 };
@@ -773,6 +857,13 @@ void
 NrEpcX2SpecificEpcX2SapUser<C>::RecvHandoverCancel(HandoverCancelParams params)
 {
     m_rrc->DoRecvHandoverCancel(params);
+}
+
+template <class C>
+void 
+NrEpcX2SpecificEpcX2SapUser<C>::RecvOptimalGnbBeamReport (NrRrcSap::OptimalGnbBeamReport params)
+{
+  m_rrc->DoRecvOptimalGnbBeamReport (params);
 }
 
 } // namespace ns3

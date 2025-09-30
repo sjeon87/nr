@@ -176,6 +176,15 @@ class NrMacSchedSapProvider
 
     virtual bool IsMaxSrsReached() const = 0;
 
+    // ----------------- MODIFIED -------------------
+    /**
+     * \brief Set the m_gnbBeamVectorList member of the NnMacScheduler class
+     * \return void 
+     */
+    virtual void SetGnbBeamVectorList (std::vector<BeamId> gnbBeamVectorList) = 0;
+
+    virtual void SetIAStateOfMacSched (bool iaPerformed, uint16_t rnti) = 0;
+
   private:
 };
 
@@ -208,6 +217,8 @@ class NrMacSchedSapUser
 
         const SfnSf m_sfnSf;           //!< The SfnSf
         SlotAllocInfo m_slotAllocInfo; //!< The allocation info
+        // ------------------- MODIFIED ---------------------
+        std::vector <BuildRarListElement_s> m_buildRarList; //!< Build rar list
     };
 
     /**
@@ -263,6 +274,13 @@ class NrMacSchedSapUser
      * @param slotAllocInfo Allocations
      */
     virtual void BuildRarList(SlotAllocInfo& slotAllocInfo) = 0;
+
+    // --------------------- MODIFIED --------------------
+    /**
+    * \brief Check whether SSB is required or not in this slot
+    * \brief Boolean indicating whether an SSB is required or nor
+    */
+    virtual bool IsSSBRequired (const SfnSf &dlSfn) = 0;
 };
 
 inline std::ostream&
