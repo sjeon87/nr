@@ -92,6 +92,10 @@ class NrPhyRxTrace : public Object
     static void RxPacketTraceGnbCallback(Ptr<NrPhyRxTrace> phyStats,
                                          std::string path,
                                          RxPacketTraceParams param);
+    
+    // --- NEW ---
+    static void BeamSweepTraceCallback (Ptr<NrPhyRxTrace> phyStats, std::string path, BeamSweepTraceParams params);
+    // --- END ---
 
     /**
      *  Trace sink for Gnb Phy Received Control Messages.
@@ -259,6 +263,13 @@ class NrPhyRxTrace : public Object
                                      double lossDb,
                                      uint8_t cqi);
 
+    // ----------------------------- MODIFIED ----------------------------------
+    void SetOutputFilename (std::string fileName);
+    void SetMacrxThruFilename ( std::string fileName);
+    void SetrxThruFilename (std::string fileName);
+    void SetBeamSweepFileName (std::string fileName);
+    void SetBeamSweepType (std::string beamSweepType);
+
   private:
     void ReportInterferenceTrace(uint64_t imsi, SpectrumValue& sinr);
     void ReportPowerTrace(uint64_t imsi, SpectrumValue& power);
@@ -318,6 +329,22 @@ class NrPhyRxTrace : public Object
     static std::string m_dlCtrlPathlossFileName;
     static std::ofstream m_dlDataPathlossFile;
     static std::string m_dlDataPathlossFileName;
+
+
+    // --------------------- MODIFIED -------------------------
+    static std::ofstream m_rxMacThruFile;
+    static std::string m_rxMacThruFilename;
+
+    static std::ofstream m_rxThruFile;
+    static std::string m_rxThruFilename;
+
+    static std::ofstream m_beamSweepTraceFile;
+    static std::string m_beamSweepTraceFilename;
+
+    static std::string m_beamSweepType;
+    static bool m_realisticIA;
+
+
 };
 
 } /* namespace ns3 */

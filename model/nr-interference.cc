@@ -91,9 +91,9 @@ NrInterference::EndRx()
     }
     else
     {
-        SpectrumValue snr = (*m_rxSignal) / (*m_noise);
-        double avgSnr = Sum(snr) / (snr.GetSpectrumModel()->GetNumBands());
-        m_snrPerProcessedChunk(avgSnr);
+        // SpectrumValue snr = (*m_rxSignal) / (*m_noise);
+        // double avgSnr = Sum(snr) / (snr.GetSpectrumModel()->GetNumBands());
+        // m_snrPerProcessedChunk(avgSnr);
 
         NrInterference::ConditionallyEvaluateChunk();
 

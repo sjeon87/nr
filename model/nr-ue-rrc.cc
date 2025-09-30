@@ -26,6 +26,8 @@
 #include "ns3/object-map.h"
 #include "ns3/simulator.h"
 
+#include "ns3/nr-gnb-phy.h"
+
 #include <cmath>
 
 namespace ns3
@@ -135,6 +137,8 @@ NrUeRrc::NrUeRrc()
     m_drbPdcpSapUser = new NrPdcpSpecificNrPdcpSapUser<NrUeRrc>(this);
     m_asSapProvider = new MemberNrAsSapProvider<NrUeRrc>(this);
     m_ccmRrcSapUser = new MemberNrUeCcmRrcSapUser<NrUeRrc>(this);
+    m_firstConnectionToNetwork = true;
+    m_sweepTriggerFromRrcReceived = false;
 }
 
 NrUeRrc::~NrUeRrc()
@@ -305,7 +309,22 @@ NrUeRrc::GetTypeId()
                 "PhySyncDetection",
                 "trace fired upon receiving in Sync or out of Sync indications from UE PHY",
                 MakeTraceSourceAccessor(&NrUeRrc::m_phySyncDetectionTrace),
-                "ns3::NrUeRrc::PhySyncDetectionTracedCallback");
+                "ns3::NrUeRrc::PhySyncDetectionTracedCallback")
+            .AddTraceSource(
+                "BeamSweepTrace",
+                "trace fired when a beam sweep has been initiated from UE RRC",
+                MakeTraceSourceAccessor (&NrUeRrc::m_beamSweepTrace),
+                "ns3::BeamSweepTraceParams::TracedCallback")
+            .AddAttribute ("BeamSweepTimer",
+                "Specifies the timer that will control the value of m_sweepTriggerFromRrcReceived",
+                TimeValue (MilliSeconds (500)),
+                MakeTimeAccessor (&NrUeRrc::m_beamSweepTimeoutDuration),
+                MakeTimeChecker ())
+            .AddAttribute ("StartBeamSweepTimer",
+                "Timer that is started when a beam sweep is initiated",
+                TimeValue (MilliSeconds (2500)),
+                MakeTimeAccessor (&NrUeRrc::m_startBeamSweepTimeout),
+                MakeTimeChecker ());
     return tid;
 }
 
@@ -558,6 +577,7 @@ NrUeRrc::InitializeSrb0()
     NrUeRrcSapUser::SetupParameters ueParams;
     ueParams.srb0SapProvider = m_srb0->m_rlc->GetNrRlcSapProvider();
     ueParams.srb1SapProvider = nullptr;
+    ueParams.firstConnToNetworkl = false;
     m_rrcSapUser->Setup(ueParams);
 
     // CCCH (LCID 0) is pre-configured, here is the hardcoded configuration:
@@ -686,6 +706,7 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
         SwitchToState(IDLE_CONNECTING);
         NrRrcSap::RrcConnectionRequest msg;
         msg.ueIdentity = m_imsi;
+        
         m_rrcSapUser->SendRrcConnectionRequest(msg);
         m_connectionTimeout = Simulator::Schedule(m_t300, &NrUeRrc::ConnectionTimeout, this);
     }
@@ -1060,6 +1081,9 @@ NrUeRrc::DoRecvRrcConnectionSetup(NrRrcSap::RrcConnectionSetup msg)
         NrRrcSap::RrcConnectionSetupCompleted msg2;
         msg2.rrcTransactionIdentifier = msg.rrcTransactionIdentifier;
         m_rrcSapUser->SendRrcConnectionSetupCompleted(msg2);
+        // ------------------- MODIFIED -------------------
+        m_rrcSapUser->TriggerRegisterUE(GetImsi(), m_cphySapProvider.at(0)->GetNetDeviceFromPhy());
+        // ------------------------------------------------
         m_asSapUser->NotifyConnectionSuccessful();
         m_cmacSapProvider.at(GetPrimaryUlIndex())->NotifyConnectionSuccessful();
         m_connectionEstablishedTrace(m_imsi, m_cellId, m_rnti);
@@ -1136,6 +1160,8 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             m_cmacSapProvider.at(GetPrimaryDlIndex())->SetRnti(m_rnti);
             m_lastRrcTransactionIdentifier = msg.rrcTransactionIdentifier;
             NS_ASSERT(msg.haveRadioResourceConfigDedicated);
+
+            m_rrcSapUser->TriggerRegisterUE (GetImsi (), m_cphySapProvider.at(0)->GetNetDeviceFromPhy ());
 
             // we re-establish SRB1 by creating a new entity
             // note that we can't dispose the old entity now, because
@@ -1523,6 +1549,11 @@ NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicate
             NrUeRrcSapUser::SetupParameters ueParams;
             ueParams.srb0SapProvider = m_srb0->m_rlc->GetNrRlcSapProvider();
             ueParams.srb1SapProvider = m_srb1->m_pdcp->GetNrPdcpSapProvider();
+            ueParams.firstConnToNetworkl = m_firstConnectionToNetwork;
+            if (m_firstConnectionToNetwork)
+            {
+                m_firstConnectionToNetwork = false;
+            }
             m_rrcSapUser->Setup(ueParams);
         }
         else
@@ -3396,5 +3427,108 @@ NrUeRrc::ToString(NrUeRrc::State s)
 {
     return g_ueRrcStateName[s];
 }
+
+void
+NrUeRrc::DoSendSSBRSBeamReport (std::vector<std::pair<uint8_t, uint16_t>> optimalBeamIndex, std::map<uint8_t, SfnSf> mapOfStartingSfn, uint8_t servingCellId, uint8_t noOfBeamsTbReported)
+{
+  uint8_t csiCounter = 0;
+  std::map<uint8_t, std::vector<uint16_t>> mapOfOptimalBeamIndex;
+  std::map<uint8_t, std::vector<uint8_t>> mapOfCsiCounter;
+  
+  for (uint8_t i = 0; i < noOfBeamsTbReported; i++)
+  {
+    if (mapOfOptimalBeamIndex.find (optimalBeamIndex[i].first) == mapOfOptimalBeamIndex.end ())
+    {
+      mapOfOptimalBeamIndex.insert(std::pair<uint8_t, std::vector<uint16_t>> (optimalBeamIndex[i].first, {optimalBeamIndex[i].second}));
+      mapOfCsiCounter.insert(std::pair<uint8_t, std::vector<uint8_t>> (optimalBeamIndex[i].first, {csiCounter}));
+      csiCounter += 1;
+    }
+    else
+    {
+      mapOfOptimalBeamIndex.at(optimalBeamIndex[i].first).push_back(optimalBeamIndex[i].second);
+      mapOfCsiCounter.at(optimalBeamIndex[i].first).push_back(csiCounter);
+      csiCounter += 1;
+    }
+  }
+
+  for (uint8_t j = noOfBeamsTbReported - 1; j < optimalBeamIndex.size(); j++)
+  {
+    mapOfOptimalBeamIndex.insert(std::pair<uint8_t, std::vector<uint16_t>> (optimalBeamIndex[j].first, {optimalBeamIndex[j].second}));
+    mapOfCsiCounter.insert(std::pair<uint8_t, std::vector<uint8_t>> (optimalBeamIndex[j].first, {99})); // value 99 used as signalling
+  }
+
+  for (auto const &mapIterator : mapOfOptimalBeamIndex)
+  {
+    NrRrcSap::UpdateBeamsTbRLM params;
+    params.ueImsi = GetImsi();
+    params.optimalBeamIndexVector = mapIterator.second;
+    if (mapOfStartingSfn.find(mapIterator.first) != mapOfStartingSfn.end())
+    {
+      params.startingSfn = mapOfStartingSfn.at(mapIterator.first);
+    }
+    params.targetCellId = mapIterator.first;
+
+    if (params.targetCellId == servingCellId)
+    {
+      params.isServingCellId = true;
+    }
+    else
+    {
+      params.isServingCellId = false;
+    }
+    
+    params.csiCounterVector = mapOfCsiCounter.at(mapIterator.first);
+
+    m_rrcSapUser->SendSSBRSReport(params);
+  }
+}
+
+bool 
+NrUeRrc::DoIsRrcIdleStart ()
+{
+  if (GetState () == IDLE_RANDOM_ACCESS)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+void 
+NrUeRrc::DoClearHandoverEventsAtCoordinator ()
+{
+  m_rrcSapUser->SendClearHandoverEvents (GetImsi ());
+}
+
+void 
+NrUeRrc::DoSendOptimalBeamMapToLteCoordinator (std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> cellOptimalBeamMap)
+{
+  if (m_beamSweepStarted.IsPending ())
+  {
+    m_beamSweepStarted.Cancel ();
+  }
+  m_cphySapProvider.at(0)->SetPhyIAFlag (false);
+  NrRrcSap::CellOptimalGnbBeamMap optimalGnbBeamMsg = NrRrcSap::CellOptimalGnbBeamMap ();
+  optimalGnbBeamMsg.ueImsi = GetImsi ();
+  optimalGnbBeamMsg.cellOptimalBeamMap = cellOptimalBeamMap;
+  m_rrcSapUser->SendOptimalGnbBeamMap (optimalGnbBeamMsg);
+  if (GetState () == IDLE_START) // THIS WILL ONLY HAPPEN AT THE BEGINNING, OR WHEN AN OUTAGE W/O HANDOVER TAKES PLACE  
+  {
+    SwitchToState (IDLE_RANDOM_ACCESS);
+  }
+
+  m_sweepTriggerFromRrcReceived = false;
+  m_prevIATriggerFromRrcState = false;
+  //m_cphySapProvider.at (0)->SetPhyIAFlag (false); // duplicate
+}
+
+void 
+NrUeRrc::SetCellToTempCellId (uint8_t tempCellId)
+{
+  m_cellId = tempCellId;
+}
+
 
 } // namespace ns3

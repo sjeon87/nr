@@ -162,6 +162,7 @@ NrUeNetDevice::RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgL
     {
         uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
                             ->RouteIngoingCtrlMsg(msg, sourceBwpId);
+
         m_ccMap.at(bwpId)->GetPhy()->PhyCtrlMessagesReceived(msg);
     }
 }

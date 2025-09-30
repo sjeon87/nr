@@ -24,6 +24,9 @@
 #include "ns3/packet.h"
 #include "ns3/traced-callback.h"
 
+#include "ns3/nr-ue-net-device.h"
+#include "ns3/nr-phy-mac-common.h"
+
 #include <map>
 #include <set>
 #include <vector>
@@ -424,6 +427,11 @@ class NrUeRrc : public Object
                                                    uint16_t rnti,
                                                    uint8_t count);
 
+    // ---------------------------- MODIFIED ----------------------
+    void SetCellToTempCellId (uint8_t tempCellUd);
+
+    bool m_rlmOn;
+
   private:
     // PDCP SAP methods
     /**
@@ -766,6 +774,16 @@ class NrUeRrc : public Object
      */
     void SwitchToState(State s);
 
+    // ------------------------ MODIFIED ---------------------
+    void DoSendSSBRSBeamReport (std::vector<std::pair<uint8_t, uint16_t>> optimalBeamIndex, std::map<uint8_t, SfnSf> mapOfStartingSfn, uint8_t servingCellId, uint8_t noOfBeamsTbReported);
+
+    bool DoIsRrcIdleStart ();
+    
+    void DoClearHandoverEventsAtCoordinator ();
+
+    // Send the optimal beam of gNB to gNB
+    void DoSendOptimalBeamMapToLteCoordinator (std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> cellOptimalBeamMap);
+
     std::map<uint8_t, uint8_t> m_bid2DrbidMap; ///< bid to DR bid map
 
     std::vector<NrUeCphySapUser*> m_cphySapUser;         ///< UE CPhy SAP user
@@ -951,6 +969,10 @@ class NrUeRrc : public Object
      *
      */
     TracedCallback<uint64_t, uint16_t, uint16_t> m_radioLinkFailureTrace;
+
+    // --- NEW ---
+    TracedCallback<BeamSweepTraceParams> m_beamSweepTrace;
+    // --- END ---
 
     /// True if a connection request by upper layers is pending.
     bool m_connectionPending;
@@ -1292,6 +1314,13 @@ class NrUeRrc : public Object
      */
     EventId m_radioLinkFailureDetected;
 
+    // --------------------------- MODIFIED ------------------------------
+    Time m_beamSweepTimeoutDuration;
+
+    Time m_startBeamSweepTimeout;
+    
+    EventId m_beamSweepStarted;
+
     uint8_t m_noOfSyncIndications; ///< number of in-sync or out-of-sync indications coming from PHY
                                    ///< layer
 
@@ -1304,6 +1333,14 @@ class NrUeRrc : public Object
                                      ///< the gNB
 
     uint8_t m_connEstFailCount; ///< the counter to count T300 timer expiration
+
+    // ------------------------ MODIFIED -----------------------
+    bool m_firstConnectionToNetwork;
+    
+    bool m_sweepTriggerFromRrcReceived;
+
+    bool m_prevIATriggerFromRrcState;
+    // ---------------------------------------------------------
     /**
      * @brief Radio link failure detected function
      *

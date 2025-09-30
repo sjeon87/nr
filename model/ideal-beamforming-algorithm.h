@@ -9,6 +9,7 @@
 #include "beamforming-vector.h"
 
 #include "ns3/object.h"
+#include <ns3/mobility-module.h>
 
 namespace ns3
 {
@@ -84,6 +85,7 @@ class CellScanBeamforming : public IdealBeamformingAlgorithm
 
   private:
     uint8_t m_oversamplingFactor; //!< Number of samples per row and per column
+    double m_idealBeamformingSNROffset {9900.0};
 };
 
 /**

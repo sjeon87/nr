@@ -190,6 +190,8 @@ class NrGnbNetDevice : public NrNetDevice
      */
     uint32_t GetCellIdUlEarfcn(uint16_t cellId) const;
 
+    std::map<uint8_t, Ptr<BandwidthPartGnb>> GetCcMap();
+
   protected:
     void DoInitialize() override;
 

@@ -10,6 +10,7 @@
 #include "ns3/event-id.h"
 #include "ns3/net-device.h"
 #include "ns3/nstime.h"
+#include "ns3/ideal-beamforming-algorithm.h"
 
 #include <map>
 
@@ -19,6 +20,7 @@ namespace ns3
 class NrUeNetDevice;
 class NrGnbNetDevice;
 class BeamformingHelperBase;
+class IdealBeamformingHelper;
 
 /**
  * @ingroup gnb-phy
@@ -32,6 +34,7 @@ class BeamformingHelperBase;
 class BeamManager : public Object
 {
     friend BeamformingHelperBase;
+    friend IdealBeamformingHelper;
 
   public:
     /**
@@ -141,6 +144,15 @@ class BeamManager : public Object
      * @param elevation elevation
      */
     void SetSector(double sector, double elevation) const;
+
+    /**
+     * \brief Set the Sector
+     * \param azimuth azimuth
+     * \param zenith zenith
+     */
+    void SetSectorAz(double azimuth, double zenith) const;
+
+    double GetAntennaArrayGainDb (Angles angle);
 
   private:
     Ptr<UniformPlanarArray>

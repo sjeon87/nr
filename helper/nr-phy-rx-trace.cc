@@ -54,6 +54,18 @@ std::string NrPhyRxTrace::m_dlCtrlPathlossFileName;
 std::ofstream NrPhyRxTrace::m_dlDataPathlossFile;
 std::string NrPhyRxTrace::m_dlDataPathlossFileName;
 
+std::ofstream NrPhyRxTrace::m_beamSweepTraceFile;
+std::string NrPhyRxTrace::m_beamSweepTraceFilename;
+
+std::string NrPhyRxTrace::m_beamSweepType;
+bool NrPhyRxTrace::m_realisticIA = false;
+
+std::ofstream NrPhyRxTrace::m_rxThruFile;
+std::string NrPhyRxTrace::m_rxThruFilename;
+
+std::ofstream NrPhyRxTrace::m_rxMacThruFile;
+std::string NrPhyRxTrace::m_rxMacThruFilename;
+
 NrPhyRxTrace::NrPhyRxTrace()
 {
 }
@@ -119,6 +131,11 @@ NrPhyRxTrace::~NrPhyRxTrace()
     {
         m_dlDataPathlossFile.close();
     }
+
+    if (m_beamSweepTraceFile.is_open())
+    {
+        m_beamSweepTraceFile.close();
+    }
 }
 
 TypeId
@@ -134,7 +151,33 @@ NrPhyRxTrace::GetTypeId()
                 "in order to distinguish them, for example: RxPacketTrace-${SimTag}.out. ",
                 StringValue(""),
                 MakeStringAccessor(&NrPhyRxTrace::SetSimTag),
-                MakeStringChecker());
+                MakeStringChecker())
+            .AddAttribute ("MacRxThruFileName",
+                "Name of the file where the uplink results will be saved.",
+                StringValue ("MacRxThruData.txt"),
+                MakeStringAccessor (&NrPhyRxTrace::SetMacrxThruFilename),
+                MakeStringChecker ())
+            .AddAttribute ("OutputFileName",
+                   "Name of the file where the uplink results will be saved.",
+                   StringValue ("RxPacketTrace.txt"),
+                   MakeStringAccessor (&NrPhyRxTrace::SetOutputFilename),
+                   MakeStringChecker ())
+            .AddAttribute ("PhyRxThruFileName",
+                   "Name of the file where the uplink results will be saved.",
+                   StringValue ("PhyRxThruData.txt"),
+                   MakeStringAccessor (&NrPhyRxTrace::SetrxThruFilename),
+                   MakeStringChecker ())
+            .AddAttribute ("BeamSweepFileName",
+                   "Name of the file where the beam sweep traces will be saved",
+                   StringValue ("BeamSweepTrace.txt"),
+                   MakeStringAccessor (&NrPhyRxTrace::SetBeamSweepFileName),
+                   MakeStringChecker ())
+            .AddAttribute ("BeamSweepType",
+                   "Variable that sets whether realistic or idealistic beam sweep will be used",
+                   StringValue ("Ideal"),
+                   MakeStringAccessor (&NrPhyRxTrace::SetBeamSweepType),
+                   MakeStringChecker ());
+                
     return tid;
 }
 
@@ -1153,6 +1196,139 @@ NrPhyRxTrace::ReportDlDataPathloss([[maybe_unused]] Ptr<NrPhyRxTrace> phyStats,
 
     m_dlDataPathlossFile << Simulator::Now().GetSeconds() << "\t" << cellId << "\t" << +bwpId
                          << "\t" << ueNodeId << "\t" << lossDb << "\t" << +cqi << std::endl;
+}
+
+void
+NrPhyRxTrace::SetMacrxThruFilename (std::string fileName)
+{
+  m_rxMacThruFilename = fileName;
+}
+
+void
+NrPhyRxTrace::SetOutputFilename ( std::string fileName)
+{
+  NS_LOG_INFO ("Filename: " << fileName);
+  m_rxPacketTraceFilename = fileName;
+}
+
+void
+NrPhyRxTrace::SetrxThruFilename ( std::string fileName)
+{
+  m_rxThruFilename = fileName;
+}
+
+void
+NrPhyRxTrace::SetBeamSweepFileName ( std::string fileName)
+{
+  m_beamSweepTraceFilename = fileName;
+}
+
+void
+NrPhyRxTrace::SetBeamSweepType (std::string beamSweepType)
+{
+  if (beamSweepType == "Ideal")
+  {
+    m_realisticIA = false;
+  }
+  else if (beamSweepType == "Real")
+  {
+    m_realisticIA = true;
+  }
+  else
+  {
+    NS_ABORT_MSG ("Unidentified beam sweep type");
+  }
+}
+
+void 
+NrPhyRxTrace::BeamSweepTraceCallback (Ptr<NrPhyRxTrace> phyStats, std::string path, BeamSweepTraceParams params)
+{
+  if (!m_beamSweepTraceFile.is_open ())
+    {
+      m_beamSweepTraceFile.open (m_beamSweepTraceFilename.c_str ());
+      if (!m_beamSweepTraceFile.is_open ())
+      {
+        NS_FATAL_ERROR ("Could not open tracefile");
+      }
+    }
+
+  
+
+  switch (params.m_beamSweepOrigin)
+  {
+  case BeamSweepTraceParams::COORDINATOR_INITIATED_HANDOVER:
+    m_beamSweepTraceFile << Simulator::Now ().GetSeconds ()
+                         << "\tIMSI: " << params.imsi
+                         << "\tCO"
+                         << "\tTRIGGERED BEAM SWEEP. CURRENT CELL: " << (unsigned)params.currentCell
+                         << "\tCURRENT SNR: " << params.snrBeforeSweep
+                         << "\tSNR Difference: " << params.snrDiffBeforeHO
+                         << "\tMAX OBSERVED CELL: " << (unsigned)params.maxCellBeforeHandover
+                         << std::endl;
+    break;
+  
+  case BeamSweepTraceParams::UE_INITIATED_OUTAGE:
+    m_beamSweepTraceFile << Simulator::Now().GetSeconds()
+                         << "\tIMSI: " << params.imsi
+                         << "\tUE"
+                         << "\tSTARTED BEAM SWEEP. CURRENT CELL: " << (unsigned)params.currentCell
+                         << "\tCURRENT SNR: " << params.snrBeforeSweep
+                         << std::endl;
+    break;
+  case BeamSweepTraceParams::UE_INITIATED_BEAM_REFINEMENT:
+    m_beamSweepTraceFile << Simulator::Now().GetSeconds() 
+                         << "\tIMSI: " << params.imsi
+                         << "\tGNB"
+                         << "\tSTARTED BEAM REFINEMENT. CURRENT CELL: " << (unsigned)params.currentCell
+                         << "\tCURRENT SNR: " << params.snrBeforeSweep
+                         << std::endl;
+    break;
+  case BeamSweepTraceParams::UE_COMPLETED_BEAM_SWEEP:
+    m_beamSweepTraceFile << Simulator::Now().GetSeconds()
+                         << "\tIMSI: " << params.imsi
+                         << "\tUE"
+                         << "\tCOMPLETED BEAM SWEEP. PREV CELL: " << (unsigned)params.currentCell
+                         << "\tFOUND CELL: " << (unsigned)params.foundCell
+                         << "\tFOUND RX SECTOR: " << params.foundSector
+                         << "\tFOUND RX ELEVATION: " << params.foundElevation
+                         << std::endl;
+    break;
+  case BeamSweepTraceParams::GNB_CHECK_OMNI_SWEEP:
+    m_beamSweepTraceFile << Simulator::Now ().GetSeconds() 
+                         << "\tIMSI: " << params.imsi
+                         << "\tGNB"
+                         << "\tBEAM SWEEP DONE TO CHECK WHETHER FAULTY OMNI TX WAS PRESENT"
+                         << std::endl;
+    break;
+  case BeamSweepTraceParams::GNB_RECVD_BEAM_REPORT:
+    m_beamSweepTraceFile << Simulator::Now ().GetSeconds()
+                         << "\tIMSI: " << params.imsi
+                         << "\tGNB"
+                         << "\tBEAM REPORT RECEIVED. CELL: " << (unsigned)params.foundCell
+                         << "\tFOUND TX SECTOR: " << params.foundSector
+                         << "\tFOUND TX ELEVATION: " << params.foundElevation
+                         << std::endl;
+    break;
+  case BeamSweepTraceParams::UE_BEAM_ADJUSTMENT:
+    m_beamSweepTraceFile << Simulator::Now ().GetSeconds ()
+                         << "\tIMSI: " << params.imsi
+                         << "\tUE"
+                         << "\tADJUSTED BEAM: CELL: " <<(unsigned)params.foundCell
+                         << "\tNEW RX SECTOR: " << params.foundSector
+                         << "\tNEW RX ELEVATION" << params.foundElevation
+                         << std::endl;
+    break;
+  case BeamSweepTraceParams::GNB_BEAM_ADJUSTMENT:
+    m_beamSweepTraceFile << Simulator::Now ().GetSeconds ()
+                         << "\tIMSI: " << params.imsi
+                         << "\tGNB"
+                         << "\tADJUSTED BEAM: CELL: " <<(unsigned)params.foundCell
+                         << "\tNEW TX SECTOR: " << params.foundSector
+                         << "\tNEW TX ELEVATION" << params.foundElevation
+                         << std::endl;
+  default:
+    break;
+  }
 }
 
 } /* namespace ns3 */

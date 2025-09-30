@@ -1605,4 +1605,997 @@ NrEpcX2HandoverCancelHeader::GetNumberOfIes() const
     return m_numberOfIes;
 }
 
+// ----------------------- MODIFIED --------------------------
+NS_OBJECT_ENSURE_REGISTERED (EpcX2OptimalGnbBeamReportHeader);
+
+EpcX2OptimalGnbBeamReportHeader::EpcX2OptimalGnbBeamReportHeader ()
+  : m_numberOfIes (1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1),
+    m_headerLength (8 + 2 + 2 + 1 + 2 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 1 + 1)
+{
+}
+
+EpcX2OptimalGnbBeamReportHeader::~EpcX2OptimalGnbBeamReportHeader ()
+{
+  m_numberOfIes = 0;
+  m_headerLength = 0;
+}
+
+TypeId
+EpcX2OptimalGnbBeamReportHeader::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::EpcX2OptimalGnbBeamReportHeader")
+    .SetParent<Header> ()
+    .SetGroupName("Lte")
+    .AddConstructor <EpcX2OptimalGnbBeamReportHeader> ()
+  ;
+  return tid;
+}
+
+TypeId
+EpcX2OptimalGnbBeamReportHeader::GetInstanceTypeId (void) const
+{
+  return GetTypeId ();
+}
+
+uint32_t
+EpcX2OptimalGnbBeamReportHeader::GetSerializedSize (void) const
+{
+  return m_headerLength;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::Serialize (Buffer::Iterator start) const
+{
+  Buffer::Iterator i = start;
+
+  i.WriteHtonU64 (m_ueImsi);
+  i.WriteHtonU16 (m_startingFrame);
+  i.WriteU8 (m_startingSubframe);
+  i.WriteHtonU16 (m_startingSlot);
+  i.WriteU8 (m_numerology);
+  i.WriteHtonU16 (m_optimalBeamIndex);
+  i.WriteHtonU16 (m_secondBeamIndex);
+  i.WriteHtonU16 (m_thirdBeamIndex);
+  i.WriteHtonU16 (m_fourthBeamIndex);
+  i.WriteHtonU16 (m_fifthBeamIndex);
+  i.WriteHtonU16 (m_sixthBeamIndex);
+  i.WriteHtonU16 (m_seventhBeamIndex);
+  i.WriteHtonU16 (m_eigthBeamIndex);
+  i.WriteHtonU16 (m_isServingCell);
+  i.WriteU8 (m_numOfBeamsTbRlm);
+  
+  std::vector <uint8_t>::size_type sy = m_csiCounterVector.size ();
+  i.WriteU8 (sy);
+  for (int j = 0; j < (int) sy; j++)
+  {
+    i.WriteU8 (m_csiCounterVector[j]);
+  }
+}
+
+uint32_t
+EpcX2OptimalGnbBeamReportHeader::Deserialize (Buffer::Iterator start)
+{
+  Buffer::Iterator i = start;
+
+  m_headerLength = 0;
+  m_numberOfIes = 0;
+
+  m_ueImsi = i.ReadNtohU64 ();
+  m_headerLength = +8;
+  m_numberOfIes++;
+
+  m_startingFrame = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_startingSubframe = i.ReadU8 ();
+  m_headerLength = +1;
+  m_numberOfIes++;
+
+  m_startingSlot = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_numerology = i.ReadU8 ();
+  m_headerLength = +1;
+  m_numberOfIes++;
+
+  m_optimalBeamIndex = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_secondBeamIndex = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_thirdBeamIndex = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_fourthBeamIndex = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_fifthBeamIndex = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_sixthBeamIndex = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_seventhBeamIndex = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_eigthBeamIndex = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_isServingCell = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_numOfBeamsTbRlm = i.ReadU8 ();
+  m_headerLength = +1;
+  m_numberOfIes++;
+
+  int sy = i.ReadU8 ();
+  m_headerLength = +1;
+  m_numberOfIes++;
+
+  for (int j = 0; j < sy; j++)
+  {
+    uint8_t csiCounter = i.ReadU8 ();
+    m_csiCounterVector.emplace_back (csiCounter);
+    m_numberOfIes++;
+    m_headerLength = +1;
+  }
+
+  return GetSerializedSize ();
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::Print (std::ostream &os) const
+{
+  os << "UE IMSI " << m_ueImsi << " Starting Frame Number " << m_startingFrame << " Starting SubFrame Number "
+     << m_startingSubframe << " Starting Slot Number " << m_startingSlot << " Numerology " << m_numerology 
+     << " Optimal Beam Index " << m_numerology;
+}
+
+uint64_t 
+EpcX2OptimalGnbBeamReportHeader::GetUeImsi () const
+{
+  return m_ueImsi;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetUeImsi (uint64_t ueImsi)
+{
+  m_ueImsi = ueImsi;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetStartingFrame () const
+{
+  return m_startingFrame;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetStartingFrame (uint16_t startingFrame) 
+{
+  m_startingFrame = startingFrame;
+}
+
+uint8_t 
+EpcX2OptimalGnbBeamReportHeader::GetStartingSubframe () const
+{
+  return m_startingSubframe;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetStartingSubframe (uint8_t startingSubframe)
+{
+  m_startingSubframe = startingSubframe;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetStartingSlot () const
+{
+  return m_startingSlot;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetStartingSlot (uint16_t startingSlot)
+{
+  m_startingSlot = startingSlot;
+}
+
+uint8_t
+EpcX2OptimalGnbBeamReportHeader::GetNumerology () const
+{
+  return m_numerology;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetNumerology (uint8_t numerology)
+{
+  m_numerology = numerology;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetOptimalBeamIndex () const
+{
+  return m_optimalBeamIndex;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetOptimalBeamIndex (uint16_t optimalBeamIndex)
+{
+  m_optimalBeamIndex = optimalBeamIndex;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetSecondBeamIndex () const
+{
+  return m_secondBeamIndex;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetSecondBeamIndex (uint16_t secondBeamIndex)
+{
+  m_secondBeamIndex = secondBeamIndex;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetThirdBeamIndex () const
+{
+  return m_thirdBeamIndex;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetThirdBeamIndex (uint16_t thirdBeamIndex)
+{
+  m_thirdBeamIndex = thirdBeamIndex;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetFourthBeamIndex () const
+{
+  return m_fourthBeamIndex;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetFourthBeamIndex (uint16_t fourthBeamIndex)
+{
+  m_fourthBeamIndex = fourthBeamIndex;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetFifthBeamIndex () const
+{
+  return m_fifthBeamIndex;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetFifthBeamIndex (uint16_t fifthBeamIndex)
+{
+  m_fifthBeamIndex = fifthBeamIndex;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetSixthBeamIndex () const
+{
+  return m_sixthBeamIndex;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetSixthBeamIndex (uint16_t sixthBeamIndex)
+{
+  m_sixthBeamIndex = sixthBeamIndex;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetSeventhBeamIndex () const
+{
+  return m_seventhBeamIndex;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetSeventhBeamIndex (uint16_t seventBeamIndex)
+{
+  m_seventhBeamIndex = seventBeamIndex;
+}
+
+uint16_t
+EpcX2OptimalGnbBeamReportHeader::GetEightBeamIndex () const
+{
+  return m_eigthBeamIndex;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetEigthBeamIndex (uint16_t eigthBeamINdex)
+{
+  m_eigthBeamIndex = eigthBeamINdex;
+}
+
+bool 
+EpcX2OptimalGnbBeamReportHeader::GetServingCell () const
+{
+  if (m_isServingCell == 1)
+  {
+    return true;
+  }
+  else if (m_isServingCell == 0)
+  {
+    return false;
+  }
+  else
+  {
+    NS_ABORT_MSG ("Undefined max SNR Cell");
+  }
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetServingCell (bool isServingCell)
+{
+  if (isServingCell)
+  {
+    m_isServingCell = 1;
+  }
+  else
+  {
+    m_isServingCell = 0;
+  }
+}
+
+uint8_t
+EpcX2OptimalGnbBeamReportHeader::GetNumOfBeamsTbRlm () const
+{
+  return m_numOfBeamsTbRlm;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetNumOfBeamsTbRlm (uint8_t numOfBeamsTbRlm)
+{
+  m_numOfBeamsTbRlm = numOfBeamsTbRlm;
+}
+
+std::vector<uint8_t>
+EpcX2OptimalGnbBeamReportHeader::GetCsiCounter () const
+{
+  return m_csiCounterVector;
+}
+
+void 
+EpcX2OptimalGnbBeamReportHeader::SetCsiCounter (std::vector<uint8_t> csiCounterVector)
+{
+  m_csiCounterVector = csiCounterVector;
+  std::vector<uint8_t>::size_type sy = m_csiCounterVector.size ();
+  m_headerLength += sy * 1;
+  m_numberOfIes += 1;
+}
+
+uint32_t
+EpcX2OptimalGnbBeamReportHeader::GetLengthOfIes () const
+{
+  return m_headerLength;
+}
+
+uint32_t
+EpcX2OptimalGnbBeamReportHeader::GetNumberOfIes () const
+{
+  return m_numberOfIes;
+}
+
+// *************************************************************************
+
+NS_OBJECT_ENSURE_REGISTERED (EpcX2DeRegisterUeContextHeader);
+
+EpcX2DeRegisterUeContextHeader::EpcX2DeRegisterUeContextHeader ()
+  : m_numberOfIes (1 + 1 + 1 + 1),
+    m_headerLength (8 + 1 + 1 + 2)
+  {
+  }
+
+EpcX2DeRegisterUeContextHeader::~EpcX2DeRegisterUeContextHeader ()
+{
+  m_numberOfIes = 0;
+  m_headerLength = 0;
+}
+
+TypeId
+EpcX2DeRegisterUeContextHeader::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::EpcX2DeRegisterUeContextHeader")
+    .SetParent<Header> ()
+    .SetGroupName ("Lte")
+    .AddConstructor <EpcX2DeRegisterUeContextHeader> ()
+  ;
+  return tid;
+}
+
+TypeId
+EpcX2DeRegisterUeContextHeader::GetInstanceTypeId (void) const
+{
+  return GetTypeId ();
+}
+
+uint32_t
+EpcX2DeRegisterUeContextHeader::GetSerializedSize (void) const
+{
+  return m_headerLength;
+}
+
+void 
+EpcX2DeRegisterUeContextHeader::Serialize (Buffer::Iterator start) const
+{
+  Buffer::Iterator i = start;
+
+  i.WriteHtonU64 (m_ueImsi);
+  i.WriteU8 (m_cellId);
+  i.WriteU8 (m_sourceOfCommand);
+  i.WriteHtonU16 (m_isServingGnb);
+}
+
+uint32_t
+EpcX2DeRegisterUeContextHeader::Deserialize (Buffer::Iterator start)
+{
+  Buffer::Iterator i = start;
+
+  m_headerLength = 0;
+
+  m_ueImsi = i.ReadNtohU64 ();
+  m_cellId = i.ReadU8 ();
+  m_sourceOfCommand = i.ReadU8 ();
+  m_isServingGnb = i.ReadNtohU16 ();
+
+  m_headerLength = 12;
+  m_numberOfIes = 4;
+
+  return GetSerializedSize ();
+}
+
+void 
+EpcX2DeRegisterUeContextHeader::Print (std::ostream &os) const
+{
+  os << "UE IMSI " << m_ueImsi << " Cell Id " << m_cellId;
+}
+
+uint64_t
+EpcX2DeRegisterUeContextHeader::GetUeImsi () const
+{
+  return m_ueImsi;
+}
+
+void 
+EpcX2DeRegisterUeContextHeader::SetUeImsi (uint64_t ueImsi)
+{
+  m_ueImsi = ueImsi;
+}
+
+uint8_t 
+EpcX2DeRegisterUeContextHeader::GetCellId () const
+{
+  return m_cellId;
+}
+
+void 
+EpcX2DeRegisterUeContextHeader::SetCellId (uint8_t cellId)
+{
+  m_cellId = cellId;
+}
+
+uint8_t
+EpcX2DeRegisterUeContextHeader::GetSourceOfCommand () const
+{
+  return m_sourceOfCommand;
+}
+
+void 
+EpcX2DeRegisterUeContextHeader::SetSourceOfCommand (uint8_t sourceOfCommand)
+{
+  m_sourceOfCommand = sourceOfCommand;
+}
+
+bool
+EpcX2DeRegisterUeContextHeader::GetServingGnb () const
+{
+  return m_isServingGnb;
+}
+
+void
+EpcX2DeRegisterUeContextHeader::SetServingGnb (bool isServingGnb)
+{
+  m_isServingGnb = isServingGnb;
+}
+
+uint32_t
+EpcX2DeRegisterUeContextHeader::GetLengthOfIes () const
+{
+  return m_headerLength;
+}
+
+uint32_t 
+EpcX2DeRegisterUeContextHeader::GetNumberOfIes () const
+{
+  return m_numberOfIes;
+}
+
+// ********************************************************************
+NS_OBJECT_ENSURE_REGISTERED (EpcX2UeSSBRSBeamUpdateHeader);
+
+EpcX2UeSSBRSBeamUpdateHeader::EpcX2UeSSBRSBeamUpdateHeader ()
+  : m_numberOfIes (1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1),
+    m_headerLength (8 + 2 + 8 + 1 + 2 + 2 + 2 + 1 + 2)
+{
+  m_ssbRSBeamIdVector.clear ();
+}
+
+EpcX2UeSSBRSBeamUpdateHeader::~EpcX2UeSSBRSBeamUpdateHeader ()
+{
+  m_numberOfIes = 0;
+  m_headerLength = 0;
+  m_ssbRSBeamIdVector.clear ();
+}
+
+TypeId
+EpcX2UeSSBRSBeamUpdateHeader::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::EpcX2UeSSBRSBeamUpdateHeader")
+    .SetParent<Header> ()
+    .SetGroupName ("Lte")
+    .AddConstructor<EpcX2UeSSBRSBeamUpdateHeader> ()
+  ;
+  return tid;
+}
+
+TypeId
+EpcX2UeSSBRSBeamUpdateHeader::GetInstanceTypeId (void) const
+{
+  return GetTypeId ();
+}
+
+uint32_t
+EpcX2UeSSBRSBeamUpdateHeader::GetSerializedSize (void) const
+{
+  return m_headerLength;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::Serialize (Buffer::Iterator start) const
+{
+  Buffer::Iterator i = start;
+
+  i.WriteHtonU64 (m_ueImsi);
+  i.WriteHtonU16 (m_sourceCellId);
+  i.WriteHtonU64 (m_startingFrame);
+  i.WriteU8 (m_startingSubframe);
+  i.WriteHtonU16 (m_startingSlot);
+  i.WriteHtonU16 (m_numerology);
+  i.WriteHtonU16 (m_isServingCellId);
+
+  std::vector <uint8_t>::size_type sy = m_csiCounterVector.size ();
+  i.WriteU8 (sy);
+  for (int j = 0; j < (int) sy; j++)
+  {
+    i.WriteU8 (m_csiCounterVector[j]);
+  }
+
+  std::vector <uint16_t>::size_type sz = m_ssbRSBeamIdVector.size ();
+  i.WriteHtonU16 (sz);
+  for (int k = 0; k < (int) sz; k++)
+  {
+    i.WriteHtonU16 (m_ssbRSBeamIdVector[k]);
+  }
+}
+
+uint32_t
+EpcX2UeSSBRSBeamUpdateHeader::Deserialize (Buffer::Iterator start)
+{
+  Buffer::Iterator i = start;
+
+  m_headerLength = 0;
+  m_numberOfIes = 0;
+
+  m_ueImsi = i.ReadNtohU64 ();
+  m_headerLength = +8;
+  m_numberOfIes++;
+
+  m_sourceCellId = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_startingFrame = i.ReadNtohU64 ();
+  m_headerLength = +8;
+  m_numberOfIes++;
+
+  m_startingSubframe = i.ReadU8 ();
+  m_headerLength = +1;
+  m_numberOfIes++;
+
+  m_startingSlot = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_numerology = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  m_isServingCellId = i.ReadNtohU16 ();
+  m_headerLength = +2;
+  m_numberOfIes++;
+
+  int sy = i.ReadU8 ();
+  m_numberOfIes++;
+  m_headerLength = +1;
+
+  for (int j = 0; j < sy; j++)
+  {
+    uint8_t csiCounter = i.ReadU8 ();
+    m_csiCounterVector.emplace_back (csiCounter);
+    m_numberOfIes++;
+    m_headerLength = +1;
+  }
+
+  int sz = i.ReadNtohU16 ();
+  m_numberOfIes++;
+  m_headerLength = +2;
+
+  for (int k = 0; k < sz; k++)
+  {
+    uint16_t optimalBeamIndex = i.ReadNtohU16 ();
+    m_ssbRSBeamIdVector.emplace_back (optimalBeamIndex);
+    m_numberOfIes++;
+    m_headerLength = +2;
+  }
+
+  return GetSerializedSize ();
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::Print (std::ostream &os) const
+{
+  os << "UE IMSI " << m_ueImsi << " Starting Frame Number " << m_startingFrame << " Starting SubFrame Number "
+     << m_startingSubframe << " Starting Slot Number " << m_startingSlot << " Numerology " << m_numerology 
+     << " Optimal Beam Index " << m_numerology;
+}
+
+std::vector<uint16_t>
+EpcX2UeSSBRSBeamUpdateHeader::GetUeSSBRSBeamVector () const
+{
+  return m_ssbRSBeamIdVector;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetUeSSRBRSBeamVector (std::vector<uint16_t> vector)
+{
+  m_ssbRSBeamIdVector = vector;
+  std::vector<uint16_t>::size_type sz = m_ssbRSBeamIdVector.size ();
+  m_headerLength += sz * 2;
+  m_numberOfIes += 1;
+}
+
+uint16_t
+EpcX2UeSSBRSBeamUpdateHeader::GetSourceCellId () const
+{
+  return m_sourceCellId;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetSourceCellId (uint16_t sourceCellId)
+{
+  m_sourceCellId = sourceCellId;
+}
+
+uint64_t
+EpcX2UeSSBRSBeamUpdateHeader::GetUeImsi () const
+{
+  return m_ueImsi;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetUeImsi (uint64_t ueImsi)
+{
+  m_ueImsi = ueImsi;
+}
+
+uint64_t 
+EpcX2UeSSBRSBeamUpdateHeader::GetStartingFrame () const
+{
+  return m_startingFrame;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetStartingFrame (uint64_t startingFrame)
+{
+  m_startingFrame = startingFrame;
+}
+
+uint8_t
+EpcX2UeSSBRSBeamUpdateHeader::GetStartingSubframe () const
+{
+  return m_startingSubframe;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetStartingSubframe (uint8_t startingSubframe)
+{
+  m_startingSubframe = startingSubframe;
+}
+
+uint16_t
+EpcX2UeSSBRSBeamUpdateHeader::GetStartingSlot () const
+{
+  return m_startingSlot;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetStartingSlot (uint16_t startingSlot)
+{
+  m_startingSlot = startingSlot;
+}
+
+uint16_t 
+EpcX2UeSSBRSBeamUpdateHeader::GetNumerology () const
+{
+  return m_numerology;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetNumerology (uint16_t numerology)
+{
+  m_numerology = numerology;
+}
+
+std::vector<uint8_t>
+EpcX2UeSSBRSBeamUpdateHeader::GetCsiCounter () const
+{
+  return m_csiCounterVector;
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetCsiCounter (std::vector<uint8_t> csiCounterVector)
+{
+  m_csiCounterVector = csiCounterVector;
+  std::vector<uint8_t>::size_type sy = m_csiCounterVector.size ();
+  m_headerLength += sy * 1;
+  m_numberOfIes += 1;
+}
+
+bool 
+EpcX2UeSSBRSBeamUpdateHeader::GetServingCell () const
+{
+  if (m_isServingCellId == 1)
+  {
+    return true;
+  }
+  else if (m_isServingCellId == 0)
+  {
+    return false;
+  }
+  else
+  {
+    NS_ABORT_MSG ("Undefined max SNR Cell");
+  }
+}
+
+void 
+EpcX2UeSSBRSBeamUpdateHeader::SetServingCell (bool isServingCellId)
+{
+  if (isServingCellId)
+  {
+    m_isServingCellId = 1;
+  }
+  else
+  {
+    m_isServingCellId = 0;
+  }
+}
+
+uint32_t
+EpcX2UeSSBRSBeamUpdateHeader::GetLengthOfIes () const
+{
+  return m_headerLength;
+}
+
+uint32_t
+EpcX2UeSSBRSBeamUpdateHeader::GetNumberOfIes () const
+{
+  return m_numberOfIes;
+}
+
+//****************************************************************************************************
+NS_OBJECT_ENSURE_REGISTERED (EpcX2UeImsiSinrUpdateHeader);
+
+EpcX2UeImsiSinrUpdateHeader::EpcX2UeImsiSinrUpdateHeader ()
+  : m_numberOfIes (1 + 1),
+    m_headerLength (2 + 2)
+{
+  m_map.clear ();
+}
+
+EpcX2UeImsiSinrUpdateHeader::~EpcX2UeImsiSinrUpdateHeader ()
+{
+  m_numberOfIes = 0;
+  m_headerLength = 0;
+  m_map.clear ();
+}
+
+TypeId
+EpcX2UeImsiSinrUpdateHeader::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::EpcX2UeImsiSinrUpdateHeader")
+    .SetParent<Header> ()
+    .SetGroupName("Lte")
+    .AddConstructor<EpcX2UeImsiSinrUpdateHeader> ()
+  ;
+  return tid;
+}
+
+TypeId
+EpcX2UeImsiSinrUpdateHeader::GetInstanceTypeId (void) const
+{
+  return GetTypeId ();
+}
+
+uint32_t
+EpcX2UeImsiSinrUpdateHeader::GetSerializedSize (void) const
+{
+  return m_headerLength;
+}
+
+void
+EpcX2UeImsiSinrUpdateHeader::Serialize (Buffer::Iterator start) const
+{
+  Buffer::Iterator i = start;
+
+  i.WriteHtonU16 (m_sourceCellId);
+
+  std::map <uint64_t, double>::size_type sz = m_map.size ();
+  i.WriteHtonU16 (sz);              // number of elements in the map
+
+  for (std::map<uint64_t, double>::const_iterator iter = m_map.begin(); iter != m_map.end(); ++iter)
+    {
+      i.WriteHtonU64 (iter->first); // imsi
+      i.WriteHtonU64 (pack754(iter->second)); // sinr
+    }
+}
+
+uint32_t
+EpcX2UeImsiSinrUpdateHeader::Deserialize (Buffer::Iterator start)
+{
+  Buffer::Iterator i = start;
+
+  m_headerLength = 0;
+
+  m_sourceCellId = i.ReadNtohU16();
+  m_headerLength += 2;
+  m_numberOfIes = 1;
+
+  int sz = i.ReadNtohU16 ();
+  for (int j = 0; j < sz; j++)
+    {
+      uint64_t imsi = i.ReadNtohU64();
+      double sinr = unpack754(i.ReadNtohU64());
+      m_map[imsi] = sinr;
+    }
+
+  m_headerLength += 2 + sz * 16;
+  m_numberOfIes += 1 + sz;
+
+  return GetSerializedSize ();
+}
+
+void
+EpcX2UeImsiSinrUpdateHeader::Print (std::ostream &os) const
+{
+  os << "SourceCellId " << m_sourceCellId;
+  for(std::map<uint64_t, double>::const_iterator iter = m_map.begin(); iter != m_map.end(); ++iter)
+  {
+    os << " Imsi " << iter->first << " sinr " << 10*std::log10(iter->second);
+  }
+}
+
+uint16_t 
+EpcX2UeImsiSinrUpdateHeader::GetSourceCellId () const
+{
+  return m_sourceCellId;
+}
+
+void
+EpcX2UeImsiSinrUpdateHeader::SetSourceCellId(uint16_t cellId)
+{
+  m_sourceCellId = cellId;
+}
+
+std::map <uint64_t, double>
+EpcX2UeImsiSinrUpdateHeader::GetUeImsiSinrMap () const
+{
+  return m_map;
+}
+
+void
+EpcX2UeImsiSinrUpdateHeader::SetUeImsiSinrMap (std::map <uint64_t, double> map)
+{
+  m_map = map;
+
+  std::map <uint64_t, double>::size_type sz = m_map.size ();
+  m_headerLength += sz * 16;
+  m_numberOfIes += sz;
+}
+
+uint32_t
+EpcX2UeImsiSinrUpdateHeader::GetLengthOfIes () const
+{
+  return m_headerLength;
+}
+
+uint32_t
+EpcX2UeImsiSinrUpdateHeader::GetNumberOfIes () const
+{
+  return m_numberOfIes;
+}
+
+uint64_t 
+EpcX2UeImsiSinrUpdateHeader::pack754(long double f)
+{
+  uint16_t bits = 64;
+  uint16_t expbits = 11;
+  long double fnorm;
+  int shift;
+  long long sign, exp, significand;
+  unsigned significandbits = bits - expbits - 1; // -1 for sign bit
+
+  if (f == 0.0) return 0; // get this special case out of the way
+
+  // check sign and begin normalization
+  if (f < 0) { sign = 1; fnorm = -f; }
+  else { sign = 0; fnorm = f; }
+
+  // get the normalized form of f and track the exponent
+  shift = 0;
+  while(fnorm >= 2.0) { fnorm /= 2.0; shift++; }
+  while(fnorm < 1.0) { fnorm *= 2.0; shift--; }
+  fnorm = fnorm - 1.0;
+
+  // calculate the binary form (non-float) of the significand data
+  significand = fnorm * ((1LL<<significandbits) + 0.5f);
+
+  // get the biased exponent
+  exp = shift + ((1<<(expbits-1)) - 1); // shift + bias
+
+  // return the final answer
+  return (sign<<(bits-1)) | (exp<<(bits-expbits-1)) | significand;
+}
+
+long double 
+EpcX2UeImsiSinrUpdateHeader::unpack754(uint64_t i)
+{
+  uint16_t bits = 64;
+  uint16_t expbits = 11;
+  long double result;
+  long long shift;
+  unsigned bias;
+  unsigned significandbits = bits - expbits - 1; // -1 for sign bit
+
+  if (i == 0) return 0.0;
+
+  // pull the significand
+  result = (i&((1LL<<significandbits)-1)); // mask
+  result /= (1LL<<significandbits); // convert back to float
+  result += 1.0f; // add the one back on
+
+  // deal with the exponent
+  bias = (1<<(expbits-1)) - 1;
+  shift = ((i>>significandbits)&((1LL<<expbits)-1)) - bias;
+  while(shift > 0) { result *= 2.0; shift--; }
+  while(shift < 0) { result /= 2.0; shift++; }
+
+  // sign it
+  result *= (i>>(bits-1))&1? -1.0: 1.0;
+
+  return result;
+}
+
 } // namespace ns3

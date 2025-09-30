@@ -98,7 +98,8 @@ class NrSpectrumPhy : public SpectrumPhy
         RX_DL_CTRL, //!< Receiving DL CTRL
         RX_UL_CTRL, //!< Receiving UL CTRL
         RX_UL_SRS,  //!< Receiving SRS
-        CCA_BUSY    //!< BUSY state (channel occupied by another entity)
+        CCA_BUSY,   //!< BUSY state (channel occupied by another entity)
+        RX_DL_SSB   //!< Receieving SSB from a gNB
     };
 
     // callbacks typedefs and setters
@@ -347,7 +348,8 @@ class NrSpectrumPhy : public SpectrumPhy
     void StartTxDataFrames(const Ptr<PacketBurst>& pb,
                            const std::list<Ptr<NrControlMessage>>& ctrlMsgList,
                            const std::shared_ptr<DciInfoElementTdma> dci,
-                           const Time& duration);
+                           const Time& duration,
+                           uint8_t slotInd, uint64_t imsi);
 
     /**
      * @brief Return true if the current Phy State is TX
@@ -581,6 +583,13 @@ class NrSpectrumPhy : public SpectrumPhy
      * @return true if this class is inside an enb/gnb
      */
     bool IsGnb() const;
+
+    // ------------------------- MODIFIED ---------------------------
+    void SetIAState (bool iaContinues);
+
+    double GetLastReceivedSNR (uint8_t cellId);
+
+    uint8_t GetStreamId() const;
 
   protected:
     /**
@@ -821,7 +830,11 @@ class NrSpectrumPhy : public SpectrumPhy
         nullptr}; //!< the interference object used to obtain the CSI-RS measurements
     Ptr<NrInterference> m_interferenceCsiIm{
         nullptr}; //!< the interference object used to obtain the CSI-IM measurements
-
+    // ---------------------- MODIFIED -------------------
+    Ptr<NrInterference> m_interferenceSsb{
+        nullptr}; //!< the interference object used to obtain the SSB measurements
+    // ---------------------------------------------------
+    
     Ptr<SpectrumValue> m_txPsd{nullptr};          //!< tx power spectral density
     Ptr<UniformRandomVariable> m_random{nullptr}; //!< the random variable used for TB decoding
 
@@ -918,6 +931,12 @@ class NrSpectrumPhy : public SpectrumPhy
     bool m_isGnb = false;
     uint8_t m_numPanels{1};        //!< Number of panels in this spectrum
     uint8_t m_activePanelIndex{0}; //!< Active panel's index
+
+    // -------------------------- MODIFIED ------------------------
+    bool m_IAcontinues;
+    Ptr<SpectrumValue> m_noisePsd;
+    std::map<uint8_t, double> m_lastCellToSNR;
+    uint8_t m_streamId{UINT8_MAX}; //!< StreamId of this NrSpectrumPhy instance
 };
 
 } // namespace ns3

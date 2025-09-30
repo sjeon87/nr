@@ -73,7 +73,18 @@ class NrEpcX2Header : public Header
         LoadIndication = 2,
         SnStatusTransfer = 4,
         UeContextRelease = 5,
-        ResourceStatusReporting = 10
+        ResourceStatusReporting = 10, 
+        UpdateUeSinr            = 14,
+        RequestCoordinatorHandover       = 15,
+        InformLteCoordinator    = 16,
+        OptimalGnbBeamReport = 17,
+        DeRegisterUeContext = 18,
+        DeRegisterUeCompletedUpdate = 19,
+        CSIRSRRCReport = 20,
+        SSBRSReport = 21,
+        SuboptimalCSIRSReport = 22,
+        SetCSIRSFlag  = 23
+
     };
 
     /// Type of message enumeration
@@ -704,6 +715,226 @@ class NrEpcX2HandoverCancelHeader : public Header
     uint16_t m_oldGnbUeX2apId; ///< old gNB UE X2 AP ID
     uint16_t m_newGnbUeX2apId; ///< new gNB UE X2 AP ID
     uint16_t m_cause;          ///< cause
+};
+
+// --------------------- MODIFIED ----------------------
+class EpcX2OptimalGnbBeamReportHeader : public Header
+{
+  public:
+    EpcX2OptimalGnbBeamReportHeader ();
+    virtual ~EpcX2OptimalGnbBeamReportHeader ();
+
+    static TypeId GetTypeId (void);
+    virtual TypeId GetInstanceTypeId (void) const;
+    virtual uint32_t GetSerializedSize (void) const;
+    virtual void Serialize (Buffer::Iterator start) const;
+    virtual uint32_t Deserialize (Buffer::Iterator start);
+    virtual void Print (std::ostream &os) const;
+
+    uint64_t GetUeImsi () const;
+    void SetUeImsi (uint64_t ueImsi);
+
+    uint16_t GetOptimalBeamIndex () const;
+    void SetOptimalBeamIndex (uint16_t optimalBeamIndex);
+
+    uint16_t GetSecondBeamIndex () const;
+    void SetSecondBeamIndex (uint16_t secondBeamIndex);
+
+    uint16_t GetThirdBeamIndex () const;
+    void SetThirdBeamIndex (uint16_t thirdBeamIndex);
+
+    uint16_t GetFourthBeamIndex () const;
+    void SetFourthBeamIndex (uint16_t fourthBeamIndex);
+
+    uint16_t GetFifthBeamIndex () const;
+    void SetFifthBeamIndex (uint16_t optimalBeamIndex);
+
+    uint16_t GetSixthBeamIndex () const;
+    void SetSixthBeamIndex (uint16_t secondBeamIndex);
+
+    uint16_t GetSeventhBeamIndex () const;
+    void SetSeventhBeamIndex (uint16_t thirdBeamIndex);
+
+    uint16_t GetEightBeamIndex () const;
+    void SetEigthBeamIndex (uint16_t fourthBeamIndex);
+
+    uint16_t GetStartingFrame () const;
+    void SetStartingFrame (uint16_t startingFrame);
+
+    uint8_t GetStartingSubframe () const;
+    void SetStartingSubframe (uint8_t startingSubframe);
+
+    uint16_t GetStartingSlot () const;
+    void SetStartingSlot (uint16_t startingSlot);
+
+    uint8_t GetNumerology () const;
+    void SetNumerology (uint8_t numerology);
+
+    bool GetServingCell () const;
+    void SetServingCell (bool isServingCell);
+
+    uint8_t GetNumOfBeamsTbRlm () const;
+    void SetNumOfBeamsTbRlm (uint8_t numOfBeamsTbRlm);
+
+    std::vector<uint8_t> GetCsiCounter () const;
+    void SetCsiCounter (std::vector<uint8_t> csiCounterVector);
+
+    uint32_t GetLengthOfIes () const;
+    uint32_t GetNumberOfIes () const;
+
+  private:
+    uint32_t          m_numberOfIes; ///< number of IEs
+    uint32_t          m_headerLength; ///< header length
+
+    uint64_t          m_ueImsi;
+    uint16_t          m_optimalBeamIndex;
+    uint16_t          m_secondBeamIndex;
+    uint16_t          m_thirdBeamIndex;
+    uint16_t          m_fourthBeamIndex;
+    uint16_t          m_fifthBeamIndex;
+    uint16_t          m_sixthBeamIndex;
+    uint16_t          m_seventhBeamIndex;
+    uint16_t          m_eigthBeamIndex;
+    uint16_t          m_startingFrame;
+    uint8_t           m_startingSubframe;
+    uint16_t          m_startingSlot;
+    uint16_t          m_numerology;
+    bool              m_isServingCell;
+    uint8_t           m_numOfBeamsTbRlm;
+    std::vector<uint8_t>  m_csiCounterVector;
+};
+
+class EpcX2DeRegisterUeContextHeader : public Header
+{
+  public:
+    EpcX2DeRegisterUeContextHeader ();
+    virtual ~EpcX2DeRegisterUeContextHeader ();
+
+    static TypeId GetTypeId (void);
+    virtual TypeId GetInstanceTypeId (void) const;
+    virtual uint32_t GetSerializedSize (void) const;
+    virtual void Serialize (Buffer::Iterator start) const;
+    virtual uint32_t Deserialize (Buffer::Iterator start);
+    virtual void Print (std::ostream &os) const;
+
+    uint64_t GetUeImsi () const;
+    void SetUeImsi (uint64_t ueImsi);
+
+    uint8_t GetCellId () const;
+    void SetCellId (uint8_t cellId);
+
+    uint8_t GetSourceOfCommand () const;
+    void SetSourceOfCommand (uint8_t sourceOfCommand);
+
+    bool GetServingGnb() const;
+    void SetServingGnb(bool isServingGnb);
+
+    uint32_t GetLengthOfIes () const;
+    uint32_t GetNumberOfIes () const;
+
+  private:
+    uint32_t          m_numberOfIes; ///< number of IEs
+    uint32_t          m_headerLength; ///< header length
+
+    uint64_t          m_ueImsi;
+    uint8_t           m_cellId;
+    uint8_t           m_sourceOfCommand;
+    bool              m_isServingGnb;
+};
+
+class EpcX2UeSSBRSBeamUpdateHeader : public Header
+{
+public: 
+  EpcX2UeSSBRSBeamUpdateHeader ();
+  virtual ~EpcX2UeSSBRSBeamUpdateHeader ();
+
+  static TypeId GetTypeId (void);
+  virtual TypeId GetInstanceTypeId (void) const;
+  virtual uint32_t GetSerializedSize (void) const;
+  virtual void Serialize (Buffer::Iterator start) const;
+  virtual uint32_t Deserialize (Buffer::Iterator start);
+  virtual void Print (std::ostream &os) const;
+
+  std::vector<uint16_t> GetUeSSBRSBeamVector () const;
+  void SetUeSSRBRSBeamVector (std::vector<uint16_t> vector);
+
+  uint16_t GetSourceCellId () const;
+  void SetSourceCellId (uint16_t sourceCellId);
+
+  uint64_t GetUeImsi () const;
+  void SetUeImsi (uint64_t ueImsi);
+
+  uint64_t GetStartingFrame () const;
+  void SetStartingFrame (uint64_t startingFrame);
+
+  uint8_t GetStartingSubframe () const;
+  void SetStartingSubframe (uint8_t startingSubframe);
+
+  uint16_t GetStartingSlot () const;
+  void SetStartingSlot (uint16_t startingSlot);
+
+  uint16_t GetNumerology () const;
+  void SetNumerology (uint16_t numerology);
+
+  bool GetServingCell () const;
+  void SetServingCell (bool isServingCellId);
+
+  std::vector<uint8_t> GetCsiCounter () const;
+  void SetCsiCounter (std::vector<uint8_t> csiCounterVector);
+
+  uint32_t GetLengthOfIes () const;
+  uint32_t GetNumberOfIes () const;
+
+private:
+  uint32_t m_numberOfIes;
+  uint32_t m_headerLength;
+
+  uint64_t m_ueImsi;
+  uint16_t m_sourceCellId;
+  uint64_t m_startingFrame;
+  uint8_t  m_startingSubframe;
+  uint16_t m_startingSlot;
+  uint16_t m_numerology;
+  bool     m_isServingCellId;
+  std::vector<uint8_t>  m_csiCounterVector;
+  std::vector<uint16_t> m_ssbRSBeamIdVector;
+  
+};
+
+class EpcX2UeImsiSinrUpdateHeader : public Header
+{
+public:
+  EpcX2UeImsiSinrUpdateHeader ();
+  virtual ~EpcX2UeImsiSinrUpdateHeader ();
+
+  static TypeId GetTypeId (void);
+  virtual TypeId GetInstanceTypeId (void) const;
+  virtual uint32_t GetSerializedSize (void) const;
+  virtual void Serialize (Buffer::Iterator start) const;
+  virtual uint32_t Deserialize (Buffer::Iterator start);
+  virtual void Print (std::ostream &os) const;
+
+
+  std::map <uint64_t, double> GetUeImsiSinrMap () const;
+  void SetUeImsiSinrMap (std::map<uint64_t, double> map);
+
+  uint16_t GetSourceCellId () const;
+  void SetSourceCellId (uint16_t sourceCellId);
+
+  uint32_t GetLengthOfIes () const;
+  uint32_t GetNumberOfIes () const;
+
+private:
+  uint32_t          m_numberOfIes;
+  uint32_t          m_headerLength;
+
+  // from http://beej.us/guide/bgnet/examples/ieee754.c, to convert
+  // uint64_t to double and viceversa according to IEEE754 format
+  static uint64_t pack754(long double f);
+  static long double unpack754(uint64_t i);
+
+  std::map <uint64_t, double> m_map;
+  uint16_t m_sourceCellId;
 };
 
 } // namespace ns3

@@ -60,6 +60,8 @@ class GnbRrcMemberNrGnbCmacSapUser : public NrGnbCmacSapUser
     void NotifyLcConfigResult(uint16_t rnti, uint8_t lcid, bool success) override;
     void RrcConfigurationUpdateInd(UeConfig params) override;
     bool IsRandomAccessCompleted(uint16_t rnti) override;
+    virtual uint64_t GetImsiFromRnti (uint16_t rnti);
+    virtual uint16_t GetRntiFromImsi (uint64_t imsi);
 
   private:
     NrGnbRrc* m_rrc;              ///< the RRC
@@ -95,6 +97,18 @@ bool
 GnbRrcMemberNrGnbCmacSapUser::IsRandomAccessCompleted(uint16_t rnti)
 {
     return m_rrc->IsRandomAccessCompleted(rnti);
+}
+
+uint64_t
+GnbRrcMemberNrGnbCmacSapUser::GetImsiFromRnti (uint16_t rnti)
+{
+  return m_rrc->DoGetImsiFromRnti (rnti);
+}
+
+uint16_t
+GnbRrcMemberNrGnbCmacSapUser::GetRntiFromImsi (uint64_t imsi)
+{
+  return m_rrc->DoGetRntiFromImsi (imsi);
 }
 
 ///////////////////////////////////////////
@@ -1155,6 +1169,10 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
         {
             m_imsi = msg.ueIdentity;
 
+            // ----------------- MODIFIED ------------------------
+            m_rrc->RegisterImsiToRnti(m_imsi, m_rnti);
+            // ---------------------------------------------------
+
             // send RRC CONNECTION SETUP to UE
             NrRrcSap::RrcConnectionSetup msg2;
             msg2.rrcTransactionIdentifier = GetNewRrcTransactionIdentifier();
@@ -1200,6 +1218,12 @@ NrUeManager::RecvRrcConnectionSetupCompleted(NrRrcSap::RrcConnectionSetupComplet
     switch (m_state)
     {
     case CONNECTION_SETUP:
+        // ------------------ MODIFIED -----------------
+        for (uint8_t i=0; i < m_rrc->m_numberOfComponentCarriers; i++)
+        {
+            m_rrc->m_cmacSapProvider.at(i)->SetRAProcessFlag(false);
+        }
+        // ---------------------------------------------
         m_connectionSetupTimeout.Cancel();
         if (!m_caSupportConfigured && m_rrc->m_numberOfComponentCarriers > 1)
         {
@@ -1257,6 +1281,13 @@ NrUeManager::RecvRrcConnectionReconfigurationCompleted(
             m_needPhyMacConfiguration = false;
         }
         SwitchToState(CONNECTED_NORMALLY);
+
+        // -------------------- MODIFIED --------------------
+        for (uint8_t i=0; i<m_rrc->m_numberOfComponentCarriers; i++)
+        {
+            m_rrc->m_cmacSapProvider.at(i)->SetRAProcessFlag(false);
+        }
+        // --------------------------------------------------
         m_rrc->m_connectionReconfigurationTrace(
             m_imsi,
             m_rrc->ComponentCarrierToCellId(m_componentCarrierId),
@@ -1849,6 +1880,10 @@ NrGnbRrc::NrGnbRrc()
     m_s1SapUser = new NrMemberEpcGnbS1SapUser<NrGnbRrc>(this);
     m_cphySapUser.push_back(new MemberNrGnbCphySapUser<NrGnbRrc>(this));
     m_ccmRrcSapUser = new MemberNrCcmRrcSapUser<NrGnbRrc>(this);
+    // --------------------------- MODIFIED -----------------------
+    m_beamSweepCompleted = {};
+    m_beamSweepStarted = {};
+    // ------------------------------------------------------------
 }
 
 void
@@ -2026,6 +2061,14 @@ NrGnbRrc::GetTypeId()
                           UintegerValue(4),
                           MakeUintegerAccessor(&NrGnbRrc::m_rsrqFilterCoefficient),
                           MakeUintegerChecker<uint8_t>(0))
+            // --------------------------- MODIFIED ------------------------
+            .AddAttribute ("BeamSweepTimeoutDuration",
+                          "After triggering a beam sweep at the UE's RRC"
+                          "this will be called to see whether a beam sweep "
+                          "has indeed been conducted",
+                          TimeValue (MilliSeconds (500)),
+                          MakeTimeAccessor (&NrGnbRrc::m_beamSweepCompleteTimeoutDuration),
+                          MakeTimeChecker ())
 
             // Trace sources
             .AddTraceSource("NewUeContext",
@@ -2080,7 +2123,12 @@ NrGnbRrc::GetTypeId()
                 "HandoverFailureJoining",
                 "trace fired upon handover failure due to handover joining timeout at target eNB",
                 MakeTraceSourceAccessor(&NrGnbRrc::m_handoverFailureJoiningTrace),
-                "ns3::NrGnbRrc::HandoverFailureTracedCallback");
+                "ns3::NrGnbRrc::HandoverFailureTracedCallback")
+            .AddTraceSource(
+                "BeamSweepInitialization",
+                "trace fired when a beam sweep has been initialized from the coordinator",
+                MakeTraceSourceAccessor(&NrGnbRrc::m_beamSweepInitiateFromCoordinatorTrace),
+                "ns3::NrGnbRrc::InitiateBeamSweepCallback");
     return tid;
 }
 
@@ -2384,6 +2432,7 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
     uint16_t dlBandwidth = it->second->GetDlBandwidth();
     uint32_t ulEarfcn = it->second->GetUlEarfcn();
     uint32_t dlEarfcn = it->second->GetDlEarfcn();
+    uint16_t cellId = it->second->GetCellId();
     NS_LOG_FUNCTION(this << ulBandwidth << dlBandwidth << ulEarfcn << dlEarfcn);
     NS_ASSERT_MSG(!m_configured, "NrGnbRrc::ConfigureCell called more than once");
 
@@ -2402,6 +2451,7 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
     m_ulEarfcn = ulEarfcn;
     m_dlBandwidth = dlBandwidth;
     m_ulBandwidth = ulBandwidth;
+    m_cellId = cellId;
 
     /*
      * Initializing the list of measurement objects.
@@ -2784,6 +2834,10 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
         m_x2SapProvider->SendHandoverPreparationFailure(res);
         return;
     }
+
+    // ----------------- MODIFIED ----------------------
+    m_cmacSapProvider.at(0)->SetRAProcessFlag(true);
+    // -------------------------------------------------
 
     uint8_t componentCarrierId = CellToComponentCarrierId(req.targetCellId);
     uint16_t rnti = AddUe(NrUeManager::HANDOVER_JOINING, componentCarrierId);
@@ -3362,6 +3416,490 @@ NrGnbRrc::IsRandomAccessCompleted(uint16_t rnti)
     default:
         return false;
     }
+}
+
+// ----------------------- MODIFIED ----------------------
+uint16_t
+NrGnbRrc::DoGetRntiFromImsi(uint64_t imsi)
+{
+  if(m_imsiRntiMap.find(imsi) != m_imsiRntiMap.end())
+  {
+    return m_imsiRntiMap.find(imsi)->second;
+  }
+  else
+  {
+    return 0;
+  }
+}
+
+uint64_t
+NrGnbRrc::DoGetImsiFromRnti (uint16_t rnti)
+{
+  for (std::map<uint64_t, uint16_t>::iterator imsiRntiIterator = m_imsiRntiMap.begin (); 
+       imsiRntiIterator != m_imsiRntiMap.end ();
+       ++imsiRntiIterator)
+  {
+    if (imsiRntiIterator->second == rnti)
+    {
+      return imsiRntiIterator->first;
+    }
+  }
+
+  return 0;
+}
+
+void
+NrGnbRrc::RegisterImsiToRnti(uint64_t imsi, uint16_t rnti)
+{
+  if(m_imsiRntiMap.find(imsi) == m_imsiRntiMap.end())
+  {
+    m_imsiRntiMap.insert(std::pair<uint64_t, uint16_t> (imsi, rnti));
+  }
+  else
+  {
+    m_imsiRntiMap.find(imsi)->second = rnti;
+  }
+}
+
+void
+NrGnbRrc::DoRecvDeRegisterUeCommand (NrRrcSap::DeRegisterUeContext params)
+{
+  // If multi-gNB RLM is enabled, check which gNBs send CSI to the IMSI. Signal to them (besides the serving gNB) to disable CIS-RS transmission.
+  std::map<uint8_t, bool> gnbToNotifyMap; // second value indicates if cell is serving gNB
+
+  if (params.m_sourceOfCommand == NrRrcSap::DeRegisterUeContext::SourceOfCommand::DeRegisterFromUE)
+  {
+    m_mmWaveCellSetupCompleted[params.imsi] = false; // This prevents handover decisions after a beam sweep has been started. Should be set to true after handover.
+  }
+
+  gnbToNotifyMap.insert(std::pair<uint8_t, bool> (params.cellId, true));
+
+//   if (m_rlmMultiGnb)
+//   {
+//     for (size_t n = 0; n < m_imsiCellCSIRSSinrMap.at(params.imsi).size(); n++)
+//     {
+//       uint8_t cellId = m_imsiCellCSIRSSinrMap.at(params.imsi).at(n).second;
+//       if (gnbToNotifyMap.find(cellId) == gnbToNotifyMap.end())
+//       {
+//         if (cellId != params.cellId)
+//         {
+//           // params.cellId is the serving gNB and was already handled before the for loop.
+//           gnbToNotifyMap.insert(std::pair<uint8_t, bool>(cellId, false));
+//         }
+//       }
+//     }
+//   }
+
+  for (auto const& iter : gnbToNotifyMap)
+  {
+    NrEpcX2Sap::DeRegisterUeParams outgoingParams;
+    outgoingParams.imsi = params.imsi;
+    outgoingParams.targetCellId = iter.first;
+    outgoingParams.isServingGnb = iter.second;
+    switch (params.m_sourceOfCommand)
+    {
+    case NrRrcSap::DeRegisterUeContext::SourceOfCommand::DeRegisterFromCoordinator:
+      outgoingParams.m_sourceOfCommand = NrEpcX2Sap::DeRegisterUeParams::SourceOfCommand::DeRegisterFromCoordinator;
+      break;
+    case NrRrcSap::DeRegisterUeContext::SourceOfCommand::DeRegisterFromUE:
+      outgoingParams.m_sourceOfCommand = NrEpcX2Sap::DeRegisterUeParams::SourceOfCommand::DeRegisterFromUe;
+      break;
+    default:
+      break;
+    }
+    m_x2SapProvider->SendDeRegisterUeCommand(outgoingParams);
+  }
+}
+
+void 
+NrGnbRrc::DoRecvOptimalGnbBeamMap (NrRrcSap::CellOptimalGnbBeamMap msg)
+{
+  m_imsiBeamSweepCellSinrMap.erase(msg.ueImsi);
+
+  auto currSNR = 0.0;
+  auto maxSNR = 0.0;
+  auto maxCellId = 0;
+  // not connected to any gNB, maxCellId will be chosen
+
+  CellSinrMap map;
+  for (auto const &iter : msg.cellOptimalBeamMap)
+  {
+    currSNR = iter.second.at(0).second.first;
+    if (currSNR > maxSNR)
+    {
+      maxSNR = currSNR;
+      maxCellId = iter.first;
+    }
+    map.insert(std::pair<uint16_t, double>(iter.first, iter.second.at(0).second.first));
+  }
+
+  m_imsiCellSinrMap.erase(msg.ueImsi);
+  m_imsiCellSinrMap.insert(std::pair<uint64_t, CellSinrMap> (msg.ueImsi, map));
+  
+  if(m_mmWaveCellSetupCompleted.find(msg.ueImsi) != m_mmWaveCellSetupCompleted.end())
+  {
+    if (m_mmWaveCellSetupCompleted[msg.ueImsi] == true)
+    {
+      // This UE went through a BeamTracking beam sweep. After such, the UE should connect to the best available cell.
+      // For that purpose, initiate handover if best cell != currently serving cell.
+      
+      // This is only setting m_csiRSFlag in NrGnbMac and no deregistration is performed
+      NrRrcSap::DeRegisterUeContext deregisterParams;
+      deregisterParams.imsi = msg.ueImsi;
+      deregisterParams.cellId = m_lastMmWaveCell[msg.ueImsi];
+      deregisterParams.m_sourceOfCommand = NrRrcSap::DeRegisterUeContext::SourceOfCommand::DeRegisterFromCoordinator;
+      DoRecvDeRegisterUeCommand(deregisterParams);
+
+      NS_LOG_UNCOND("IMSI " << msg.ueImsi << ": cell ID that has the maximum SNR after BeamTracking beam sweep " << maxCellId);
+      if (maxSNR > 5)
+      {
+        if (maxCellId == m_lastMmWaveCell[msg.ueImsi])
+        {
+          NS_LOG_UNCOND("----- No handover is needed, serving cell provides best connection");
+          RadioLinkMonitoringTraceParams rlmParams;
+          rlmParams.imsi = msg.ueImsi;
+          rlmParams.m_radioLinkMonitoringOrigin = RadioLinkMonitoringTraceParams::NO_HANDOVER_AFTER_UE_SWEEP;
+        //   m_radioLinkMonitoringTrace(rlmParams);
+        }
+        // else
+        // {
+        //   NS_LOG_UNCOND("----- Handover needed from cell " << m_lastMmWaveCell[msg.ueImsi] << " to " << maxCellId);
+
+        //   RadioLinkMonitoringTraceParams rlmParams;
+        //   rlmParams.imsi = msg.ueImsi;
+        //   rlmParams.m_radioLinkMonitoringOrigin = RadioLinkMonitoringTraceParams::HANDOVER_AFTER_UE_SWEEP;
+        //   rlmParams.sourceCellId = m_lastMmWaveCell[msg.ueImsi];
+        //   rlmParams.targetCellId = maxCellId;
+        //   m_radioLinkMonitoringTrace(rlmParams);
+
+        //   // compute the TTT
+        //   uint8_t millisecondsToHandover = m_minDynTttValue;
+
+        //   EventId scheduledHandoverEvent = Simulator::Schedule(MilliSeconds(millisecondsToHandover), &NrGnbRrc::PerformHandover, this, msg.ueImsi);
+        //   LteEnbRrc::HandoverEventInfo handoverInfo;
+        //   handoverInfo.sourceCellId = m_lastMmWaveCell[msg.ueImsi];
+        //   handoverInfo.targetCellId = maxCellId;
+        //   handoverInfo.isLoadBalancing = false;
+        //   handoverInfo.isWithoutSweep = false;
+        //   handoverInfo.scheduledHandoverEvent = scheduledHandoverEvent;
+        //   HandoverEventMap::iterator handoverEvent = m_imsiHandoverEventsMap.find(msg.ueImsi);
+        //   if (handoverEvent != m_imsiHandoverEventsMap.end()) // another event was scheduled, but it was already deleted. Replace the entry
+        //   {
+        //     handoverEvent->second = handoverInfo;
+        //   }
+        //   else
+        //   {
+        //     m_imsiHandoverEventsMap.insert(std::pair<uint64_t, HandoverEventInfo>(msg.ueImsi, handoverInfo));
+        //   }
+        // }
+      }
+    }
+  }
+
+  uint8_t csiCounter = 0;
+  std::vector<uint8_t> gnbRlmBeams(msg.cellOptimalBeamMap.size(), 0);
+  std::map<uint8_t, std::vector<uint8_t>> mapOfCsiCounter;
+  uint8_t noOfBeamsTbRLM = msg.cellOptimalBeamMap.begin()->second.size();
+
+  if (m_rlmMultiGnb) // montior beams from multiple cells
+  {
+    // identify best beams for CSI-RS RLM
+    std::vector<struct OptimalRLMBeamStruct> bestServingBeams;
+    std::vector<struct OptimalRLMBeamStruct> bestBeams;
+
+    for (auto const &iter : msg.cellOptimalBeamMap)
+    {
+      if (iter.first != maxCellId)
+      {
+        double SNR = iter.second.at(0).second.first;
+        if (10 * std::log10(SNR) > m_maxRateThreshold) // only enable monitoring if SNR from that cell is good enough
+        {
+          // only monitor the best beam from each potential cell
+          struct OptimalRLMBeamStruct thisRLMBeam;
+          thisRLMBeam.snr = iter.second.at(0).second.first;
+          thisRLMBeam.cellId = iter.first;
+          thisRLMBeam.beamId = iter.second.at(0).second.second;
+          thisRLMBeam.startingSfnSf = iter.second.at(0).first.first;
+          thisRLMBeam.optimalBeamIndex = (thisRLMBeam.cellId - 1) * 4 + 0;
+
+          bestBeams.push_back(thisRLMBeam);
+        }
+      }
+    }
+
+    std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>> it = msg.cellOptimalBeamMap.at(maxCellId);
+    for (uint8_t i = 0; i < noOfBeamsTbRLM; i++)
+    {
+      struct OptimalRLMBeamStruct thisRLMBeam;
+      thisRLMBeam.snr = it.at(i).second.first;
+      thisRLMBeam.cellId = maxCellId;
+      thisRLMBeam.beamId = it.at(i).second.second;
+      thisRLMBeam.startingSfnSf = it.at(i).first.first;
+      thisRLMBeam.optimalBeamIndex = (thisRLMBeam.cellId - 1) * 4 + i;
+
+      bestServingBeams.push_back(thisRLMBeam);
+      if (i == 0 && ((uint8_t)bestBeams.size() >= noOfBeamsTbRLM))
+      {
+        // None of the serving gNB beams is required to be monitored. Insert the best one from this cell into the bestBeams struct.
+        // Third if statement:  do not insert best beam from serving cell if bestBeams.size() >= noOfBeamsTbRLM.
+        //                      This prevents double insertion of that beam as remaining free slots in bestBeams are filled with beams from bestServingBeams.
+        bestBeams.push_back(thisRLMBeam);
+      }
+    }
+
+    sort(bestBeams.begin(), bestBeams.end(), [](struct OptimalRLMBeamStruct &a, struct OptimalRLMBeamStruct &b){ return a.snr > b.snr; });
+
+    // if (m_csiRSFromServingGnb == 0)
+    // {
+    //   // no beam monitoring required for the serving gNB
+    //   if ((uint8_t)bestBeams.size() < noOfBeamsTbRLM)
+    //   {
+    //     // fill in remaining slots if some are unused
+    //     bestBeams.insert(bestBeams.end(), bestServingBeams.begin(), bestServingBeams.end() - bestBeams.size());
+    //     sort(bestBeams.begin(), bestBeams.end(), [](struct OptimalRLMBeamStruct &a, struct OptimalRLMBeamStruct &b){ return a.snr > b.snr; });
+    //   }
+    //   else if ((uint8_t)bestBeams.size() > noOfBeamsTbRLM)
+    //   {
+    //     bestBeams.erase(bestBeams.begin() + noOfBeamsTbRLM, bestBeams.end());
+    //   }
+    // }
+    // else if (m_csiRSFromServingGnb == noOfBeamsTbRLM)
+    // {
+    //   // all beams are from the serving gNB
+    //   bestBeams = bestServingBeams;
+    // }
+    // else
+    // {
+    //   if ((uint8_t)bestBeams.size() > noOfBeamsTbRLM - m_csiRSFromServingGnb)
+    //   {
+    //     bestBeams.erase(bestBeams.begin() + (noOfBeamsTbRLM - m_csiRSFromServingGnb), bestBeams.end());
+    //   }
+    //   bestBeams.insert(bestBeams.end(), bestServingBeams.begin(), bestServingBeams.end() - bestBeams.size());
+    //   sort(bestBeams.begin(), bestBeams.end(), [](struct OptimalRLMBeamStruct &a, struct OptimalRLMBeamStruct &b){ return a.snr > b.snr; });
+    // }
+
+    // CellCSIRSSinrMap cellCSIRSSinrMap;
+    // for (uint8_t i = 0; i < noOfBeamsTbRLM; i++)
+    // {
+    //   uint8_t cellId = bestBeams[i].cellId;
+    //   gnbRlmBeams[cellId-1]++;
+
+    //   if (mapOfCsiCounter.find(cellId) == mapOfCsiCounter.end())
+    //   {
+    //     mapOfCsiCounter.insert(std::pair<uint8_t, std::vector<uint8_t>>(cellId, {csiCounter}));
+    //     csiCounter += 1;
+    //   }
+    //   else
+    //   {
+    //     mapOfCsiCounter.at(cellId).push_back(csiCounter);
+    //     csiCounter += 1;
+    //   }
+
+    //   cellCSIRSSinrMap.emplace_back(std::make_pair(bestBeams[i].snr, bestBeams[i].cellId));
+    // }
+
+    // m_imsiCellCSIRSSinrMap.erase(msg.ueImsi);
+    // m_imsiCellCSIRSSinrMap.insert ({msg.ueImsi, cellCSIRSSinrMap});
+  }
+  else
+  {
+    // all RLM beams are from best SNR cell
+    // CellCSIRSSinrMap cellCSIRSSinrMap;
+    gnbRlmBeams[maxCellId - 1] = noOfBeamsTbRLM;
+    std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>> it = msg.cellOptimalBeamMap.at(maxCellId);
+    for (uint8_t i = 0; i < noOfBeamsTbRLM; i++)
+    {
+      if (i == 0)
+      {
+        mapOfCsiCounter.insert(std::pair<uint8_t, std::vector<uint8_t>>(maxCellId, {csiCounter}));
+      }
+      else
+      {
+        csiCounter++;
+        mapOfCsiCounter.at(maxCellId).push_back(csiCounter);
+      }
+
+    //   double snr = it.at(i).second.first;
+    //   cellCSIRSSinrMap.emplace_back(std::make_pair(snr, maxCellId));
+    }
+    // m_imsiCellCSIRSSinrMap.erase(msg.ueImsi);
+    // m_imsiCellCSIRSSinrMap.insert({msg.ueImsi, cellCSIRSSinrMap});
+  }
+
+  for (auto const& iter : msg.cellOptimalBeamMap)
+  {
+    if (m_imsiBeamSweepCellSinrMap.find(msg.ueImsi)==m_imsiBeamSweepCellSinrMap.end())
+    {
+      BeamSweepCellSinrMap map;
+      map.insert (std::pair<uint16_t, double> (iter.first, iter.second.at(0).second.first));
+      m_imsiBeamSweepCellSinrMap.insert (std::pair<uint64_t, BeamSweepCellSinrMap> (msg.ueImsi, map));
+    }
+    else
+    {
+      m_imsiBeamSweepCellSinrMap[msg.ueImsi].insert(std::pair<uint16_t, double> (
+          iter.first, iter.second.at(0).second.first));
+    }
+    if (m_realisticIA)
+    {
+      NrEpcX2Sap::OptimalGnbBeamReportParams params;
+      params.targetCellId = iter.first;
+      params.ueImsi = msg.ueImsi;
+      params.startingSfn = iter.second.at(0).first.first;
+      std::vector<uint16_t> tmp_optimalBeamIndex;
+      for (size_t i = 0; i < 8; i++)
+      {
+        if(i < iter.second.size())
+        {
+          tmp_optimalBeamIndex.push_back(iter.second.at(i).first.second);
+        }
+        else
+        {
+          // If less than 8 beams will be used for RLM, fill the rest with zeros.
+          // Zeros will be ignored later due to knwon number of RLM-beams
+          tmp_optimalBeamIndex.push_back(0);
+        }
+      }
+      params.optimalBeamIndex = tmp_optimalBeamIndex;
+      
+      if (maxCellId-iter.first <= 1)
+      {
+        params.isServingCell = true;
+      }
+      else
+      {
+        params.isServingCell = false;
+      }
+
+      params.numOfBeamsTbRlm = gnbRlmBeams[iter.first-1];
+
+      if (mapOfCsiCounter.find(iter.first) != mapOfCsiCounter.end())
+      {
+        params.csiCounterVector = mapOfCsiCounter.at(iter.first);
+      }
+      else
+      {
+        params.csiCounterVector = {};
+      }
+    //   m_x2SapProvider->SendSpecificGnbOptimalBeamReport (params);
+    }
+  }
+// This part of the code will be used for handovers. Handovers are not currenty implemented
+//   if (m_beamSweepStarted.at(msg.ueImsi))
+//   {
+//     m_beamSweepCompleted.at(msg.ueImsi) = true;
+//   }  
+}
+
+void 
+NrGnbRrc::DoForwardUeSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params)
+{
+  /* 
+  Beams for CSI-RS RLM are updated at the respective gNB MAC schedulers.
+  LTE RRC only gets fresh information via CSI-RS report in DoRecvRRCCSIRSReport, which is later in time.
+  During this interval, the CSI-RS information in m_imsiCellCSIRSSinrMap may be accessed.
+  To prevent decisions regarding gNBs which are no longer being monitored, set parameters in m_imsiCellCSIRSSinrMap for the outdated gNBs,
+  before m_imsiCellCSIRSSinrMap is eventually updated in DoRecvRRCCSIRSReport.
+  */
+
+//   uint8_t noOfBeamsTbRLM = m_imsiCellCSIRSSinrMap.at(params.ueImsi).size();
+//   if (params.csiCounterVector.size() == 1 && params.csiCounterVector[0] > noOfBeamsTbRLM) // value 99 used as signalling
+//   {
+//     // entry for that params.targetCellId is now invalid
+//     for (size_t n = 0; n < m_imsiCellCSIRSSinrMap.at(params.ueImsi).size(); n++)
+//     {
+//       uint8_t cellId = m_imsiCellCSIRSSinrMap.at(params.ueImsi).at(n).second;
+//       if (params.targetCellId == cellId)
+//       {
+//         m_imsiCellCSIRSSinrMap.at(params.ueImsi).at(n).first = 1; // equals 0 dB, which is sufficient to not be considered as alternative link opportunity.
+//       }
+//     }
+//   }
+
+  m_x2SapProvider->SendUeSSBRSReport (params);
+}
+
+void 
+NrGnbRrc::DoRecvClearHandoverEvent (uint64_t imsi)
+{
+//   HandoverEventMap::iterator handoverIt = m_imsiHandoverEventsMap.find(imsi);;
+
+//   if(handoverIt != m_imsiHandoverEventsMap.end()){
+//     handoverIt->second.scheduledHandoverEvent.Cancel ();
+//   }
+  
+//   m_imsiHandoverEventsMap.erase(imsi);
+}
+
+void
+NrGnbRrc::DoUpdateUeSinrEstimate(NrGnbCphySapUser::UeAssociatedSinrInfo info)
+{
+  NS_LOG_FUNCTION(this);
+
+  NS_LOG_INFO ("CC " << (uint16_t)info.componentCarrierId << " reports the ueImsiSinrMap");
+  m_ueImsiSinrMap[info.componentCarrierId]=info.ueImsiSinrMap; // store the received report in m_ueImsiSinrMap
+
+  //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  m_lteCellId = 11; //Hardcoded until it is decided whether to use SA or NSA
+  //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  // TODO report immediately or with some filtering
+  if(m_lteCellId > 0) // i.e., only if a LTE eNB was actually registered in the scenario
+                      // (this is done when an X2 interface among mmWave eNBs and LTE eNB is added)
+  {
+    // send the report to the LTE coordinator
+    NrEpcX2SapProvider::UeImsiSinrParams params;
+    params.targetCellId = m_lteCellId;
+    params.sourceCellId = m_cellId;
+
+    if (m_ueImsiSinrMap.size() == m_numberOfComponentCarriers) // if we received the ueImsiSinrMap report from all the CCs
+    {
+      // Build the ueImsiSinrMapToSend containing, for each UE, the max SINR among all the CCs
+      NS_LOG_INFO ("Number of ueImsiSinrMaps in m_ueImsiSinrMap " << (uint16_t)m_ueImsiSinrMap.size() );
+
+      std::map<uint64_t, double> ueImsiSinrMapToSend; // map which contains the max SINR for each UE among the CCs
+      ueImsiSinrMapToSend = m_ueImsiSinrMap.at(0); // initialization
+
+      for(uint8_t cc = 1; cc < m_numberOfComponentCarriers; cc++)
+      {
+        NS_ASSERT_MSG (m_ueImsiSinrMap.find(cc) != m_ueImsiSinrMap.end(), "CC " << (uint16_t)cc << " didn't report the ueImsiSinrMap");
+
+        for (std::map<uint64_t, double>::iterator ue = ueImsiSinrMapToSend.begin(); ue != ueImsiSinrMapToSend.end(); ue++)
+        {
+          NS_ASSERT_MSG (m_ueImsiSinrMap.at(cc).find(ue->first) != m_ueImsiSinrMap.at(cc).end(), "CC " << (uint16_t)cc << " didn't report SINR for UE "<< ue->first );
+
+          NS_LOG_DEBUG ("UE " << ue->first << " current SINR " << ue->second << " is higher than " << m_ueImsiSinrMap.at(cc).at(ue->first) << " ?");
+          if (ue->second < m_ueImsiSinrMap.at(cc).at(ue->first))
+          {
+            NS_LOG_DEBUG ("No, update SINR to " << m_ueImsiSinrMap.at(cc).at(ue->first));
+            ue->second = m_ueImsiSinrMap.at(cc).at(ue->first); // insert the max SINR for this UE among all the CCs
+          }
+        }
+      }
+      params.ueImsiSinrMap = ueImsiSinrMapToSend;
+      m_ueImsiSinrMap.clear(); // delete the reports
+    }
+
+    NS_LOG_INFO("number of SINR reported " << params.ueImsiSinrMap.size());
+    m_x2SapProvider->SendUeSinrUpdate (params);
+  }
+}
+
+void 
+NrGnbRrc::DoRecvTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev)
+{
+  m_cphySapProvider.at(0)->AttachUeFromRRC (imsi, netDev);
+}
+
+void 
+NrGnbRrc::DoRecvRegisterUE (uint64_t imsi)
+{
+  m_cphySapProvider.at(0)->RegisterUeFromRRC (imsi);
+}
+
+void
+NrGnbRrc::DoRecvOptimalGnbBeamReport (NrRrcSap::OptimalGnbBeamReport params)
+{
+    m_cphySapProvider.at (0)->SetOptimalGnbBeamForImsi (params.ueImsi, params.startingSfn, params.optimalBeamIndex, params.isServingCell, params.numOfBeamsTbRlm);
 }
 
 } // namespace ns3

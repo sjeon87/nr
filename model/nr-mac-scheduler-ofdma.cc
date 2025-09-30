@@ -2,11 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
-#define NS_LOG_APPEND_CONTEXT                                                                      \
-    do                                                                                             \
-    {                                                                                              \
-        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
-    } while (false);
+
 
 #include "nr-mac-scheduler-ofdma.h"
 
@@ -16,6 +12,14 @@
 
 #include <algorithm>
 #include <random>
+
+#undef NS_LOG_APPEND_CONTEXT
+#define NS_LOG_APPEND_CONTEXT                                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
+    } while (false);
+
 
 namespace ns3
 {
@@ -798,3 +802,4 @@ NrMacSchedulerOfdma::CreateRbgBitmaskFromAllocatedRbgs(
 }
 
 } // namespace ns3
+#undef NS_LOG_APPEND_CONTEXT

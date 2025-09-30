@@ -194,6 +194,15 @@ class NrEpcX2 : public Object
      */
     virtual void DoSendHandoverCancel(NrEpcX2SapProvider::HandoverCancelParams params);
 
+    // --------------------- MODIFIED ----------------------------
+    virtual void DoSendSpecificGnbBeamReport (NrEpcX2Sap::OptimalGnbBeamReportParams params);
+
+    virtual void DoSendDeRegisterUeToCell (NrEpcX2Sap::DeRegisterUeParams params);
+
+    virtual void DoSendUeSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params);
+
+    virtual void DoSendUeSinrUpdate(NrEpcX2Sap::UeImsiSinrParams params);
+
     NrEpcX2SapUser* m_x2SapUser;         ///< X2 SAP user
     NrEpcX2SapProvider* m_x2SapProvider; ///< X2 SAP provider
 

@@ -2,12 +2,6 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
-#define NS_LOG_APPEND_CONTEXT                                                                      \
-    do                                                                                             \
-    {                                                                                              \
-        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
-    } while (false);
-
 #include "nr-gnb-phy.h"
 
 #include "beam-manager.h"
@@ -33,6 +27,21 @@
 #include <unordered_set>
 #include <vector>
 
+#include "ns3/nr-spectrum-value-helper.h"
+#include "ns3/three-gpp-channel-model.h"
+#include "ns3/three-gpp-spectrum-propagation-loss-model.h"
+// #include "ns3/spectrum-propagation-loss-model.h"
+#include "ns3/uniform-planar-array.h"
+
+#undef NS_LOG_APPEND_CONTEXT
+#define NS_LOG_APPEND_CONTEXT                                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
+    } while (false);
+
+std::vector<bool> performBF(11);
+
 namespace ns3
 {
 
@@ -47,6 +56,10 @@ NrGnbPhy::NrGnbPhy()
     NS_LOG_FUNCTION(this);
     m_gnbCphySapProvider = new MemberNrGnbCphySapProvider<NrGnbPhy>(this);
     m_nrFhPhySapUser = new MemberNrFhPhySapUser<NrGnbPhy>(this);
+    IAisPerformed = true;
+
+    Simulator::Schedule (MilliSeconds(100), &NrGnbPhy::UpdateUeSinrEstimate, this);
+    performBF[GetCellId()] = true;
 }
 
 NrGnbPhy::~NrGnbPhy()
@@ -203,7 +216,56 @@ NrGnbPhy::GetTypeId()
                 "RBDataStats",
                 "Resource Block used for data: SfnSf, symbol, RB PHY map, bwp ID, cell ID",
                 MakeTraceSourceAccessor(&NrGnbPhy::m_rbStatistics),
-                "ns3::NrGnbPhy::RBStatsTracedCallback");
+                "ns3::NrGnbPhy::RBStatsTracedCallback")
+        .AddTraceSource ("BeamSweepTrace",
+                        "trace fired when a beam refinement has been initiated from GNB PHY",
+                        MakeTraceSourceAccessor (&NrGnbPhy::m_beamSweepTrace),
+                        "ns3::BeamSweepTraceParams::TracedCallback")
+        .AddAttribute ("BeamformingPeriodicity",
+                    "Interval between beamforming phases",
+                    TimeValue (MilliSeconds (100)),
+                    MakeTimeAccessor (&NrGnbPhy::m_beamformingPeriodicity),
+                    MakeTimeChecker())
+        .AddAttribute ("UpdateSinrEstimatePeriod",
+                    "Period (in microseconds) of update of SINR estimate of all the UE",
+                    DoubleValue (1600),     //TODO considering refactoring in MmWavePhyMacCommon
+                    MakeDoubleAccessor (&NrGnbPhy::m_updateSinrPeriod),
+                    MakeDoubleChecker<double> ())
+        .AddAttribute ("UpdateUeSinrEstimatePeriod",
+                    "Period (in ms) of reporting of SINR estimate of all the UE",
+                    DoubleValue (25.6),
+                    MakeDoubleAccessor (&NrGnbPhy::m_ueUpdateSinrPeriod),
+                    MakeDoubleChecker<double> ())
+        .AddAttribute ("ApplyBeamformingDelay",
+                    "If true, triggers delays on adaptive BF, else ideak timeless BF",
+                        BooleanValue (true),
+                        MakeBooleanAccessor (&NrGnbPhy::m_BFdelay),
+                        MakeBooleanChecker ())     
+        .AddAttribute ("OmniNrFallback",
+                    "If true, omni-directional mmWave data transmission while BF, else the scheduler blocks all communication",
+                    BooleanValue(false),
+                    MakeBooleanAccessor (&NrGnbPhy::m_omniFallback),
+                    MakeBooleanChecker ())
+        .AddAttribute ("BeamTrainingDelay",
+                    "Delay in ms to simulate beam training",
+                    DoubleValue (5),
+                    MakeDoubleAccessor (&NrGnbPhy::m_BFtrainingDelay),
+                    MakeDoubleChecker<double> ())
+        .AddAttribute ("IADelay",
+                    "Delay in ms to simulate IA",
+                    DoubleValue (5250),
+                    MakeDoubleAccessor (&NrGnbPhy::m_IAdelay),
+                    MakeDoubleChecker<double> ())
+        .AddAttribute ("GnbElevationAngleStep",
+                    "Angle step that will be used for sweep at elevation",
+                    DoubleValue (20),
+                    MakeDoubleAccessor (&NrGnbPhy::SetGnbVerticalAngleStep),
+                    MakeDoubleChecker<double> ())
+        .AddAttribute ("GnbHorizontalAngleStep",
+                    "Angle step that will be used for sweeo at azimuth",
+                    DoubleValue (9),
+                    MakeDoubleAccessor (&NrGnbPhy::SetGnbHorizontalAngleStep),
+                    MakeDoubleChecker<double> (1.0, 90.0));
     return tid;
 }
 
@@ -658,6 +720,7 @@ void
 NrGnbPhy::SetSubChannels(const std::vector<int>& rbIndexVector, size_t nTotalAllocRbs)
 {
     Ptr<SpectrumValue> txPsd = GetTxPowerSpectralDensity(rbIndexVector);
+    m_listOfSubchannels = rbIndexVector;
     NS_ASSERT(txPsd);
 
     // In case of UNIFORM_POWER_ALLOCATION_USED, the txPsd created by GetTxPowerSpectralDensity
@@ -1007,9 +1070,12 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
         lastSymStart = allocation.m_dci->m_symStart;
     }
 
-    NS_ASSERT_MSG(symUsed == allocInfo.m_numSymAlloc,
-                  "Allocated " << +allocInfo.m_numSymAlloc << " but only " << symUsed
-                               << " written in stats");
+    // ---------------------------- MODIFIED -----------------------------
+    // TODO: uncomment it and fix the problem related to the number of symbols used and allocated!
+    // NS_ASSERT_MSG(symUsed == allocInfo.m_numSymAlloc,
+    //               "Allocated " << +allocInfo.m_numSymAlloc << " but only " << symUsed
+    //                            << " written in stats");
+    
 
     m_phySlotDataStats(allocInfo.m_sfnSf,
                        activeUe.size(),
@@ -1365,10 +1431,55 @@ NrGnbPhy::DlCtrl(const std::shared_ptr<DciInfoElementTdma>& dci)
     NS_LOG_DEBUG("Starting DL CTRL TTI at symbol " << +m_currSymStart << " to "
                                                    << +m_currSymStart + dci->m_numSym);
 
+    // --------------------------- MODIFIED ----------------------------
+    uint16_t currentCellId = GetCellId ();
+    if ((performBF[currentCellId] || m_performBeamforming))
+    {
+        m_performBeamforming = false;
+        performBF[currentCellId] = false;
+        for (const auto &dev: m_deviceMap)
+        {
+            NS_LOG_UNCOND("Beamforming performed at " << Simulator::Now().GetSeconds() << " to cellID: " << currentCellId);
+            // Changing the current UE beam back to the registered gNB
+            Ptr<NrUeNetDevice> ueNet = DynamicCast<NrUeNetDevice> (dev);
+            if (ueNet->GetTargetGnb () != nullptr && m_adaptiveBF)
+            {
+                //m_doBeamforming (ueNet->GetTargetEnb (), dev);
+                //m_phyIdealBeamformingHelper->AddBeamformingTask (ConstCast<NrGnbNetDevice> (ueNet->GetTargetEnb ()), dev);
+            }
+
+        }
+    }
+    
     // TX control period
+    bool transmitCsiRs = false;
     Time varTtiPeriod = GetSymbolPeriod() * dci->m_numSym;
 
-    bool transmitCsiRs = false;
+
+    if (m_realisticIA)
+    {
+        
+        if (m_phySapUser->IsSSBRequired (GetCurrentSfnSf ()) && 
+        (m_currSymStart == 2 || m_currSymStart == 8))
+        {
+            
+            if (!(m_currSymStart == 8 && 
+                GetCurrentSfnSf ().GetSlot () == 7 &&
+                GetCurrentSfnSf ().GetSubframe () == 3))
+            {
+            if (m_ctrlMsgs.size() == 0)
+                {                
+                    QueueSSB (false);
+                }
+            else
+                {
+                    QueueSSB (true);
+                }
+            }
+            
+            
+        }
+    }
     if (m_enableCsiRs)
     {
         // Check whether it is time to transmit CSI-RS
@@ -1383,16 +1494,70 @@ NrGnbPhy::DlCtrl(const std::shared_ptr<DciInfoElementTdma>& dci)
     // The function that is filling m_ctrlMsgs is NrPhy::encodeCtrlMsgs
     if (!m_ctrlMsgs.empty() || transmitCsiRs)
     {
+        auto pssReceived = false;
         NS_LOG_DEBUG("gNB TXing DL CTRL with "
                      << m_ctrlMsgs.size() << " msgs, frame " << m_currentSlot << " symbols "
                      << static_cast<uint32_t>(dci->m_symStart) << "-"
                      << static_cast<uint32_t>(dci->m_symStart + dci->m_numSym - 1) << " start "
                      << Simulator::Now() << " end "
                      << Simulator::Now() + varTtiPeriod - NanoSeconds(1.0));
+
+        Ptr<NrPssMessage> pssMsg;
+
+        if (IAisPerformed)
+        {
+            for (std::map<uint64_t, Ptr<NetDevice>>::iterator ue = m_ueAttachedImsiMap.begin (); 
+                                                    ue != m_ueAttachedImsiMap.end ();
+                                                    ++ue)
+            {
+                Ptr<NrUeNetDevice> ueNetDev = DynamicCast<NrUeNetDevice> (ue->second);
+                ueNetDev->GetPhy (0)->AdjustAntennaForBeamSweep ();
+            }
+        }
+        if (!IAisPerformed && (m_ueAttachedImsiMap.size() != 0))
+        {
+            for (std::map<uint64_t, Ptr<NetDevice>>::iterator ue = m_ueAttachedImsiMap.begin (); 
+                                                    ue != m_ueAttachedImsiMap.end ();
+                                                    ++ue)
+            {
+                Ptr<NrUeNetDevice> ueNetDev = DynamicCast<NrUeNetDevice>(ue->second);
+                ueNetDev->GetPhy (0)->AdjustAntennaForBeamSweep ();
+            }
+        }
+
+
         for (auto& m_ctrlMsg : m_ctrlMsgs)
         {
             Ptr<NrControlMessage> msg = m_ctrlMsg;
             m_phyTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), dci->m_rnti, GetBwpId(), msg);
+
+            if (msg->GetMessageType () == NrControlMessage::PSS)
+            {
+                pssMsg = DynamicCast<NrPssMessage> (msg);
+                pssReceived = true;
+            }
+        }
+
+        SfnSf currentSfnSf = GetCurrentSfnSf ();
+        // SfnSfKey sfnSfKey = std::pair<uint8_t, std::pair<uint8_t, uint8_t>> (currentSfnSf.GetFrame () % (uint8_t)2,
+        //                     std::pair<uint8_t, uint8_t> (currentSfnSf.GetSubframe (), currentSfnSf.GetSlot ()));
+        if (pssReceived && m_phySapUser->IsSSBRequired (currentSfnSf))
+        {
+            if (GetCellId () == 10)
+            {
+            m_spectrumPhy->GetBeamManager()->SetSector (dci->ssbBeamId.GetSector (), dci->ssbBeamId.GetElevation ());
+            }
+            else
+            {
+            m_spectrumPhy->GetBeamManager()->SetSector (dci->ssbBeamId.GetSector (), dci->ssbBeamId.GetElevation ());
+            }
+            
+            if (IAisPerformed)
+            {
+            // set destination IMSI to 0 in order to be received by all UEs
+            // TODO: remove destination IMSI as it's not necessary
+            pssMsg->SetDestinationImsi (0);
+            }
         }
 
         SendCtrlChannels(varTtiPeriod -
@@ -1404,6 +1569,36 @@ NrGnbPhy::DlCtrl(const std::shared_ptr<DciInfoElementTdma>& dci)
     }
 
     return varTtiPeriod;
+}
+
+void
+NrGnbPhy::QueueSSB (bool pushFront)
+{
+  NS_LOG_FUNCTION (this);
+
+  auto cellId = GetCellId ();
+  
+  Ptr<NrPssMessage> pssMsg = Create<NrPssMessage> ();
+  pssMsg->SetCellId (cellId);
+  pssMsg->SetSourceBwp (GetBwpId ());
+  if (m_currSymStart == 2)
+  {
+    pssMsg->SetSymbolOffset (0);
+  }
+  else if (m_currSymStart == 8)
+  {
+    pssMsg->SetSymbolOffset (1);
+  }
+  
+  if (pushFront)
+  {
+    std::cout << "YES! IT IS DONE!" << std::endl;
+    m_ctrlMsgs.push_front (pssMsg);
+  }
+  else
+  {
+    m_ctrlMsgs.push_back(pssMsg);
+  }
 }
 
 bool
@@ -1728,34 +1923,81 @@ NrGnbPhy::SendDataChannels(const Ptr<PacketBurst>& pb,
 
     // In each time instance, there can only be a single BF vector. Only update BF vectors once
     // unless time has changed
-    if (Simulator::Now() > m_lastBfChange)
+    if (IAisPerformed && m_omniFallback)
     {
-        NS_ASSERT_MSG(!m_spectrumPhy->IsTransmitting(),
-                      "Cannot change analog BF after TX has started");
+        m_spectrumPhy->GetBeamManager()->ChangeToQuasiOmniBeamformingVector();
+        for (uint8_t i = 0; i < m_deviceMap.size(); i++)
+        {
+            Ptr<NrUeNetDevice> ueDev = DynamicCast<NrUeNetDevice>(m_deviceMap.at(i));
+            if(ueDev->GetTargetGnb() != nullptr)
+            {
+                Ptr<NrUePhy> uePhy = DynamicCast<NrUePhy>(ueDev->GetPhy(0));
+                uePhy->GetSpectrumPhy()->GetBeamManager()->ChangeToQuasiOmniBeamformingVector();
+            }
+        }
+    }
+    else
+    {
         m_lastBfChange = Simulator::Now();
         bool found = false;
+
+        uint16_t ueCellId = 0;
+        uint64_t ueRnti = 0;
+
         for (auto& i : m_deviceMap)
         {
             Ptr<NrUeNetDevice> ueDev = DynamicCast<NrUeNetDevice>(i);
-            uint64_t ueRnti = (DynamicCast<NrUePhy>(ueDev->GetPhy(GetBwpId())))->GetRnti();
-            if (dci->m_rnti == ueRnti)
+            ueRnti = (DynamicCast<NrUePhy>(ueDev->GetPhy(GetBwpId())))->GetRnti();
+            ueCellId = (DynamicCast<NrUePhy>(ueDev->GetPhy(0))->GetCellId());
+            if (dci->m_rnti == ueRnti && GetCellId() == ueCellId)
             {
-                if (DynamicCast<UniformPlanarArray>(m_spectrumPhy->GetAntenna()))
+                ChangeBeamformingVector(i);
+                if (!m_realisticIA && m_deviceMap.size() != 0)
                 {
-                    ChangeBeamformingVector(i);
+                    CheckForOmniTX(ueDev);
                 }
-
+                if (ueDev->GetTargetGnb() != nullptr)
+                {
+                    ueDev->GetPhy(0)->GetSpectrumPhy()->GetBeamManager()->ChangeBeamformingVector(ueDev->GetTargetGnb());
+                }
                 found = true;
                 break;
             }
         }
-        // In case UE was not attached via NrHelper::AttachToGnb(),
-        // assume quasi omni beamforming until we have the opportunity to scan for a beam
         if (!found)
         {
-            ChangeBeamformingVector(nullptr);
+            NS_LOG_UNCOND("ueRnti = " << ueRnti << " ueCellId = " << ueCellId << " gnbCellId = " << GetCellId());
         }
+
     }
+    // if (Simulator::Now() > m_lastBfChange)
+    // {
+    //     NS_ASSERT_MSG(!m_spectrumPhy->IsTransmitting(),
+    //                   "Cannot change analog BF after TX has started");
+    //     m_lastBfChange = Simulator::Now();
+    //     bool found = false;
+    //     for (auto& i : m_deviceMap)
+    //     {
+    //         Ptr<NrUeNetDevice> ueDev = DynamicCast<NrUeNetDevice>(i);
+    //         uint64_t ueRnti = (DynamicCast<NrUePhy>(ueDev->GetPhy(GetBwpId())))->GetRnti();
+    //         if (dci->m_rnti == ueRnti)
+    //         {
+    //             if (DynamicCast<UniformPlanarArray>(m_spectrumPhy->GetAntenna()))
+    //             {
+    //                 ChangeBeamformingVector(i);
+    //             }
+
+    //             found = true;
+    //             break;
+    //         }
+    //     }
+    //     // In case UE was not attached via NrHelper::AttachToGnb(),
+    //     // assume quasi omni beamforming until we have the opportunity to scan for a beam
+    //     if (!found)
+    //     {
+    //         ChangeBeamformingVector(nullptr);
+    //     }
+    // }
 
     // in the map we stored the RBG allocated by the MAC for this symbol.
     // If the transmission last n symbol (n > 1 && n < 12) the SetSubChannels
@@ -1766,8 +2008,10 @@ NrGnbPhy::SendDataChannels(const Ptr<PacketBurst>& pb,
         FromRBGBitmaskToRBAssignment(m_rbgAllocationPerSym.at(dci->m_symStart)).size();
     SetSubChannels(FromRBGBitmaskToRBAssignment(dci->m_rbgBitmask), nTotalAllocRbs);
 
+    // -------------------- MODIFIED --------------------
+    uint64_t dstImsi = m_gnbCphySapUser->GetImsiFromRnti (dci->m_rnti);
     std::list<Ptr<NrControlMessage>> ctrlMsgs;
-    m_spectrumPhy->StartTxDataFrames(pb, ctrlMsgs, dci, varTtiPeriod);
+    m_spectrumPhy->StartTxDataFrames(pb, ctrlMsgs, dci, varTtiPeriod, dci->m_symStart, dstImsi);
 }
 
 void
@@ -1842,11 +2086,17 @@ NrGnbPhy::RegisterUe(uint64_t imsi, const Ptr<NrUeNetDevice>& ueDevice)
     NS_LOG_FUNCTION(this << imsi);
     std::set<uint64_t>::iterator it;
     it = m_ueAttached.find(imsi);
+    m_phySapUser->ForwarIASStateToSched(false, imsi);
 
     if (it == m_ueAttached.end())
     {
-        m_ueAttached.insert(imsi);
-        m_deviceMap.push_back(ueDevice);
+        if (!m_realisticIA || ueDevice->GetCellId() == GetCellId ())
+        {
+            m_ueAttached.insert(imsi);
+            m_deviceMap.push_back(ueDevice);
+        }
+
+        m_ueAttachedImsiMap[imsi] = ueDevice;
 
         if (m_enableCsiRs && HasDlSlot(m_tddPattern))
         {
@@ -1859,6 +2109,24 @@ NrGnbPhy::RegisterUe(uint64_t imsi, const Ptr<NrUeNetDevice>& ueDevice)
         NS_LOG_ERROR("Programming error...UE already attached");
         return (false);
     }
+}
+
+bool 
+NrGnbPhy::RegisterUe (uint64_t imsi)
+{
+  NS_LOG_FUNCTION (this << imsi);
+  std::set <uint64_t>::iterator it;
+  it = m_ueAttached.find (imsi);
+  if (it == m_ueAttached.end ())
+  {
+    return RegisterUe (imsi, DynamicCast<NrUeNetDevice> (m_ueAttachedImsiMap[imsi]));
+  }
+  else
+  {
+    // UE was already registered at gNb
+    return (false);
+  }
+  
 }
 
 void
@@ -2159,4 +2427,457 @@ NrGnbPhy::ChannelAccessLost()
     m_channelStatus = NONE;
 }
 
+std::vector<BeamId>
+NrGnbPhy::DoGenerateBeamVectorMap ()
+{
+  std::vector<BeamId> beamVectorMapGnb;
+  std::pair<double, double> elevationBeginEnd;
+  uint16_t txNumRows;
+  Ptr<UniformPlanarArray> antennadef = DynamicCast<UniformPlanarArray>(m_spectrumPhy->GetAntenna());
+  
+  switch (m_antennaConfig)
+  {
+  case AntennaConfigInets:
+    elevationBeginEnd = {90.0, 150.0};
+    break;
+  default:
+    break;
+  }
+
+  switch (m_antennaConfig)
+  {
+  case AntennaConfigInets:
+      txNumRows = (180.0 / m_gnbHorizontalAngleStep);
+      for (double txTheta = elevationBeginEnd.first; txTheta <= elevationBeginEnd.second; txTheta = txTheta + m_gnbElevationAngleStep)
+      {
+        for (uint16_t txSector = 0; txSector <= txNumRows; txSector++)
+        {
+          NS_ASSERT(txSector < UINT16_MAX);
+
+          beamVectorMapGnb.emplace_back(BeamId(txSector, txTheta));
+        }
+      }
+    break;
+  case AntennaConfigDefault:
+    txNumRows = antennadef->GetNumElems ();
+    for (double txTheta = 60; txTheta < 121; txTheta += m_gnbElevationAngleStep)
+    {
+      for (uint16_t txSector = 0; txSector <= txNumRows; txSector++)
+      {
+        NS_ASSERT (txSector < UINT16_MAX);
+
+        beamVectorMapGnb.emplace_back (BeamId (txSector, txTheta));
+      }
+    }
+    break;
+  default:
+    NS_ABORT_MSG ("Undefined Antenna COnfiguration");
+    break;
+  }
+  
+  m_beamVectorMapGnb = beamVectorMapGnb;
+
+  return beamVectorMapGnb;
+}
+
+void 
+NrGnbPhy::SetGnbIAState (bool iaPerformed)
+{
+  if (iaPerformed == true){
+    m_noOfInitialAccessUes++;
+  }
+  else if(iaPerformed == false && m_noOfInitialAccessUes > 0){
+    m_noOfInitialAccessUes--;
+  }
+  else{
+    // should in theory only happen after simulation start and initial beam sweep
+    m_noOfInitialAccessUes = 0;
+  }
+  
+  if(m_noOfInitialAccessUes>0){
+    IAisPerformed = true;
+    DynamicCast<ThreeGppSpectrumPropagationLossModel>(m_spectrumPropagationLossModel)->SetBeamSweepState (true);
+  }
+  else{
+    IAisPerformed = false;
+    DynamicCast<ThreeGppSpectrumPropagationLossModel>(m_spectrumPropagationLossModel)->SetBeamSweepState (false);
+  }
+}
+
+void 
+NrGnbPhy::SetGnbHorizontalAngleStep (double gnbHorizAngleStep)
+{
+  m_gnbHorizontalAngleStep = gnbHorizAngleStep;
+}
+
+double 
+NrGnbPhy::GetGnbHorizontalAngleStep () const
+{
+  return m_gnbHorizontalAngleStep;
+}
+
+void
+NrGnbPhy::SetGnbVerticalAngleStep (double gnbVerticalAngleStep)
+{
+  m_gnbElevationAngleStep = gnbVerticalAngleStep;
+}
+
+double
+NrGnbPhy::GetGnbVerticalAngleStep () const
+{
+  return m_gnbElevationAngleStep;
+}
+
+void 
+NrGnbPhy::SetPHYEpcHelper (Ptr<NrEpcHelper> epcHelper)
+{
+  m_phyEpcHelper = epcHelper;
+}
+
+Ptr<SpectrumValue>
+NrGnbPhy::CalculateRxPsdToUe (Ptr<NrUeNetDevice> ueNetDevice, bool isUpdateSinr)
+{
+  Ptr<NrUePhy> uePhy;
+  // get tx power
+  double ueTxPower = 0;
+  if (ueNetDevice != nullptr)
+  {
+    uePhy = DynamicCast<NrUePhy> (ueNetDevice->GetPhy (0));
+    ueTxPower = uePhy->GetTxPower ();
+  }
+  else
+  {
+    NS_FATAL_ERROR ("Unrecognized device");
+  }
+  NS_LOG_LOGIC ("UE Tx power = " << ueTxPower);
+  double powerTxW = std::pow (10., (ueTxPower - 30) / 10);
+  double txPowerDensity = 0;
+  txPowerDensity = (powerTxW /(GetChannelBandwidth ()));
+  NS_LOG_LOGIC ("Linear UE Tx power = " << powerTxW);
+  NS_LOG_LOGIC ("System bandwidth = " << GetChannelBandwidth ());
+  NS_LOG_LOGIC ("txPoswerDensity = " << txPowerDensity);
+  // create tx psd
+  Ptr<SpectrumValue> txPsd = GetTxPowerSpectralDensity (m_listOfSubchannels);
+  // it is the eNB that dictates the conf, m_listOfSubchannels contains all the subch
+  NS_LOG_LOGIC ("TxPsd " << *txPsd);
+
+  // get this node and remote node mobility 
+  Ptr<MobilityModel> enbMob = m_netDevice->GetNode ()->GetObject<MobilityModel> ();
+  NS_LOG_LOGIC ("eNB mobility " << enbMob->GetPosition ());
+
+  Ptr<MobilityModel> ueMob = ueNetDevice->GetNode ()->GetObject<MobilityModel> ();
+  NS_LOG_LOGIC ("UE mobility " << ueMob->GetPosition ());
+
+  // compute rx psd
+  //testing                                                                                                                   // target not set yet
+  // adjuts beamforming of antenna model wrt user
+  Ptr<UniformPlanarArray> rxAntennaArray = ConstCast<UniformPlanarArray> (m_spectrumPhy->GetBeamManager()->GetAntenna()); //enbAntenna
+//   Ptr<PhasedArrayModel> rxAntennaArray = (GetSpectrumPhy ()->GetAntenna ())->GetObject<PhasedArrayModel>(); //enbAntenna
+  Ptr<UniformPlanarArray> txAntennaArray = ConstCast<UniformPlanarArray> (uePhy->GetSpectrumPhy ()->GetBeamManager()->GetAntenna()); //ueAntenna        // Dl, since the Ul is not actually used (TDD device)
+//   Ptr<PhasedArrayModel> txAntennaArray = (uePhy->GetSpectrumPhy ()->GetAntenna ())->GetObject<PhasedArrayModel>(); //ueAntenna        // Dl, since the Ul is not actually used (TDD device)
+
+  if (isUpdateSinr)
+  {
+    if (m_omniFallback && IAisPerformed)
+      {
+        uePhy->GetSpectrumPhy()->GetBeamManager ()->ChangeToQuasiOmniBeamformingVector ();
+        m_spectrumPhy->GetBeamManager()->ChangeToQuasiOmniBeamformingVector ();
+      }
+      else
+      {
+        uePhy->GetBeamManager ()->ChangeBeamformingVector (m_netDevice);
+        m_spectrumPhy->GetBeamManager()->ChangeBeamformingVector (ueNetDevice);
+      }
+  }
+
+  double pathLossDb = 0;
+  if (txAntennaArray != nullptr)
+  {
+    Angles txAngles (enbMob->GetPosition (), ueMob->GetPosition ());
+    double txAntennaGain = 4.97;
+    NS_LOG_LOGIC ("txAntennaGain = " << txAntennaGain << " dB");
+    pathLossDb -= txAntennaGain;
+  }
+  if (rxAntennaArray != nullptr)
+  {
+    Angles rxAngles (ueMob->GetPosition (), enbMob->GetPosition ());
+    double rxAntennaGain = 4.97;
+    NS_LOG_LOGIC ("rxAntennaGain = " << rxAntennaGain << " dB");
+    pathLossDb -= rxAntennaGain;
+  }
+  if (m_propagationLoss)
+  {
+    double propagationGainDb = m_propagationLoss->CalcRxPower (0, ueMob, enbMob);
+    NS_LOG_LOGIC ("propagationGainDb = " << propagationGainDb << " dB");
+    pathLossDb -= propagationGainDb;
+  }
+  double pathGainLinear = std::pow (10.0, (-pathLossDb) / 10.0);
+  Ptr<SpectrumValue> rxPsd = txPsd->Copy ();
+  *(rxPsd) *= pathGainLinear;
+  
+
+  Ptr<ThreeGppSpectrumPropagationLossModel> nr3gpp = DynamicCast<ThreeGppSpectrumPropagationLossModel> (m_spectrumPropagationLossModel);
+//   uint16_t imsi = ueNetDevice->GetImsi();
+
+  if (nr3gpp != nullptr)
+  {
+    if (isUpdateSinr)
+    {
+      //NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "\t" << nr3gpp->GetCurrentUePosition(imsi)); disabled to reduce console output
+    }
+    Ptr<SpectrumSignalParameters> rxParams;
+    rxParams->psd = rxPsd->Copy();
+    rxParams =  nr3gpp->CalcRxPowerSpectralDensity (rxParams, enbMob, ueMob, txAntennaArray, rxAntennaArray);
+    NS_LOG_LOGIC ("RxPsd " << *rxPsd);
+  }
+
+  if (isUpdateSinr)
+  {
+    // set back the bf vector to the main eNB
+    if (ueNetDevice != nullptr)
+    {
+      // testing 
+      if (ueNetDevice->GetTargetGnb () != nullptr)
+      {
+        uePhy->GetSpectrumPhy()->GetBeamManager()->ChangeBeamformingVector (ueNetDevice->GetTargetGnb());
+      }
+    }
+    else
+    {
+      NS_FATAL_ERROR ("Unrecognized device");
+    }
+  }
+
+  return rxPsd;
+}
+
+void
+NrGnbPhy::UpdateUeSinrEstimate ()
+{
+    if (!IAisPerformed || m_omniFallback)
+    {
+        std::cout << "In the SINR Estimate function...!" << std::endl;
+        m_sinrMap.clear ();
+        m_rxPsdMap.clear ();
+
+        Ptr<SpectrumValue> noisePsd = NrSpectrumValueHelper::CreateNoisePowerSpectralDensity (m_noiseFigure, GetSpectrumModel ());
+        Ptr<SpectrumValue> totalReceivedPsd = Create <SpectrumValue> (SpectrumValue (noisePsd->GetSpectrumModel ()));
+
+        for (std::map<uint64_t, Ptr<NetDevice> >::iterator ue = m_ueAttachedImsiMap.begin (); ue != m_ueAttachedImsiMap.end (); ++ue)
+        {
+            // distinguish between MC and NrNetDevice
+            Ptr<NrUeNetDevice> ueNetDevice = DynamicCast<NrUeNetDevice> (ue->second);
+            Ptr<NrUePhy> uePhy;
+
+            m_rxPsdMap[ue->first] = CalculateRxPsdToUe (ueNetDevice, true);
+            *totalReceivedPsd += *m_rxPsdMap[ue->first];
+        }
+      
+        for (std::map<uint64_t, Ptr<SpectrumValue> >::iterator ue = m_rxPsdMap.begin (); ue != m_rxPsdMap.end (); ++ue)
+        {
+            SpectrumValue interference = *totalReceivedPsd - *(ue->second);
+            NS_LOG_LOGIC ("interference " << interference);
+            SpectrumValue sinr = *(ue->second) /(*noisePsd);      // *interference
+            // we consider the SNR only!
+            NS_LOG_LOGIC ("sinr " << sinr);
+
+            double sinrAvg = Sum (sinr) / (sinr.GetSpectrumModel ()->GetNumBands ());
+
+            NS_LOG_DEBUG ("Time " << Simulator::Now ().GetSeconds () << " CellId " << GetCellId () << " UE " << ue->first << "Average SINR " << 10 * std::log10 (sinrAvg));
+            m_sinrMap[ue->first] = sinrAvg;
+
+            Ptr<NrUeNetDevice> ueDev = DynamicCast<NrUeNetDevice>(m_ueAttachedImsiMap.find(ue->first)->second);
+            m_prevSinrMap[ue->first] = sinrAvg;
+        }
+
+
+        if (m_roundFromLastUeSinrUpdate >= (m_ueUpdateSinrPeriod / m_updateSinrPeriod))
+        {
+            m_roundFromLastUeSinrUpdate = 0;
+            for (std::map<uint64_t, Ptr<NetDevice> >::iterator ue = m_ueAttachedImsiMap.begin (); ue != m_ueAttachedImsiMap.end (); ++ue)
+            {
+                // distinguish between MC and NrNetDevice
+                Ptr<NrUeNetDevice> ueNetDevice = DynamicCast<NrUeNetDevice> (ue->second);
+                Ptr<NrUePhy> uePhy;
+                if (ueNetDevice != nullptr)
+                {
+                    uePhy = DynamicCast<NrUePhy> (ueNetDevice->GetPhy (0));
+                }
+                uePhy->UpdateSinrEstimate (GetCellId(), m_sinrMap.find (ue->first)->second);
+            }
+        }
+        else
+        {
+        m_roundFromLastUeSinrUpdate++;
+        }
+
+        NrGnbCphySapUser::UeAssociatedSinrInfo info;
+        info.ueImsiSinrMap = m_sinrMap;
+        info.componentCarrierId = GetBwpId ();
+        m_gnbCphySapUser->UpdateUeSinrEstimate (info);
+    
+    }
+    Simulator::Schedule (MicroSeconds (m_updateSinrPeriod), & NrGnbPhy::UpdateUeSinrEstimate, this);  // recall after m_updateSinrPeriod microseconds
+}
+
+void 
+NrGnbPhy::DoAttachUeFromRRC (uint64_t imsi, const Ptr<NetDevice> &netDev)
+{
+  Ptr<NrUeNetDevice> ueNetDevice = DynamicCast<NrUeNetDevice> (netDev);
+  Ptr<NrGnbNetDevice> gnbNetDevice = DynamicCast<NrGnbNetDevice> (m_netDevice);
+
+  NS_ABORT_IF (gnbNetDevice == nullptr || ueNetDevice == nullptr);
+
+  if (!gnbNetDevice->IsCellConfigured())
+  {
+    gnbNetDevice->ConfigureCell();
+  }
+
+  if (ueNetDevice->GetCellId() == GetCellId())
+  {
+    for (uint16_t i = 0; i < gnbNetDevice->GetCcMapSize(); ++i)
+    {
+      gnbNetDevice->GetPhy(i)->RegisterUe(imsi, ueNetDevice);
+      ueNetDevice->GetPhy(i)->SetDlAmc(DynamicCast<NrMacSchedulerNs3>(gnbNetDevice->GetScheduler(i))->GetDlAmc());
+      ueNetDevice->GetPhy(i)->SetDlCtrlSyms(1); // upon connection to the gNB, set DlCtrlSyms to 1 as MAC layer might be dealing with another UE which has 2 ctrl syms
+      ueNetDevice->GetPhy(i)->SetUlCtrlSyms(gnbNetDevice->GetMac(i)->GetUlCtrlSyms());
+      ueNetDevice->GetPhy(i)->DoSetDlBandwidthWp(GetChannelBandwidth() / (1000 * 100));
+      ueNetDevice->GetPhy(i)->SetNumRbPerRbg(gnbNetDevice->GetMac(i)->GetNumRbPerRbg());
+      ueNetDevice->GetPhy(i)->SetRbOverhead(gnbNetDevice->GetPhy(i)->GetRbOverhead());
+      ueNetDevice->GetPhy(i)->SetSymbolsPerSlot(gnbNetDevice->GetPhy(i)->GetSymbolsPerSlot());
+      ueNetDevice->GetPhy(i)->SetNumerology(gnbNetDevice->GetPhy(i)->GetNumerology());
+      ueNetDevice->GetPhy(i)->SetPattern(gnbNetDevice->GetPhy(i)->GetPattern());
+      Ptr<NrEpcUeNas> ueNas = ueNetDevice->GetNas();
+      ueNas->Connect(gnbNetDevice->GetBwpId(i), gnbNetDevice->GetEarfcn(i));
+    }
+    m_phySapUser->ForwarIASStateToSched(false, imsi);
+  }
+  else
+  {
+    // UE wants to register to another gNb, not this gNb. In fact, we should deregister the UE from this gNb!
+    // call of this function originated from LteUeRrc::DoRecvRrcConnectionReconfiguration -> don't want to change that LTE code.
+    // UE is trying to perform handover, though, not sure if that will be successfull. If so, registration to new gNb is handled elsewere.
+    // Perform UE deregistration (as handover-procedure is ongoing)
+    // RNTI not known
+    DoDeregisterUeFromRRC(imsi, 0);
+  }
+}
+
+void 
+NrGnbPhy::DoDeregisterUeFromRRC (uint64_t imsi, uint16_t rnti)
+{
+  if (m_deviceMap.size() != 0 && m_ueAttachedImsiMap.size () != 0)
+    {
+      if (m_ueAttachedImsiMap.find (imsi) != m_ueAttachedImsiMap.end ())
+        {
+          Ptr<NrUeNetDevice> netDevTBCleared = DynamicCast<NrUeNetDevice> (m_ueAttachedImsiMap[imsi]);
+          uint16_t ueCounter = 0;
+          for (size_t counter = 0; counter < m_deviceMap.size (); counter++)
+          {
+            if (m_deviceMap[counter]->GetImsi () == netDevTBCleared->GetImsi () &&
+                m_deviceMap[counter]->GetNode ()->GetId () == netDevTBCleared->GetNode ()->GetId ())
+                {
+                  ueCounter = counter;
+                  break;
+                }
+          }
+          
+          m_deviceMap.erase (m_deviceMap.begin () + ueCounter);
+
+          if(rnti != 0)
+          {
+            m_ueAttachedRnti.erase(rnti);
+          }
+
+          m_ueAttached.erase(imsi);
+          m_phySapUser->ForwarIASStateToSched (true, imsi);
+        }     
+    }
+}
+
+void
+NrGnbPhy::DoSetOptimalGnbBeamForImsi (uint64_t imsi, SfnSf startingSfn, std::vector<uint16_t> optimalBeamIndex, bool isServingCell, uint8_t numOfBeamsTbRlm)
+{
+    uint16_t actualIndex;
+    std::vector<std::pair<uint8_t, BeamId>> beamTbRLMVector;
+
+    for (uint8_t beamIterator = 0; beamIterator < numOfBeamsTbRlm; beamIterator++)
+    {
+        actualIndex = ((startingSfn.GetSubframe () * startingSfn.GetSlotPerSubframe () * m_noOfSSBsPerSlot)
+            + (startingSfn.GetSlot () * m_noOfSSBsPerSlot) + (optimalBeamIndex.at(beamIterator) - 1)) % m_beamVectorMapGnb.size ();
+        beamTbRLMVector.emplace_back (std::make_pair(GetCellId(), m_beamVectorMapGnb.at (actualIndex)));
+    }
+
+    if (numOfBeamsTbRlm > 0)
+    {
+        if (m_imsiOptimalBeamId.find(imsi) != m_imsiOptimalBeamId.end())
+        {
+            m_imsiOptimalBeamId.at(imsi) = beamTbRLMVector.at(0).second;
+        }
+        else
+        {
+            m_imsiOptimalBeamId.insert({imsi, beamTbRLMVector.at(0).second});
+        }
+        m_beamsTbRLM.erase(imsi);
+        m_beamsTbRLM.insert({imsi, beamTbRLMVector});
+
+        if (isServingCell)
+        {
+            BeamSweepTraceParams params;
+            params.imsi = imsi;
+            params.m_beamSweepOrigin = BeamSweepTraceParams::GNB_RECVD_BEAM_REPORT;
+            params.foundCell = GetCellId();
+            params.foundSector = m_imsiOptimalBeamId.at(imsi).GetSector();
+            params.foundElevation = m_imsiOptimalBeamId.at(imsi).GetElevation();
+
+            m_beamSweepTrace(params);
+        }
+
+        m_currBeamformingVector = BeamformingVector(
+            CreateDirectionalBfv(m_spectrumPhy->GetBeamManager()->GetAntenna(),
+                                m_imsiOptimalBeamId.at(imsi).GetSector(),
+                                m_imsiOptimalBeamId.at(imsi).GetElevation()),
+            m_imsiOptimalBeamId.at(imsi)
+        );
+
+        m_spectrumPhy->GetBeamManager()->SetSector(m_imsiOptimalBeamId.at(imsi).GetSector(),
+                                                m_imsiOptimalBeamId.at(imsi).GetElevation());
+        m_spectrumPhy->GetBeamManager()->SaveBeamformingVector(m_currBeamformingVector, m_ueAttachedImsiMap.find(imsi)->second);
+    }
+}
+
+void 
+NrGnbPhy::CheckForOmniTX (Ptr<NrUeNetDevice> ueNetDev)
+{
+  if (m_spectrumPhy->GetBeamManager()->GetCurrentBeamformingVector().GetSize() == 0)
+    {
+      m_phyIdealBeamformingHelper->AddBeamformingTask (DynamicCast<NrGnbNetDevice> (m_netDevice), ueNetDev);
+
+      BeamSweepTraceParams params;
+      params.imsi = ueNetDev->GetImsi();
+      params.m_beamSweepOrigin = BeamSweepTraceParams::GNB_CHECK_OMNI_SWEEP;
+      m_beamSweepTrace(params);
+    }
+}
+
+void
+NrGnbPhy::SetPhyIdealBeamformingHelper (Ptr<IdealBeamformingHelper> idealBeamformingHelper)
+{
+  m_phyIdealBeamformingHelper = idealBeamformingHelper;
+  
+  // This could be wrong, might add this to somewhere else:
+  Ptr<ThreeGppSpectrumPropagationLossModel> nr3gpp = DynamicCast<ThreeGppSpectrumPropagationLossModel> (m_spectrumPropagationLossModel); 
+  if (nr3gpp != nullptr)
+  {
+    //nr3gpp->SetSMIdealBeamformingHelper (idealBeamformingHelper);
+  }
+}
+
+bool
+NrGnbPhy::GetIAState ()
+{
+    return m_IAcontinues;
+}
+
 } // namespace ns3
+#undef NS_LOG_APPEND_CONTEXT

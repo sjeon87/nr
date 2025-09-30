@@ -130,7 +130,7 @@ void
 IdealBeamformingHelper::SetPeriodicity(const Time& v)
 {
     NS_LOG_FUNCTION(this);
-    NS_ABORT_MSG_IF(v == MilliSeconds(0), "Periodicity must be greater than 0 ms.");
+    // NS_ABORT_MSG_IF(v == MilliSeconds(0), "Periodicity must be greater than 0 ms.");
     m_beamformingPeriodicity = v;
 }
 

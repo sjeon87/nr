@@ -55,6 +55,8 @@ class NrGnbMacMemberGnbCmacSapProvider : public NrGnbCmacSapProvider
     AllocateNcRaPreambleReturnValue AllocateNcRaPreamble(uint16_t rnti) override;
     bool IsMaxSrsReached() const override;
 
+    virtual void SetRAProcessFlag(bool raProcessContinuting);
+
   private:
     NrGnbMac* m_mac;
 };
@@ -124,6 +126,12 @@ NrGnbMacMemberGnbCmacSapProvider::IsMaxSrsReached() const
     return m_mac->m_macSchedSapProvider->IsMaxSrsReached();
 }
 
+void 
+NrGnbMacMemberGnbCmacSapProvider::SetRAProcessFlag (bool raProcessContinuing)
+{
+  m_mac->DoSetRaProcessFlag (raProcessContinuing);
+}
+
 // SAP interface between gNB PHY AND MAC
 // PHY is provider and MAC is user of its service following OSI model.
 // However, PHY may request some information from MAC.
@@ -156,6 +164,13 @@ class NrMacGnbMemberPhySapUser : public NrGnbPhySapUser
     std::shared_ptr<DciInfoElementTdma> GetUlCtrlDci() const override;
 
     uint8_t GetDlCtrlSymbols() const override;
+
+    // ---------------------- MODIFIED ------------------------------
+    virtual bool IsSSBRequired (const SfnSf &dlSfn) override;
+
+    virtual void ForwarIASStateToSched (bool iaPerformed, uint64_t imsi) override;
+
+    // --------------------------------------------------------------
 
   private:
     NrGnbMac* m_mac;
@@ -244,6 +259,18 @@ NrMacGnbMemberPhySapUser::GetDlCtrlSymbols() const
     return m_mac->GetDlCtrlSyms();
 }
 
+bool 
+NrMacGnbMemberPhySapUser::IsSSBRequired (const SfnSf &dlSfn)
+{
+  return m_mac->IsSSBRequired (dlSfn);
+}
+
+void
+NrMacGnbMemberPhySapUser::ForwarIASStateToSched (bool iaPerformed, uint64_t imsi)
+{
+  m_mac->DoForwardIAStateToSched (iaPerformed, imsi);
+}
+
 // MAC Sched
 
 class NrMacMemberMacSchedSapUser : public NrMacSchedSapUser
@@ -259,6 +286,9 @@ class NrMacMemberMacSchedSapUser : public NrMacSchedSapUser
     uint32_t GetSymbolsPerSlot() const override;
     Time GetSlotPeriod() const override;
     void BuildRarList(SlotAllocInfo& slotAllocInfo) override;
+
+    // ------------------- MODIFIED -------------------------
+    virtual bool IsSSBRequired (const SfnSf &dlSfn) override;
 
   private:
     NrGnbMac* m_mac;
@@ -324,6 +354,12 @@ void
 NrMacMemberMacSchedSapUser::BuildRarList(ns3::SlotAllocInfo& slotAllocInfo)
 {
     m_mac->DoBuildRarList(slotAllocInfo);
+}
+
+bool
+NrMacMemberMacSchedSapUser::IsSSBRequired (const SfnSf &dlSfn)
+{
+  return m_mac->IsSSBRequired (dlSfn);
 }
 
 class NrMacMemberMacCschedSapUser : public NrMacCschedSapUser
@@ -464,7 +500,12 @@ NrGnbMac::GetTypeId()
                           "How many time T300 timer can expire on the same cell",
                           UintegerValue(1),
                           MakeUintegerAccessor(&NrGnbMac::SetConnEstFailCount),
-                          MakeUintegerChecker<uint8_t>(1, 4));
+                          MakeUintegerChecker<uint8_t>(1, 4))
+            .AddAttribute ("NumberOfBeamsTbRLM",
+                   "Number of beam pair links to be Radio Link Monitored",
+                   UintegerValue (8),
+                   MakeUintegerAccessor (&NrGnbMac::m_noOfBeamsTbRLM),
+                   MakeUintegerChecker<uint8_t> ());
     return tid;
 }
 
@@ -1027,6 +1068,20 @@ NrGnbMac::DoReceiveControlMessage(Ptr<NrControlMessage> msg)
         Ptr<NrDlCqiMessage> cqi = DynamicCast<NrDlCqiMessage>(msg);
         DlCqiInfo cqiElement = cqi->GetDlCqi();
         NS_ASSERT(cqiElement.m_rnti != 0);
+        if (std::find (m_currentRntis.begin (), m_currentRntis.end(), cqiElement.m_rnti)
+                == m_currentRntis.end())
+        {
+          if (std::find (m_previousRntis.begin (), m_previousRntis.end(), cqiElement.m_rnti)
+                != m_previousRntis.end())
+          {
+            NS_LOG_UNCOND ("CQI with previous RNTI, disregarding it");
+          }
+          else
+          {
+            NS_LOG_UNCOND ("CQI with unrecognized RNTI, disregarding it");
+          }
+          break;          
+        }
         m_dlCqiReceived.push_back(cqiElement);
         break;
     }
@@ -1373,6 +1428,14 @@ NrGnbMac::DoConfigureMac(uint16_t ulBandwidth, uint16_t dlBandwidth)
     params.m_dlBandwidth = m_bandwidthInRbg;
 
     m_macCschedSapProvider->CschedCellConfigReq(params);
+
+    // --------------------- MODIFIED ---------------------
+    // ADDED For a more realistic beam management
+    if (m_phySapProvider != nullptr)
+    {
+        std::vector<BeamId> gnbBeamVectorList =  m_phySapProvider->GenerateBeamVectorMap ();
+        m_macSchedSapProvider->SetGnbBeamVectorList (gnbBeamVectorList);
+    } 
 }
 
 void
@@ -1471,6 +1534,10 @@ NrGnbMac::DoAddUe(uint16_t rnti)
         buf.at(i).m_pktBurst = pb;
     }
     m_miDlHarqProcessesPackets.insert(std::pair<uint16_t, NrDlHarqProcessesBuffer_t>(rnti, buf));
+
+    // -------------------------------- MODIFIED ----------------------------------
+    m_currentRntis.insert(m_currentRntis.end(), rnti);
+    m_dlCqiReceived.clear();
 }
 
 void
@@ -1501,6 +1568,16 @@ NrGnbMac::DoRemoveUe(uint16_t rnti)
             ++jt;
         }
     }
+
+    // ------------ MODIFIED ---------------
+    // uint64_t imsi = m_cmacSapUser->GetImsiFromRnti (rnti);
+
+
+    m_currentRntis.erase(std::remove(m_currentRntis.begin(), m_currentRntis.end(), rnti), m_currentRntis.end());
+    m_previousRntis.insert(m_previousRntis.end (), rnti);
+    m_dlCqiReceived.clear ();
+    // -------------------------------------
+
 }
 
 void
@@ -1658,6 +1735,12 @@ NrGnbMac::DoAllocateNcRaPreamble(uint16_t rnti)
     return ret;
 }
 
+void
+NrGnbMac::DoSetRaProcessFlag (bool raProcessContinuing)
+{
+  m_gnbRaContinuing = raProcessContinuing;
+}
+
 // ////////////////////////////////////////////
 // CSCHED SAP
 // ////////////////////////////////////////////
@@ -1712,4 +1795,41 @@ NrGnbMac::DoCschedCellConfigUpdateInd(
     NS_LOG_FUNCTION(this);
 }
 
+// Currently only checks for numerology u=3 and SS burst periodicity of 20 ms
+bool 
+NrGnbMac::IsSSBRequired (const SfnSf &dlSfn)
+{
+  if (m_realisticIA)
+  {
+    auto currentDlFn = dlSfn.GetFrame ();     //Frame Number
+    auto currentDlSFn = dlSfn.GetSubframe (); //Subframe number
+
+    if (currentDlFn == 0 || currentDlFn % (uint16_t)2 == 0) // Checks for the SS Burst periodicity T = 20 ms
+    {
+      if (currentDlSFn == 0 || currentDlSFn == 1 || currentDlSFn == 2 || currentDlSFn == 3)
+      {
+        return true;
+      }
+      else
+      {
+        return false;
+      }
+    }
+    else
+    {
+      return false;
+    }
+  }
+  else
+  {
+    return false;
+  }
+}
+
+void 
+NrGnbMac::DoForwardIAStateToSched (bool iaPerformed, uint64_t imsi)
+{
+  uint16_t rnti = m_cmacSapUser->GetRntiFromImsi(imsi);
+  m_macSchedSapProvider->SetIAStateOfMacSched (iaPerformed, rnti);
+}
 } // namespace ns3

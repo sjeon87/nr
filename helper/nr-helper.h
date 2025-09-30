@@ -17,6 +17,9 @@
 #include "ns3/nr-eps-bearer.h"
 #include "ns3/nr-spectrum-phy.h"
 #include "ns3/object-factory.h"
+#include "ns3/nr-epc-helper.h"
+
+#include "ns3/three-gpp-channel-model.h"
 
 namespace ns3
 {
@@ -38,6 +41,8 @@ class NrUeMac;
 class BwpManagerGnb;
 class BwpManagerUe;
 class NrFhControl;
+class ComponentCarrierGnb;
+class ComponentCarrier;
 
 /**
  * @ingroup helper
@@ -835,6 +840,15 @@ class NrHelper : public Object
      */
     void EnableDlDataPathlossTraces(NetDeviceContainer& netDeviceContainer);
 
+
+    // --- NEW ---
+    /**
+     * @brief Enable Beam Sweep Trace
+     *
+     */
+    void EnableBeamSweepTrace ();
+    // --- END ---
+
     /**
      * Assign a fixed random variable stream number to the random variables used.
      *
@@ -1097,6 +1111,15 @@ class NrHelper : public Object
 
     InitialAssocParams
         m_initialParams; //!<< Initial attachment parameters to pass from example to setup
+
+    bool m_adaptiveBF;
+    bool m_realisticIA;
+    bool m_rlmOn;
+    bool m_loadBalancing;
+
+    uint8_t m_noOfBeamsTbRLM;
+    uint8_t m_noOfBeamsTbReported;
+    uint8_t m_noOfSSBsPerSlot;
 };
 
 } // namespace ns3

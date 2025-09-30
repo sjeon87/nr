@@ -226,4 +226,17 @@ BeamManager::SetSector(double sector, double elevation) const
     m_antennaArray->SetBeamformingVector(CreateDirectionalBfv(m_antennaArray, sector, elevation));
 }
 
+void
+BeamManager::SetSectorAz(double azimuth, double zenith) const
+{
+    NS_LOG_INFO("Set azimuth to : " << (unsigned)azimuth << ", and zenith to:" << zenith);
+    m_antennaArray->SetBeamformingVector(CreateDirectionalBfvAz(m_antennaArray, azimuth, zenith));
+}
+
+double
+BeamManager::GetAntennaArrayGainDb(Angles angle)
+{
+  return m_antennaArray->GetGainDb(angle);
+}
+
 } /* namespace ns3 */

@@ -10,9 +10,13 @@
 
 #include "ns3/ptr.h"
 #include "ns3/simulator.h"
+#include "ns3/beam-id.h"
+#include "ns3/net-device.h"
+#include "ns3/sfnsf.h"
 
 #include <list>
 #include <stdint.h>
+#include <map>
 
 namespace ns3
 {
@@ -954,6 +958,47 @@ class NrRrcSap
     {
         MeasResults measResults; ///< measure results
     };
+
+    // ------------------------------ MODIFIED ----------------------
+    struct UpdateBeamsTbRLM
+    {
+        uint64_t ueImsi;
+        std::vector<uint16_t> optimalBeamIndexVector;
+        SfnSf startingSfn;
+        uint8_t targetCellId;
+        std::vector<uint8_t> csiCounterVector;
+        bool isServingCellId;
+    };
+
+    struct OptimalGnbBeamReport
+  {
+    uint64_t ueImsi;            ///< Imsi of the UE that gNB will steer towards
+    SfnSf startingSfn;          ///< SfnSf where UE started receiving SSBs
+    std::vector<uint16_t> optimalBeamIndex;  ///< Location within SS Burst where optimal SSB was received 
+    bool isServingCell;          ///< Boolean indicating whether the cell that the report is sent to has the max SNR
+    uint8_t numOfBeamsTbRlm;
+    std::vector<uint8_t> csiCounterVector;
+  };
+
+
+    struct CellOptimalGnbBeamMap
+    {
+        uint64_t ueImsi;            ///< Imsi of the UE that gNB will steer towards
+        uint8_t servingCellId;
+        std::map<uint8_t, std::vector<std::pair<std::pair<SfnSf, uint16_t>, std::pair<double, BeamId>>>> cellOptimalBeamMap;
+    };
+
+    struct DeRegisterUeContext
+    {
+        enum SourceOfCommand{
+        DeRegisterFromCoordinator,
+        DeRegisterFromUE
+        };
+        uint8_t cellId;
+        uint64_t imsi;
+        SourceOfCommand m_sourceOfCommand;
+        bool isServingGnb;
+    };
 };
 
 /**
@@ -970,6 +1015,8 @@ class NrUeRrcSapUser : public NrRrcSap
     {
         NrRlcSapProvider* srb0SapProvider;  ///< SRB0 SAP provider
         NrPdcpSapProvider* srb1SapProvider; ///< SRB1 SAP provider
+        // --- NEW ---
+        bool firstConnToNetworkl;           ///< Indicates wheteher it is the first time that UE is joining the network
     };
 
     /**
@@ -1039,6 +1086,22 @@ class NrUeRrcSapUser : public NrRrcSap
      * @param rnti the C-RNTI of the UE
      */
     virtual void SendIdealUeContextRemoveRequest(uint16_t rnti) = 0;
+
+    // ------------------------ MODIFIED -------------------
+    virtual void SendSSBRSReport (UpdateBeamsTbRLM params) = 0;
+    virtual void SendClearHandoverEvents (uint64_t imsi) = 0;
+
+    virtual void TriggerRegisterUE (uint64_t imsi, Ptr<NetDevice> netDev) = 0;
+
+    /**
+     * \brief Send Optimal Gnb Beam Report
+     * 
+     * Send the Optimal Gnb Beam that has been observed by UE during the IA
+     * search process
+     * 
+     * \param msg the message
+     */
+    virtual void SendOptimalGnbBeamMap (CellOptimalGnbBeamMap msg) = 0;
 };
 
 /**
@@ -1334,6 +1397,17 @@ class NrGnbRrcSapProvider : public NrRrcSap
      * @param rnti the C-RNTI of the UE
      */
     virtual void RecvIdealUeContextRemoveRequest(uint16_t rnti) = 0;
+
+    // ------------------------- MODIFIED --------------------
+    virtual void RecvOptimalGnbBeamMap (CellOptimalGnbBeamMap msg) = 0;
+
+    virtual void ForwardSSBRSBeamReport (UpdateBeamsTbRLM params) = 0;
+
+    virtual void RecvClearHandoverEvents (uint64_t imsi) = 0;
+
+    virtual void RecvTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev) = 0;
+
+    virtual void RecvRegisterUeFromRRC (uint64_t imsi) = 0;
 };
 
 ////////////////////////////////////
@@ -1370,6 +1444,11 @@ class MemberNrUeRrcSapUser : public NrUeRrcSapUser
         RrcConnectionReestablishmentComplete msg) override;
     void SendMeasurementReport(MeasurementReport msg) override;
     void SendIdealUeContextRemoveRequest(uint16_t rnti) override;
+    // -------------------------- MODIFIED ---------------------
+    virtual void SendSSBRSReport (UpdateBeamsTbRLM params);
+    virtual void SendClearHandoverEvents (uint64_t imsi);
+    virtual void SendOptimalGnbBeamMap (CellOptimalGnbBeamMap msg);
+    virtual void TriggerRegisterUE (uint64_t imsi, Ptr<NetDevice> netDev);
 
   private:
     C* m_owner; ///< the owner class
@@ -1438,6 +1517,34 @@ void
 MemberNrUeRrcSapUser<C>::SendIdealUeContextRemoveRequest(uint16_t rnti)
 {
     m_owner->DoSendIdealUeContextRemoveRequest(rnti);
+}
+
+template <class C>
+void 
+MemberNrUeRrcSapUser<C>::SendSSBRSReport (UpdateBeamsTbRLM params)
+{
+  m_owner->DoSendSSBRSReport (params);
+}
+
+template <class C>
+void
+MemberNrUeRrcSapUser<C>::SendClearHandoverEvents (uint64_t imsi)
+{
+  m_owner->DoSendClearHandoverEvents(imsi);
+}
+
+template <class C>
+void 
+MemberNrUeRrcSapUser<C>::SendOptimalGnbBeamMap (CellOptimalGnbBeamMap msg)
+{
+  m_owner->DoSendOptimalGnbBeamMap (msg);
+}
+
+template <class C>
+void 
+MemberNrUeRrcSapUser<C>::TriggerRegisterUE (uint64_t imsi, Ptr<NetDevice> netDev)
+{
+  m_owner->DoTriggerRegisterUe (imsi, netDev);
 }
 
 /**
@@ -1708,6 +1815,17 @@ class MemberNrGnbRrcSapProvider : public NrGnbRrcSapProvider
     void RecvMeasurementReport(uint16_t rnti, MeasurementReport msg) override;
     void RecvIdealUeContextRemoveRequest(uint16_t rnti) override;
 
+    // ------------------ MODIFIED -----------------------
+    virtual void RecvOptimalGnbBeamMap (CellOptimalGnbBeamMap msg);
+
+    virtual void ForwardSSBRSBeamReport (UpdateBeamsTbRLM params);
+
+    virtual void RecvClearHandoverEvents (uint64_t imsi);
+
+    virtual void RecvTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev);
+
+    virtual void RecvRegisterUeFromRRC (uint64_t imsi);
+
   private:
     C* m_owner; ///< the owner class
 };
@@ -1779,6 +1897,37 @@ void
 MemberNrGnbRrcSapProvider<C>::RecvIdealUeContextRemoveRequest(uint16_t rnti)
 {
     Simulator::ScheduleNow(&C::DoRecvIdealUeContextRemoveRequest, m_owner, rnti);
+}
+
+// ----------------------- MODIFIED --------------------
+template <class C>
+void MemberNrGnbRrcSapProvider<C>::RecvOptimalGnbBeamMap (CellOptimalGnbBeamMap msg)
+{
+  Simulator::ScheduleNow (&C::DoRecvOptimalGnbBeamMap, m_owner, msg);
+}
+
+template <class C>
+void MemberNrGnbRrcSapProvider<C>::ForwardSSBRSBeamReport (UpdateBeamsTbRLM params)
+{
+  m_owner->DoForwardUeSSBRSReport (params);
+}
+
+template <class C>
+void MemberNrGnbRrcSapProvider<C>::RecvClearHandoverEvents (uint64_t imsi)
+{
+  m_owner->DoRecvClearHandoverEvent (imsi);
+}
+
+template <class C>
+void MemberNrGnbRrcSapProvider<C>::RecvTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev)
+{
+  m_owner->DoRecvTriggerRegisterUe (imsi, netDev);
+}
+
+template <class C>
+void MemberNrGnbRrcSapProvider<C>::RecvRegisterUeFromRRC (uint64_t imsi)
+{
+  m_owner->DoRecvRegisterUE (imsi);
 }
 
 } // namespace ns3

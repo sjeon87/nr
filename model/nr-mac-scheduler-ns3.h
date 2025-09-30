@@ -357,6 +357,17 @@ class NrMacSchedulerNs3 : public NrMacScheduler
     uint8_t GetUlCtrlSyms() const override;
     bool IsMaxSrsReached() const override;
 
+    // --------------------------- MODIFIED --------------------------
+    uint8_t FormSSBlock (bool hasAccompanyingData, PointInFTPlane *startingPoint, SlotAllocInfo *slotAlloc, uint8_t availSym);
+
+    BeamId GetSSBBeamId (SlotAllocInfo *slotAllocInfo, uint8_t symbolLocation);
+
+    virtual void
+    DoSetGnbBeamVectorList (std::vector<BeamId> gnbBeamVectorList) override;
+
+    virtual void DoSetIAStateOfMacSched (bool iaPerformed, uint16_t rnti) override;
+    // ---------------------------------------------------------------
+
     /**
      * @brief Assign a fixed random variable stream number to the random variables
      * used by this model. Return the number of streams (possibly zero) that
@@ -562,6 +573,9 @@ class NrMacSchedulerNs3 : public NrMacScheduler
      * @param v the MCS to be used for RACH UL grant
      */
     void SetRachUlGrantMcs(uint8_t v);
+
+    // ------------------- MODIFIED ------------------------
+    std::map<uint16_t, bool> IAisPerformed;
 
   protected:
     /**

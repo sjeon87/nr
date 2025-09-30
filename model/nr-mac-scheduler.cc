@@ -142,6 +142,16 @@ class NrMacGeneralSchedSapProvider : public NrMacSchedSapProvider
         return m_scheduler->IsMaxSrsReached();
     };
 
+    virtual void SetGnbBeamVectorList (std::vector<BeamId> gnbBeamVectorList) override
+    {
+    m_scheduler->DoSetGnbBeamVectorList (gnbBeamVectorList);
+    };
+
+    virtual void SetIAStateOfMacSched (bool iaPerformed, uint16_t rnti) override
+    {
+        m_scheduler->DoSetIAStateOfMacSched (iaPerformed, rnti);
+    }
+
   private:
     NrMacScheduler* m_scheduler{nullptr};
 };

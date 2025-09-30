@@ -2,11 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
-#define NS_LOG_APPEND_CONTEXT                                                                      \
-    do                                                                                             \
-    {                                                                                              \
-        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
-    } while (false);
+
 #include "nr-mac-scheduler-harq-rr.h"
 
 #include "nr-fh-control.h"
@@ -15,6 +11,13 @@
 #include "ns3/log.h"
 
 #include <algorithm>
+
+#undef NS_LOG_APPEND_CONTEXT
+#define NS_LOG_APPEND_CONTEXT                                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        std::clog << " [ CellId " << GetCellId() << ", bwpId " << GetBwpId() << "] ";              \
+    } while (false);
 
 namespace ns3
 {
@@ -589,3 +592,4 @@ NrMacSchedulerHarqRr::InstallGetUlBitmask(const std::function<std::vector<bool>(
 }
 
 } // namespace ns3
+#undef NS_LOG_APPEND_CONTEXT

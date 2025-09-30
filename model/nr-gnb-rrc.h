@@ -36,6 +36,9 @@
 #include <set>
 #include <vector>
 
+#include "ns3/nr-ue-net-device.h"
+#include "ns3/nr-phy-mac-common.h"
+
 namespace ns3
 {
 class BandwidthPartGnb;
@@ -45,6 +48,10 @@ class NrSignalingRadioBearerInfo;
 class NrDataRadioBearerInfo;
 class NrGnbRrc;
 class Packet;
+
+typedef std::map<uint64_t, double> ImsiSinrMap;
+typedef std::map<uint16_t, double> CellSinrMap;
+typedef std::map<uint16_t, double> BeamSweepCellSinrMap;
 
 /**
  * @ingroup nr
@@ -1064,6 +1071,17 @@ class NrGnbRrc : public Object
         PER_BASED = 4
     };
 
+
+    /**
+    * This method maps Imsi to Rnti, so that the UeManager of a certain UE
+    * can be retrieved also with the Imsi
+    */
+    void RegisterImsiToRnti(uint64_t imsi, uint16_t rnti);
+
+    uint16_t DoGetRntiFromImsi(uint64_t imsi);
+
+    uint64_t DoGetImsiFromRnti (uint16_t rnti);
+
     /**
      * TracedCallback signature for new Ue Context events.
      *
@@ -1134,6 +1152,11 @@ class NrGnbRrc : public Object
     typedef void (*HandoverFailureTracedCallback)(const uint64_t imsi,
                                                   const uint16_t rnti,
                                                   const uint16_t cellId);
+
+
+    // ------------------------ MODIFIED ---------------------
+    bool m_realisticIA;
+
 
   private:
     // RRC SAP methods
@@ -1420,7 +1443,27 @@ class NrGnbRrc : public Object
      */
     bool IsRandomAccessCompleted(uint16_t rnti);
 
+    // ----------------------- MODIFIED -----------------
+    void DoRecvOptimalGnbBeamMap (NrRrcSap::CellOptimalGnbBeamMap msg);
+
+    void DoRecvDeRegisterUeCommand (NrRrcSap::DeRegisterUeContext params); // RECEIVE FUNCTION OF LTE COORDINATOR
+
+    void DoForwardUeSSBRSReport (NrRrcSap::UpdateBeamsTbRLM params);
+
+    void DoRecvClearHandoverEvent (uint64_t imsi);
+
+    void DoRecvTriggerRegisterUe (uint64_t imsi, const Ptr<NetDevice> &netDev);
+
+    void DoRecvRegisterUE (uint64_t imsi);
+
+    void DoRecvOptimalGnbBeamReport (NrRrcSap::OptimalGnbBeamReport params);
+
+    // void DoUpdateUeSinrEstimate(NrGnbCphySapUser::UeAssociatedSinrInfo info);
+    
+
   public:
+
+    void DoUpdateUeSinrEstimate(NrGnbCphySapUser::UeAssociatedSinrInfo info);
     /**
      * Add a neighbour with an X2 interface
      *
@@ -1748,6 +1791,40 @@ class NrGnbRrc : public Object
 
     std::map<uint8_t, Ptr<BandwidthPartGnb>>
         m_componentCarrierPhyConf; ///< component carrier phy configuration
+
+    // -------------------------- MODIFIED -----------------------
+    Time m_beamSweepCompleteTimeoutDuration;
+    
+    std::map<uint64_t, BeamSweepCellSinrMap> m_imsiBeamSweepCellSinrMap;
+    std::map<uint64_t, CellSinrMap> m_imsiCellSinrMap; //The coordinator keeps for every imsi the cellId and corresponding SINR
+    std::map<uint64_t, bool> m_mmWaveCellSetupCompleted;
+    std::map<uint64_t, uint16_t> m_lastMmWaveCell;
+    std::map<uint64_t, uint16_t> m_imsiRntiMap;	
+    std::map<uint8_t, ImsiSinrMap> m_ueImsiSinrMap; // this map contains the ueImsiSinrMap reports sent by the CCs
+
+    uint16_t m_lteCellId;
+
+
+    bool m_rlmMultiGnb;
+    double m_maxRateThreshold;
+
+    struct OptimalRLMBeamStruct
+    {
+      double snr;
+      uint8_t cellId;
+      BeamId beamId;
+      SfnSf startingSfnSf;
+      uint16_t optimalBeamIndex;
+    };
+
+    std::map<uint64_t, bool> m_beamSweepStarted;    // Will be used at LTE coordinator
+    std::map<uint64_t, bool> m_beamSweepCompleted;  // Will be used at LTE coordinator
+
+    ///Cell identifier.Must be unique across the simulation
+    uint16_t m_cellId;
+
+    // traces
+    TracedCallback <BeamSweepTraceParams> m_beamSweepInitiateFromCoordinatorTrace;
 
 }; // end of `class NrGnbRrc`
 
