@@ -1414,6 +1414,15 @@ NrMacSchedulerNs3::DoScheduleDlData(PointInFTPlane* spoint,
 {
     NS_LOG_FUNCTION(this << symAvail);
     NS_ASSERT(spoint->m_rbg == 0);
+    std::map<uint16_t, BeamId> ueToBeamMap;
+    for (const auto& ueInfo : m_ueMap)
+    {
+        ueToBeamMap[ueInfo.second->m_rnti] = ueInfo.second->m_beamId;
+    }
+    auto availableHoles = nr::RetrieveAllocInfoAvailableResources(GetDlBitmask(),
+                                                                  ueToBeamMap,
+                                                                  slotAlloc->m_varTtiAllocInfo);
+
     BeamSymbolMap symPerBeam = AssignDLRBG(symAvail, activeDl);
     GetFirst GetBeam;
     uint8_t usedSym = 0;
@@ -2391,42 +2400,42 @@ NrMacSchedulerNs3::DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
 
     GetSecond GetUeInfoList;
 
-    for (const auto& alloc : allocInfo->m_varTtiAllocInfo)
-    {
-        for (auto it = activeDlUe->begin(); it != activeDlUe->end(); /* no incr */)
-        {
-            auto& ueInfos = GetUeInfoList(*it);
-            for (auto ueIt = ueInfos.begin(); ueIt != ueInfos.end(); /* no incr */)
-            {
-                GetFirst GetUeInfoPtr;
-                if (GetUeInfoPtr(*ueIt)->m_rnti == alloc.m_dci->m_rnti)
-                {
-                    NS_LOG_INFO("Removed RNTI " << alloc.m_dci->m_rnti
-                                                << " from active ue list "
-                                                   "because it has already an HARQ scheduled");
-                    ueInfos.erase(ueIt);
-                    break;
-                }
-                else
-                {
-                    ++ueIt;
-                }
-            }
-            if (!ueInfos.empty())
-            {
-                ++it;
-            }
-            else
-            {
-                activeDlUe->erase(it);
-                break;
-            }
-        }
-    }
+    //   for (const auto& alloc : allocInfo->m_varTtiAllocInfo)
+    //   {
+    //       for (auto it = activeDlUe->begin(); it != activeDlUe->end(); /* no incr */)
+    //       {
+    //           auto& ueInfos = GetUeInfoList(*it);
+    //           for (auto ueIt = ueInfos.begin(); ueIt != ueInfos.end(); /* no incr */)
+    //           {
+    //               GetFirst GetUeInfoPtr;
+    //               if (GetUeInfoPtr(*ueIt)->m_rnti == alloc.m_dci->m_rnti)
+    //               {
+    //                   NS_LOG_INFO("Removed RNTI " << alloc.m_dci->m_rnti
+    //                                               << " from active ue list "
+    //                                                  "because it has already an HARQ scheduled");
+    //                   ueInfos.erase(ueIt);
+    //                   break;
+    //               }
+    //               else
+    //               {
+    //                   ++ueIt;
+    //               }
+    //           }
+    //           if (!ueInfos.empty())
+    //           {
+    //               ++it;
+    //           }
+    //           else
+    //           {
+    //               activeDlUe->erase(it);
+    //               break;
+    //           }
+    //       }
+    //   }
 
     NS_ASSERT(dlAssignationStartPoint.m_rbg == 0);
 
-    if (dlSymAvail > 0 && !activeDlUe->empty())
+    if (!activeDlUe->empty())
     {
         uint8_t usedDl =
             DoScheduleDlData(&dlAssignationStartPoint, dlSymAvail, *activeDlUe, allocInfo);

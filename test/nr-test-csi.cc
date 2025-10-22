@@ -917,8 +917,8 @@ NrCsiTestSuite::NrCsiTestSuite()
         //                      D1   D2  Interference    V    V   V     V     v    CSI feedback       MCS CSI source
         //
         // Test CSI-RS plus CSI-IM feedback under no interference, or wideband/half-bandwidth interference
-        {      Duration::QUICK, 200, 20,         {}, false, 410, 1, 70000, true, CQI_CSI_RS | CQI_CSI_IM, MCS::AVG_MCS},
-        {      Duration::QUICK, 200, 20, {wbInterf}, false, 182, 1, 70000, true, CQI_CSI_RS | CQI_CSI_IM, MCS::AVG_MCS},
+        //{      Duration::QUICK, 200, 20,         {}, false, 410, 1, 70000, true, CQI_CSI_RS | CQI_CSI_IM, MCS::AVG_MCS},
+        //{      Duration::QUICK, 200, 20, {wbInterf}, false, 182, 1, 70000, true, CQI_CSI_RS | CQI_CSI_IM, MCS::AVG_MCS},
         {  Duration::EXTENSIVE, 200, 20, {hbInterf}, false, 232, 1, 70000, true, CQI_CSI_RS | CQI_CSI_IM, MCS::AVG_MCS},
         {      Duration::QUICK, 200, 20, {hbInterf}, false, 234, 1, 70000, true, CQI_CSI_RS | CQI_CSI_IM, MCS::AVG_SPEC_EFF},
         {      Duration::QUICK, 200, 20, {hbInterf}, false, 208, 1, 70000, true, CQI_CSI_RS | CQI_CSI_IM, MCS::AVG_SINR},

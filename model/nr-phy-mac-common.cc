@@ -309,5 +309,40 @@ CountUsedSymbolsFromVarAllocTtiRange(uint8_t startSym,
     return usedSymbols;
 }
 
+std::unordered_map<BeamId, AllocInfoHole, BeamIdHash>
+RetrieveAllocInfoAvailableResources(const std::vector<bool>& bitmask,
+                                    const std::map<uint16_t, BeamId>& rntiToBeamMap,
+                                    const std::deque<VarTtiAllocInfo>& allocInfo)
+{
+    std::unordered_map<BeamId, AllocInfoHole, BeamIdHash> availableResourcesPerBeam{};
+    if (allocInfo.empty())
+    {
+        return availableResourcesPerBeam;
+    }
+
+    // Create an entry for each symbol status with counters for generally available RBGs
+    std::vector<std::vector<bool>> symbolStatus(14, bitmask);
+    for (const auto& alloc : allocInfo)
+    {
+        auto beamId = rntiToBeamMap.at(alloc.m_dci->m_rnti);
+        availableResourcesPerBeam[beamId] = {};
+
+        // For each symbol covered by the DCI, mark as used
+        for (auto currSym = alloc.m_dci->m_symStart; currSym < alloc.m_dci->m_numSym; currSym++)
+        {
+            // Check if all RBGs are in fact empty
+            for (std::size_t i = 0; i < bitmask.size(); i++)
+            {
+                symbolStatus.at(currSym).at(i) =
+                    symbolStatus.at(currSym).at(i) && !alloc.m_dci->m_rbgBitmask.at(i);
+            }
+        }
+    }
+
+    // If entire symbol is used, we increase starting symbol and restart search
+    std::count(bitmask.begin(), bitmask.end(), false);
+    return availableResourcesPerBeam;
+}
+
 } // namespace nr
 } // namespace ns3
