@@ -572,6 +572,11 @@ NrUeManager::StartDataRadioBearers()
     {
         auto drbIt = m_drbMap.find(*drbIdIt);
         NS_ASSERT(drbIt != m_drbMap.end());
+        drbIt->second->m_rlc->Initialize();
+        if (drbIt->second->m_pdcp)
+        {
+            drbIt->second->m_pdcp->Initialize();
+        }
     }
     m_drbsToBeStarted.clear();
 }
