@@ -55,8 +55,11 @@ BwpManagerUe::DoTransmitBufferStatusReport(NrMacSapProvider::BufferStatusReportP
     NS_LOG_FUNCTION(this);
     NS_ASSERT(m_algorithm != nullptr);
 
-    uint8_t bwpIndex = m_algorithm->GetBwpForQosFlow(m_lcToFlowMap.at(params.lcid));
-
+    uint8_t bwpIndex = 0;
+    if (params.lcid > 1)
+    {
+        bwpIndex = m_algorithm->GetBwpForQosFlow(m_lcToFlowMap.at(params.lcid));
+    }
     NS_LOG_DEBUG("BSR of size " << params.txQueueSize
                                 << " from RLC for LCID = " << static_cast<uint32_t>(params.lcid)
                                 << " traffic type " << m_lcToFlowMap.at(params.lcid)
