@@ -145,6 +145,11 @@ class NrUePhy : public NrPhy
      */
     double GetRsrp() const;
 
+    void SetNumQoutEvalSf(uint16_t numSubframes);
+    void SetNumQinEvalSf(uint16_t numSubframes);
+    uint16_t GetNumQoutEvalSf() const;
+    uint16_t GetNumQinEvalSf() const;
+
     /**
      * @brief Get NR uplink power control entity
      *

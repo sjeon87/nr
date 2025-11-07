@@ -209,6 +209,34 @@ NrUePhy::GetTypeId()
                             "Report UE measurements RSRP (dBm) and RSRQ (dB).",
                             MakeTraceSourceAccessor(&NrUePhy::m_reportUeMeasurements),
                             "ns3::NrUePhy::RsrpRsrqTracedCallback")
+            .AddAttribute("Qout",
+                          "corresponds to 10% block error rate of a hypothetical PDCCH transmission"
+                          "taking into account the PCFICH errors with transmission parameters."
+                          "see 3GPP TS 36.213 4.2.1 and TS 36.133 7.6",
+                          DoubleValue(-5),
+                          MakeDoubleAccessor(&NrUePhy::m_qOut),
+                          MakeDoubleChecker<double>())
+            .AddAttribute("Qin",
+                          "corresponds to 2% block error rate of a hypothetical PDCCH transmission"
+                          "taking into account the PCFICH errors with transmission parameters."
+                          "see 3GPP TS 36.213 4.2.1 and TS 36.133 7.6",
+                          DoubleValue(-3.9),
+                          MakeDoubleAccessor(&NrUePhy::m_qIn),
+                          MakeDoubleChecker<double>())
+            .AddAttribute(
+                "NumQoutEvalSf",
+                "This specifies the total number of consecutive subframes"
+                "which corresponds to the Qout evaluation period",
+                UintegerValue(200), // see 3GPP 3GPP TS 36.133 7.6.2.1
+                MakeUintegerAccessor(&NrUePhy::SetNumQoutEvalSf, &NrUePhy::GetNumQoutEvalSf),
+                MakeUintegerChecker<uint16_t>())
+            .AddAttribute(
+                "NumQinEvalSf",
+                "This specifies the total number of consecutive subframes"
+                "which corresponds to the Qin evaluation period",
+                UintegerValue(100), // see 3GPP 3GPP TS 36.133 7.6.2.1
+                MakeUintegerAccessor(&NrUePhy::SetNumQinEvalSf, &NrUePhy::GetNumQinEvalSf),
+                MakeUintegerChecker<uint16_t>())
             .AddAttribute("EnableRlfDetection",
                           "If true, RLF detection will be enabled.",
                           BooleanValue(true),
@@ -293,6 +321,40 @@ double
 NrUePhy::GetRsrp() const
 {
     return m_rsrp;
+}
+
+void
+NrUePhy::SetNumQoutEvalSf(uint16_t numSubframes)
+{
+    NS_LOG_FUNCTION(this << numSubframes);
+    NS_ABORT_MSG_IF(numSubframes % 10 != 0,
+                    "Number of subframes used for Qout "
+                    "evaluation must be multiple of 10");
+    m_numOfQoutEvalSf = numSubframes;
+}
+
+void
+NrUePhy::SetNumQinEvalSf(uint16_t numSubframes)
+{
+    NS_LOG_FUNCTION(this << numSubframes);
+    NS_ABORT_MSG_IF(numSubframes % 10 != 0,
+                    "Number of subframes used for Qin "
+                    "evaluation must be multiple of 10");
+    m_numOfQinEvalSf = numSubframes;
+}
+
+uint16_t
+NrUePhy::GetNumQoutEvalSf() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_numOfQoutEvalSf;
+}
+
+uint16_t
+NrUePhy::GetNumQinEvalSf() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_numOfQinEvalSf;
 }
 
 Ptr<NrUePowerControl>
@@ -952,8 +1014,10 @@ NrUePhy::DlCtrl(const std::shared_ptr<DciInfoElementTdma>& dci)
                       << +dci->m_symStart << "-" << +(dci->m_symStart + dci->m_numSym - 1)
                       << "\t start " << Simulator::Now() << " end "
                       << (Simulator::Now() + varTtiDuration));
-
-    m_tryToPerformLbt = true;
+    if (!m_lastSlotStart.IsZero())
+    {
+        m_tryToPerformLbt = true;
+    }
 
     m_spectrumPhy->AddExpectedDlCtrlEnd(Simulator::Now() + varTtiDuration);
 
@@ -1056,8 +1120,14 @@ NrUePhy::DlData(const std::shared_ptr<DciInfoElementTdma>& dci)
 {
     NS_LOG_FUNCTION(this);
 
-    m_receptionEnabled = true;
     Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
+
+    if (GetRbNum() != dci->m_rbgBitmask.size())
+    {
+        return varTtiDuration;
+    }
+
+    m_receptionEnabled = true;
     NS_ASSERT(dci->m_rnti == m_rnti);
     m_spectrumPhy->AddExpectedTb({dci->m_ndi,
                                   dci->m_tbSize,
@@ -1084,13 +1154,18 @@ Time
 NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma>& dci)
 {
     NS_LOG_FUNCTION(this);
+    Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
+
+    if (GetRbNum() != dci->m_rbgBitmask.size())
+    {
+        return varTtiDuration;
+    }
     if (m_enableUplinkPowerControl)
     {
         m_txPower = m_powerControl->GetPuschTxPower(
             (FromRBGBitmaskToRBAssignment(dci->m_rbgBitmask)).size());
     }
     SetSubChannelsForTransmission(FromRBGBitmaskToRBAssignment(dci->m_rbgBitmask), dci->m_numSym);
-    Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
     std::list<Ptr<NrControlMessage>> ctrlMsg;
     Ptr<PacketBurst> pktBurst = GetPacketBurst(m_currentSlot, dci->m_symStart, dci->m_rnti);
     if (pktBurst && pktBurst->GetNPackets() > 0)
@@ -1345,6 +1420,7 @@ void
 NrUePhy::DoStartCellSearch(uint16_t arfcn)
 {
     NS_LOG_FUNCTION(this << arfcn);
+    InitializeMessageList();
     DoSetInitialBandwidth();
 }
 
@@ -1493,14 +1569,6 @@ NrUePhy::ReportUeMeasurements()
                      << " BwpID " << GetBwpId());
 
         m_reportRsrpTrace(GetCellId(), m_imsi, m_rnti, avg_rsrp, GetBwpId());
-
-        // trigger RLF detection only when UE has an active RRC connection
-        // and RLF detection attribute is set to true
-        if (m_isConnected && m_enableRlfDetection)
-        {
-            double avrgSinrForRlf = ComputeAvgSinr(m_ctrlSinrForRlf);
-            RlfDetection(10 * log10(avrgSinrForRlf));
-        }
 
         NrUeCphySapUser::UeMeasurementsElement newEl;
         newEl.m_cellId = (*it).first;

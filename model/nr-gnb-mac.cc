@@ -631,6 +631,11 @@ NrGnbMac::DoSlotDlIndication(const SfnSf& sfnSf, LteNrTddSlotType type)
         NrMacSchedSapProvider::SchedDlCqiInfoReqParameters dlCqiInfoReq;
         dlCqiInfoReq.m_sfnsf = sfnSf;
 
+        // todo: find better way to clear pending CQI removed after used is removed from cell
+        erase_if(m_dlCqiReceived, [this](auto& dlCqiInfo) {
+            return m_rlcAttached.find(dlCqiInfo.m_rnti) == m_rlcAttached.end();
+        });
+
         dlCqiInfoReq.m_cqiList.insert(dlCqiInfoReq.m_cqiList.begin(),
                                       m_dlCqiReceived.begin(),
                                       m_dlCqiReceived.end());
@@ -906,7 +911,12 @@ NrGnbMac::DoReceivePhyPdu(Ptr<Packet> p)
     uint16_t rnti = tag.GetRnti();
     auto rntiIt = m_rlcAttached.find(rnti);
 
-    NS_ASSERT_MSG(rntiIt != m_rlcAttached.end(), "could not find RNTI" << rnti);
+    if (rntiIt == m_rlcAttached.end())
+    {
+        NS_LOG_DEBUG("could not find RNTI" << rnti
+                                           << ", probably a buffered PDU of disconnected UE");
+        return;
+    }
 
     // Try to peek whatever header; in the first byte there will be the LC ID.
     NrMacHeaderFsUl header;
@@ -1478,6 +1488,7 @@ NrGnbMac::DoRemoveUe(uint16_t rnti)
     m_macCschedSapProvider->CschedUeReleaseReq(params);
     m_miDlHarqProcessesPackets.erase(rnti);
     m_rlcAttached.erase(rnti);
+    erase_if(m_ulCeReceived, [rnti](auto& macCeElement) { return macCeElement.m_rnti == rnti; });
 
     // remove unprocessed preamble received for RACH during handover
     auto jt = m_allocatedNcRaPreambleMap.begin();
@@ -1521,29 +1532,26 @@ NrGnbMac::DoAddLc(NrGnbCmacSapProvider::LcInfo lcinfo, NrMacSapUser* msu)
     // see FF LTE MAC Scheduler
     // Interface Specification v1.11,
     // 4.3.4 logicalChannelConfigListElement
-    if (lcinfo.lcId != 0)
-    {
-        struct NrMacCschedSapProvider::CschedLcConfigReqParameters params;
-        params.m_rnti = lcinfo.rnti;
-        params.m_reconfigureFlag = false;
+    struct NrMacCschedSapProvider::CschedLcConfigReqParameters params{};
+    params.m_rnti = lcinfo.rnti;
+    params.m_reconfigureFlag = false;
 
-        struct nr::LogicalChannelConfigListElement_s lccle;
-        lccle.m_logicalChannelIdentity = lcinfo.lcId;
-        lccle.m_logicalChannelGroup = lcinfo.lcGroup;
-        lccle.m_direction = nr::LogicalChannelConfigListElement_s::DIR_BOTH;
-        lccle.m_fiveQi = lcinfo.fiveQi;
-        lccle.m_eRabMaximulBitrateUl = lcinfo.mbrUl;
-        lccle.m_eRabMaximulBitrateDl = lcinfo.mbrDl;
-        lccle.m_eRabGuaranteedBitrateUl = lcinfo.gbrUl;
-        lccle.m_eRabGuaranteedBitrateDl = lcinfo.gbrDl;
+    struct nr::LogicalChannelConfigListElement_s lccle{};
+    lccle.m_logicalChannelIdentity = lcinfo.lcId;
+    lccle.m_logicalChannelGroup = lcinfo.lcGroup;
+    lccle.m_direction = nr::LogicalChannelConfigListElement_s::DIR_BOTH;
+    lccle.m_fiveQi = lcinfo.fiveQi;
+    lccle.m_eRabMaximulBitrateUl = lcinfo.mbrUl;
+    lccle.m_eRabMaximulBitrateDl = lcinfo.mbrDl;
+    lccle.m_eRabGuaranteedBitrateUl = lcinfo.gbrUl;
+    lccle.m_eRabGuaranteedBitrateDl = lcinfo.gbrDl;
 
-        lccle.m_qosBearerType = static_cast<nr::LogicalChannelConfigListElement_s::QosBearerType_e>(
-            lcinfo.resourceType);
+    lccle.m_qosBearerType =
+        static_cast<nr::LogicalChannelConfigListElement_s::QosBearerType_e>(lcinfo.resourceType);
 
-        params.m_logicalChannelConfigList.push_back(lccle);
+    params.m_logicalChannelConfigList.push_back(lccle);
 
-        m_macCschedSapProvider->CschedLcConfigReq(params);
-    }
+    m_macCschedSapProvider->CschedLcConfigReq(params);
 }
 
 void
