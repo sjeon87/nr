@@ -8,6 +8,7 @@
 #include "cc-bwp-helper.h"
 #include "ideal-beamforming-helper.h"
 #include "nr-bearer-stats-connector.h"
+#include "nr-epc-helper.h"
 #include "nr-mac-scheduling-stats.h"
 
 #include "ns3/net-device-container.h"
@@ -16,6 +17,7 @@
 #include "ns3/nr-control-messages.h"
 #include "ns3/nr-qos-flow.h"
 #include "ns3/nr-spectrum-phy.h"
+#include "ns3/nr-ue-cphy-sap.h"
 #include "ns3/object-factory.h"
 
 namespace ns3
@@ -971,6 +973,39 @@ class NrHelper : public Object
                          Ptr<NetDevice> ueDev,
                          Ptr<NetDevice> sourceGnbDev,
                          uint16_t targetCellId);
+
+    /**
+     * Configures the UE physical layer based on the SIB1 information corresponding to a given cell
+     * ID and BWP ID.
+     *
+     * This function retrieves the necessary configuration parameters from a gNB associated with the
+     * specified cell ID and bandwidth part (BWP) ID. These parameters include DL/UL control
+     * symbols, numerology, resource block overhead, and other physical layer settings. The
+     * retrieved values are then set in the provided UE PHY SAP provider.
+     *
+     * This method assumes that the mapped gNB, its PHY, MAC, and scheduler for the specified BWP
+     * ID, exist and are valid.
+     *
+     * @param id The cell ID identifying the specific gNB.
+     * @param bwpId The bandwidth part ID under the specified cell ID.
+     * @param pProvider A reference to the UE CPHY SAP provider that will be configured with the
+     * SIB1 information.
+     */
+    static void ConfigureUePhyToSib1FromCellId(uint16_t id,
+                                               uint16_t bwpId,
+                                               NrUeCphySapProvider*& pProvider);
+    /**
+     * Retrieve the gNB NetDevice associated with the given cellId.
+     *
+     * This function searches through all nodes and their devices to locate
+     * a gNB Net Device with a corresponding cell identity. If a match is
+     * found, the gNB Net Device is returned. If no matching device is found,
+     * a null pointer is returned.
+     *
+     * @param cellId The cell ID to search for.
+     * @return A smart pointer to the matching NrGnbNetDevice, or nullptr if no match is found.
+     */
+    static Ptr<NrGnbNetDevice> RetrieveGnbNetDevFromCellId(uint16_t cellId);
 
   private:
     bool IsMimoFeedbackEnabled() const; ///< Let UE compute MIMO feedback with PMI and RI

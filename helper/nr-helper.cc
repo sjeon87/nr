@@ -1124,15 +1124,9 @@ NrHelper::AttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbD
     {
         gnbNetDev->GetPhy(i)->RegisterUe(ueNetDev->GetImsi(), ueNetDev);
         ueNetDev->GetPhy(i)->RegisterToGnb(gnbNetDev->GetCellId());
-        ueNetDev->GetPhy(i)->SetDlAmc(
-            DynamicCast<NrMacSchedulerNs3>(gnbNetDev->GetScheduler(i))->GetDlAmc());
-        ueNetDev->GetPhy(i)->SetDlCtrlSyms(gnbNetDev->GetMac(i)->GetDlCtrlSyms());
-        ueNetDev->GetPhy(i)->SetUlCtrlSyms(gnbNetDev->GetMac(i)->GetUlCtrlSyms());
-        ueNetDev->GetPhy(i)->SetNumRbPerRbg(gnbNetDev->GetMac(i)->GetNumRbPerRbg());
-        ueNetDev->GetPhy(i)->SetRbOverhead(gnbNetDev->GetPhy(i)->GetRbOverhead());
-        ueNetDev->GetPhy(i)->SetSymbolsPerSlot(gnbNetDev->GetPhy(i)->GetSymbolsPerSlot());
-        ueNetDev->GetPhy(i)->SetNumerology(gnbNetDev->GetPhy(i)->GetNumerology());
-        ueNetDev->GetPhy(i)->SetPattern(gnbNetDev->GetPhy(i)->GetPattern());
+        ConfigureUePhyToSib1FromCellId(gnbNetDev->GetCellId(),
+                                       i,
+                                       ueNetDev->GetRrc()->m_cphySapProvider.at(i));
         Ptr<NrEpcUeNas> ueNas = ueNetDev->GetNas();
         ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));
 
@@ -1446,11 +1440,6 @@ NrHelper::AssignStreams(NetDeviceContainer c, int64_t stream)
         {
             for (uint32_t bwp = 0; bwp < nrUe->GetCcMapSize(); bwp++)
             {
-                Ptr<NrPmSearch> pmSearch = nrUe->GetPhy(bwp)->GetPmSearch();
-                if (pmSearch)
-                {
-                    currentStream += nrUe->GetPhy(bwp)->GetPmSearch()->AssignStreams(currentStream);
-                }
                 currentStream += nrUe->GetPhy(bwp)->GetSpectrumPhy()->AssignStreams(currentStream);
                 currentStream += nrUe->GetMac(bwp)->AssignStreams(currentStream);
                 currentStream +=

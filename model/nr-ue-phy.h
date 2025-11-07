@@ -542,6 +542,16 @@ class NrUePhy : public NrPhy
     /// @brief Get the precoding matrix search engine
     Ptr<NrPmSearch> GetPmSearch() const;
 
+    /**
+     * Set the target gNB for the UE NetDevice from the PHY layer.
+     *
+     * This function emulates the hack implemented in NrHelper, so we have easier debugging time,
+     * by just probing this gNB pointer from the NrUeNetDevice. We can probably remove this.
+     *
+     * @param gnbNetDev A smart pointer to the gNB NetDevice to set as the target.
+     */
+    void SetTargetGnb(Ptr<NrGnbNetDevice> gnbNetDev);
+
   protected:
     /**
      * @brief DoDispose method inherited from Object

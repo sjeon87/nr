@@ -55,6 +55,7 @@ class NrUeCmacSapUser;
 class NrUeCmacSapProvider;
 class NrDataRadioBearerInfo;
 class NrSignalingRadioBearerInfo;
+class NrHelper;
 
 /**
  *
@@ -1357,6 +1358,7 @@ class NrUeRrc : public Object
      * The number of component carriers.
      */
     uint16_t m_numberOfComponentCarriers;
+    friend class NrHelper;
 
 }; // end of class NrUeRrc
 

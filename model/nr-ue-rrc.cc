@@ -22,6 +22,7 @@
 
 #include "ns3/fatal-error.h"
 #include "ns3/log.h"
+#include "ns3/nr-helper.h"
 #include "ns3/object-factory.h"
 #include "ns3/object-map.h"
 #include "ns3/simulator.h"
@@ -1380,6 +1381,13 @@ NrUeRrc::EvaluateCellForSelection()
         m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(cellId, m_initDlArfcn);
         m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
+
+        for (auto phyIndex : {GetPrimaryDlIndex(), GetPrimaryUlIndex()})
+        {
+            NrHelper::ConfigureUePhyToSib1FromCellId(m_cellId,
+                                                     phyIndex,
+                                                     m_cphySapProvider.at(phyIndex));
+        }
         // Once the UE is connected, m_connectionPending is
         // set to false. So, when RLF occurs and UE performs
         // cell selection upon leaving RRC_CONNECTED state,

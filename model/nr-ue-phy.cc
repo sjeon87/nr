@@ -2033,4 +2033,10 @@ NrUePhy::GetPmSearch() const
     return m_pmSearch;
 }
 
+void
+NrUePhy::SetTargetGnb(Ptr<NrGnbNetDevice> gnbNetDev)
+{
+    DynamicCast<NrUeNetDevice>(m_netDevice)->SetTargetGnb(gnbNetDev);
+}
+
 } // namespace ns3
