@@ -1548,7 +1548,16 @@ NrUePhy::ReportDlCtrlSinr(const SpectrumValue& sinr)
     }
 
     NS_ASSERT(rbUsed);
+    m_ctrlSinrForRlf = sinr;
     m_dlCtrlSinrTrace(GetCellId(), m_rnti, sinrSum / rbUsed, GetBwpId());
+
+    // trigger RLF detection only when UE has an active RRC connection
+    // and RLF detection attribute is set to true
+    if (m_isConnected && m_enableRlfDetection)
+    {
+        double avrgSinrForRlf = ComputeAvgSinr(m_ctrlSinrForRlf);
+        RlfDetection(10 * log10(avrgSinrForRlf));
+    }
 }
 
 uint8_t
