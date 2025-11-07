@@ -239,7 +239,7 @@ BwpManagerAlgorithmStatic::GetTypeId()
 uint8_t
 BwpManagerAlgorithmStatic::GetBwpForQosFlow(const NrQosFlow::FiveQi& v) const
 {
-    return m_fiveQiToBwpMap.at(v == 0 ? 1 : v);
+    return m_fiveQiToBwpMap.at(v);
 }
 
 } // namespace ns3
