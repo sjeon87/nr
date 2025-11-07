@@ -1697,19 +1697,16 @@ NrUePhy::SetPhySapUser(NrUePhySapUser* ptr)
 }
 
 void
-NrUePhy::DoNotifyConnectionSuccessful()
+NrUePhy::NotifyConnectionSuccessful()
 {
     /**
      * Radio link failure detection should take place only on the
      * primary carrier to avoid errors due to multiple calls to the
      * same methods at the RRC layer
      */
-    if (GetBwpId() == 0)
-    {
-        m_isConnected = true;
-        // Initialize the parameters for radio link failure detection
-        InitializeRlfParams();
-    }
+    m_isConnected = true;
+    // Initialize the parameters for radio link failure detection
+    InitializeRlfParams();
 }
 
 void

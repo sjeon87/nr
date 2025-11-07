@@ -1060,7 +1060,7 @@ class NrUePhy : public NrPhy
     TracedCallback<uint16_t, uint16_t, double, double, bool, uint8_t> m_reportUeMeasurements;
 
     bool m_isConnected;
-    void DoNotifyConnectionSuccessful();
+    void NotifyConnectionSuccessful() override;
     /**
      * The 'Qin' attribute.
      * corresponds to 2% block error rate of a hypothetical PDCCH transmission

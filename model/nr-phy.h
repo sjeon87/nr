@@ -124,7 +124,7 @@ class NrPhy : public Object
      * @brief Notify PHY about the successful RRC connection
      * establishment.
      */
-    void NotifyConnectionSuccessful();
+    virtual void NotifyConnectionSuccessful();
 
     /**
      * @brief Configures TB decode latency
