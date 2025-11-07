@@ -236,8 +236,13 @@ NrUeManager::ConfigureSrb0()
         // MacSapUserForRlc in the ComponentCarrierManager MacSapUser
         NrMacSapUser* nrMacSapUser =
             m_rrc->m_ccmRrcSapProvider->ConfigureSignalBearer(lcinfo, rlc->GetNrMacSapUser());
-        // Signal Channel are only on Primary Carrier
-        m_rrc->m_cmacSapProvider.at(m_componentCarrierId)->AddLc(lcinfo, nrMacSapUser);
+        // Install signal channel on all carriers.
+        // Just avoiding issues when carrier is strictly downlink or uplink,
+        // But messages still need to be routed properly to primary downlink and uplink carriers.
+        for (uint16_t i = 0; i < m_rrc->m_numberOfComponentCarriers; i++)
+        {
+            m_rrc->m_cmacSapProvider.at(i)->AddLc(lcinfo, nrMacSapUser);
+        }
         m_rrc->m_ccmRrcSapProvider->AddLc(lcinfo, nrMacSapUser);
     }
 }
@@ -287,7 +292,10 @@ NrUeManager::ConfigureSrb1()
         NrMacSapUser* MacSapUserForRlc =
             m_rrc->m_ccmRrcSapProvider->ConfigureSignalBearer(lcinfo, rlc->GetNrMacSapUser());
         // Signal Channel are only on Primary Carrier
-        m_rrc->m_cmacSapProvider.at(m_componentCarrierId)->AddLc(lcinfo, MacSapUserForRlc);
+        for (uint16_t i = 0; i < m_rrc->m_numberOfComponentCarriers; i++)
+        {
+            m_rrc->m_cmacSapProvider.at(i)->AddLc(lcinfo, MacSapUserForRlc);
+        }
         m_rrc->m_ccmRrcSapProvider->AddLc(lcinfo, MacSapUserForRlc);
     }
 
