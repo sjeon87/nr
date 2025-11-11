@@ -135,6 +135,8 @@ class NrPhySapProvider
      * @return Get the number of resource blocks configured
      */
     virtual uint32_t GetRbNum() const = 0;
+
+    virtual void RegisterToGnb(uint16_t cellId) = 0;
 };
 
 /**

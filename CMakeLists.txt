@@ -518,9 +518,10 @@ set(test_sources
     test/nr-test-ue-measurements.cc
     test/nr-test-radio-link-failure.cc
     test/nr-test-cell-selection.cc
+    test/nr-test-x2-handover.cc
+    test/nr-test-x2-handover-measures.cc
     # cmake-format: off
     # todo:
-    # test/nr-test-x2-handover.cc                  \
     # test/nr-test-x2-handover-measures.cc          \
     # test/nr-test-lte-handover-delay.cc             | requires handover
     # test/nr-test-lte-handover-failure.cc          /

@@ -53,7 +53,7 @@ class UeMemberNrUeCmacSapProvider : public NrUeCmacSapProvider
     void SetRnti(uint16_t rnti) override;
     void NotifyConnectionSuccessful() override;
     void SetImsi(uint64_t imsi) override;
-
+    void RegisterToGnb(uint16_t cellId) override;
   private:
     NrUeMac* m_mac;
 };
@@ -117,6 +117,12 @@ void
 UeMemberNrUeCmacSapProvider::SetImsi(uint64_t imsi)
 {
     m_mac->DoSetImsi(imsi);
+}
+
+void
+UeMemberNrUeCmacSapProvider::RegisterToGnb(uint16_t cellId)
+{
+    m_mac->m_phySapProvider->RegisterToGnb(cellId);
 }
 
 class UeMemberNrMacSapProvider : public NrMacSapProvider

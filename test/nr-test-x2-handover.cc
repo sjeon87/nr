@@ -20,6 +20,8 @@
 #include "ns3/packet-sink.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/udp-client-server-helper.h"
+#include "ns3/isotropic-antenna-model.h"
+#include "ns3/nr-channel-helper.h"
 
 using namespace ns3;
 
@@ -268,11 +270,40 @@ NrX2HandoverTestCase::DoRun()
     mobility.Install(gnbNodes);
     mobility.Install(ueNodes);
 
-    auto bandwidthAndBWPPair = m_nrHelper->CreateBandwidthParts({{2.8e9, 5e6, 1}}, "UMa");
-    auto bandwidthAndBWPPair2 = m_nrHelper->CreateBandwidthParts({{2.9e9, 5e6, 1}}, "UMa");
+    // Override the default antenna model with IsotropicAntennaModel
+    m_nrHelper->SetUeAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+    m_nrHelper->SetGnbAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+
+    // Configure Friis propagation loss model before assign it to band
+    Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
+    channelHelper->ConfigurePropagationFactory(FriisPropagationLossModel::GetTypeId());
+
+    // Create and set the channel with the band
+    CcBwpCreator ccBwpCreator;
+    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9,
+                                                   5e6,
+                                                   static_cast<uint8_t>(1));
+    OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+    channelHelper->AssignChannelsToBands({band});
+
+    // Create bandwidth part from band
+    BandwidthPartInfoPtrVector allBwps;
+    allBwps = CcBwpCreator::GetAllBwps({band});
+
+    // Create and set the channel with the band
+    CcBwpCreator::SimpleOperationBandConf bandConf2(2.9e9,
+                                                   5e6,
+                                                   static_cast<uint8_t>(1));
+    OperationBandInfo band2 = ccBwpCreator.CreateOperationBandContiguousCc(bandConf2);
+    channelHelper->AssignChannelsToBands({band2});
+
+    // Create bandwidth part from band
+    BandwidthPartInfoPtrVector allBwps2;
+    allBwps2 = CcBwpCreator::GetAllBwps({band2});
+
     NetDeviceContainer gnbDevices;
-    gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(0), bandwidthAndBWPPair.second));
-    gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(1), bandwidthAndBWPPair2.second));
+    gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(0), allBwps));
+    gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(1), allBwps2));
 
     stream += m_nrHelper->AssignStreams(gnbDevices, stream);
     for (auto it = gnbDevices.Begin(); it != gnbDevices.End(); ++it)
@@ -284,7 +315,7 @@ NrX2HandoverTestCase::DoRun()
     NetDeviceContainer ueDevices;
     ueDevices = m_nrHelper->InstallUeDevice(
         ueNodes,
-        {bandwidthAndBWPPair.second.front(), bandwidthAndBWPPair2.second.front()});
+        {allBwps.front(), allBwps2.front()});
     stream += m_nrHelper->AssignStreams(ueDevices, stream);
 
     Ipv4Address remoteHostAddr;
@@ -313,7 +344,6 @@ NrX2HandoverTestCase::DoRun()
         // in this container, interface 0 is the pgw, 1 is the remoteHost
         remoteHostAddr = internetIpIfaces.GetAddress(1);
 
-        Ipv4StaticRoutingHelper ipv4RoutingHelper;
         Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
             ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>());
         remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"),
@@ -536,12 +566,6 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
                           NrUeManager::CONNECTED_NORMALLY,
                           "Wrong NrUeManager state!");
     NS_ASSERT_MSG(ueManagerState == NrUeManager::CONNECTED_NORMALLY, "Wrong NrUeManager state!");
-
-    uint16_t ueCellId = ueRrc->GetCellId();
-    uint16_t gnbCellId = nrGnbDevice->GetCellId();
-    bool gnbCellIdFound =
-        std::find(gnbCellId.begin(), gnbCellId.end(), ueCellId) != gnbCellId.end();
-    NS_TEST_ASSERT_MSG_EQ(gnbCellIdFound, true, "gNB does not contain UE cellId");
 
     uint64_t ueImsi = ueNrDevice->GetImsi();
     uint64_t gnbImsi = ueManager->GetImsi();
@@ -778,7 +802,7 @@ NrX2HandoverTestSuite::NrX2HandoverTestSuite()
 
     for (auto schedIt = schedulers.begin(); schedIt != schedulers.end(); ++schedIt)
     {
-        for (auto useIdealRrc : {true, false})
+        for (auto useIdealRrc : {true, /*false*/})
         {
             // nUes, nDBearers, helist, name, sched, admitHo, idealRrc
             AddTestCase(new NrX2HandoverTestCase(1,

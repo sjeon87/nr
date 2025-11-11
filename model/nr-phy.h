@@ -442,7 +442,17 @@ class NrPhy : public Object
      */
     static uint32_t FrequencyHzToArfcn(double freqHz);
 
-  protected:
+    virtual void RegisterToGnb(uint16_t cellId);
+
+/**
+ * Retrieves the Absolute Radio Frequency Channel Number (ARFCN)
+ * of BWP associated with current NrPhy instance.
+ *
+ * @return The current ARFCN value.
+ */
+uint32_t DoGetArfcn() const;
+
+protected:
     /**
      * @brief DoDispose method inherited from Object
      */
@@ -597,14 +607,6 @@ class NrPhy : public Object
      * @return a list of control messages that are meant to be sent in the current slot
      */
     virtual std::list<Ptr<NrControlMessage>> PopCurrentSlotCtrlMsgs();
-
-    /**
-     * Retrieves the Absolute Radio Frequency Channel Number (ARFCN)
-     * of BWP associated with current NrPhy instance.
-     *
-     * @return The current ARFCN value.
-     */
-    uint32_t DoGetArfcn() const;
 
     /**
      * Set the Absolute Radio Frequency Channel Number (ARFCN)

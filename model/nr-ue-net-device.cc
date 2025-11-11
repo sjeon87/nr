@@ -160,8 +160,10 @@ NrUeNetDevice::RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgL
 
     for (const auto& msg : msgList)
     {
-        uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
+        uint32_t bwpArfcn = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
                             ->RouteIngoingCtrlMsg(msg, sourceBwpId);
+        auto it = std::find_if(m_ccMap.begin(), m_ccMap.end(), [bwpArfcn](const auto& cc){ return cc.second->GetArfcn() == bwpArfcn;});
+        auto bwpId = std::distance(m_ccMap.begin(), it);
         m_ccMap.at(bwpId)->GetPhy()->PhyCtrlMessagesReceived(msg);
     }
 }

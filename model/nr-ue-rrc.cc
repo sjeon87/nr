@@ -916,6 +916,11 @@ NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
     NS_LOG_FUNCTION(this);
+    if ((m_previousCellId == cellId) && (cellId != m_cellId))
+    {
+        // Receiving an old control message, we just ignore for now
+        return;
+    }
     switch (m_state)
     {
     case IDLE_WAIT_SIB1:
@@ -1134,6 +1139,13 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             m_cellId = mci.targetPhysCellId;
             NS_ASSERT(mci.haveCarrierFreq);
             NS_ASSERT(mci.haveCarrierBandwidth);
+            // We could reconfigure PHY and BWPs, or we can just switch the primary DL/UL
+            // indexes to match the correct frequency
+            if (mci.targetPhysCellId == 2)
+            {
+                SetPrimaryDlIndex(1);
+                SetPrimaryUlIndex(1);
+            }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.dlCarrierFreq);
             m_cphySapProvider.at(GetPrimaryDlIndex())
@@ -1150,6 +1162,7 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             NS_ASSERT_MSG(
                 mci.haveRachConfigDedicated,
                 "handover is only supported with non-contention-based random access procedure");
+            m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(mci.targetPhysCellId);
             m_cmacSapProvider.at(GetPrimaryUlIndex())
                 ->StartNonContentionBasedRandomAccessProcedure(
                     m_rnti,

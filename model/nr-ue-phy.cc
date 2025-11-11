@@ -460,12 +460,12 @@ NrUePhy::ProcessSrsDci(const SfnSf& ulSfnSf, const std::shared_ptr<DciInfoElemen
 }
 
 void
-NrUePhy::RegisterToGnb(uint16_t bwpId)
+NrUePhy::RegisterToGnb(uint16_t cellId)
 {
     NS_LOG_FUNCTION(this);
 
     InitializeMessageList();
-    DoSetCellId(bwpId);
+    DoSetCellId(cellId);
 }
 
 void
