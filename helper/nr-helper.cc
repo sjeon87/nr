@@ -1127,8 +1127,10 @@ NrHelper::AttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbD
         ConfigureUePhyToSib1FromCellId(gnbNetDev->GetCellId(),
                                        ueNetDev->GetRrc()->m_cphySapProvider.at(i));
         Ptr<NrEpcUeNas> ueNas = ueNetDev->GetNas();
-        ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));
-
+        if (i == 0)
+        {
+            ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));
+        }
         if (IsMimoFeedbackEnabled())
         {
             // Initialize parameters for MIMO precoding matrix search (PMI feedback)
