@@ -1125,7 +1125,6 @@ NrHelper::AttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbD
         gnbNetDev->GetPhy(i)->RegisterUe(ueNetDev->GetImsi(), ueNetDev);
         ueNetDev->GetPhy(i)->RegisterToGnb(gnbNetDev->GetCellId());
         ConfigureUePhyToSib1FromCellId(gnbNetDev->GetCellId(),
-                                       i,
                                        ueNetDev->GetRrc()->m_cphySapProvider.at(i));
         Ptr<NrEpcUeNas> ueNas = ueNetDev->GetNas();
         ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));
@@ -2035,6 +2034,59 @@ NrHelper::IsMimoFeedbackEnabled() const
         return true;
     }
     NS_ABORT_MSG("Unsupported NrHelper::CsiFeedbackFlags combination");
+}
+
+Ptr<NrGnbNetDevice>
+NrHelper::RetrieveGnbNetDevFromCellId(uint16_t cellId)
+{
+    // Search nodes for gNB PHY/MAC with corresponding cellId
+    Ptr<NrGnbNetDevice> gnbNet;
+
+    for (std::size_t nodeI = 0; nodeI < NodeList::GetNNodes(); nodeI++)
+    {
+        auto node = NodeList::GetNode(nodeI);
+        for (std::size_t deviceI = 0; deviceI < node->GetNDevices(); deviceI++)
+        {
+            auto device = node->GetDevice(deviceI);
+            gnbNet = DynamicCast<NrGnbNetDevice>(device);
+            if (gnbNet && gnbNet->GetCellId() == cellId)
+            {
+                return gnbNet;
+            }
+        }
+    }
+    return nullptr;
+}
+
+void
+NrHelper::ConfigureUePhyToSib1FromCellId(uint16_t cellId,
+                                         ns3::NrUeCphySapProvider*& pProvider)
+{
+    auto gnbNet = RetrieveGnbNetDevFromCellId(cellId);
+    NS_ASSERT(gnbNet);
+
+    // Retrieve UE PHY ARFCN, then gNB BWP ID that matches it
+    auto ueArfcn = pProvider->GetArfcn();
+    auto bwpId = gnbNet->GetArfcnBwpId(ueArfcn);
+
+    Ptr<NrGnbPhy> gnbPhy = gnbNet->GetPhy(bwpId);
+    Ptr<NrGnbMac> gnbMac = gnbNet->GetMac(bwpId);
+    Ptr<NrMacScheduler> gnbMacScheduler = gnbNet->GetScheduler(bwpId);
+    NS_ASSERT(gnbPhy);
+    NS_ASSERT(gnbMac);
+    NS_ASSERT(gnbMacScheduler);
+
+    // todo: put this data into the actual SIB1 message, as part of ServingCellConfigCommonSIB
+    auto macScheduler = DynamicCast<NrMacSchedulerNs3>(gnbMacScheduler);
+    pProvider->SetDlAmc(macScheduler->GetDlAmc());       // not standard
+    pProvider->SetDlCtrlSyms(gnbMac->GetDlCtrlSyms());   // should be in SIB1
+    pProvider->SetUlCtrlSyms(gnbMac->GetUlCtrlSyms());   // should be in SIB1
+    pProvider->SetNumRbPerRbg(gnbMac->GetNumRbPerRbg()); // Should enforce the 3GPP standard here?
+    pProvider->SetRbOverhead(gnbPhy->GetRbOverhead());   // not standard
+    pProvider->SetSymbolsPerSlot(gnbPhy->GetSymbolsPerSlot()); // should be in SIB1
+    pProvider->SetNumerology(gnbPhy->GetNumerology());         // should be in SIB1
+    pProvider->SetPattern(gnbPhy->GetPattern());               // should be in SIB1
+    pProvider->SetTargetGnb(gnbNet);                           // not standard
 }
 
 } // namespace ns3

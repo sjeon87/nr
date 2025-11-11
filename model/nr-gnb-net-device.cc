@@ -103,8 +103,9 @@ NrGnbNetDevice::RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msg
 
     for (const auto& msg : msgList)
     {
-        uint8_t bwpId = DynamicCast<BwpManagerGnb>(m_componentCarrierManager)
-                            ->RouteIngoingCtrlMsgs(msg, sourceBwpId);
+        //uint8_t bwpId = DynamicCast<BwpManagerGnb>(m_componentCarrierManager)
+        //                    ->RouteIngoingCtrlMsgs(msg, sourceBwpId);
+        auto bwpId = sourceBwpId; // Messages received from a BWP will go up stack from there
         m_ccMap.at(bwpId)->GetPhy()->PhyCtrlMessagesReceived(msg);
     }
 }
@@ -117,8 +118,9 @@ NrGnbNetDevice::RouteOutgoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& ms
 
     for (const auto& msg : msgList)
     {
-        uint8_t bwpId = DynamicCast<BwpManagerGnb>(m_componentCarrierManager)
-                            ->RouteOutgoingCtrlMsg(msg, sourceBwpId);
+        //uint8_t bwpId = DynamicCast<BwpManagerGnb>(m_componentCarrierManager)
+        //                    ->RouteOutgoingCtrlMsg(msg, sourceBwpId);
+        auto bwpId = sourceBwpId; // Each BWP will send to its own ARFCN
         NS_ASSERT_MSG(m_ccMap.size() > bwpId,
                       "Returned bwp " << +bwpId << " is not present. Check your configuration");
         NS_ASSERT_MSG(

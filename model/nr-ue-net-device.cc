@@ -160,10 +160,9 @@ NrUeNetDevice::RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgL
 
     for (const auto& msg : msgList)
     {
-        uint32_t bwpArfcn = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
-                            ->RouteIngoingCtrlMsg(msg, sourceBwpId);
-        auto it = std::find_if(m_ccMap.begin(), m_ccMap.end(), [bwpArfcn](const auto& cc){ return cc.second->GetArfcn() == bwpArfcn;});
-        auto bwpId = std::distance(m_ccMap.begin(), it);
+        //uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
+        //                    ->RouteIngoingCtrlMsg(msg, sourceBwpId);
+        auto bwpId = sourceBwpId; // Messages will go up the stack from current BWP
         m_ccMap.at(bwpId)->GetPhy()->PhyCtrlMessagesReceived(msg);
     }
 }
@@ -176,8 +175,9 @@ NrUeNetDevice::RouteOutgoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msg
 
     for (const auto& msg : msgList)
     {
-        uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
-                            ->RouteOutgoingCtrlMsg(msg, sourceBwpId);
+        //uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
+        //                    ->RouteOutgoingCtrlMsg(msg, sourceBwpId);
+        auto bwpId = sourceBwpId; // Messages will go out via the respective BWPs
         NS_ASSERT_MSG(m_ccMap.size() > bwpId,
                       "Returned bwp " << +bwpId << " is not present. Check your configuration");
         NS_ASSERT_MSG(

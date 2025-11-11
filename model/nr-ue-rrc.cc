@@ -591,7 +591,10 @@ NrUeRrc::InitializeSrb0()
     lcConfig.fiveQi = NrQosFlow::GBR_CONV_VOICE;
     NrMacSapUser* msu =
         m_ccmRrcSapProvider->ConfigureSignalBearer(lcid, lcConfig, rlc->GetNrMacSapUser());
-    m_cmacSapProvider.at(GetPrimaryUlIndex())->AddLc(lcid, lcConfig, msu);
+    for(auto& mac: m_cmacSapProvider)
+    {
+        mac->AddLc(lcid, lcConfig, msu);
+    }
 }
 
 void
@@ -912,7 +915,7 @@ NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformati
 }
 
 void
-NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
+NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId, uint32_t arfcn,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
     NS_LOG_FUNCTION(this);
@@ -1141,10 +1144,15 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             NS_ASSERT(mci.haveCarrierBandwidth);
             // We could reconfigure PHY and BWPs, or we can just switch the primary DL/UL
             // indexes to match the correct frequency
-            if (mci.targetPhysCellId == 2)
+            if (m_previousCellId != mci.targetPhysCellId)
             {
-                SetPrimaryDlIndex(1);
-                SetPrimaryUlIndex(1);
+                auto dlIt = std::find_if(m_cphySapProvider.begin(), m_cphySapProvider.end(), [arfcn = mci.carrierFreq.dlCarrierFreq](auto& phy){ return phy->GetArfcn() == arfcn;});
+                auto ulIt = std::find_if(m_cphySapProvider.begin(), m_cphySapProvider.end(), [arfcn = mci.carrierFreq.ulCarrierFreq](auto& phy){ return phy->GetArfcn() == arfcn;});
+                NS_ASSERT_MSG((dlIt != m_cphySapProvider.end()) || (ulIt != m_cphySapProvider.end()), "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
+                NrHelper::ConfigureUePhyToSib1FromCellId(mci.targetPhysCellId, *dlIt);
+                NrHelper::ConfigureUePhyToSib1FromCellId(mci.targetPhysCellId, *ulIt);
+                SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
+                SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
             }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.dlCarrierFreq);
@@ -1395,12 +1403,11 @@ NrUeRrc::EvaluateCellForSelection()
         m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
 
-        for (auto phyIndex : {GetPrimaryDlIndex(), GetPrimaryUlIndex()})
-        {
-            NrHelper::ConfigureUePhyToSib1FromCellId(m_cellId,
-                                                     phyIndex,
-                                                     m_cphySapProvider.at(phyIndex));
-        }
+        //for (auto phyIndex : {GetPrimaryDlIndex(), GetPrimaryUlIndex()})
+        //{
+        //    NrHelper::ConfigureUePhyToSib1FromCellId(m_cellId,
+        //                                             m_cphySapProvider.at(phyIndex));
+        //}
         // Once the UE is connected, m_connectionPending is
         // set to false. So, when RLF occurs and UE performs
         // cell selection upon leaving RRC_CONNECTED state,

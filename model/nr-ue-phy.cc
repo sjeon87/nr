@@ -696,7 +696,7 @@ NrUePhy::PhyCtrlMessagesReceived(const Ptr<NrControlMessage>& msg)
     {
         Ptr<NrSib1Message> msg2 = DynamicCast<NrSib1Message>(msg);
         m_phyRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
-        m_ueCphySapUser->RecvSystemInformationBlockType1(GetCellId(), msg2->GetSib1());
+        m_ueCphySapUser->RecvSystemInformationBlockType1(GetCellId(), DoGetArfcn(), msg2->GetSib1());
     }
     else if (msg->GetMessageType() == NrControlMessage::RAR)
     {

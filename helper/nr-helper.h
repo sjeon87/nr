@@ -987,12 +987,10 @@ class NrHelper : public Object
      * ID, exist and are valid.
      *
      * @param id The cell ID identifying the specific gNB.
-     * @param bwpId The bandwidth part ID under the specified cell ID.
      * @param pProvider A reference to the UE CPHY SAP provider that will be configured with the
      * SIB1 information.
      */
     static void ConfigureUePhyToSib1FromCellId(uint16_t id,
-                                               uint16_t bwpId,
                                                NrUeCphySapProvider*& pProvider);
     /**
      * Retrieve the gNB NetDevice associated with the given cellId.
