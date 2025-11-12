@@ -990,8 +990,7 @@ class NrHelper : public Object
      * @param pProvider A reference to the UE CPHY SAP provider that will be configured with the
      * SIB1 information.
      */
-    static void ConfigureUePhyToSib1FromCellId(uint16_t id,
-                                               NrUeCphySapProvider*& pProvider);
+    static void ConfigureUePhyToSib1FromCellId(uint16_t id, NrUeCphySapProvider*& pProvider);
     /**
      * Retrieve the gNB NetDevice associated with the given cellId.
      *

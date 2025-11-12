@@ -261,7 +261,8 @@ class NrUeCphySapUser
      * @param cellId the ID of the eNodeB where the message originates from
      * @param sib1 the System Information Block Type 1 message
      */
-    virtual void RecvSystemInformationBlockType1(uint16_t cellId, uint32_t arfcn,
+    virtual void RecvSystemInformationBlockType1(uint16_t cellId,
+                                                 uint32_t arfcn,
                                                  NrRrcSap::SystemInformationBlockType1 sib1) = 0;
 
     /**
@@ -563,7 +564,8 @@ class MemberNrUeCphySapUser : public NrUeCphySapUser
 
     // methods inherited from NrUeCphySapUser go here
     void RecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformationBlock mib) override;
-    void RecvSystemInformationBlockType1(uint16_t cellId, uint32_t arfcn,
+    void RecvSystemInformationBlockType1(uint16_t cellId,
+                                         uint32_t arfcn,
                                          NrRrcSap::SystemInformationBlockType1 sib1) override;
     void ReportUeMeasurements(NrUeCphySapUser::UeMeasurementsParameters params) override;
     void NotifyOutOfSync() override;
@@ -591,7 +593,8 @@ MemberNrUeCphySapUser<C>::RecvMasterInformationBlock(uint16_t cellId,
 template <class C>
 void
 MemberNrUeCphySapUser<C>::RecvSystemInformationBlockType1(
-    uint16_t cellId, uint32_t arfcn,
+    uint16_t cellId,
+    uint32_t arfcn,
     NrRrcSap::SystemInformationBlockType1 sib1)
 {
     m_owner->DoRecvSystemInformationBlockType1(cellId, arfcn, sib1);

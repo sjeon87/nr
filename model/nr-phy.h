@@ -444,15 +444,15 @@ class NrPhy : public Object
 
     virtual void RegisterToGnb(uint16_t cellId);
 
-/**
- * Retrieves the Absolute Radio Frequency Channel Number (ARFCN)
- * of BWP associated with current NrPhy instance.
- *
- * @return The current ARFCN value.
- */
-uint32_t DoGetArfcn() const;
+    /**
+     * Retrieves the Absolute Radio Frequency Channel Number (ARFCN)
+     * of BWP associated with current NrPhy instance.
+     *
+     * @return The current ARFCN value.
+     */
+    uint32_t DoGetArfcn() const;
 
-protected:
+  protected:
     /**
      * @brief DoDispose method inherited from Object
      */

@@ -481,7 +481,8 @@ class NrUeRrc : public Object
      * @param cellId the cell ID
      * @param msg NrRrcSap::SystemInformationBlockType1
      */
-    void DoRecvSystemInformationBlockType1(uint16_t cellId, uint32_t arfcn,
+    void DoRecvSystemInformationBlockType1(uint16_t cellId,
+                                           uint32_t arfcn,
                                            NrRrcSap::SystemInformationBlockType1 msg);
     /**
      * Report UE measurements function

@@ -8,6 +8,7 @@
 #include "ns3/bulk-send-helper.h"
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/isotropic-antenna-model.h"
 #include "ns3/mobility-module.h"
 #include "ns3/network-module.h"
 #include "ns3/nr-module.h"
@@ -15,7 +16,6 @@
 #include "ns3/packet-sink.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/udp-client-server-helper.h"
-#include "ns3/isotropic-antenna-model.h"
 
 using namespace ns3;
 
@@ -339,9 +339,7 @@ NrX2HandoverMeasuresTestCase::DoRun()
 
     // Create and set the channel with the band
     CcBwpCreator ccBwpCreator;
-    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9,
-                                                   10e6,
-                                                   static_cast<uint8_t>(1));
+    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9, 10e6, static_cast<uint8_t>(1));
     OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
     channelHelper->AssignChannelsToBands({band});
 

@@ -61,7 +61,8 @@ class NrMemberPhySapProvider : public NrPhySapProvider
     uint32_t GetRbNum() const override;
 
     void RegisterToGnb(uint16_t cellId) override;
- private:
+
+  private:
     NrPhy* m_phy;
 };
 
@@ -151,6 +152,7 @@ NrMemberPhySapProvider::RegisterToGnb(uint16_t cellId)
 {
     m_phy->RegisterToGnb(cellId);
 }
+
 /* ======= */
 
 TypeId
@@ -980,7 +982,6 @@ NrPhy::ArfcnToFrequencyHz(uint32_t arfcn)
 void
 NrPhy::RegisterToGnb(uint16_t i)
 {
-
 }
 
 } // namespace ns3

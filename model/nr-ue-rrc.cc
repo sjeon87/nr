@@ -591,7 +591,7 @@ NrUeRrc::InitializeSrb0()
     lcConfig.fiveQi = NrQosFlow::GBR_CONV_VOICE;
     NrMacSapUser* msu =
         m_ccmRrcSapProvider->ConfigureSignalBearer(lcid, lcConfig, rlc->GetNrMacSapUser());
-    for(auto& mac: m_cmacSapProvider)
+    for (auto& mac : m_cmacSapProvider)
     {
         mac->AddLc(lcid, lcConfig, msu);
     }
@@ -915,7 +915,8 @@ NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformati
 }
 
 void
-NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId, uint32_t arfcn,
+NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
+                                           uint32_t arfcn,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
     NS_LOG_FUNCTION(this);
@@ -1146,9 +1147,19 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             // indexes to match the correct frequency
             if (m_previousCellId != mci.targetPhysCellId)
             {
-                auto dlIt = std::find_if(m_cphySapProvider.begin(), m_cphySapProvider.end(), [arfcn = mci.carrierFreq.dlCarrierFreq](auto& phy){ return phy->GetArfcn() == arfcn;});
-                auto ulIt = std::find_if(m_cphySapProvider.begin(), m_cphySapProvider.end(), [arfcn = mci.carrierFreq.ulCarrierFreq](auto& phy){ return phy->GetArfcn() == arfcn;});
-                NS_ASSERT_MSG((dlIt != m_cphySapProvider.end()) || (ulIt != m_cphySapProvider.end()), "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
+                auto dlIt = std::find_if(m_cphySapProvider.begin(),
+                                         m_cphySapProvider.end(),
+                                         [arfcn = mci.carrierFreq.dlCarrierFreq](auto& phy) {
+                                             return phy->GetArfcn() == arfcn;
+                                         });
+                auto ulIt = std::find_if(m_cphySapProvider.begin(),
+                                         m_cphySapProvider.end(),
+                                         [arfcn = mci.carrierFreq.ulCarrierFreq](auto& phy) {
+                                             return phy->GetArfcn() == arfcn;
+                                         });
+                NS_ASSERT_MSG(
+                    (dlIt != m_cphySapProvider.end()) || (ulIt != m_cphySapProvider.end()),
+                    "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
                 NrHelper::ConfigureUePhyToSib1FromCellId(mci.targetPhysCellId, *dlIt);
                 NrHelper::ConfigureUePhyToSib1FromCellId(mci.targetPhysCellId, *ulIt);
                 SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
@@ -1403,20 +1414,20 @@ NrUeRrc::EvaluateCellForSelection()
         m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
 
-        //for (auto phyIndex : {GetPrimaryDlIndex(), GetPrimaryUlIndex()})
+        // for (auto phyIndex : {GetPrimaryDlIndex(), GetPrimaryUlIndex()})
         //{
-        //    NrHelper::ConfigureUePhyToSib1FromCellId(m_cellId,
-        //                                             m_cphySapProvider.at(phyIndex));
-        //}
-        // Once the UE is connected, m_connectionPending is
-        // set to false. So, when RLF occurs and UE performs
-        // cell selection upon leaving RRC_CONNECTED state,
-        // the following call to DoConnect will make the
-        // m_connectionPending to be true again. Thus,
-        // upon calling SwitchToState (IDLE_CAMPED_NORMALLY)
-        // UE state is instantly change to IDLE_WAIT_SIB2.
-        // This will make the UE to read the SIB2 message
-        // and start random access.
+        //     NrHelper::ConfigureUePhyToSib1FromCellId(m_cellId,
+        //                                              m_cphySapProvider.at(phyIndex));
+        // }
+        //  Once the UE is connected, m_connectionPending is
+        //  set to false. So, when RLF occurs and UE performs
+        //  cell selection upon leaving RRC_CONNECTED state,
+        //  the following call to DoConnect will make the
+        //  m_connectionPending to be true again. Thus,
+        //  upon calling SwitchToState (IDLE_CAMPED_NORMALLY)
+        //  UE state is instantly change to IDLE_WAIT_SIB2.
+        //  This will make the UE to read the SIB2 message
+        //  and start random access.
         if (!m_connectionPending)
         {
             NS_LOG_DEBUG("Calling DoConnect in state = " << ToString(m_state));

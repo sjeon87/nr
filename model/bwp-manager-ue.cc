@@ -60,6 +60,7 @@ BwpManagerUe::DoTransmitBufferStatusReport(NrMacSapProvider::BufferStatusReportP
     {
         bwpIndex = m_algorithm->GetBwpForQosFlow(m_lcToFlowMap.at(params.lcid));
     }
+    bwpIndex = m_getPrimaryUlFn();
     NS_LOG_DEBUG("BSR of size " << params.txQueueSize
                                 << " from RLC for LCID = " << static_cast<uint32_t>(params.lcid)
                                 << " traffic type " << m_lcToFlowMap.at(params.lcid)
@@ -150,6 +151,12 @@ Ptr<const BwpManagerAlgorithm>
 BwpManagerUe::GetAlgorithm() const
 {
     return m_algorithm;
+}
+
+void
+BwpManagerUe::SetGetPrimaryUlFn(std::function<uint8_t()> fn)
+{
+    m_getPrimaryUlFn = fn;
 }
 
 } // namespace ns3

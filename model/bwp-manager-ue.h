@@ -89,6 +89,18 @@ class BwpManagerUe : public NrSimpleUeComponentCarrierManager
      */
     void SetOutputLink(uint32_t sourceBwp, uint32_t outputBwp);
 
+    /**
+     * @brief Set a callback function to retrieve the primary uplink index.
+     *
+     * This function assigns a callback that is used to obtain the primary
+     * uplink index. The callback must be a callable object or function
+     * returning a uint8_t value, defining the primary uplink index to be
+     * used by the system.
+     *
+     * @param fn The callback function returning a uint8_t value.
+     */
+    void SetGetPrimaryUlFn(std::function<uint8_t()> fn);
+
   protected:
     void DoTransmitBufferStatusReport(
         NrMacSapProvider::BufferStatusReportParameters params) override;
@@ -110,6 +122,8 @@ class BwpManagerUe : public NrSimpleUeComponentCarrierManager
     std::unordered_map<uint8_t, NrQosFlow::FiveQi> m_lcToFlowMap; //!< Map from LCID to QoS flow ID
 
     std::unordered_map<uint32_t, uint32_t> m_outputLinks; //!< Mapping between BWP.
+    std::function<uint8_t()>
+        m_getPrimaryUlFn; //!< Callback to retrieve primary UL BWP index from RRC
 };
 
 } // namespace ns3

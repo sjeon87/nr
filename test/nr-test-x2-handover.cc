@@ -6,8 +6,10 @@
 
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/isotropic-antenna-model.h"
 #include "ns3/mobility-module.h"
 #include "ns3/network-module.h"
+#include "ns3/nr-channel-helper.h"
 #include "ns3/nr-gnb-net-device.h"
 #include "ns3/nr-gnb-rrc.h"
 #include "ns3/nr-helper.h"
@@ -20,8 +22,6 @@
 #include "ns3/packet-sink.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/udp-client-server-helper.h"
-#include "ns3/isotropic-antenna-model.h"
-#include "ns3/nr-channel-helper.h"
 
 using namespace ns3;
 
@@ -280,9 +280,7 @@ NrX2HandoverTestCase::DoRun()
 
     // Create and set the channel with the band
     CcBwpCreator ccBwpCreator;
-    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9,
-                                                   5e6,
-                                                   static_cast<uint8_t>(1));
+    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9, 5e6, static_cast<uint8_t>(1));
     OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
     channelHelper->AssignChannelsToBands({band});
 
@@ -291,9 +289,7 @@ NrX2HandoverTestCase::DoRun()
     allBwps = CcBwpCreator::GetAllBwps({band});
 
     // Create and set the channel with the band
-    CcBwpCreator::SimpleOperationBandConf bandConf2(2.9e9,
-                                                   5e6,
-                                                   static_cast<uint8_t>(1));
+    CcBwpCreator::SimpleOperationBandConf bandConf2(2.9e9, 5e6, static_cast<uint8_t>(1));
     OperationBandInfo band2 = ccBwpCreator.CreateOperationBandContiguousCc(bandConf2);
     channelHelper->AssignChannelsToBands({band2});
 
@@ -313,9 +309,7 @@ NrX2HandoverTestCase::DoRun()
     }
 
     NetDeviceContainer ueDevices;
-    ueDevices = m_nrHelper->InstallUeDevice(
-        ueNodes,
-        {allBwps.front(), allBwps2.front()});
+    ueDevices = m_nrHelper->InstallUeDevice(ueNodes, {allBwps.front(), allBwps2.front()});
     stream += m_nrHelper->AssignStreams(ueDevices, stream);
 
     Ipv4Address remoteHostAddr;

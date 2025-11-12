@@ -534,6 +534,8 @@ NrHelper::InstallSingleUeDevice(
     rrc->SetNrCcmRrcSapProvider(ccmUe->GetNrCcmRrcSapProvider());
     ccmUe->SetNrCcmRrcSapUser(rrc->GetNrCcmRrcSapUser());
     ccmUe->SetNumberOfComponentCarriers(ueCcMap.size());
+    DynamicCast<BwpManagerUe>(ccmUe)->SetGetPrimaryUlFn(
+        [rrc]() { return rrc->GetPrimaryUlIndex(); });
 
     if (m_useIdealRrc)
     {
@@ -2061,8 +2063,7 @@ NrHelper::RetrieveGnbNetDevFromCellId(uint16_t cellId)
 }
 
 void
-NrHelper::ConfigureUePhyToSib1FromCellId(uint16_t cellId,
-                                         ns3::NrUeCphySapProvider*& pProvider)
+NrHelper::ConfigureUePhyToSib1FromCellId(uint16_t cellId, ns3::NrUeCphySapProvider*& pProvider)
 {
     auto gnbNet = RetrieveGnbNetDevFromCellId(cellId);
     NS_ASSERT(gnbNet);

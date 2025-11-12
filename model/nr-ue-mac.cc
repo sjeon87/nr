@@ -54,6 +54,7 @@ class UeMemberNrUeCmacSapProvider : public NrUeCmacSapProvider
     void NotifyConnectionSuccessful() override;
     void SetImsi(uint64_t imsi) override;
     void RegisterToGnb(uint16_t cellId) override;
+
   private:
     NrUeMac* m_mac;
 };
