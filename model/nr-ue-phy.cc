@@ -439,7 +439,7 @@ NrUePhy::SendRachPreamble(uint32_t PreambleId, uint32_t Rnti)
     NS_LOG_FUNCTION(this << PreambleId);
     m_raPreambleId = PreambleId;
     Ptr<NrRachPreambleMessage> msg = Create<NrRachPreambleMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     msg->SetRapId(PreambleId);
     EnqueueCtrlMsgNow(msg);
 }
@@ -1037,7 +1037,7 @@ NrUePhy::UlSrs(const std::shared_ptr<DciInfoElementTdma>& dci)
 
     std::list<Ptr<NrControlMessage>> srsMsg;
     Ptr<NrSrsMessage> srs = Create<NrSrsMessage>();
-    srs->SetSourceBwp(GetBwpId());
+    srs->SetSourceBwpArfcn(DoGetArfcn());
     srsMsg.emplace_back(srs);
     Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
 
@@ -1326,7 +1326,7 @@ NrUePhy::CreateDlCqiFeedbackMessage(const SpectrumValue& sinr)
     NS_LOG_FUNCTION(this);
     // Create DL CQI CTRL message
     Ptr<NrDlCqiMessage> msg = Create<NrDlCqiMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     DlCqiInfo dlcqi;
 
     dlcqi.m_rnti = m_rnti;
@@ -1367,7 +1367,7 @@ NrUePhy::EnqueueDlHarqFeedback(const DlHarqInfo& m)
     NS_LOG_FUNCTION(this);
     // get the feedback from NrSpectrumPhy and send it through ideal PUCCH to gNB
     Ptr<NrDlHarqFeedbackMessage> msg = Create<NrDlHarqFeedbackMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     msg->SetDlHarqFeedback(m);
 
     auto k1It = m_harqIdToK1Map.find(m.m_harqProcessId);
@@ -1937,7 +1937,7 @@ NrUePhy::GenerateDlCqiReportMimo(const NrMimoSignal& rxSignal,
     m_cqiFeedbackTrace(m_rnti, cqi.m_wbCqi, cqi.m_mcs, cqi.m_rank);
 
     auto msg = Create<NrDlCqiMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     msg->SetDlCqi(dlcqi);
 
     DoSendControlMessage(msg);

@@ -154,14 +154,23 @@ NrUeNetDevice::EnqueueDlHarqFeedback(const DlHarqInfo& m) const
 
 void
 NrUeNetDevice::RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgList,
-                                    uint8_t sourceBwpId)
+                                    uint32_t sourceBwpArfcn)
 {
     NS_LOG_FUNCTION(this);
 
     for (const auto& msg : msgList)
     {
-        uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
-                            ->RouteIngoingCtrlMsg(msg, sourceBwpId);
+        uint32_t bwpArfcn = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
+                                ->RouteIngoingCtrlMsg(msg, sourceBwpArfcn);
+        uint8_t bwpId = 0;
+        for (uint8_t i = 0; i < m_ccMap.size(); i++)
+        {
+            if (m_ccMap.at(i)->GetArfcn() == bwpArfcn)
+            {
+                bwpId = i;
+                break;
+            }
+        }
         m_ccMap.at(bwpId)->GetPhy()->PhyCtrlMessagesReceived(msg);
     }
 }

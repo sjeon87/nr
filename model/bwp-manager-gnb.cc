@@ -90,8 +90,14 @@ BwpManagerGnb::GetBwpIndex(uint16_t rnti, uint8_t lcid)
     uint8_t fiveQi = m_ueInfo[rnti].m_rlcLcInstantiated[lcid].fiveQi;
 
     // Force a conversion between the uint8_t type that comes from the LcInfo
-    // struct (yeah, using the NrQosFlow::FiveQi type was too hard ...)
-    return m_algorithm->GetBwpForQosFlow(static_cast<NrQosFlow::FiveQi>(fiveQi));
+    // struct (yeah, using the NrEpsBearer::Qci type was too hard ...)
+    uint8_t dataBwpId = m_algorithm->GetBwpForQosFlow(static_cast<NrQosFlow::FiveQi>(fiveQi));
+    // If BWP associated to bearer is not set, use the default BWP
+    if (dataBwpId == 6)
+    {
+        dataBwpId = 0;
+    }
+    return dataBwpId;
 }
 
 uint8_t
@@ -112,14 +118,15 @@ BwpManagerGnb::PeekBwpIndex(uint16_t rnti, uint8_t lcid) const
     return m_algorithm->GetBwpForQosFlow(static_cast<NrQosFlow::FiveQi>(fiveQi));
 }
 
-uint8_t
-BwpManagerGnb::RouteIngoingCtrlMsgs(const Ptr<NrControlMessage>& msg, uint8_t sourceBwpId) const
+uint32_t
+BwpManagerGnb::RouteIngoingCtrlMsgs(const Ptr<NrControlMessage>& msg, uint32_t sourceBwpArfcn) const
 {
     NS_LOG_FUNCTION(this);
 
-    NS_LOG_INFO("Msg type " << msg->GetMessageType() << " from bwp " << +sourceBwpId
-                            << " that wants to go in the gnb, goes in BWP " << msg->GetSourceBwp());
-    return msg->GetSourceBwp();
+    NS_LOG_INFO("Msg type " << msg->GetMessageType() << " from bwp " << +sourceBwpArfcn
+                            << " that wants to go in the gnb, goes in BWP with ARFCN "
+                            << msg->GetSourceBwpArfcn());
+    return msg->GetSourceBwpArfcn();
 }
 
 uint8_t

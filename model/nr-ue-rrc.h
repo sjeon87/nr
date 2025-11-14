@@ -1354,6 +1354,7 @@ class NrUeRrc : public Object
      */
     void ResetRlfParams();
     std::size_t GetArfcnBwpId(uint32_t arfcn) const;
+
   public:
     /**
      * The number of component carriers.

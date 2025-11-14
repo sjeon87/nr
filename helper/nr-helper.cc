@@ -491,12 +491,14 @@ NrHelper::InstallSingleUeDevice(
         auto mac = CreateUeMac();
         cc->SetMac(mac);
 
-        auto phy = CreateUePhy(
-            n,
-            allBwps[bwpId].get(),
-            dev,
-            MakeCallback(&NrUeNetDevice::EnqueueDlHarqFeedback, dev),
-            std::bind(&NrUeNetDevice::RouteIngoingCtrlMsgs, dev, std::placeholders::_1, bwpId));
+        auto phy = CreateUePhy(n,
+                               allBwps[bwpId].get(),
+                               dev,
+                               MakeCallback(&NrUeNetDevice::EnqueueDlHarqFeedback, dev),
+                               std::bind(&NrUeNetDevice::RouteIngoingCtrlMsgs,
+                                         dev,
+                                         std::placeholders::_1,
+                                         cc->GetArfcn()));
 
         phy->SetBwpId(bwpId);
         cc->SetPhy(phy);

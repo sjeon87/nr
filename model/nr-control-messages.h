@@ -73,16 +73,16 @@ class NrControlMessage : public SimpleRefCount<NrControlMessage>
 
     /**
      * @brief Set the BWP in which this message has been generated
-     * @param bwpId the BwpId
+     * @param arfcn the BWP arfcn
      */
-    void SetSourceBwp(uint16_t bwpId);
+    void SetSourceBwpArfcn(uint32_t arfcn);
 
     /**
      * @return the BWP in which this message has been generated
      *
-     * If SetSourceBwp() is not called beforehand, the method will ABORT.
+     * If SetSourceBwpArfcn() is not called beforehand, the method will ABORT.
      */
-    uint16_t GetSourceBwp() const;
+    uint32_t GetSourceBwpArfcn() const;
 
   protected:
     /**
@@ -93,7 +93,7 @@ class NrControlMessage : public SimpleRefCount<NrControlMessage>
 
   private:
     messageType m_messageType; //!< The message type
-    int32_t m_bwpId{-1};       //!< Source BWP.
+    uint32_t m_arfcn{0};       //!< Source BWP arfcn.
 };
 
 /**

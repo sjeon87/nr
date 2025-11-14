@@ -528,7 +528,7 @@ NrUeMac::SendBufferStatusReport(const SfnSf& dataSfn, uint8_t symStart)
 
     // create the message. It is used only for tracing, but we don't send it...
     Ptr<NrBsrMessage> msg = Create<NrBsrMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     msg->SetBsr(bsr);
 
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), bsr.m_rnti, GetBwpId(), msg);
@@ -644,7 +644,7 @@ NrUeMac::SendSR() const
 
     // create the SR to send to the gNB
     Ptr<NrSRMessage> msg = Create<NrSRMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     msg->SetRNTI(m_rnti);
 
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
@@ -1275,7 +1275,7 @@ NrUeMac::SendRaPreamble(bool contention)
 
     // Tracing purposes
     Ptr<NrRachPreambleMessage> rachMsg = Create<NrRachPreambleMessage>();
-    rachMsg->SetSourceBwp(GetBwpId());
+    rachMsg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), rachMsg);
 }
 

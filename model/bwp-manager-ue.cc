@@ -55,10 +55,14 @@ BwpManagerUe::DoTransmitBufferStatusReport(NrMacSapProvider::BufferStatusReportP
     NS_LOG_FUNCTION(this);
     NS_ASSERT(m_algorithm != nullptr);
 
+    uint8_t dataBwpIndex = m_algorithm->GetBwpForQosFlow(m_lcToFlowMap.at(params.lcid));
     uint8_t bwpIndex = m_getPrimaryUlFn();
-    if (params.lcid > 1)
+    // Control (LCID 0 and 1) always go through primary BWP index
+    // Data (LCID 1-5) go through the BWP associated with EPS bearer,
+    // if not equals to 6 (arbitrary value to indicate no BWP association)
+    if (params.lcid > 1 && dataBwpIndex != 6)
     {
-        bwpIndex = m_algorithm->GetBwpForQosFlow(m_lcToFlowMap.at(params.lcid));
+        bwpIndex = dataBwpIndex;
     }
 
     NS_LOG_DEBUG("BSR of size " << params.txQueueSize
@@ -137,14 +141,15 @@ BwpManagerUe::RouteOutgoingCtrlMsg(const Ptr<NrControlMessage>& msg, uint8_t sou
     return it->second;
 }
 
-uint8_t
-BwpManagerUe::RouteIngoingCtrlMsg(const Ptr<NrControlMessage>& msg, uint8_t sourceBwpId) const
+uint32_t
+BwpManagerUe::RouteIngoingCtrlMsg(const Ptr<NrControlMessage>& msg, uint32_t sourceBwpId) const
 {
     NS_LOG_FUNCTION(this);
 
     NS_LOG_INFO("Msg type " << msg->GetMessageType() << " comes from BWP " << +sourceBwpId
-                            << " that wants to go in the UE, goes in BWP " << msg->GetSourceBwp());
-    return msg->GetSourceBwp();
+                            << " that wants to go in the UE, goes in BWP "
+                            << msg->GetSourceBwpArfcn());
+    return msg->GetSourceBwpArfcn();
 }
 
 Ptr<const BwpManagerAlgorithm>

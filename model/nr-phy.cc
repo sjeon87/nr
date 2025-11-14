@@ -62,6 +62,8 @@ class NrMemberPhySapProvider : public NrPhySapProvider
 
     void RegisterToGnb(uint16_t cellId) override;
 
+    uint32_t GetArfcn() const override;
+
   private:
     NrPhy* m_phy;
 };
@@ -151,6 +153,12 @@ void
 NrMemberPhySapProvider::RegisterToGnb(uint16_t cellId)
 {
     m_phy->RegisterToGnb(cellId);
+}
+
+uint32_t
+NrMemberPhySapProvider::GetArfcn() const
+{
+    return m_phy->DoGetArfcn();
 }
 
 /* ======= */

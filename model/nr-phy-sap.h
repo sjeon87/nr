@@ -137,6 +137,8 @@ class NrPhySapProvider
     virtual uint32_t GetRbNum() const = 0;
 
     virtual void RegisterToGnb(uint16_t cellId) = 0;
+
+    virtual uint32_t GetArfcn() const = 0;
 };
 
 /**

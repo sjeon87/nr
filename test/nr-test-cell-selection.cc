@@ -277,7 +277,10 @@ NrCellSelectionTestCase::DoRun()
         NS_ASSERT(ueNas);
 
         // Enable idle mode cell selection
-        Simulator::Schedule(MilliSeconds(20), &NrEpcUeNas::StartCellSelection, ueNas, NrPhy::FrequencyHzToArfcn(2.8e9));
+        Simulator::Schedule(MilliSeconds(20),
+                            &NrEpcUeNas::StartCellSelection,
+                            ueNas,
+                            NrPhy::FrequencyHzToArfcn(2.8e9));
 
         ueDevs.Add(devs);
         Simulator::Schedule(itSetup->checkPoint,
