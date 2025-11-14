@@ -1371,6 +1371,19 @@ NrUeRrc::SynchronizeToStrongestCell()
 
 } // end of void NrUeRrc::SynchronizeToStrongestCell ()
 
+std::size_t
+NrUeRrc::GetArfcnBwpId(uint32_t arfcn) const
+{
+    for (std::size_t i = 0; i < m_cphySapProvider.size(); i++)
+    {
+        if (m_cphySapProvider.at(i)->GetArfcn() == arfcn)
+        {
+            return i;
+        }
+    }
+    NS_FATAL_ERROR("No BWP found with arfcn " << arfcn);
+}
+
 void
 NrUeRrc::EvaluateCellForSelection()
 {
