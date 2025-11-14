@@ -810,10 +810,14 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
     switch (m_state)
     {
     case IDLE_START:
-        m_cellId = cellId;
-        m_initDlArfcn = arfcn;
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
-        SwitchToState(IDLE_WAIT_MIB);
+        {
+            m_cellId = cellId;
+            m_initDlArfcn = arfcn;
+            auto bwpId = GetArfcnBwpId(arfcn);
+            SetPrimaryDlIndex(bwpId);
+            m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
+            SwitchToState(IDLE_WAIT_MIB);
+        }
         break;
 
     case IDLE_CELL_SEARCH:
@@ -1424,15 +1428,14 @@ NrUeRrc::EvaluateCellForSelection()
     {
         m_cellId = cellId;
         //todo: search if a BWP has this ARFCN, if not, create a new BWP, switch primary DL/UL indexes, then configure it
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(cellId, m_initDlArfcn);
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
+        auto bwpId = GetArfcnBwpId(m_initDlArfcn);
+        SetPrimaryDlIndex(bwpId);
+        m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(cellId, m_initDlArfcn);
+        m_cphySapProvider.at(bwpId)->SetDlBandwidth(m_dlBandwidth);
+        NrHelper::ConfigureUePhyToSib1FromCellId(m_cellId,
+                                                     m_cphySapProvider.at(bwpId));
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
 
-        // for (auto phyIndex : {GetPrimaryDlIndex(), GetPrimaryUlIndex()})
-        //{
-        //     NrHelper::ConfigureUePhyToSib1FromCellId(m_cellId,
-        //                                              m_cphySapProvider.at(phyIndex));
-        // }
         //  Once the UE is connected, m_connectionPending is
         //  set to false. So, when RLF occurs and UE performs
         //  cell selection upon leaving RRC_CONNECTED state,
