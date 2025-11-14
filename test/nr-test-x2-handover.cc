@@ -243,7 +243,7 @@ NrX2HandoverTestCase::DoRun()
     // todo:
     // m_nrHelper->SetSchedulerType(m_schedulerType);
     m_nrHelper->SetHandoverAlgorithmType(
-        "ns3::NoOpHandoverAlgorithm"); // disable automatic handover
+        "ns3::NrNoOpHandoverAlgorithm"); // disable automatic handover
     m_nrHelper->SetAttribute("UseIdealRrc", BooleanValue(m_useIdealRrc));
 
     NodeContainer gnbNodes;
