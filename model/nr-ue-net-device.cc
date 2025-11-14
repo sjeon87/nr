@@ -175,9 +175,8 @@ NrUeNetDevice::RouteOutgoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msg
 
     for (const auto& msg : msgList)
     {
-        // uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
-        //                     ->RouteOutgoingCtrlMsg(msg, sourceBwpId);
-        auto bwpId = sourceBwpId; // Messages will go out via the respective BWPs
+        uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
+                            ->RouteOutgoingCtrlMsg(msg, sourceBwpId);
         NS_ASSERT_MSG(m_ccMap.size() > bwpId,
                       "Returned bwp " << +bwpId << " is not present. Check your configuration");
         NS_ASSERT_MSG(
