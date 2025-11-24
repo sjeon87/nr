@@ -6,6 +6,7 @@
 #define NR_GNB_NET_DEVICE_H
 
 #include "nr-fh-control.h"
+#include "nr-handover-algorithm.h"
 #include "nr-net-device.h"
 
 #include "ns3/deprecated.h"
@@ -197,6 +198,7 @@ class NrGnbNetDevice : public NrNetDevice
 
   private:
     Ptr<NrGnbRrc> m_rrc;
+    Ptr<NrHandoverAlgorithm> m_handoverAlgorithm; ///< the handover algorithm
 
     uint16_t m_cellId; //!< Cell ID. Set by the helper.
 

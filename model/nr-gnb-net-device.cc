@@ -46,7 +46,12 @@ NrGnbNetDevice::GetTypeId()
                           "The RRC layer associated with the gNB",
                           PointerValue(),
                           MakePointerAccessor(&NrGnbNetDevice::m_rrc),
-                          MakePointerChecker<NrGnbRrc>());
+                          MakePointerChecker<NrGnbRrc>())
+            .AddAttribute("NrHandoverAlgorithm",
+                          "The handover algorithm associated to this GnbNetDevice",
+                          PointerValue(),
+                          MakePointerAccessor(&NrGnbNetDevice::m_handoverAlgorithm),
+                          MakePointerChecker<NrHandoverAlgorithm>());
     return tid;
 }
 
@@ -261,6 +266,7 @@ NrGnbNetDevice::ConfigureCell()
     NS_ASSERT_MSG(!m_ccMap.empty(), "Component carrier map is empty");
     m_isCellConfigured = true;
     m_rrc->ConfigureCell(m_ccMap);
+    m_handoverAlgorithm->Initialize();
 }
 
 bool
