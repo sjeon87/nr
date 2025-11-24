@@ -401,6 +401,8 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
     double gNbHeight = 3;
     // UE antenna height is 1.5 meters
     double ueHeight = 1.5;
+    // whether to disable fast fading in 3GPP channel model, for calibration purposes
+    bool disableFastFading = true;
 
     NS_ABORT_MSG_UNLESS(indoorScenario == "InH-OfficeOpen" || indoorScenario == "InH-OfficeMixed",
                         "The scenario is not supported");
@@ -573,6 +575,14 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
     OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
     // Set and create the channel for the band
     channelHelper->SetPathlossAttribute("ShadowingEnabled", BooleanValue(enableShadowing));
+
+    if (disableFastFading)
+    {
+        channelHelper->SetPhasedArraySpectrumPropagationLossModelAttribute(
+            "ChannelModel",
+            StringValue("ns3::ThreeGppNoFFChannelModel"));
+    }
+
     channelHelper->AssignChannelsToBands({band});
     allBwps = CcBwpCreator::GetAllBwps({band});
 
