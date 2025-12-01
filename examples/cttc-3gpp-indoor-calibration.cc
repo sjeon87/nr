@@ -578,6 +578,14 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
 
     if (disableFastFading)
     {
+        // Config::SetDefault("ns3::ThreeGppNoFFChannelModel::NoFFModelType",
+        //                  EnumValue(ThreeGppNoFFChannelModel::ALL_ONES));
+        // Config::SetDefault("ns3::ThreeGppNoFFChannelModel::NoFFModelType",
+        //                  EnumValue(ThreeGppNoFFChannelModel::CHATGPT));
+        // Config::SetDefault("ns3::ThreeGppNoFFChannelModel::NoFFModelType",
+        //                 EnumValue(ThreeGppNoFFChannelModel::SLAGEN));
+        Config::SetDefault("ns3::ThreeGppNoFFChannelModel::NoFFModelType",
+                           EnumValue(ThreeGppNoFFChannelModel::GROK));
         channelHelper->SetPhasedArraySpectrumPropagationLossModelAttribute(
             "ChannelModel",
             StringValue("ns3::ThreeGppNoFFChannelModel"));
