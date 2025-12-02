@@ -106,9 +106,6 @@ class ThreeGppNoFFChannelModel : public ThreeGppChannelModel
      * and beamforming characteristics while eliminating fast fading and random ray
      * construction.
      *
-     * After forming the deterministic matrix, the Frobenius norm is scaled to a
-     * target value (e.g., Nr * Nt), preserving consistency with 3GPP link-budget
-     * conventions in a deterministic setting.
      *
      * This model is best suited for realistic indoor/outdoor downlink geometry
      * studies, deterministic MIMO evaluations, and scenarios requiring physically
@@ -148,10 +145,6 @@ class ThreeGppNoFFChannelModel : public ThreeGppChannelModel
      * polarization. For example, such an assumption is typically used to compute
      * the DL geometry in calibration scenarios, based on a single antenna port.
      *
-     * After construction, the channel matrix is normalized so that its Frobenius
-     * norm squared matches the desired target norm (e.g., Nr * Nt), ensuring
-     * consistent link-budget scaling while maintaining the intended uniform
-     * structure.
      *
      * This model is most suitable for simplified geometry checks or for scenarios
      * where a scalar effective channel is desired across a MIMO array.
@@ -188,9 +181,6 @@ class ThreeGppNoFFChannelModel : public ThreeGppChannelModel
      * out to remove amplitude variation. Thus, all directions have equal intrinsic
      * per-element gain while maintaining realistic phase aperture behavior.
      *
-     * After construction, the entire matrix is normalized to match the desired
-     * Frobenius norm (e.g., Nr * Nt), providing consistent power scaling across
-     * MIMO sizes while leaving the intentional spatial structure unchanged.
      *
      * This model is suitable for controlled geometry tests, beamforming logic
      * evaluation, or scenarios where spatial phases are desired without the

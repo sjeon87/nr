@@ -253,49 +253,6 @@ ThreeGppNoFFChannelModel::GetChatGptNoFF(Ptr<const ThreeGppChannelParams> channe
         }
     }
 
-    // Deterministic channel normalization
-    // Objetive: ||H||^2 (only cluster 0) = Nr * Nt
-    double norm2 = 0.0;
-    for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-    {
-        for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-        {
-            norm2 += std::norm(hUsn(uIndex, sIndex, 0));
-        }
-    }
-
-    // Small threshold to catch “effectively zero”
-    const double eps = 1e-12;
-    double targetNorm2 = static_cast<double>(uSize) * static_cast<double>(sSize);
-
-    if (norm2 <= eps)
-    {
-        NS_LOG_WARN("ThreeGppChannelModel (DisableFastFading): "
-                    "channel norm ~ 0 (pattern zero everywhere?). "
-                    "Falling back to unity channel with ||H||^2 = Nr*Nt.");
-
-        // Fallback: H(u,s) = 1, so ||H||^2 = Nr*Nt exactly
-        for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-        {
-            for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-            {
-                hUsn(uIndex, sIndex, 0) = std::complex<double>(1.0, 0.0);
-            }
-        }
-    }
-    else
-    {
-        double alpha = std::sqrt(targetNorm2 / norm2);
-
-        for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-        {
-            for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-            {
-                hUsn(uIndex, sIndex, 0) *= alpha;
-            }
-        }
-    }
-
     double channelNorm = 0.0;
     NS_LOG_DEBUG("Husn (sAntenna, uAntenna):" << sAntenna->GetId() << ", " << uAntenna->GetId());
     for (size_t cIndex = 0; cIndex < hUsn.GetNumPages(); cIndex++)
@@ -462,50 +419,6 @@ ThreeGppNoFFChannelModel::GetSLagenNoFF(Ptr<const ThreeGppChannelParams> channel
     NS_LOG_INFO("Uniform coefficient (real, imag) = (" << uniformCoeff.real() << ", "
                                                        << uniformCoeff.imag() << ")");
 
-    // Deterministic channel normalization
-    // Objetive: ||H||^2 (only cluster 0) = Nr * Nt
-
-    double norm2 = 0.0;
-    for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-    {
-        for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-        {
-            norm2 += std::norm(hUsn(uIndex, sIndex, 0));
-        }
-    }
-
-    // Small threshold to catch “effectively zero”
-    const double eps = 1e-12;
-    double targetNorm2 = static_cast<double>(uSize) * static_cast<double>(sSize);
-
-    if (norm2 <= eps)
-    {
-        NS_LOG_WARN("ThreeGppChannelModel (DisableFastFading): "
-                    "channel norm ~ 0 (pattern zero everywhere?). "
-                    "Falling back to unity channel with ||H||^2 = Nr*Nt.");
-
-        // Fallback: H(u,s) = 1, so ||H||^2 = Nr*Nt exactly
-        for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-        {
-            for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-            {
-                hUsn(uIndex, sIndex, 0) = std::complex<double>(1.0, 0.0);
-            }
-        }
-    }
-    else
-    {
-        double alpha = std::sqrt(targetNorm2 / norm2);
-
-        for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-        {
-            for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-            {
-                hUsn(uIndex, sIndex, 0) *= alpha;
-            }
-        }
-    }
-
     double channelNorm = 0.0;
     NS_LOG_DEBUG("Husn (sAntenna, uAntenna):" << sAntenna->GetId() << ", " << uAntenna->GetId());
     for (size_t cIndex = 0; cIndex < hUsn.GetNumPages(); cIndex++)
@@ -631,49 +544,6 @@ ThreeGppNoFFChannelModel::GetGrokNoFF(Ptr<const ThreeGppChannelParams> channelPa
             // Else, detRay remains 0 (poor directivity)
 
             hUsn(uIndex, sIndex, 0) = detRay; // Single cluster, normalized
-        }
-    }
-
-    // Deterministic channel normalization
-    // Objetive: ||H||^2 (only cluster 0) = Nr * Nt
-    double norm2 = 0.0;
-    for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-    {
-        for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-        {
-            norm2 += std::norm(hUsn(uIndex, sIndex, 0));
-        }
-    }
-
-    // Small threshold to catch “effectively zero”
-    const double eps = 1e-12;
-    double targetNorm2 = static_cast<double>(uSize) * static_cast<double>(sSize);
-
-    if (norm2 <= eps)
-    {
-        NS_LOG_WARN("ThreeGppChannelModel (DisableFastFading): "
-                    "channel norm ~ 0 (pattern zero everywhere?). "
-                    "Falling back to unity channel with ||H||^2 = Nr*Nt.");
-
-        // Fallback: H(u,s) = 1, so ||H||^2 = Nr*Nt exactly
-        for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-        {
-            for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-            {
-                hUsn(uIndex, sIndex, 0) = std::complex<double>(1.0, 0.0);
-            }
-        }
-    }
-    else
-    {
-        double alpha = std::sqrt(targetNorm2 / norm2);
-
-        for (size_t uIndex = 0; uIndex < uSize; ++uIndex)
-        {
-            for (size_t sIndex = 0; sIndex < sSize; ++sIndex)
-            {
-                hUsn(uIndex, sIndex, 0) *= alpha;
-            }
         }
     }
 
