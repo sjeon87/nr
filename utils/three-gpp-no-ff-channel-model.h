@@ -144,6 +144,10 @@ class ThreeGppNoFFChannelModel : public ThreeGppChannelModel
      * MIMO channel. No fast fading, ray-level randomness, or per-element phase
      * variations are included.
      *
+     * Note: this model is only valid when all the antenna elements have the same
+     * polarization. For example, such an assumption is typically used to compute
+     * the DL geometry in calibration scenarios, based on a single antenna port.
+     *
      * After construction, the channel matrix is normalized so that its Frobenius
      * norm squared matches the desired target norm (e.g., Nr * Nt), ensuring
      * consistent link-budget scaling while maintaining the intended uniform
