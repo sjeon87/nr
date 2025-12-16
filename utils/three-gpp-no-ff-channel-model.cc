@@ -177,6 +177,9 @@ ThreeGppNoFFChannelModel::GetChatGptNoFF(Ptr<const ThreeGppChannelParams> channe
     // save in which order is generated this matrix
     channelMatrix->m_nodeIds =
         std::make_pair(sMob->GetObject<Node>()->GetId(), uMob->GetObject<Node>()->GetId());
+    channelMatrix->m_antennaPair =
+        std::make_pair(sAntenna->GetId(),
+                       uAntenna->GetId()); // save antenna pair, with the exact order of s and u
     // where n is cluster index, u and s are receive and transmit antenna element.
     size_t uSize = uAntenna->GetNumElems();
     size_t sSize = sAntenna->GetNumElems();
@@ -294,6 +297,9 @@ ThreeGppNoFFChannelModel::GetSLagenNoFF(Ptr<const ThreeGppChannelParams> channel
     // save in which order is generated this matrix
     channelMatrix->m_nodeIds =
         std::make_pair(sMob->GetObject<Node>()->GetId(), uMob->GetObject<Node>()->GetId());
+    channelMatrix->m_antennaPair =
+        std::make_pair(sAntenna->GetId(),
+                       uAntenna->GetId()); // save antenna pair, with the exact order of s and u
     // where n is cluster index, u and s are receive and transmit antenna element.
     size_t uSize = uAntenna->GetNumElems();
     size_t sSize = sAntenna->GetNumElems();
@@ -461,6 +467,9 @@ ThreeGppNoFFChannelModel::GetGrokNoFF(Ptr<const ThreeGppChannelParams> channelPa
     // save in which order is generated this matrix
     channelMatrix->m_nodeIds =
         std::make_pair(sMob->GetObject<Node>()->GetId(), uMob->GetObject<Node>()->GetId());
+    channelMatrix->m_antennaPair =
+        std::make_pair(sAntenna->GetId(),
+                       uAntenna->GetId()); // save antenna pair, with the exact order of s and u
     // where n is cluster index, u and s are receive and transmit antenna element.
     size_t uSize = uAntenna->GetNumElems();
     size_t sSize = sAntenna->GetNumElems();
