@@ -93,7 +93,7 @@ BwpManagerGnb::GetBwpIndex(uint16_t rnti, uint8_t lcid)
     // struct (yeah, using the NrEpsBearer::Qci type was too hard ...)
     uint8_t dataBwpId = m_algorithm->GetBwpForQosFlow(static_cast<NrQosFlow::FiveQi>(fiveQi));
     // If BWP associated to bearer is not set, use the default BWP
-    if (dataBwpId == 6)
+    if (dataBwpId == 16)
     {
         dataBwpId = 0;
     }

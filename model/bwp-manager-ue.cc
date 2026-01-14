@@ -60,7 +60,7 @@ BwpManagerUe::DoTransmitBufferStatusReport(NrMacSapProvider::BufferStatusReportP
     // Control (LCID 0 and 1) always go through primary BWP index
     // Data (LCID 1-5) go through the BWP associated with EPS bearer,
     // if not equals to 6 (arbitrary value to indicate no BWP association)
-    if (params.lcid > 1 && dataBwpIndex != 6)
+    if (params.lcid > 1 && dataBwpIndex != 16)
     {
         bwpIndex = dataBwpIndex;
     }
