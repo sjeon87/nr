@@ -968,7 +968,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                               true),
                      TestCase::Duration::EXTENSIVE);*/
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                             2,
+                                                             1,
                                                              2,
                                                              20,
                                                              10,

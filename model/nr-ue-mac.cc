@@ -862,51 +862,80 @@ NrUeMac::TransmitRetx()
 void
 NrUeMac::SendRetxData(uint32_t usefulTbs, uint32_t activeLcsRetx)
 {
-    NS_LOG_FUNCTION(this);
+      NS_LOG_FUNCTION (this);
 
-    if (activeLcsRetx == 0)
+  if (activeLcsRetx == 0)
     {
-        return;
+      return;
+    }
+  constexpr uint32_t MIN_TB_SIZE = 7;
+  NS_ABORT_MSG_IF (usefulTbs < MIN_TB_SIZE, "Assigned to small TB size per logical "
+                   "channel: " << usefulTbs << ", less than 7 bytes.");
+  uint32_t lcToSendNow = 0;
+  uint32_t bytesPerLcId = 0;
+
+  // Currently active flows may not be the same as those that were reported to gNB
+  // so when dividing resources among active flows we may enter to the situation to
+  // asign less than what is the minimum TB size supported by RLC, i.e., 7 bytes.
+  // In the following, we check how many flows we can accomodate now, and
+  // we start from the lower lcId, since the m_ulBsrReceived map is in ascending order.
+
+  if (usefulTbs > (activeLcsRetx * MIN_TB_SIZE))
+    {
+      lcToSendNow = activeLcsRetx;
+      bytesPerLcId = usefulTbs / activeLcsRetx;
+
+    }
+  else
+    {
+      lcToSendNow = usefulTbs / MIN_TB_SIZE;
+      bytesPerLcId = usefulTbs / lcToSendNow;
     }
 
-    uint32_t bytesPerLcId = usefulTbs / activeLcsRetx;
+  NS_LOG_INFO ("Assigned bytes per logical channel: " << bytesPerLcId <<
+               " there are active TX flows" << activeLcsRetx <<
+               " and now will send " << lcToSendNow << " logical channels.");
 
-    for (auto& itBsr : m_ulBsrReceived)
+  NS_ABORT_MSG_IF (lcToSendNow == 0, "Tx opportunity but not enough bytes even for a single LC to transmit.");
+  NS_ABORT_MSG_IF (bytesPerLcId < MIN_TB_SIZE, "Assigned too small TB per logical channel, less than 7 bytes.");
+
+  for (auto & itBsr : m_ulBsrReceived)
     {
-        auto& bsr = itBsr.second;
+      auto &bsr = itBsr.second;
 
-        if (m_ulDciTotalUsed + bytesPerLcId <= usefulTbs)
+      uint32_t assignedBytes = std::min (bytesPerLcId, std::max<uint32_t> (7, bsr.retxQueueSize));
+
+      if (assignedBytes > 0 && m_ulDciTotalUsed + assignedBytes <= usefulTbs)
         {
-            NrMacSapUser::TxOpportunityParameters txParams;
-            txParams.lcid = bsr.lcid;
-            txParams.rnti = m_rnti;
-            txParams.bytes = bytesPerLcId;
-            txParams.layer = 0;
-            txParams.harqId = m_ulDci->m_harqProcess;
-            txParams.componentCarrierId = GetBwpId();
+          lcToSendNow --;
+          NrMacSapUser::TxOpportunityParameters txParams;
+          txParams.lcid = bsr.lcid;
+          txParams.rnti = m_rnti;
+          txParams.bytes = assignedBytes;
+          txParams.layer = 0;
+          txParams.harqId = m_ulDci->m_harqProcess;
+          txParams.componentCarrierId = GetBwpId ();
 
-            NS_LOG_INFO("Notifying RLC of LCID " << +bsr.lcid
-                                                 << " of a TxOpp "
-                                                    "of "
-                                                 << bytesPerLcId << " B for a RETX PDU");
+          NS_LOG_INFO ("Notifying RLC of LCID " << +bsr.lcid << " of a TxOpp "
+                       "of " << assignedBytes << " B for a RETX PDU");
 
-            m_lcInfoMap.at(bsr.lcid).macSapUser->NotifyTxOpportunity(txParams);
-            // After this call, m_ulDciTotalUsed has been updated with the
-            // correct amount of bytes... but it is up to us in updating the BSR
-            // value, subtracting the amount of bytes transmitted
+          m_lcInfoMap.at (bsr.lcid).macSapUser->NotifyTxOpportunity (txParams);
+          // After this call, m_ulDciTotalUsed has been updated with the
+          // correct amount of bytes... but it is up to us in updating the BSR
+          // value, substracting the amount of bytes transmitted
+          bsr.retxQueueSize -= std::min (bsr.retxQueueSize, assignedBytes);
 
-            // We need to use std::min here because bytesPerLcId can be
-            // greater than bsr.txQueueSize because scheduler can assign
-            // more bytes than needed due to how TB size is computed.
-            bsr.retxQueueSize -= std::min(bytesPerLcId, bsr.retxQueueSize);
+          if (lcToSendNow == 0)
+            {
+              return; // no more flows that can transmit now
+            }
         }
-        else
+      else
         {
-            NS_LOG_DEBUG("Something wrong with the calculation of overhead."
-                         "Active LCS Retx: "
-                         << activeLcsRetx << " assigned to this: " << bytesPerLcId
-                         << ", with TBS of " << m_ulDci->m_tbSize << " usefulTbs " << usefulTbs
-                         << " and total used " << m_ulDciTotalUsed);
+          NS_LOG_DEBUG ("Something wrong with the calculation of overhead."
+                        "Active LCS Retx: " << activeLcsRetx << " assigned to this: " <<
+                        assignedBytes << ", with TBS of " << m_ulDci->m_tbSize <<
+                        " usefulTbs " << usefulTbs << " and total used " << m_ulDciTotalUsed);
         }
     }
 }
@@ -952,7 +981,7 @@ NrUeMac::SendTxData(uint32_t usefulTbs, uint32_t activeTx)
         // We need to allocate at least 7 bytes per LCID due to RLC limitations
         // But we can allocate up to availableBytes
         uint32_t bytesPerLcId =
-            std::min(availableBytes, std::max<uint32_t>(smallestBufferBytes, 8));
+            std::min(availableBytes, std::max<uint32_t>(smallestBufferBytes, 12));
 
         auto& bsr = m_ulBsrReceived.at(smallestBufferBsrLcid);
         NrMacSapUser::TxOpportunityParameters txParams;
