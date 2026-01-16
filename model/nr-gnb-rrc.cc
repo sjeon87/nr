@@ -225,7 +225,7 @@ NrUeManager::ConfigureSrb0()
         // m_rnti and lcid will be used from passed lcinfo structure. See FF LTE MAC Scheduler
         // Iinterface Specification v1.11, 4.3.4 logicalChannelConfigListElement
         lcinfo.lcGroup = 0;
-        lcinfo.fiveQi = 0;
+        lcinfo.fiveQi = 5; // Arbitrary 5QI to route UE RRC UL messages through BWP manager
         lcinfo.resourceType = 0;
         lcinfo.mbrUl = 0;
         lcinfo.mbrDl = 0;

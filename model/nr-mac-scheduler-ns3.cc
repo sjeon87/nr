@@ -637,8 +637,15 @@ NrMacSchedulerNs3::DoCschedUeReleaseReq(
     m_schedulerSrs->RemoveUe(itUe->second->m_srsOffset);
     m_ueMap.erase(itUe);
 
-    // When it will be the case of reducing the periodicity? Question for the
-    // future...
+    // We clean m_ulAllocationMap in two steps, first we remove vector entries from map items
+    // Later we remove map items with empty vectors
+    for (auto& slotAlloc : m_ulAllocationMap)
+    {
+        std::erase_if(slotAlloc.second.m_ulAllocations,
+                      [rnti = params.m_rnti](auto& allocElem) { return allocElem.m_rnti == rnti; });
+    }
+    std::erase_if(m_ulAllocationMap,
+                  [](auto& slotAlloc) { return slotAlloc.second.m_ulAllocations.empty(); });
 
     NS_LOG_INFO("Release RNTI " << params.m_rnti);
 }
@@ -849,7 +856,6 @@ NrMacSchedulerNs3::BSRReceivedFromUe(const MacCeElement& bsr)
             // NS_ABORT_MSG_IF(bufSize > 0,
             //                 "LCG " << static_cast<uint32_t>(lcg) << " not found for UE "
             //                        << itUe->second->m_rnti);
-            NS_LOG_DEBUG("BSR does not match an established lcg");
             continue;
         }
 
@@ -967,7 +973,12 @@ NrMacSchedulerNs3::DoSchedUlCqiInfoReq(
                                            << static_cast<uint32_t>(symStart));
 
         auto itAlloc = m_ulAllocationMap.find(ulSfnSf.GetEncoding());
-        NS_ASSERT_MSG(itAlloc != m_ulAllocationMap.end(), "Can't find allocation for " << ulSfnSf);
+        // NS_ASSERT_MSG(itAlloc != m_ulAllocationMap.end(), "Can't find allocation for " <<
+        // ulSfnSf);
+        if (itAlloc == m_ulAllocationMap.end())
+        {
+            break; // early exit because there is nothing allocated to do
+        }
         std::vector<AllocElem>& ulAllocations = itAlloc->second.m_ulAllocations;
 
         for (auto it = ulAllocations.cbegin(); it != ulAllocations.cend(); /* NO INC */)
@@ -2487,6 +2498,13 @@ NrMacSchedulerNs3::DoSchedDlTriggerReq(
         //    these are generated.. but anyway..
         for (auto it = dlHarqFeedback.begin(); it != dlHarqFeedback.end(); /* no inc */)
         {
+            if (m_ueMap.find(it->m_rnti) == m_ueMap.end())
+            {
+                // UE was removed but HARQ feedback remained in a buffer
+                // todo: clean properly
+                it = dlHarqFeedback.erase(it);
+                continue;
+            }
             auto& ueInfo = m_ueMap.find(it->m_rnti)->second;
             auto& process = ueInfo->m_dlHarq.Find(it->m_harqProcessId)->second;
             NS_LOG_INFO("Analyzing feedback for UE " << it->m_rnti << " process "
