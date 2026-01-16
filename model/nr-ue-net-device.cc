@@ -329,4 +329,16 @@ NrUeNetDevice::GetBwpArfcn(uint8_t index) const
     return m_ccMap.at(index)->GetArfcn(); // Ul or Dl doesn't matter, they are the same
 }
 
+uint16_t
+NrUeNetDevice::GetArfcnBwpId(uint32_t arfcn) const
+{
+    for (std::size_t i = 0; i < m_ccMap.size(); i++)
+    {
+        if (m_ccMap.at(i)->GetArfcn() == arfcn)
+        {
+            return (uint16_t)i;
+        }
+    }
+    NS_ABORT_MSG("UE should have the searched arfcn");
+}
 } // namespace ns3

@@ -196,6 +196,13 @@ class NrUeNetDevice : public NrNetDevice
 
     uint32_t GetBwpArfcn(uint8_t index) const;
 
+    /**
+     * @brief Get the local bandwidth part id for a target arfcn
+     * @param arfcn target ARFCN of BWP
+     * @return Bandwidth part Id
+     */
+    uint16_t GetArfcnBwpId(uint32_t arfcn) const;
+
   protected:
     // inherited from Object
     void DoInitialize() override;
