@@ -851,6 +851,8 @@ uint8_t CountUsedSymbolsFromVarAllocTtiRange(uint8_t startSym,
                                              std::deque<VarTtiAllocInfo>::iterator begin,
                                              std::deque<VarTtiAllocInfo>::iterator end);
 
+// TS 38.214 nominal RBG size P for RA Type 0.
+int NumRbsPerRbg(int numRbs);
 } // namespace nr
 
 std::ostream& operator<<(std::ostream& os, const DciInfoElementTdma& item);

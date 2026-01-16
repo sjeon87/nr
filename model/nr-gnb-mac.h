@@ -358,7 +358,7 @@ class NrGnbMac : public Object
     NrCcmMacSapProvider* m_ccmMacSapProvider; ///< CCM MAC SAP provider
     NrCcmMacSapUser* m_ccmMacSapUser;         ///< CCM MAC SAP user
 
-    int32_t m_numRbPerRbg{-1}; //!< number of resource blocks within the channel bandwidth
+    uint32_t m_numRbPerRbg{0}; //!< number of resource blocks within the channel bandwidth
 
     uint8_t m_numHarqProcess{20}; //!< number of HARQ processes
 

@@ -407,12 +407,6 @@ NrGnbMac::GetTypeId()
             .SetParent<Object>()
             .AddConstructor<NrGnbMac>()
             .AddAttribute(
-                "NumRbPerRbg",
-                "Number of resource blocks per resource block group.",
-                UintegerValue(1),
-                MakeUintegerAccessor(&NrGnbMac::SetNumRbPerRbg, &NrGnbMac::GetNumRbPerRbg),
-                MakeUintegerChecker<uint32_t>())
-            .AddAttribute(
                 "NumHarqProcess",
                 "Number of concurrent stop-and-wait Hybrid ARQ processes per user",
                 UintegerValue(16),
@@ -526,7 +520,7 @@ NrGnbMac::SetConnEstFailCount(uint8_t connEstFailCount)
 void
 NrGnbMac::SetNumRbPerRbg(uint32_t rbgSize)
 {
-    NS_ABORT_MSG_IF(m_numRbPerRbg != -1, "This attribute can not be reconfigured");
+    NS_ABORT_MSG_IF(m_numRbPerRbg != 0, "This attribute can not be reconfigured");
     m_numRbPerRbg = rbgSize;
 }
 
@@ -1359,7 +1353,18 @@ NrGnbMac::DoConfigureMac(uint16_t ulBandwidth, uint16_t dlBandwidth)
 
     // The bandwidth arrived in Hz. We need to know it in number of RB, and then
     // consider how many RB are inside a single RBG.
-    uint16_t bw_in_rbg = m_phySapProvider->GetRbNum() / GetNumRbPerRbg();
+    uint16_t bw_in_rb = m_phySapProvider->GetRbNum();
+    uint8_t numRbsPerRbg = GetNumRbPerRbg();
+    if (numRbsPerRbg == 0)
+    {
+        SetNumRbPerRbg(nr::NumRbsPerRbg(bw_in_rb));
+        numRbsPerRbg = GetNumRbPerRbg();
+    }
+    // todo: Account for last RBG with less than numRbsPerRbg.
+    // uint16_t bw_in_rbg = (bw_in_rb + numRbsPerRbg - 1) / numRbsPerRbg;
+    // We cannot do that now because we do not handle bandwidths that are not aligned with the RBG
+    // size elsewhere in the code. So we end up discarding the last RBs here.
+    uint16_t bw_in_rbg = bw_in_rb / numRbsPerRbg;
     m_bandwidthInRbg = bw_in_rbg;
 
     NS_LOG_DEBUG("Mac configured. Attributes:"
