@@ -13,6 +13,7 @@
 #include "nr-ue-rrc.h"
 
 #include "nr-common.h"
+#include "nr-device-registry.h"
 #include "nr-pdcp.h"
 #include "nr-radio-bearer-info.h"
 #include "nr-rlc-am.h"
@@ -1380,6 +1381,18 @@ NrUeRrc::EvaluateCellForSelection()
         m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(cellId, m_initDlArfcn);
         m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
+
+        for (auto phyIndex : {GetPrimaryDlIndex(), GetPrimaryUlIndex()})
+        {
+            ReconfigureFromSib1(phyIndex,
+                                m_cellId,
+                                m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
+                                m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
+                                m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
+                                m_lastSib1.servingCellConfigCommon.numerology,
+                                m_lastSib1.servingCellConfigCommon.tddPattern,
+                                m_lastSib1.servingCellConfigCommon.rbgSize);
+        }
         // Once the UE is connected, m_connectionPending is
         // set to false. So, when RLF occurs and UE performs
         // cell selection upon leaving RRC_CONNECTED state,
@@ -3424,5 +3437,24 @@ NrUeRrc::ResetRlfParams()
     m_radioLinkFailureDetected.Cancel();
     m_noOfSyncIndications = 0;
     m_cphySapProvider.at(GetPrimaryDlIndex())->ResetRlfParams();
+}
+
+void
+NrUeRrc::ReconfigureFromSib1(const uint8_t bwpId,
+                             const uint16_t cellId,
+                             const uint8_t dlCtrlSym,
+                             const uint8_t ulCtrlSym,
+                             const uint32_t symPerSlot,
+                             const uint16_t numerology,
+                             const std::string& tddPattern,
+                             const uint8_t numRbsPerRbg)
+{
+    NrDeviceRegistry::SetUeTargetCell(cellId, m_imsi);
+    m_cphySapProvider.at(bwpId)->SetDlCtrlSyms(dlCtrlSym);
+    m_cphySapProvider.at(bwpId)->SetUlCtrlSyms(ulCtrlSym);
+    m_cphySapProvider.at(bwpId)->SetSymbolsPerSlot(symPerSlot);
+    m_cphySapProvider.at(bwpId)->SetNumerology(numerology);
+    m_cphySapProvider.at(bwpId)->SetPattern(tddPattern);
+    m_cphySapProvider.at(bwpId)->SetNumRbPerRbg(numRbsPerRbg);
 }
 } // namespace ns3

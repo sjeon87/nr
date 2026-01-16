@@ -8,6 +8,7 @@
 #include "cc-bwp-helper.h"
 #include "ideal-beamforming-helper.h"
 #include "nr-bearer-stats-connector.h"
+#include "nr-epc-helper.h"
 #include "nr-mac-scheduling-stats.h"
 
 #include "ns3/net-device-container.h"
@@ -16,6 +17,7 @@
 #include "ns3/nr-control-messages.h"
 #include "ns3/nr-qos-flow.h"
 #include "ns3/nr-spectrum-phy.h"
+#include "ns3/nr-ue-cphy-sap.h"
 #include "ns3/object-factory.h"
 
 namespace ns3
@@ -1095,6 +1097,8 @@ class NrHelper : public Object
         m_initialParams; //!<< Initial attachment parameters to pass from example to setup
 
     double m_rbOverhead;   //!< Overhead used by gNBs and UEs when calculating the usable RB number
+    uint8_t m_numRbPerRbg; //!< The standard determines this via bandwidth and numerology. We are
+                           //!< not prepared to handle that just yet
 };
 
 } // namespace ns3
