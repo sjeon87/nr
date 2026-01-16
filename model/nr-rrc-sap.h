@@ -633,11 +633,34 @@ class NrRrcSap
         uint16_t systemFrameNumber; ///< system frame number
     };
 
+    struct ServingCellConfigCommon
+    {
+        uint8_t numerology; // SubcarrierSpacing (0..5)
+
+        uint8_t symbolsPerSlot; // 14 (normal CP), 12 (extended CP)
+
+        // DL/UL control symbols (approx. downlinkSymbolsNum/uplinkSymbolsNum from TDD pattern)
+
+        // Number of DL control symbols (scheduled forwards from first symbol)
+        uint8_t dlCtrlSymsNum;
+
+        // Number of DL control symbols (scheduled backwards from last symbol)
+        uint8_t ulCtrlSymsNum;
+
+        std::string tddPattern; // TDD pattern (Not following ASN.1 structure just yet)
+
+        // Number of RBs per RBG. Standard actually defines a bit to select between config1 and
+        // config2. We avoid it here because we have flexible rbOverhead numbers that cause weird
+        // rounding issues.
+        uint8_t rbgSize;
+    };
+
     /// SystemInformationBlockType1 structure
     struct SystemInformationBlockType1
     {
-        CellAccessRelatedInfo cellAccessRelatedInfo; ///< cell access related info
-        CellSelectionInfo cellSelectionInfo;         ///< cell selection info
+        CellAccessRelatedInfo cellAccessRelatedInfo;     ///< cell access related info
+        CellSelectionInfo cellSelectionInfo;             ///< cell selection info
+        ServingCellConfigCommon servingCellConfigCommon; ///< cell configuration
     };
 
     /// SystemInformationBlockType2 structure
