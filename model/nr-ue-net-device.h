@@ -194,6 +194,11 @@ class NrUeNetDevice : public NrNetDevice
     NS_DEPRECATED("Obsolete method")
     void UpdateConfig();
 
+    /**
+     * @brief Get earfcn for a given bandwidth part id
+     * @param bwpId Bandwidth part Id
+     * @return earfcn
+     */
     uint32_t GetBwpArfcn(uint8_t index) const;
 
     /**
