@@ -288,7 +288,7 @@ LenaV2Utils::SetLenaV2SimulatorParameters(const double sector0AngleRad,
     nrHelper->SetGnbDlAmcAttribute("NumRefScPerRb", UintegerValue(numScPerRb));
     nrHelper->SetGnbUlAmcAttribute("NumRefScPerRb", UintegerValue(1)); // FIXME: Might change in LTE
 
-    nrHelper->SetGnbPhyAttribute("RbOverhead", DoubleValue(rbOverhead));
+    nrHelper->SetAttribute("RbOverhead", DoubleValue(rbOverhead));
     nrHelper->SetGnbPhyAttribute("N2Delay", UintegerValue(n2Delay));
     nrHelper->SetGnbPhyAttribute("N1Delay", UintegerValue(n1Delay));
 

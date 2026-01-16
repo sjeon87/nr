@@ -280,6 +280,7 @@ main(int argc, char* argv[])
         "AmcModel",
         EnumValue(NrAmc::ErrorModel)); // NrAmc::ShannonModel or NrAmc::ErrorModel
 
+    nrHelper->SetAttribute("RbOverhead", DoubleValue(0.1));
     /*
      * Adjust the average number of Reference symbols per RB only for LTE case,
      * which is larger than in NR. We assume a value of 4 (could be 3 too).
@@ -487,7 +488,6 @@ main(int argc, char* argv[])
             DoubleValue(10 *
                         log10((band40.GetBwpAt(0, 0)->m_channelBandwidth / totalBandwidth) * x)));
     NrHelper::GetGnbPhy(gnbNetDev.Get(0), 0)->SetAttribute("Pattern", StringValue(pattern));
-    NrHelper::GetGnbPhy(gnbNetDev.Get(0), 0)->SetAttribute("RbOverhead", DoubleValue(0.1));
 
     NrHelper::GetGnbPhy(gnbNetDev.Get(0), 1)
         ->SetAttribute("Numerology", UintegerValue(numerologyBwp1));
@@ -497,7 +497,6 @@ main(int argc, char* argv[])
             DoubleValue(10 *
                         log10((band38.GetBwpAt(0, 0)->m_channelBandwidth / totalBandwidth) * x)));
     NrHelper::GetGnbPhy(gnbNetDev.Get(0), 1)->SetAttribute("Pattern", StringValue(pattern));
-    NrHelper::GetGnbPhy(gnbNetDev.Get(0), 1)->SetAttribute("RbOverhead", DoubleValue(0.1));
 
     // Band38: CC2 - BWP2
     if (operationMode == "TDD")
@@ -510,7 +509,6 @@ main(int argc, char* argv[])
                 DoubleValue(
                     10 * log10((band38.GetBwpAt(1, 0)->m_channelBandwidth / totalBandwidth) * x)));
         NrHelper::GetGnbPhy(gnbNetDev.Get(0), 2)->SetAttribute("Pattern", StringValue(pattern));
-        NrHelper::GetGnbPhy(gnbNetDev.Get(0), 2)->SetAttribute("RbOverhead", DoubleValue(0.1));
     }
     else // FDD case
     {
@@ -522,12 +520,10 @@ main(int argc, char* argv[])
                 DoubleValue(
                     10 * log10((band38.GetBwpAt(1, 0)->m_channelBandwidth / totalBandwidth) * x)));
         NrHelper::GetGnbPhy(gnbNetDev.Get(0), 2)->SetAttribute("Pattern", StringValue(patternDL));
-        NrHelper::GetGnbPhy(gnbNetDev.Get(0), 2)->SetAttribute("RbOverhead", DoubleValue(0.1));
 
         NrHelper::GetGnbPhy(gnbNetDev.Get(0), 3)
             ->SetAttribute("Numerology", UintegerValue(numerologyBwpUl));
         NrHelper::GetGnbPhy(gnbNetDev.Get(0), 3)->SetAttribute("Pattern", StringValue(patternUL));
-        NrHelper::GetGnbPhy(gnbNetDev.Get(0), 3)->SetAttribute("RbOverhead", DoubleValue(0.1));
 
         // Link the two FDD BWP:
         NrHelper::GetBwpManagerGnb(gnbNetDev.Get(0))->SetOutputLink(3, 2);

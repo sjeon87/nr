@@ -140,7 +140,12 @@ NrHelper::GetTypeId()
                           StringValue("ns3::NrNoOpHandoverAlgorithm"),
                           MakeStringAccessor(&NrHelper::SetHandoverAlgorithmType,
                                              &NrHelper::GetHandoverAlgorithmType),
-                          MakeStringChecker());
+                          MakeStringChecker())
+            .AddAttribute("RbOverhead",
+                          "Overhead when calculating the usable RB number",
+                          DoubleValue(0.04),
+                          MakeDoubleAccessor(&NrHelper::m_rbOverhead),
+                          MakeDoubleChecker<double>(0, 0.5));
     return tid;
 }
 
@@ -510,6 +515,7 @@ NrHelper::InstallSingleUeDevice(
             cc->SetAsPrimary(false);
         }
 
+        phy->SetRbOverhead(m_rbOverhead);
         ueCcMap.insert(std::make_pair(bwpId, cc));
     }
 
@@ -617,6 +623,7 @@ NrHelper::CreateGnbPhy(const Ptr<Node>& n,
     Ptr<NrGnbPhy> phy = m_gnbPhyFactory.Create<NrGnbPhy>();
 
     DoubleValue frequency;
+    phy->SetRbOverhead(m_rbOverhead);
     phy->InstallCentralFrequency(bwp->m_centralFrequency);
 
     phy->ScheduleStartEventLoop(n->GetId(), 0, 0, 0);
