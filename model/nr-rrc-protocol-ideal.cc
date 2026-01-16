@@ -154,7 +154,24 @@ NrUeRrcProtocolIdeal::DoSendMeasurementReport(NrRrcSap::MeasurementReport msg)
 void
 NrUeRrcProtocolIdeal::DoSendIdealUeContextRemoveRequest(uint16_t rnti)
 {
-    NS_FATAL_ERROR("NrUeRrcProtocolIdeal does not have RLF functionality yet");
+    NS_LOG_FUNCTION(this);
+
+    uint16_t cellId = m_rrc->GetCellId();
+    // re-initialize the RNTI and get the GnbNrRrcSapProvider for the
+    // gNB we are currently attached to or attempting random access to
+    // a target gNB
+    m_rnti = m_rrc->GetRnti();
+
+    NS_LOG_DEBUG("RNTI " << rnti << " sending UE context remove request to cell id " << cellId);
+    NS_ABORT_MSG_IF(m_rnti != rnti, "RNTI mismatch");
+
+    SetGnbRrcSapProvider(); // the provider has to be reset since the cell might have changed due to
+    // handover
+    // ideally informing gNB
+    Simulator::Schedule(RRC_IDEAL_MSG_DELAY,
+                        &NrGnbRrcSapProvider::RecvIdealUeContextRemoveRequest,
+                        m_gnbRrcSapProvider,
+                        m_rnti);
 }
 
 void
