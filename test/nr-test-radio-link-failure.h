@@ -40,7 +40,7 @@ class NrRadioLinkFailureTestSuite : public TestSuite
 };
 
 /**
- * @ingroup lte
+ * @ingroup nr
  *
  * @brief Testing the cell reselection procedure by UE at IDLE state
  */

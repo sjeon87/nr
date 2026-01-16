@@ -53,7 +53,7 @@ struct CheckPointEvent
 };
 
 /**
- * @ingroup lte-test
+ * @ingroup nr-test
  *
  * @brief Test different X2 handover measures and algorithms, e.g. NrA2A4RsrqHandoverAlgorithm and
  * NrA3RsrpHandoverAlgorithm. Test defines different handover parameters and scenario
@@ -135,7 +135,7 @@ class NrX2HandoverMeasuresTestCase : public TestCase
     Ptr<NrPointToPointEpcHelper> m_epcHelper;         ///< EPC helper
 
     /**
-     * @ingroup lte-test
+     * @ingroup nr-test
      *
      * @brief BearerData structure
      */
@@ -149,7 +149,7 @@ class NrX2HandoverMeasuresTestCase : public TestCase
     };
 
     /**
-     * @ingroup lte-test
+     * @ingroup nr-test
      *
      * @brief UeData structure
      */
@@ -598,25 +598,35 @@ NrX2HandoverMeasuresTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDev
                           "Wrong NrUeManager state!");
     NS_ASSERT_MSG(ueManagerState == NrUeManager::CONNECTED_NORMALLY, "Wrong NrUeManager state!");
 
-    uint16_t ueCellId = ueRrc->GetCellId();
-    uint16_t gnbCellId = gnbLteDevice->GetCellId();
-    uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
-    uint8_t gnbDlBandwidth = gnbLteDevice->GetCellIdDlBandwidth(gnbCellId);
-    uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
-    uint8_t gnbUlBandwidth = gnbLteDevice->GetCellIdUlBandwidth(gnbCellId);
-    uint8_t ueDlEarfcn = ueRrc->GetDlEarfcn();
-    uint8_t gnbDlEarfcn = gnbLteDevice->GetCellIdDlEarfcn(gnbCellId);
-    uint8_t ueUlEarfcn = ueRrc->GetUlEarfcn();
-    uint8_t gnbUlEarfcn = gnbLteDevice->GetCellIdUlEarfcn(gnbCellId);
     uint64_t ueImsi = ueLteDevice->GetImsi();
     uint64_t gnbImsi = NrUeManager->GetImsi();
 
     NS_TEST_ASSERT_MSG_EQ(ueImsi, gnbImsi, "inconsistent IMSI");
-    NS_TEST_ASSERT_MSG_EQ(ueCellId, gnbCellId, "inconsistent CellId");
+
+    uint16_t ueCellId = ueRrc->GetCellId();
+    uint16_t gnbCellId = nrGnbDevice->GetCellId();
+    NS_TEST_ASSERT_MSG_EQ(ueCellId, gnbCellId, "gNB does not contain UE cellId");
+
+    // Verifying other attributes on both sides.
+    uint16_t ueDlBwp = ueRrc->GetPrimaryDlIndex();
+    uint16_t ueUlBwp = ueRrc->GetPrimaryUlIndex();
+    uint32_t ueDlArfcn = ueNrDevice->GetArfcn(ueDlBwp);
+    uint32_t ueUlArfcn = ueNrDevice->GetArfcn(ueUlBwp);
+    uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
+    uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
+
+    uint16_t gnbDlBwp = nrGnbDevice->GetArfcnBwpId(ueDlArfcn);
+    uint16_t gnbUlBwp = nrGnbDevice->GetArfcnBwpId(ueUlArfcn);
+    uint8_t gnbDlBandwidth = nrGnbDevice->GetBwpDlBandwidth(gnbDlBwp);
+    uint8_t gnbUlBandwidth = nrGnbDevice->GetBwpUlBandwidth(gnbUlBwp);
+    uint32_t gnbDlArfcn = nrGnbDevice->GetBwpArfcn(gnbDlBwp);
+    uint32_t gnbUlArfcn = nrGnbDevice->GetBwpArfcn(gnbUlBwp);
+
+    NS_TEST_ASSERT_MSG_EQ(gnbRrc->HasCellId(ueCellId), true, "inconsistent CellId");
     NS_TEST_ASSERT_MSG_EQ(ueDlBandwidth, gnbDlBandwidth, "inconsistent DlBandwidth");
     NS_TEST_ASSERT_MSG_EQ(ueUlBandwidth, gnbUlBandwidth, "inconsistent UlBandwidth");
-    NS_TEST_ASSERT_MSG_EQ(ueDlEarfcn, gnbDlEarfcn, "inconsistent DlEarfcn");
-    NS_TEST_ASSERT_MSG_EQ(ueUlEarfcn, gnbUlEarfcn, "inconsistent UlEarfcn");
+    NS_TEST_ASSERT_MSG_EQ(ueDlArfcn, gnbDlArfcn, "inconsistent DlArfcn");
+    NS_TEST_ASSERT_MSG_EQ(ueUlArfcn, gnbUlArfcn, "inconsistent UlArfcn");
 
     ObjectMapValue gnbDataRadioBearerMapValue;
     NrUeManager->GetAttribute("DataRadioBearerMap", gnbDataRadioBearerMapValue);
@@ -725,7 +735,7 @@ NrX2HandoverMeasuresTestCase::CheckStats(uint32_t ueIndex)
 }
 
 /**
- * @ingroup lte-test
+ * @ingroup nr-test
  *
  * @brief NR X2 Handover Measures Test Suite
  */
@@ -988,7 +998,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
 } // end of NrX2HandoverMeasuresTestSuite ()
 
 /**
- * @ingroup lte-test
+ * @ingroup nr-test
  * Static variable for test initialization
  */
 static NrX2HandoverMeasuresTestSuite g_NrX2HandoverMeasuresTestSuiteInstance;
