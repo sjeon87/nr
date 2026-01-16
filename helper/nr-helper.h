@@ -1093,6 +1093,8 @@ class NrHelper : public Object
 
     InitialAssocParams
         m_initialParams; //!<< Initial attachment parameters to pass from example to setup
+
+    double m_rbOverhead;   //!< Overhead used by gNBs and UEs when calculating the usable RB number
 };
 
 } // namespace ns3

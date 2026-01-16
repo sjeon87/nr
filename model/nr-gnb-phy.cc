@@ -77,11 +77,6 @@ NrGnbPhy::GetTypeId()
         TypeId("ns3::NrGnbPhy")
             .SetParent<NrPhy>()
             .AddConstructor<NrGnbPhy>()
-            .AddAttribute("RbOverhead",
-                          "Overhead when calculating the usable RB number",
-                          DoubleValue(0.04),
-                          MakeDoubleAccessor(&NrGnbPhy::SetRbOverhead, &NrGnbPhy::GetRbOverhead),
-                          MakeDoubleChecker<double>(0, 0.5))
             .AddAttribute("TxPower",
                           "Transmission power in dBm",
                           DoubleValue(4.0),
