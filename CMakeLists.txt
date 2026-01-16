@@ -517,13 +517,13 @@ set(test_sources
     test/ul-scheduling-test.cc
     utils/traffic-generators/test/traffic-generator-test.cc
     test/nr-test-hexagonal-grid-scenario-helper.cc
+    test/nr-test-ue-measurements.cc
+    test/nr-test-radio-link-failure.cc
+    test/nr-test-cell-selection.cc
     # cmake-format: off
     # todo:
-    # test/nr-test-x2-handover.cc               \
-    # test/nr-test-x2-handover-measures.cc       \
-    # test/nr-test-ue-measurements.cc             \ <= works but needs to be updated to reflect NR measurements
-    # test/nr-test-cell-selection.cc               \
-    # test/nr-test-radio-link-failure.cc            \
+    # test/nr-test-x2-handover.cc                  \
+    # test/nr-test-x2-handover-measures.cc          \
     # test/nr-test-lte-handover-delay.cc             | requires handover
     # test/nr-test-lte-handover-failure.cc          /
     # test/nr-test-lte-handover-target.cc          /

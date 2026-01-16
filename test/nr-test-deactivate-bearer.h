@@ -77,7 +77,7 @@ class NrDeactivateBearerTestCase : public TestCase
 };
 
 /**
- * @ingroup lte-test
+ * @ingroup nr-test
  *
  * @brief The test suite class for the NrDeactivateBearerTestCase.
  */
