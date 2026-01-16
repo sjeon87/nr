@@ -201,7 +201,8 @@ set(source_files
     model/nr-rlc.cc
     model/nr-rrc-header.cc
     model/nr-rrc-protocol-ideal.cc
-    model/nr-rrc-protocol-real.cc
+    model/nr-rrc-protocol-real-gnb.cc
+    model/nr-rrc-protocol-real-ue.cc
     model/nr-simple-ue-component-carrier-manager.cc
     model/nr-spectrum-phy.cc
     model/nr-spectrum-signal-parameters.cc
@@ -411,7 +412,8 @@ set(header_files
     model/nr-rlc.h
     model/nr-rrc-header.h
     model/nr-rrc-protocol-ideal.h
-    model/nr-rrc-protocol-real.h
+    model/nr-rrc-protocol-real-gnb.h
+    model/nr-rrc-protocol-real-ue.h
     model/nr-rrc-sap.h
     model/nr-simple-ue-component-carrier-manager.h
     model/nr-spectrum-phy.h
