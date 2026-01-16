@@ -329,6 +329,28 @@ class NrUeRrc : public Object
     uint16_t GetPrimaryDlIndex() const;
 
     /**
+     * Configures the UE physical layer based on the SIB1 information corresponding to a given cell
+     * ID and BWP ID.
+     *
+     * This function retrieves the necessary configuration parameters from a gNB associated with the
+     * specified cell ID and bandwidth part (BWP) ID. These parameters include DL/UL control
+     * symbols, numerology, resource block overhead, and other physical layer settings. The
+     * retrieved values are then set in the provided UE PHY SAP provider.
+     *
+     * This method assumes that the mapped gNB, its PHY, MAC, and scheduler for the specified BWP
+     * ID, exist and are valid.
+     *
+     */
+    void ReconfigureFromSib1(const uint8_t bwpId,
+                             const uint16_t cellId,
+                             const uint8_t dlCtrlSym,
+                             const uint8_t ulCtrlSym,
+                             const uint32_t symPerSlot,
+                             const uint16_t numerology,
+                             const std::string& tddPattern,
+                             const uint8_t numRbsPerRbg);
+
+    /**
      * TracedCallback signature for imsi, cellId and rnti events.
      *
      * @param [in] imsi

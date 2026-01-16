@@ -16,6 +16,7 @@
 
 #include "bandwidth-part-gnb.h"
 #include "nr-common.h"
+#include "nr-gnb-mac.h"
 #include "nr-pdcp.h"
 #include "nr-qos-flow-tag.h"
 #include "nr-radio-bearer-info.h"
@@ -2366,6 +2367,12 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
         sib1.cellAccessRelatedInfo.plmnIdentityInfo.plmnIdentity = 0; // not used
         sib1.cellSelectionInfo.qQualMin = -34;          // not used, set as minimum value
         sib1.cellSelectionInfo.qRxLevMin = m_qRxLevMin; // set as minimum value
+        sib1.servingCellConfigCommon.numerology = it.second->GetPhy()->GetNumerology();
+        sib1.servingCellConfigCommon.dlCtrlSymsNum = it.second->GetMac()->GetDlCtrlSyms();
+        sib1.servingCellConfigCommon.ulCtrlSymsNum = it.second->GetMac()->GetUlCtrlSyms();
+        sib1.servingCellConfigCommon.symbolsPerSlot = it.second->GetPhy()->GetSymbolsPerSlot();
+        sib1.servingCellConfigCommon.tddPattern = it.second->GetPhy()->GetPattern();
+        sib1.servingCellConfigCommon.rbgSize = it.second->GetPhy()->GetNumRbPerRbg();
         m_sib1.push_back(sib1);
         m_cphySapProvider.at(it.first)->SetSystemInformationBlockType1(sib1);
     }

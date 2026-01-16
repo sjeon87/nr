@@ -21,7 +21,6 @@
 #include "ns3/deprecated.h"
 #include "ns3/multi-model-spectrum-channel.h"
 #include "ns3/names.h"
-#include "ns3/node-list.h"
 #include "ns3/nr-ch-access-manager.h"
 #include "ns3/nr-chunk-processor.h"
 #include "ns3/nr-epc-gnb-application.h"
@@ -1131,18 +1130,24 @@ NrHelper::AttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbD
     {
         gnbNetDev->GetPhy(i)->RegisterUe(ueNetDev->GetImsi(), ueNetDev);
         ueNetDev->GetPhy(i)->RegisterToGnb(gnbNetDev->GetCellId());
-        ueNetDev->GetPhy(i)->SetDlAmc(
-            DynamicCast<NrMacSchedulerNs3>(gnbNetDev->GetScheduler(i))->GetDlAmc());
-        ueNetDev->GetPhy(i)->SetDlCtrlSyms(gnbNetDev->GetMac(i)->GetDlCtrlSyms());
-        ueNetDev->GetPhy(i)->SetUlCtrlSyms(gnbNetDev->GetMac(i)->GetUlCtrlSyms());
-        ueNetDev->GetPhy(i)->SetNumRbPerRbg(gnbNetDev->GetMac(i)->GetNumRbPerRbg());
-        ueNetDev->GetPhy(i)->SetRbOverhead(gnbNetDev->GetPhy(i)->GetRbOverhead());
-        ueNetDev->GetPhy(i)->SetSymbolsPerSlot(gnbNetDev->GetPhy(i)->GetSymbolsPerSlot());
-        ueNetDev->GetPhy(i)->SetNumerology(gnbNetDev->GetPhy(i)->GetNumerology());
-        ueNetDev->GetPhy(i)->SetPattern(gnbNetDev->GetPhy(i)->GetPattern());
+        const auto& gnbSched = gnbNetDev->GetScheduler(i);
+        const auto& gnbPhy = gnbNetDev->GetPhy(i);
+
+        // Search BWP (j) with equivalent frequency on UE that of the configured gNB (i)
+        auto gnbArfcn = gnbNetDev->GetBwpArfcn(i);
+        auto ueBwpId = ueNetDev->GetArfcnBwpId(gnbArfcn);
+
+        ueNetDev->GetRrc()->ReconfigureFromSib1(ueBwpId,
+                                                gnbNetDev->GetCellId(),
+                                                gnbSched->GetDlCtrlSyms(),
+                                                gnbSched->GetUlCtrlSyms(),
+                                                gnbPhy->GetSymbolsPerSlot(),
+                                                gnbPhy->GetNumerology(),
+                                                gnbPhy->GetPattern(),
+                                                gnbPhy->GetNumRbPerRbg());
+
         Ptr<NrEpcUeNas> ueNas = ueNetDev->GetNas();
         ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));
-
         if (IsMimoFeedbackEnabled())
         {
             // Initialize parameters for MIMO precoding matrix search (PMI feedback)
