@@ -172,13 +172,16 @@ NrPhy::FromRBGBitmaskToRBAssignment(const std::vector<bool> rbgBitmask) const
         {
             for (uint32_t k = 0; k < GetNumRbPerRbg(); ++k)
             {
-                ret.push_back((i * GetNumRbPerRbg()) + k);
+                uint32_t prbIndex = (i * GetNumRbPerRbg()) + k;
+                if (prbIndex >= GetRbNum())
+                {
+                    break;
+                }
+                ret.push_back(prbIndex);
             }
         }
     }
-
-    NS_ASSERT(static_cast<uint32_t>(std::count(rbgBitmask.begin(), rbgBitmask.end(), 1) *
-                                    GetNumRbPerRbg()) == ret.size());
+    NS_ASSERT(ret.size() <= GetRbNum());
     return ret;
 }
 
