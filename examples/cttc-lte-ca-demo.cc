@@ -287,7 +287,7 @@ main(int argc, char* argv[])
      */
     nrHelper->SetGnbDlAmcAttribute("NumRefScPerRb", UintegerValue(2));
     nrHelper->SetGnbUlAmcAttribute("NumRefScPerRb", UintegerValue(2));
-    nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(4));
+    nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(4));
     nrHelper->SetSchedulerAttribute("DlCtrlSymbols", UintegerValue(1));
     nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerOfdmaPF"));
 

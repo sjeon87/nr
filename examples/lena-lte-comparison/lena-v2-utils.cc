@@ -626,13 +626,13 @@ LenaV2Utils::SetLenaV2SimulatorParameters(const double sector0AngleRad,
         {
         case 20:
         case 15:
-            nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(4));
+            nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(4));
             break;
         case 10:
-            nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(3));
+            nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(3));
             break;
         case 5:
-            nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(2));
+            nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(2));
             break;
         default:
             NS_ABORT_MSG("Currently, only supported bandwidths are 5, 10, 15, and 20MHz, you chose "

@@ -309,5 +309,24 @@ CountUsedSymbolsFromVarAllocTtiRange(uint8_t startSym,
     return usedSymbols;
 }
 
+int
+NumRbsPerRbg(int numRbs)
+{
+    NS_ABORT_MSG_IF(numRbs <= 0, "Number of RBs should be bigger than 0");
+    if (numRbs <= 36)
+    {
+        return 2;
+    }
+    if (numRbs <= 72)
+    {
+        return 4;
+    }
+    if (numRbs <= 144)
+    {
+        return 8;
+    }
+    return 16;
+}
+
 } // namespace nr
 } // namespace ns3

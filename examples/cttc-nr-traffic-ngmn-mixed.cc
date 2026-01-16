@@ -373,7 +373,7 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     // Set LTE RBG size
     if (radioNetwork == "LTE")
     {
-        nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(4));
+        nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(4));
     }
 
     // We assume a common traffic pattern for all UEs

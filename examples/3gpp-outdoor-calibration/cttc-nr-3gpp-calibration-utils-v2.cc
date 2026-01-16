@@ -831,13 +831,13 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
         case 40:
         case 20:
         case 15:
-            nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(4));
+            nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(4));
             break;
         case 10:
-            nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(3));
+            nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(3));
             break;
         case 5:
-            nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(2));
+            nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(2));
             break;
         default:
             NS_ABORT_MSG(
@@ -847,7 +847,7 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
     }
     else
     {
-        nrHelper->SetGnbMacAttribute("NumRbPerRbg", UintegerValue(1));
+        nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(1));
     }
 
     // We assume a common traffic pattern for all UEs

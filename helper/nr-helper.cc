@@ -144,7 +144,12 @@ NrHelper::GetTypeId()
                           "Overhead when calculating the usable RB number",
                           DoubleValue(0.04),
                           MakeDoubleAccessor(&NrHelper::m_rbOverhead),
-                          MakeDoubleChecker<double>(0, 0.5));
+                          MakeDoubleChecker<double>(0, 0.5))
+            .AddAttribute("NumRbPerRbg",
+                          "Number of resource blocks per resource block group.",
+                          UintegerValue(1),
+                          MakeUintegerAccessor(&NrHelper::m_numRbPerRbg),
+                          MakeUintegerChecker<uint32_t>(1, 16));
     return tid;
 }
 
@@ -782,6 +787,8 @@ NrHelper::InstallSingleGnbDevice(
         cc->SetPhy(phy);
 
         auto mac = CreateGnbMac();
+        mac->SetNumRbPerRbg(m_numRbPerRbg);
+
         cc->SetMac(mac);
         phy->GetCam()->SetNrGnbMac(mac);
 
