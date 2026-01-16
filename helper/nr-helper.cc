@@ -514,7 +514,7 @@ NrHelper::InstallSingleUeDevice(
         {
             cc->SetAsPrimary(false);
         }
-
+        phy->SetDlAmc(m_gnbDlAmcFactory.Create<NrAmc>());
         phy->SetRbOverhead(m_rbOverhead);
         ueCcMap.insert(std::make_pair(bwpId, cc));
     }
