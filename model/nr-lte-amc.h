@@ -20,7 +20,7 @@ namespace ns3
 class SpectrumValue;
 
 /**
- * @ingroup lte
+ * @ingroup nr
  * Implements the Adaptive Modulation And Coding Scheme. As proposed in 3GPP
  * TSG-RAN WG1 [R1-081483 Conveying MCS and TB size via PDCCH]
  * (http://www.3gpp.org/ftp/tsg_ran/WG1_RL1/TSGR1_52b/Docs/R1-081483.zip).
