@@ -522,6 +522,9 @@ class NrSrsMessage : public NrControlMessage
     ~NrSrsMessage() override = default;
 };
 
+std::ostream& operator<<(std::ostream& os, const LteNrTddSlotType& item);
+std::ostream& operator<<(std::ostream& os, const NrControlMessage::messageType& item);
+
 } // namespace ns3
 
 #endif /* SRC_NR_MODEL_NR_CONTROL_MESSAGES_H_ */
