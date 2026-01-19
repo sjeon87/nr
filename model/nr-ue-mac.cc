@@ -1183,7 +1183,7 @@ NrUeMac::DoReceiveControlMessage(Ptr<NrControlMessage> msg)
     }
 
     default:
-        NS_LOG_LOGIC("Control message not supported/expected");
+        NS_LOG_LOGIC("Control message not supported/expected: " << msg->GetMessageType());
     }
 }
 
