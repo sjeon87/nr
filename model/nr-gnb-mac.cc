@@ -1048,7 +1048,7 @@ NrGnbMac::DoReceiveControlMessage(Ptr<NrControlMessage> msg)
         break;
     }
     default:
-        NS_LOG_WARN("Control message not supported/expected");
+        NS_LOG_WARN("Control message not supported/expected: " << msg->GetMessageType());
     }
 }
 
