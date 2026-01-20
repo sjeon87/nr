@@ -361,6 +361,7 @@ NrMacSchedulerTdma::CreateDlDci(PointInFTPlane* spoint,
                                                      << ueInfo->m_dlRBG.size()
                                                      << " DL RBG, but TBS < 10");
         ueInfo->m_dlTbSize = 0;
+        NS_ABORT_MSG("Too small DCI");
         return nullptr;
     }
 
