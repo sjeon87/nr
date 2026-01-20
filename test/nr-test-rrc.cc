@@ -318,7 +318,7 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
                                   "Y",
                                   StringValue("0.5"),
                                   "Rho",
-                                  StringValue("ns3::UniformRandomVariable[Min=0|Max=0.4]"));
+                                  StringValue("ns3::UniformRandomVariable[Min=5|Max=20]"));
     mobility.Install(ueNodes);
 
     // the following positions the gnb at (1, 1, 0)
@@ -490,9 +490,16 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
         NS_LOG_INFO("GnbRrc context for RNTI: " << rnti
                                                 << " is in state: " << ueManager->GetState());
 
+        if (ueManager->GetState() != NrUeManager::CONNECTED_NORMALLY)
+        {
+            NS_LOG_WARN(
+                "NrUeManager state is in invalid state at time:" << Simulator::Now().GetSeconds());
+        }
+
         NS_TEST_ASSERT_MSG_EQ(ueManager->GetState(),
                               NrUeManager::CONNECTED_NORMALLY,
-                              "The context of RNTI " << rnti << " is in invalid state");
+                              "The context of RNTI " << rnti << " is in invalid state at time: "
+                                                     << Simulator::Now().GetSeconds());
     }
     else
     {
