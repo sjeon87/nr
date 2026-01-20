@@ -169,6 +169,9 @@ BeamformingTestCase::DoRun()
 
     nrHelper->AttachToGnb(ueNetDevNc.Get(0), gnbNetDevNc.Get(0));
 
+    nrHelper->AssignStreams(gnbNetDevNc, 0);
+    nrHelper->AssignStreams(ueNetDevNc, 1000);
+
     Ptr<NrGnbNetDevice> gnbNetDev = DynamicCast<NrGnbNetDevice>(gnbNetDevNc.Get(0));
     Ptr<NrUeNetDevice> ueNetDev = DynamicCast<NrUeNetDevice>(ueNetDevNc.Get(0));
 
@@ -234,11 +237,11 @@ class TestNrIdealBeamforming : public TestSuite
                  {{ 10, -150, 0.0}, {0, 135}},
                  {{ 10, -120, 0.0}, {0, 135}},
                  {{ 10, -100, 0.0}, {0, 135}},
-                 {{ 10,  -50, 0.0}, {1, 135}},
+                 {{ 10,  -50, 0.0}, {2, 135}},
                  {{ 10,    0, 0.0}, {2, 135}},
-                 {{ 10,   20, 0.0}, {3, 135}},
+                 {{ 10,   20, 0.0}, {2,  45}},
                  {{ 10,  100, 0.0}, {0, 135}},
-                 {{ 10,  200, 0.0}, {0, 135}},
+                 {{ 10,  200, 0.0}, {3,  45}},
 
                  /**
                   * Same height as gNB (Z-axis)
@@ -253,9 +256,9 @@ class TestNrIdealBeamforming : public TestSuite
                  {{100, -100, 25.0}, {0, 135}},
                  {{100,  -50, 25.0}, {1,  45}},
                  {{100,    0, 25.0}, {2, 135}},
-                 {{100,   50, 25.0}, {3,  45}},
-                 {{100,  100, 25.0}, {3, 135}},
-                 {{100,  200, 25.0}, {0, 135}},
+                 {{100,   50, 25.0}, {3, 135}},
+                 {{100,  100, 25.0}, {3,  45}},
+                 {{100,  200, 25.0}, {2,  45}},
 
                  /**
                   * Pointing above gNB (Z-axis)
@@ -268,12 +271,12 @@ class TestNrIdealBeamforming : public TestSuite
                   * |
                   */
                  // (UE coordinate)  (sector  elevation)
-                 {{ 10, -200, 50.0}, {0, 45}},
+                 {{ 10, -200, 50.0}, {1,135}},
                  {{ 10,    0, 50.0}, {2, 45}},
-                 {{ 10,  200, 50.0}, {0, 45}},
+                 {{ 10,  200, 50.0}, {3, 45}},
                  {{100, -200, 50.0}, {0, 45}},
-                 {{100,    0, 50.0}, {2, 45}},
-                 {{100,  200, 50.0}, {3, 45}},
+                 {{100,    0, 50.0}, {2,135}},
+                 {{100,  200, 50.0}, {2, 45}},
                  // clang-format on
              })
         {
@@ -310,7 +313,7 @@ class TestNrIdealBeamforming : public TestSuite
                {{  10,    0, 25.0}, 1, 1, 1,  0,  90},
                {{  10,    0, 25.0}, 1, 1, 2,  0,  90},
                {{  10,    0, 25.0}, 2, 1, 1,  1,  90},
-               {{ 100, -200, 25.0}, 2, 1, 2,  0,  90},
+               {{ 100, -200, 25.0}, 2, 1, 2,  2,  90},
                {{ 100, -100, 25.0}, 2, 1, 2,  0,  90},
                {{ 100,  -50, 25.0}, 2, 1, 2,  0,  90},
                {{ 100,  -25, 25.0}, 2, 1, 2,  2,  90},
@@ -319,7 +322,7 @@ class TestNrIdealBeamforming : public TestSuite
                {{ 100,  150, 25.0}, 8, 4, 2, 12,  99},
                {{ 100,  150, 25.0}, 8, 2, 4, 24,  99},
                {{ 100,  150, 25.0}, 4, 8, 2,  6,  93.5},
-               {{ 100,  150, 25.0}, 2, 8, 4,  4,  87.5},
+               {{ 100,  150, 25.0}, 2, 8, 4,  4,  92.5},
                  // clang-format on
              })
         {
