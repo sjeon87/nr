@@ -626,8 +626,8 @@ NrX2HandoverMeasuresTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDev
     // Verifying other attributes on both sides.
     uint16_t ueDlBwp = ueRrc->GetPrimaryDlIndex();
     uint16_t ueUlBwp = ueRrc->GetPrimaryUlIndex();
-    uint32_t ueDlArfcn = nrUeDevice->GetArfcn(ueDlBwp);
-    uint32_t ueUlArfcn = nrUeDevice->GetArfcn(ueUlBwp);
+    uint32_t ueDlArfcn = nrUeDevice->GetBwpArfcn(ueDlBwp);
+    uint32_t ueUlArfcn = nrUeDevice->GetBwpArfcn(ueUlBwp);
     uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
     uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
 
@@ -789,148 +789,148 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
 
     std::string sched = "ns3::NrMacSchedulerTdmaPF";
     std::string ho = "ns3::NrA2A4RsrqHandoverAlgorithm";
-//    for (auto useIdealRrc : {true, /*false*/})
-//    {
-//        // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, ho, admitHo, idealRrc
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(2,
-//                                                     1,
-//                                                     0,
-//                                                     cel1,
-//                                                     cel1name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::TAKES_FOREVER);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(2,
-//                                                     1,
-//                                                     1,
-//                                                     cel1,
-//                                                     cel1name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::QUICK);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(2,
-//                                                     1,
-//                                                     2,
-//                                                     cel1,
-//                                                     cel1name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::TAKES_FOREVER);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(3,
-//                                                     1,
-//                                                     0,
-//                                                     cel2,
-//                                                     cel2name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::TAKES_FOREVER);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(3,
-//                                                     1,
-//                                                     1,
-//                                                     cel2,
-//                                                     cel2name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::TAKES_FOREVER);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(3,
-//                                                     1,
-//                                                     2,
-//                                                     cel2,
-//                                                     cel2name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::EXTENSIVE);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(4,
-//                                                     1,
-//                                                     0,
-//                                                     cel3,
-//                                                     cel3name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::EXTENSIVE);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(4,
-//                                                     1,
-//                                                     1,
-//                                                     cel3,
-//                                                     cel3name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::TAKES_FOREVER);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(4,
-//                                                     1,
-//                                                     2,
-//                                                     cel3,
-//                                                     cel3name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::TAKES_FOREVER);
-//    }
-//
-//    sched = "ns3::NrMacSchedulerTdmaRR";
-//    for (auto useIdealRrc : {true, /*false*/})
-//    {
-//        // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, admitHo, idealRrc
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(2,
-//                                                     1,
-//                                                     0,
-//                                                     cel1,
-//                                                     cel1name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::EXTENSIVE);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(3,
-//                                                     1,
-//                                                     0,
-//                                                     cel2,
-//                                                     cel2name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::TAKES_FOREVER);
-//        AddTestCase(new NrX2HandoverMeasuresTestCase(4,
-//                                                     1,
-//                                                     0,
-//                                                     cel3,
-//                                                     cel3name,
-//                                                     true,
-//                                                     sched,
-//                                                     ho,
-//                                                     true,
-//                                                     useIdealRrc),
-//                    TestCase::Duration::TAKES_FOREVER);
-//    }
+    //    for (auto useIdealRrc : {true, /*false*/})
+    //    {
+    //        // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, ho, admitHo, idealRrc
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(2,
+    //                                                     1,
+    //                                                     0,
+    //                                                     cel1,
+    //                                                     cel1name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::TAKES_FOREVER);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(2,
+    //                                                     1,
+    //                                                     1,
+    //                                                     cel1,
+    //                                                     cel1name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::QUICK);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(2,
+    //                                                     1,
+    //                                                     2,
+    //                                                     cel1,
+    //                                                     cel1name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::TAKES_FOREVER);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(3,
+    //                                                     1,
+    //                                                     0,
+    //                                                     cel2,
+    //                                                     cel2name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::TAKES_FOREVER);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(3,
+    //                                                     1,
+    //                                                     1,
+    //                                                     cel2,
+    //                                                     cel2name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::TAKES_FOREVER);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(3,
+    //                                                     1,
+    //                                                     2,
+    //                                                     cel2,
+    //                                                     cel2name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::EXTENSIVE);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(4,
+    //                                                     1,
+    //                                                     0,
+    //                                                     cel3,
+    //                                                     cel3name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::EXTENSIVE);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(4,
+    //                                                     1,
+    //                                                     1,
+    //                                                     cel3,
+    //                                                     cel3name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::TAKES_FOREVER);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(4,
+    //                                                     1,
+    //                                                     2,
+    //                                                     cel3,
+    //                                                     cel3name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::TAKES_FOREVER);
+    //    }
+    //
+    //    sched = "ns3::NrMacSchedulerTdmaRR";
+    //    for (auto useIdealRrc : {true, /*false*/})
+    //    {
+    //        // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, admitHo, idealRrc
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(2,
+    //                                                     1,
+    //                                                     0,
+    //                                                     cel1,
+    //                                                     cel1name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::EXTENSIVE);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(3,
+    //                                                     1,
+    //                                                     0,
+    //                                                     cel2,
+    //                                                     cel2name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::TAKES_FOREVER);
+    //        AddTestCase(new NrX2HandoverMeasuresTestCase(4,
+    //                                                     1,
+    //                                                     0,
+    //                                                     cel3,
+    //                                                     cel3name,
+    //                                                     true,
+    //                                                     sched,
+    //                                                     ho,
+    //                                                     true,
+    //                                                     useIdealRrc),
+    //                    TestCase::Duration::TAKES_FOREVER);
+    //    }
 
     ho = "ns3::NrA3RsrpHandoverAlgorithm";
     sched = "ns3::NrMacSchedulerTdmaPF";
