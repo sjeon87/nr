@@ -280,10 +280,6 @@ RiPmiTestCase::DoRun()
     NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice(gnbContainer, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueContainer, allBwps);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(enbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
-
     std::map<uint16_t, CqiFeedbackTraceStats> cqiTraces;
     for (auto it = ueNetDev.Begin(); it != ueNetDev.End(); ++it)
     {
@@ -303,6 +299,14 @@ RiPmiTestCase::DoRun()
 
     // attach each UE to its gNB according to desired scenario
     nrHelper->AttachToGnb(ueNetDev.Get(0), enbNetDev.Get(0));
+
+    epcHelper->AssignStreams(0);
+    internet.AssignStreams(remoteHost, 1000);
+    internet.AssignStreams(gnbContainer, 2000);
+    internet.AssignStreams(ueContainer, 3000);
+    nrHelper->AssignStreams(enbNetDev, 4000);
+    nrHelper->AssignStreams(ueNetDev, 5000);
+
     /**
      * Install DL traffic part.
      */
@@ -422,28 +426,28 @@ class TestRiPmiSystem : public TestSuite
         // Parameters (gNB-UE distance, RI selection technique, RI threshold, PMI selection
         // technique, expected throughput, latency, mean RI and mean MCS)
         // clang-format off
-        AddTestCase(new RiPmiTestCase( 20,             "",  0.0,    "ns3::NrPmSearchFull", 3.1, 25.0), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase( 20,             "",  0.0,    "ns3::NrPmSearchFull", 2.0, 25.0), Duration::QUICK);
         AddTestCase(new RiPmiTestCase(500,             "",  0.0,    "ns3::NrPmSearchFull", 2.3, 26.6), Duration::QUICK);
         AddTestCase(new RiPmiTestCase( 20,             "",  0.0,   "ns3::NrPmSearchIdeal", 3.5, 25.3), Duration::QUICK);
-        AddTestCase(new RiPmiTestCase(500,             "",  0.0,   "ns3::NrPmSearchIdeal", 2.9, 24.0), Duration::QUICK);
-        AddTestCase(new RiPmiTestCase( 20,          "SVD",  0.0,    "ns3::NrPmSearchFast", 4.0, 17.0), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase(500,             "",  0.0,   "ns3::NrPmSearchIdeal", 2.0, 24.0), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase( 20,          "SVD",  0.0,    "ns3::NrPmSearchFast", 4.0,  9.0), Duration::QUICK);
         AddTestCase(new RiPmiTestCase( 20,          "SVD",  0.5,    "ns3::NrPmSearchFast", 1.7, 27.0), Duration::EXTENSIVE);
         AddTestCase(new RiPmiTestCase( 20,          "SVD",  0.9,    "ns3::NrPmSearchFast", 1.0, 27.0), Duration::EXTENSIVE);
-        AddTestCase(new RiPmiTestCase(500,          "SVD",  0.0,    "ns3::NrPmSearchFast", 4.0,  9.6), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase(500,          "SVD",  0.0,    "ns3::NrPmSearchFast", 4.0,  6.0), Duration::QUICK);
         AddTestCase(new RiPmiTestCase(500,          "SVD",  0.5,    "ns3::NrPmSearchFast", 1.9, 27.0), Duration::EXTENSIVE);
         AddTestCase(new RiPmiTestCase(500,          "SVD",  0.9,    "ns3::NrPmSearchFast", 1.1, 27.0), Duration::EXTENSIVE);
-        AddTestCase(new RiPmiTestCase( 20, "WaterFilling", 10.0,    "ns3::NrPmSearchFast", 3.6, 20.5), Duration::QUICK);
-        AddTestCase(new RiPmiTestCase( 20, "WaterFilling", 50.0,    "ns3::NrPmSearchFast", 3.3, 23.0), Duration::EXTENSIVE);
-        AddTestCase(new RiPmiTestCase( 20, "WaterFilling", 75.0,    "ns3::NrPmSearchFast", 3.1, 24.5), Duration::EXTENSIVE);
-        AddTestCase(new RiPmiTestCase( 20, "WaterFilling", 90.0,    "ns3::NrPmSearchFast", 3.1, 24.5), Duration::EXTENSIVE);
-        AddTestCase(new RiPmiTestCase(500, "WaterFilling", 10.0,    "ns3::NrPmSearchFast", 3.1, 18.5), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase( 20, "WaterFilling", 10.0,    "ns3::NrPmSearchFast", 3.6, 16.0), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase( 20, "WaterFilling", 50.0,    "ns3::NrPmSearchFast", 3.3, 17.0), Duration::EXTENSIVE);
+        AddTestCase(new RiPmiTestCase( 20, "WaterFilling", 75.0,    "ns3::NrPmSearchFast", 2.0, 24.5), Duration::EXTENSIVE);
+        AddTestCase(new RiPmiTestCase( 20, "WaterFilling", 90.0,    "ns3::NrPmSearchFast", 2.0, 24.5), Duration::EXTENSIVE);
+        AddTestCase(new RiPmiTestCase(500, "WaterFilling", 10.0,    "ns3::NrPmSearchFast", 3.0, 14.0), Duration::QUICK);
         AddTestCase(new RiPmiTestCase(500, "WaterFilling", 50.0,    "ns3::NrPmSearchFast", 2.3, 24.7), Duration::QUICK);
         AddTestCase(new RiPmiTestCase(500, "WaterFilling", 75.0,    "ns3::NrPmSearchFast", 2.2, 27.0), Duration::EXTENSIVE);
         AddTestCase(new RiPmiTestCase(500, "WaterFilling", 90.0,    "ns3::NrPmSearchFast", 2.2, 27.0), Duration::EXTENSIVE);
-        AddTestCase(new RiPmiTestCase( 20,      "Sasaoka",  0.0,    "ns3::NrPmSearchFast", 3.1, 23.0), Duration::QUICK);
-        AddTestCase(new RiPmiTestCase( 20,      "Sasaoka",  0.0, "ns3::NrPmSearchSasaoka", 3.1, 23.0), Duration::QUICK);
-        AddTestCase(new RiPmiTestCase(500,      "Sasaoka",  0.0,    "ns3::NrPmSearchFast", 3.1, 15.0), Duration::QUICK);
-        AddTestCase(new RiPmiTestCase(500,      "Sasaoka",  0.0, "ns3::NrPmSearchSasaoka", 3.1, 15.0), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase( 20,      "Sasaoka",  0.0,    "ns3::NrPmSearchFast", 3.1, 17.0), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase( 20,      "Sasaoka",  0.0, "ns3::NrPmSearchSasaoka", 3.1, 17.0), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase(500,      "Sasaoka",  0.0,    "ns3::NrPmSearchFast", 3.1, 14.0), Duration::QUICK);
+        AddTestCase(new RiPmiTestCase(500,      "Sasaoka",  0.0, "ns3::NrPmSearchSasaoka", 3.1, 14.0), Duration::QUICK);
 #ifdef PMI_MALEKI
         // Maleki's PMI test is enabled via a conditional compilation flag due to external
         // dependencies such as Pybind11+Pyttb presence
