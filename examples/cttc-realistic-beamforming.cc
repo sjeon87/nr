@@ -706,6 +706,8 @@ CttcRealisticBeamforming::RunSimulation()
     positions->Add(
         Vector(m_gNbX + m_deltaX, m_gNbY + m_deltaY, m_ueHeight)); // UE will take this position
     MobilityHelper mobility;
+    // mobility.AssignStreams(0); // todo: MobilityHelper should have its own AssignStream for its
+    // default random stream
     mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
     mobility.SetPositionAllocator(positions);
     mobility.Install(gNbNode);
@@ -800,9 +802,8 @@ CttcRealisticBeamforming::RunSimulation()
     NetDeviceContainer gNbDev = nrHelper->InstallGnbDevice(gNbNode, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNode, allBwps);
 
-    int64_t randomStream = m_rngRun;
-    randomStream += nrHelper->AssignStreams(gNbDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
+    nrHelper->AssignStreams(gNbDev, 1000);
+    nrHelper->AssignStreams(ueNetDev, 2000);
 
     for (uint32_t i = 0; i < gNbDev.GetN(); i++)
     {
@@ -822,6 +823,11 @@ CttcRealisticBeamforming::RunSimulation()
     internet.Install(ueNode);
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
+
+    internet.AssignStreams(remoteHost, 3000);
+    internet.AssignStreams(gNbNode, 4000);
+    internet.AssignStreams(ueNode, 5000);
+    nrEpcHelper->AssignStreams(6000);
 
     // Attach UE to gNB
     nrHelper->AttachToGnb(ueNetDev.Get(0), gNbDev.Get(0));
