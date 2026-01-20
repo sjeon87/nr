@@ -67,7 +67,7 @@ NrMacSchedulerLcRR::AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& u
         {
             if (GetLCG(lcg)->GetTotalSizeOfLC(lcId) > 0)
             {
-                activeLc[{lcg.first, lcId}] = {GetLCG(lcg)->GetTotalSizeOfLC(lcId)+12, 0};
+                activeLc[{lcg.first, lcId}] = {GetLCG(lcg)->GetTotalSizeOfLC(lcId) + 12, 0};
             }
         }
     }
@@ -112,8 +112,10 @@ NrMacSchedulerLcRR::AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& u
             }
 
             // Assign block to this LC
-            tbs -= assignBlockSize;
-            unallocatedBytes -= assignBlockSize;
+            tbs = (tbs > 0) ? tbs - assignBlockSize : uint32_t(0);
+            unallocatedBytes = (unallocatedBytes > assignBlockSize)
+                                   ? unallocatedBytes - assignBlockSize
+                                   : uint32_t(0);
             allocatedBytes += assignBlockSize;
 
             if (tbs == 0)
