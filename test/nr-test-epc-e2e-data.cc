@@ -287,6 +287,14 @@ NrEpcE2eDataTestCase::DoRun()
                 nrHelper->ActivateDedicatedQosFlow(ueNrDevice, flow, rule);
             }
         }
+
+        nrEpcHelper->AssignStreams(0);
+        internet.AssignStreams(remoteHostContainer, 1000);
+        internet.AssignStreams(gnbs, 2000);
+        internet.AssignStreams(ues, 3000);
+        internet.AssignStreams(remoteHostContainer, 4000);
+        nrHelper->AssignStreams(nrGnbDevs, 5000);
+        nrHelper->AssignStreams(ueNrDevs, 6000);
     }
     Config::Set("/NodeList/*/DeviceList/*/NrGnbRrc/UeMap/*/RadioBearerMap/*/NrRlc/MaxTxBufferSize",
                 UintegerValue(2 * 1024 * 1024));
