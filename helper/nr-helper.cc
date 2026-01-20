@@ -1446,6 +1446,11 @@ NrHelper::AssignStreams(NetDeviceContainer c, int64_t stream)
         {
             for (uint32_t bwp = 0; bwp < nrUe->GetCcMapSize(); bwp++)
             {
+                Ptr<NrPmSearch> pmSearch = nrUe->GetPhy(bwp)->GetPmSearch();
+                if (pmSearch)
+                {
+                    currentStream += nrUe->GetPhy(bwp)->GetPmSearch()->AssignStreams(currentStream);
+                }
                 currentStream += nrUe->GetPhy(bwp)->GetSpectrumPhy()->AssignStreams(currentStream);
                 currentStream += nrUe->GetMac(bwp)->AssignStreams(currentStream);
                 currentStream +=
