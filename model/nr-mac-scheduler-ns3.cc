@@ -639,13 +639,18 @@ NrMacSchedulerNs3::DoCschedUeReleaseReq(
 
     // We clean m_ulAllocationMap in two steps, first we remove vector entries from map items
     // Later we remove map items with empty vectors
+    NS_LOG_INFO("Removing uplink allocations for released RNTI " << params.m_rnti);
     for (auto& slotAlloc : m_ulAllocationMap)
     {
         std::erase_if(slotAlloc.second.m_ulAllocations,
                       [rnti = params.m_rnti](auto& allocElem) { return allocElem.m_rnti == rnti; });
     }
-    std::erase_if(m_ulAllocationMap,
-                  [](auto& slotAlloc) { return slotAlloc.second.m_ulAllocations.empty(); });
+    NS_LOG_INFO("Removing uplink slot allocations with no scheduled UEs");
+    std::erase_if(m_ulAllocationMap, [this](auto& slotAlloc) {
+        const auto empty = slotAlloc.second.m_ulAllocations.empty();
+        NS_LOG_INFO("Removing uplink allocations for slot allocation " << slotAlloc.first);
+        return empty;
+    });
 
     NS_LOG_INFO("Release RNTI " << params.m_rnti);
 }
@@ -977,6 +982,9 @@ NrMacSchedulerNs3::DoSchedUlCqiInfoReq(
         // ulSfnSf);
         if (itAlloc == m_ulAllocationMap.end())
         {
+            NS_LOG_INFO(
+                "We are stopping this early because there is nothing allocated to do. There could "
+                "have been something before, but it was likely released by a UE disconnection.");
             break; // early exit because there is nothing allocated to do
         }
         std::vector<AllocElem>& ulAllocations = itAlloc->second.m_ulAllocations;
@@ -2500,8 +2508,8 @@ NrMacSchedulerNs3::DoSchedDlTriggerReq(
         {
             if (m_ueMap.find(it->m_rnti) == m_ueMap.end())
             {
-                // UE was removed but HARQ feedback remained in a buffer
-                // todo: clean properly
+                NS_LOG_INFO("UE was released, but HARQ feedback remained in a buffer. We dispose "
+                            "of it here.");
                 it = dlHarqFeedback.erase(it);
                 continue;
             }

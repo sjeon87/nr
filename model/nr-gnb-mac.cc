@@ -627,7 +627,10 @@ NrGnbMac::DoSlotDlIndication(const SfnSf& sfnSf, LteNrTddSlotType type)
 
         // todo: find better way to clear pending CQI removed after user is removed from cell
         std::erase_if(m_dlCqiReceived, [this](auto& dlCqiInfo) {
-            return m_rlcAttached.find(dlCqiInfo.m_rnti) == m_rlcAttached.end();
+            const auto disconnected = m_rlcAttached.find(dlCqiInfo.m_rnti) == m_rlcAttached.end();
+            NS_LOG_INFO("Removed stale CQI feedback of RNTI "
+                        << dlCqiInfo.m_rnti << "? " << (disconnected ? "Yes" : "No") << ".");
+            return disconnected;
         });
 
         dlCqiInfoReq.m_cqiList.insert(dlCqiInfoReq.m_cqiList.begin(),
@@ -907,8 +910,8 @@ NrGnbMac::DoReceivePhyPdu(Ptr<Packet> p)
 
     if (rntiIt == m_rlcAttached.end())
     {
-        NS_LOG_DEBUG("could not find RNTI" << rnti
-                                           << ", probably a buffered PDU of disconnected UE");
+        NS_LOG_DEBUG("Could not find RNTI: " << rnti
+                                             << ", probably a buffered PDU of disconnected UE");
         return;
     }
 
@@ -1520,7 +1523,6 @@ void
 NrGnbMac::DoAddLc(NrGnbCmacSapProvider::LcInfo lcinfo, NrMacSapUser* msu)
 {
     NS_LOG_FUNCTION(this);
-    NS_LOG_FUNCTION(this);
 
     auto rntiIt = m_rlcAttached.find(lcinfo.rnti);
     NS_ASSERT_MSG(rntiIt != m_rlcAttached.end(), "RNTI not found");
@@ -1534,10 +1536,6 @@ NrGnbMac::DoAddLc(NrGnbCmacSapProvider::LcInfo lcinfo, NrMacSapUser* msu)
         NS_LOG_ERROR("LC already exists");
     }
 
-    // CCCH (LCID 0) is pre-configured
-    // see FF LTE MAC Scheduler
-    // Interface Specification v1.11,
-    // 4.3.4 logicalChannelConfigListElement
     struct NrMacCschedSapProvider::CschedLcConfigReqParameters params{};
     params.m_rnti = lcinfo.rnti;
     params.m_reconfigureFlag = false;
