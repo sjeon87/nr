@@ -334,6 +334,12 @@ class NrRadioEnvironmentMapHelper : public Object
     void ConfigureRrd(const Ptr<NetDevice>& rrdDevice);
 
     /**
+     * Creates a new antenna instance and copies the configuration of the previous
+     * @return A copy of the antenna
+     */
+    Ptr<UniformPlanarArray> CopyAntenna(Ptr<UniformPlanarArray> antenna) const;
+
+    /**
      * @brief Configure REM Transmission Devices (RTDs) List
      * @param rtdDevs NetDeviceContainer of the transmitting objects for whose
      * transmissions will be created this REM map

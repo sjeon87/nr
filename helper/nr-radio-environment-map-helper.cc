@@ -310,13 +310,34 @@ NrRadioEnvironmentMapHelper::ConfigureRrd(const Ptr<NetDevice>& rrdDevice)
     Ptr<MobilityBuildingInfo> buildingInfo = CreateObject<MobilityBuildingInfo>();
     m_rrd.mob->AggregateObject(buildingInfo);
 
-    m_rrd.antenna = m_deviceToAntenna.find(rrdDevice)->second;
+    m_rrd.antenna = CopyAntenna(m_deviceToAntenna.find(rrdDevice)->second);
 
     m_noisePsd = NrSpectrumValueHelper::CreateNoisePowerSpectralDensity(m_rrdPhy->GetNoiseFigure(),
                                                                         m_rrd.spectrumModel);
 
     ConfigurePropagationModelsFactories(
         m_rrdPhy); // we can call only once configuration of prop.models
+}
+
+Ptr<UniformPlanarArray>
+NrRadioEnvironmentMapHelper::CopyAntenna(Ptr<UniformPlanarArray> antenna) const
+{
+    NS_ABORT_MSG_IF(antenna == nullptr, "antenna is null");
+    Ptr<UniformPlanarArray> copy = CreateObject<UniformPlanarArray>();
+    TypeId tid = antenna->GetInstanceTypeId();
+    NS_ABORT_MSG_IF(tid != UniformPlanarArray::GetTypeId(), "Expected UniformPlanarArray instance");
+    for (uint32_t i = 0; i < tid.GetAttributeN(); ++i)
+    {
+        const auto info = tid.GetAttribute(i);
+        const std::string attrName = info.name;
+        Ptr<AttributeValue> attrValue = info.checker->Create();
+        bool ok = antenna->GetAttributeFailSafe(attrName, *attrValue);
+        NS_ASSERT_MSG(ok, "Failed to obtain an attribute " << attrName);
+        ok = copy->SetAttributeFailSafe(attrName, *attrValue);
+        NS_ASSERT_MSG(ok, "Failed to copy an attribute " << attrName);
+    }
+    copy->SetBeamformingVector(antenna->GetBeamformingVector());
+    return copy;
 }
 
 void
@@ -353,7 +374,7 @@ NrRadioEnvironmentMapHelper::ConfigureRtdList(const NetDeviceContainer& rtdDevs)
         Ptr<MobilityBuildingInfo> buildingInfo = CreateObject<MobilityBuildingInfo>();
         rtd.mob->AggregateObject(buildingInfo);
 
-        rtd.antenna = m_deviceToAntenna.find(*netDevIt)->second;
+        rtd.antenna = CopyAntenna(m_deviceToAntenna.find(*netDevIt)->second);
 
         rtd.txPower = rtdPhy->GetTxPower();
 
