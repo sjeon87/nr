@@ -55,8 +55,8 @@ int
 main(int argc, char* argv[])
 {
     // gnb antenna parameters
-    uint32_t numRowsGnb = 1;
-    uint32_t numColumnsGnb = 1;
+    uint32_t numRowsGnb = 2;
+    uint32_t numColumnsGnb = 2;
     uint16_t sector = 0;
     double theta = 60;
     double simTime = 1;
