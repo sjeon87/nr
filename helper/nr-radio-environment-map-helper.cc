@@ -710,6 +710,9 @@ NrRadioEnvironmentMapHelper::CalcRxPsdValue(RemDevice& device, RemDevice& otherD
 {
     PropagationModels tempPropModels = CreateTemporalPropagationModels();
 
+    // create a new antenna ID to enforce new channel generation (adjacency matrix saves all the
+    // channels)
+    device.antenna = CopyAntenna(device.antenna);
     std::vector<int> activeRbs(device.spectrumModel->GetNumBands());
     std::iota(activeRbs.begin(), activeRbs.end(), 0);
 
