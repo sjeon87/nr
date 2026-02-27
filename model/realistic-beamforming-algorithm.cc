@@ -477,7 +477,7 @@ RealisticBeamformingAlgorithm::GetEstimatedLongTermComponent(
                                          m_normalRandomVariable->GetValue(0, sqrt(0.5) * varError));
                 std::complex<double> hEstimate =
                     channelMatrix->m_channel(uIndex, sIndex, cIndex) + error;
-                rxSum += uW[uIndex] * (hEstimate);
+                rxSum += std::conj(uW[uIndex]) * (hEstimate);
             }
             txSum = txSum + sW[sIndex] * rxSum;
         }
