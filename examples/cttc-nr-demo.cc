@@ -108,6 +108,10 @@ main(int argc, char* argv[])
     double bandwidthBand2 = 50e6;
     double totalTxPower = 35;
 
+    // Default values for RLC buffer size
+    uint32_t rlcUmMaxTxBufferSize = 0;   // 0 = auto
+    double rlcBufferTargetDelayMs = 50.0;  // used only if auto
+
     // Where we will store the output files.
     std::string simTag = "default";
     std::string outputDir = "./";
@@ -157,6 +161,15 @@ main(int argc, char* argv[])
                  "tag to be appended to output filenames to distinguish simulation campaigns",
                  simTag);
     cmd.AddValue("outputDir", "directory where to store simulation results", outputDir);
+    cmd.AddValue("rlcUmMaxTxBufferSize",
+                "RLC UM maximum TX buffer size in bytes. "
+                "0 enables auto sizing based on offered load and rlcBufferTargetDelayMs. "
+                "Set to 999999999 to emulate legacy behavior.",
+                rlcUmMaxTxBufferSize);
+
+    cmd.AddValue("rlcBufferTargetDelayMs",
+                "Target buffering delay (ms) used for auto RLC UM buffer sizing.",
+                rlcBufferTargetDelayMs);
 
     // Parse the command line
     cmd.Parse(argc, argv);
@@ -167,6 +180,10 @@ main(int argc, char* argv[])
      */
     NS_ABORT_IF(centralFrequencyBand1 < 0.5e9 && centralFrequencyBand1 > 100e9);
     NS_ABORT_IF(centralFrequencyBand2 < 0.5e9 && centralFrequencyBand2 > 100e9);
+
+    // Computing the offered load for RLC buffer size
+    const double offeredLoadBps = 8.0 * (static_cast<double>(udpPacketSizeULL) * static_cast<double>(lambdaULL) +
+           static_cast<double>(udpPacketSizeBe) * static_cast<double>(lambdaBe));
 
     /*
      * If the logging variable is set to true, enable the log of some components
@@ -191,8 +208,27 @@ main(int argc, char* argv[])
      * an example: if you want to make the RLC buffer very large, you can pass a very large integer
      * here.
      */
-    Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(999999999));
+    //Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(999999999));
+    if (rlcUmMaxTxBufferSize == 0)
+    {
+        const double targetDelayS = rlcBufferTargetDelayMs / 1000.0;
+        uint64_t autoBytes = static_cast<uint64_t>(std::llround(offeredLoadBps * targetDelayS / 8.0));
+        
+        const uint64_t minBytes = 1ull * 1024 * 1024;     // 1 MB
+        const uint64_t maxBytes = 200ull * 1024 * 1024;   // 200 MB
+        if (autoBytes < minBytes) autoBytes = minBytes;
+        if (autoBytes > maxBytes) autoBytes = maxBytes;
 
+        rlcUmMaxTxBufferSize = static_cast<uint32_t>(autoBytes);
+    }
+
+    Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize",
+                    UintegerValue(rlcUmMaxTxBufferSize));
+
+    std::cout << "RLC UM MaxTxBufferSize = " << rlcUmMaxTxBufferSize
+            << " bytes (offeredLoad=" << offeredLoadBps / 1e6 << " Mb/s, "
+            << "targetDelay=" << rlcBufferTargetDelayMs << " ms)"
+            << std::endl;
     /*
      * Create the scenario. In our examples, we heavily use helpers that setup
      * the gnbs and ue following a pre-defined pattern. Please have a look at the
