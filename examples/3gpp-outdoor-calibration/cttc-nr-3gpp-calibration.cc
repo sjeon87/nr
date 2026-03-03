@@ -386,8 +386,12 @@ ChooseCalibrationScenario(Parameters& params)
                 params.gnbNoiseFigure = 5;
                 params.ueNoiseFigure = 7;
 
-                params.initParams.rowAngles = {-56.25, -33.75, -11.25, 11.25, 33.75, 56.25};
-                params.initParams.colAngles = {112.5, 157.5};
+                // Use 3GPP reference azimuth and zenith angles, instead of previously used ULA V|H
+                // angles
+                Config::SetDefault("ns3::PhasedArrayAngleConvention::AngleConvention",
+                                   StringValue("3GPP"));
+                params.initParams.colAngles = {-56.25, -33.75, -11.25, 11.25, 33.75, 56.25};
+                params.initParams.rowAngles = {112.5, 157.5};
                 params.enableFading = true; // required by attachRsrp
                 params.attachRsrp = true;
             }
@@ -432,15 +436,20 @@ ChooseCalibrationScenario(Parameters& params)
                 params.ftpM1Enabled = true;
                 params.scheduler = "PF";
                 Config::SetDefault("ns3::NrMacSchedulerTdmaPF::FairnessIndex", DoubleValue(0.2));
+
+                // Use 3GPP reference azimuth and zenith angles, instead of previously used ULA V|H
+                // angles
+                Config::SetDefault("ns3::PhasedArrayAngleConvention::AngleConvention",
+                                   StringValue("3GPP"));
                 Config::SetDefault("ns3::NrHelper::CsiFeedbackFlags",
                                    UintegerValue(CQI_PDSCH_MIMO));
-                Config::SetDefault("ns3::KroneckerQuasiOmniBeamforming::ColumnAngles",
-                                   StringValue("112.5|157.5"));
                 Config::SetDefault("ns3::KroneckerQuasiOmniBeamforming::RowAngles",
-                                   StringValue("-56.25|-33.75|-11.25|11.25|33.75|56.25"));
-                Config::SetDefault("ns3::NrInitialAssociation::ColumnAngles",
                                    StringValue("112.5|157.5"));
+                Config::SetDefault("ns3::KroneckerQuasiOmniBeamforming::ColumnAngles",
+                                   StringValue("-56.25|-33.75|-11.25|11.25|33.75|56.25"));
                 Config::SetDefault("ns3::NrInitialAssociation::RowAngles",
+                                   StringValue("112.5|157.5"));
+                Config::SetDefault("ns3::NrInitialAssociation::ColumnAngles",
                                    StringValue("-56.25|-33.75|-11.25|11.25|33.75|56.25"));
 
                 params.numerologyBwp = 1;
@@ -503,8 +512,12 @@ ChooseCalibrationScenario(Parameters& params)
                 params.scheduler = "RR";
                 params.ftpM1Enabled = false;
 
-                params.initParams.rowAngles = {-56.25, -33.75, -11.25, 11.25, 33.75, 56.25};
-                params.initParams.colAngles = {112.5, 157.5};
+                // Use 3GPP reference azimuth and zenith angles, instead of previously used ULA V|H
+                // angles
+                Config::SetDefault("ns3::PhasedArrayAngleConvention::AngleConvention",
+                                   StringValue("3GPP"));
+                params.initParams.rowAngles = {112.5, 157.5};
+                params.initParams.colAngles = {-56.25, -33.75, -11.25, 11.25, 33.75, 56.25};
 
                 params.numerologyBwp = 0;
                 params.initParams.handoffMargin = 3;
