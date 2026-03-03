@@ -1127,10 +1127,21 @@ NrRlcUm::ReassembleOutsideWindow()
 {
     NS_LOG_LOGIC("Reassemble Outside Window");
 
-    auto it = m_rxBuffer.begin();
+    auto it = m_rxBuffer.lower_bound(m_vrUr.GetValue()); // First SN such that SN >= VR(UR)
 
-    while ((it != m_rxBuffer.end()) && !IsInsideReorderingWindow(nr::SequenceNumber10(it->first)))
+    while (!m_rxBuffer.empty())
     {
+        if (it == m_rxBuffer.end())
+        {
+            // wrap-around manual
+            it = m_rxBuffer.begin();
+        }
+
+        if (IsInsideReorderingWindow(nr::SequenceNumber10(it->first)))
+        {
+            break;
+        }
+
         NS_LOG_LOGIC("SN = " << it->first);
 
         // Reassemble RLC SDUs and deliver the PDCP PDU to upper layer
