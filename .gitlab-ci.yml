@@ -150,6 +150,7 @@ documentation:
     - mkdir -p $CCACHE_BASEDIR_VALUE
     - export CCACHE_BASEDIR=${PWD}
     - export CCACHE_DIR=${PWD}/$CCACHE_BASEDIR_VALUE
+    - rm -Rf ns-3-dev
     # Clone ns-3 and configure then extract introspected doxygen
     - git clone -b $NS3_RELEASE_VERSION --depth=1 $NS3_REPOSITORY_URL
     - ln -s ${PWD} ns-3-dev/contrib/nr
