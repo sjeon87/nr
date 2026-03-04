@@ -21,10 +21,11 @@ Release NR-v4.2
 
 Availability
 ------------
+March 5, 2026.
 
 Cite this version
 -----------------
-DOI:
+DOI: 10.5281/zenodo.18875770
 
 Supported platforms
 -------------------
@@ -42,6 +43,28 @@ This release is compatible with ns-3.47.
 
 Important news
 --------------
+- A 10 year old bug in RLC UM, inherited from LTE, was solved. It could crash simulations with a PDCP
+  assert related to dcBit==DATA_PDU. It resulted from an incorrect handling of reassembling out-of-window PDUs,
+  resulting in a stale cached PDU outside the PDU, that was then reassembled to the wrong sequence of PDUs after
+  the reception window wrapped around.
+- The BWPId and CellId schemes were modified. Now there is a single CellId per gNB,
+  and BWPIds are local to that gNB.
+- ARFCNs are now used instead of frequency. Whenever BWPs of two different devices are compared,
+  their respective BWPIds should be retrieved based on the ARFCN match. Note that final frequency
+  used during the simulation may differ from the specified one by the user, if not representable by the ARFCN,
+  as defined in TS 38.104 and patent EP4021097A1.
+- Classes renamed:
+  - `NrEpcTft` was renamed to `NrQosRule`
+  - `NrEpcTftClassifier` was renamed to `NrQosRuleClassifier`
+  - `NrEpsBearer` was renamed to `NrQosFlow`
+  - `NrEpsBearerTag` was renamed to `NrQosFlowTag`
+  - `QCI` was renamed to `fiveQi`
+- The hardcoded eviction factor in `NrMacSchedulerOfdma` was replaced with an exhaustive solution to
+  prevent stopping allocation earlier, if there are enough available resources, even if their usage
+  cause an MCS drop.
+- Indoor and outdoor calibration parameters were updated to match 3GPP SU-MIMO reference studies (e.g. RP-180524).
+- MCS tables were moved from `nr-eesm-t1.h/cc` and `nr-eesm-t2.h/cc` to `nr-mcs-tables.h/cc`. Precision of effective
+  code rates, spectral efficiency and CQI tables were increased.
 - Remember to follow the instructions from the README.md file, i.e., to checkout
   the correct release branch of both ns-3 and the NR module. The information about
   compatibility with the corresponding ns-3 release branch is stated in the
@@ -49,10 +72,28 @@ Important news
 
 New user-visible features
 -------------------------
+- The QFI field was added to QoS rules
+- The class `PhasedArrayAngleConvention` was introduced to control whether the angles passed to Kronecker
+  beamforming vectors follow the 3GPP convention, or the ULA convention in ns-3.
 
 Bugs fixed
 ----------
-- Bug fixed in the realistic beamforming algorithm: added missing conjugate transpose of the RX beamforming vector (See ns-3 #1314).
+- (02da6eef) Bug fixed in the realistic beamforming algorithm: added missing conjugate transpose of
+  the RX beamforming vector (See ns-3 #1314).
+- (bc99102e) Logical channel priorities now return the respective 5QI priority instead of the 5QI value.
+- (4b8498a4) `NrNoBackhaulEpcHelper::SetupRemoteHost()` now returns the remote host address instead of the PGW.
+- (99090a26) Set 5QI for SRB1.
+- (160331d2) Improve documentation of `NrAmc::CalculateTbSize()` and `NrAmc::GetPayloadSize`.
+- Set random streams of:
+  - (0f1c967b) `cttc-realistic-beamforming`
+  - (3b1433fd) `nr-ideal-beamforming-test`
+  - (2c01aa7f) `PmSearch` in `NrHelper`
+  - (ff414885) `nr-test-epc-e2e-data`
+  - (aeec59b5) `nr-phy-patterns`
+- (5a8743ff, 599d434a, 86e774f0) Ensure each antenna pair is used by a single channel at `NrRadioEnvironmentMapHelper`
+  and `cttc-channel-randomness.cc` example.
+- (8107c1a5) Fix RLC UM receive window, by reassembling the oldest `SequenceNumber` outside the reception window,
+  instead of the lowest `SequenceNumber` in the buffer.
 
 Known issues
 ------------
