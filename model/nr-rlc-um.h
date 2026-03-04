@@ -85,8 +85,10 @@ class NrRlcUm : public NrRlc
     void DoTransmitBufferStatusReport();
 
   private:
-    uint32_t m_maxTxBufferSize; ///< maximum transmit buffer status
-    uint32_t m_txBufferSize;    ///< transmit buffer size
+    friend class NrRlcUmTestCase; ///< Grant NrRlcUmTestCase access to private members for
+                                  ///<  RLC UM RX verification
+    uint32_t m_maxTxBufferSize;   ///< maximum transmit buffer status
+    uint32_t m_txBufferSize;      ///< transmit buffer size
 
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
