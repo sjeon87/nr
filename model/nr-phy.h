@@ -409,7 +409,7 @@ class NrPhy : public Object
      * - FR1 (0–3 GHz)
      * - FR1 extended (3–24.25 GHz)
      * - FR2 (24.25–100 GHz)
-     * - FR3 (100–114.25 GHz), experimental based on patent WO2021033328A1
+     * - FR3 (100–114.25 GHz), experimental based on patent EP4021097A1
      *
      * If the ARFCN is outside the supported ranges, an error is triggered.
      *
