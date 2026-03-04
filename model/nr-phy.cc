@@ -961,7 +961,7 @@ NrPhy::ArfcnToFrequencyHz(uint32_t arfcn)
     else if (arfcn >= 3279166 && arfcn <= 62654166)
     {
         // FR3 (100–114.25 GHz)
-        // Based on Patent WO2021033328A1
+        // Based on Patent EP4021097A1
         freq = 100000000000.0 + static_cast<double>(arfcn - 3279166) * 240.0;
     }
     else
