@@ -53,20 +53,39 @@ us a note on ns-developers mailing list.
 ### New API:
 - Add ``Get/SetBwpId()`` functions to ``BandwidthPartGnb``. These will be used instead of ``Get/SetCellId()``,
   minimizing confusion between the use of BwpId as "Physical" CellIds.
+- Add ``NrGnbNetDevice::GetArfcnBwpId()`` function to retrieve device-local BWPId (offset) matching a specific ARFCN. See commit ef6a9043.
+- Add ``NrUeNetDevice::GetBwpArfcn()`` function to retrieve the ARFCN of the specified BWPId. See commits ef6a9043 and fea08a4d.
+- Add ``NrPhy::FrequencyHzToArfcn()`` and ``NrPhy::ArfcnToFrequencyHz()`` functions to compute ARFCN from frequency and vice-versa. See commit be20638d.
+- Add ``NrMacSchedulerOfdma::EstimateTotalTbCapacity()`` function that temporarily allocates all remaining resources to a UE,
+  checks the maximum achievable TB size, and then frees up resources. This function replaces the previously hardcoded eviction factor. See commit f2f00d78.
 
 ### Changes to Existing API
 - Changed std:vector<uint16_t> cellIds parameters with a single cellId. In LTE we had multiple cells per gNB netdevice,
   while in NR we don't. All BWPs will now refer to the same RRC, as configured in the RRC. This affects primarily
-  ``NrEpcHelper``, ``NrHelper``, ``NrNoBackhaulEpcHelper``, ``NrPointToPointEpcHelper`` and tests.
+  ``NrEpcHelper``, ``NrHelper``, ``NrNoBackhaulEpcHelper``, ``NrPointToPointEpcHelper`` and tests. See commit 8d50bc6e.
 - ``NrQosRule`` replaces previous use of ``NrEpcTft` to reflect 5G terminology
 - ``NrEpcTftClassifier`` class was renamed to ``NrQosRuleClassifier`` to reflect 5G terminology
 - ``NrEpsBearer`` class was renamed to ``NrQosFlow`` to reflect 5G terminology.  Public API (class method names, 5QI values) that used to refer to ``EpsBearer`` now refers to ``QosFlow``
 - ``NrEpcBearerTag`` class was renamed to ``NrQosFlowTag`` to reflect 5G terminology
+- Replaced ``DlEarfcn`` and ``UlEarfcn`` with a single ``Arfcn``. See commit ef6a9043.
+- The function ``NrGnbNetDevice::GetCellIds()`` was replaced with ``NrGnbNetDevice::GetBwpIds()``. See commit 8d50bc6e.
+- The function ``NrGnbNetDevice::GetBwpId()`` was replaced with ``NrGnbNetDevice::GetCellId()``. See commit 8d50bc6e.
+- The function ``NrGnbNetDevice::GetCellIdDlBandwidth()`` was replaced with ``NrGnbNetDevice::GetBwpDlBandwidth()``. Same for UL. See commits 8d50bc6e.
+- The function ``NrGnbNetDevice::GetCellIdDlEarfcn()`` was replaced with ``NrGnbNetDevice::GetBwpArfcn()``. Same for UL. See commits 8d50bc6e and ef6a9043.
 
 ### Changed Behavior
 - The numeration of BWPs was changed, so that BWP Ids match the order they are installed.
-- The iteration order of rules used to classify packets to QoS flows, in the QosRuleClassifier (previously EpcTftClassifier), has changed.  The default bearer is still checked last, but a precedence-based ordering (ascending precedence according to TS 24.501) is now supported, and for rules that do not have precedence explicitly set, they are now evaluated in the order that they were added, rather than in reverse order (previously).
-- The assignments of Data Radio Bearer ID, Logical Channel ID, and Qos Flow ID (formerly EPS Bearer ID) have been slightly changed; most notably, DRBID now aligns with LCID instead of LCID being assigned to (DRBID + 2)
+- The iteration order of rules used to classify packets to QoS flows, in the QosRuleClassifier
+  (previously EpcTftClassifier), has changed.  The default bearer is still checked last, but a
+  precedence-based ordering (ascending precedence according to TS 24.501) is now supported, and
+  for rules that do not have precedence explicitly set, they are now evaluated in the order that
+  they were added, rather than in reverse order (previously).
+- The assignments of Data Radio Bearer ID, Logical Channel ID, and Qos Flow ID (formerly EPS Bearer ID)
+  have been slightly changed; most notably, DRBID now aligns with LCID instead of LCID being assigned to (DRBID + 2)
+- NrMacSchedulerLcRR previously divided the number of available bytes in a TxOp equally to all active LCs.
+  Now it distributes them in RR fashion, so LCs with fewer bytes to transmit use less bytes, and LCs with more
+  bytes to transmit get more if all other LCs with fewer bytes are fully satisfied.
+- ARFCNs are now computed according to 3GPP standard, and are used instead of frequencies.
 
 ---
 
