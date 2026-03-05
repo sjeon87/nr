@@ -121,6 +121,8 @@ NrRlcUmTestCase::DoRun()
 
     NrMacSapUser::ReceivePduParameters rxPduParams = {};
     rxPduParams.p = pdu;
+    rxPduParams.lcid = 0;
+    rxPduParams.rnti = 0;
 
     NS_LOG_INFO("Step 4: Calling DoReceivePdu with SN=505");
     NS_LOG_INFO("-----------------------------------------------------------------------------");
