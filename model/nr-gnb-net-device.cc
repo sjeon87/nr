@@ -210,13 +210,6 @@ NrGnbNetDevice::GetCellId(uint8_t index) const
     return m_ccMap.at(index)->GetCellId();
 }
 
-uint32_t
-NrGnbNetDevice::GetArfcn(uint8_t index) const
-{
-    NS_LOG_FUNCTION(this);
-    return m_ccMap.at(index)->GetArfcn(); // Ul or Dl doesn't matter, they are the same
-}
-
 void
 NrGnbNetDevice::SetRrc(Ptr<NrGnbRrc> rrc)
 {

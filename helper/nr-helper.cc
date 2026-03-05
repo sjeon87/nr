@@ -1134,7 +1134,7 @@ NrHelper::AttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbD
         ueNetDev->GetPhy(i)->SetNumerology(gnbNetDev->GetPhy(i)->GetNumerology());
         ueNetDev->GetPhy(i)->SetPattern(gnbNetDev->GetPhy(i)->GetPattern());
         Ptr<NrEpcUeNas> ueNas = ueNetDev->GetNas();
-        ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetArfcn(i));
+        ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));
 
         if (IsMimoFeedbackEnabled())
         {
