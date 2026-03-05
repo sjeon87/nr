@@ -483,8 +483,8 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
     uint16_t ueCellId = ueRrc->GetCellId();
     uint16_t ueDlBwp = ueRrc->GetPrimaryDlIndex();
     uint16_t ueUlBwp = ueRrc->GetPrimaryUlIndex();
-    uint32_t ueDlArfcn = ueNrDevice->GetArfcn(ueDlBwp);
-    uint32_t ueUlArfcn = ueNrDevice->GetArfcn(ueUlBwp);
+    uint32_t ueDlArfcn = ueNrDevice->GetBwpArfcn(ueDlBwp);
+    uint32_t ueUlArfcn = ueNrDevice->GetBwpArfcn(ueUlBwp);
     uint16_t ueImsi = ueNrDevice->GetImsi();
     uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
     uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();

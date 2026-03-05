@@ -66,8 +66,6 @@ class NrGnbNetDevice : public NrNetDevice
      */
     void SetCellId(uint16_t cellId);
 
-    uint32_t GetArfcn(uint8_t index) const;
-
     void SetRrc(Ptr<NrGnbRrc> rrc);
 
     Ptr<NrGnbRrc> GetRrc();

@@ -323,7 +323,7 @@ NrUeNetDevice::GetTargetGnb() const
 }
 
 uint32_t
-NrUeNetDevice::GetArfcn(uint8_t index) const
+NrUeNetDevice::GetBwpArfcn(uint8_t index) const
 {
     NS_LOG_FUNCTION(this);
     return m_ccMap.at(index)->GetArfcn(); // Ul or Dl doesn't matter, they are the same
