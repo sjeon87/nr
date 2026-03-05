@@ -755,63 +755,17 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
                 break;
 
             case (NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::LAST_BYTE):
-                m_reassemblingState = WAITING_S0_FULL;
-
-                /**
-                 * Discard SI or SN
-                 */
-                m_sdusBuffer.pop_front();
-
-                /**
-                 * Deliver zero, one or multiple PDUs
-                 */
-                while (!m_sdusBuffer.empty())
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
             case (NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE):
-                if (m_sdusBuffer.size() == 1)
-                {
-                    m_reassemblingState = WAITING_S0_FULL;
-                }
-                else
-                {
-                    m_reassemblingState = WAITING_SI_SF;
-                }
-
-                /**
-                 * Discard SI or SN
-                 */
-                m_sdusBuffer.pop_front();
-
-                if (!m_sdusBuffer.empty())
-                {
-                    /**
-                     * Deliver zero, one or multiple PDUs
-                     */
-                    while (m_sdusBuffer.size() > 1)
-                    {
-                        m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                        m_sdusBuffer.pop_front();
-                    }
-
-                    /**
-                     * Keep S0
-                     */
-                    m_keepS0 = m_sdusBuffer.front();
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
             default:
                 /**
                  * ERROR: Transition not possible
                  */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
+                NS_ASSERT_MSG(false,
+                              "INTERNAL ERROR: We are in the WAITING_SO_FULL state and no packet "
+                              "loss has occurred, "
+                              "so the received RLC PDU is expected to have FI = 00 (0) or FI = 01 "
+                              "(1), not FI = "
+                                  << (uint32_t)framingInfo);
                 break;
             }
             break;
@@ -894,8 +848,12 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
                 /**
                  * ERROR: Transition not possible
                  */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
+                NS_ASSERT_MSG(false,
+                              "INTERNAL ERROR: We are in the WAITING_SI_SF state and no packet "
+                              "loss has occurred, "
+                              "so the received RLC PDU is expected to have FI = 10 (2) or FI = 11 "
+                              "(3), not FI = "
+                                  << (uint32_t)framingInfo);
                 break;
             }
             break;
