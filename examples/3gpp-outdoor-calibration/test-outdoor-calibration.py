@@ -10,7 +10,7 @@ import re
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from statistics import mean
+from statistics import mean, stdev
 from types import SimpleNamespace
 
 from scipy.stats import combine_pvalues, ttest_1samp
@@ -178,6 +178,7 @@ def main():
 
     # This is where the actual regression test begins
     failed_calibration_log = ""
+    return_code = 0
     for config, reference_values in REFERENCE_VALUES_PER_SIMULATION_CONFIG:
         simulation_config_tag = get_tag_from_config(config)
         # Filter output files to just those containing the tag corresponding to the reference values
@@ -207,17 +208,25 @@ def main():
 
             if ttest_result.pvalue < 0.05:
                 failed_calibration_log += (
-                    f"{simulation_config_tag} failed calibration at {metric} "
+                    f"\t{simulation_config_tag} failed calibration at {metric} "
                     f"with p-value {ttest_result.pvalue:.3f} and "
                     f"p-statistic {ttest_result.statistic:.3f}: "
                     f"got {mean(results[metric]):.3f} while expecting {reference_values[metric]:.3f}\n"
                 )
-    if failed_calibration_log:
-        print(failed_calibration_log)
-        return -1
-    else:
-        print("Calibration passed")
-        return 0
+
+        print(config)
+        for metric in ["meanUPT", "5pctUPT", "medianUPT", "95pctUPT"]:
+            print(
+                f"\t{metric}:\tμ={mean(results[metric]):.2f} Mbps,\tσ={stdev(results[metric]):.2f}"
+            )
+
+        if failed_calibration_log:
+            print(failed_calibration_log)
+            print("\tCalibration failed")
+            return_code = -1
+        else:
+            print("\tCalibration passed")
+    return return_code
 
 
 if __name__ == "__main__":
