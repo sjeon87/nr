@@ -21,13 +21,12 @@ NrFlowMonitorPrintStats(const Ptr<FlowMonitor>& monitor,
     monitor->CheckForLostPackets();
     Ptr<Ipv4FlowClassifier> classifier =
         DynamicCast<Ipv4FlowClassifier>(flowmonHelper.GetClassifier());
-    FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats();
 
+    Time flowDuration = Seconds(flowDurationSeconds);
     double averageFlowThroughput = 0.0;
     double averageFlowDelay = 0.0;
 
-    std::ofstream outFile;
-    outFile.open(outputFilePath.c_str(), std::ofstream::out | std::ofstream::trunc);
+    std::ofstream outFile(outputFilePath, std::ofstream::out | std::ofstream::trunc);
     if (!outFile.is_open())
     {
         std::cerr << "Can't open file " << outputFilePath << std::endl;
@@ -36,13 +35,11 @@ NrFlowMonitorPrintStats(const Ptr<FlowMonitor>& monitor,
 
     outFile.setf(std::ios_base::fixed);
 
-    for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin();
-         i != stats.end();
-         ++i)
+    for (const auto& [flowId, stats] : monitor->GetFlowStats())
     {
-        Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
+        Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(flowId);
         std::stringstream protoStream;
-        protoStream << (uint16_t)t.protocol;
+        protoStream << static_cast<uint16_t>(t.protocol);
         if (t.protocol == 6)
         {
             protoStream.str("TCP");
@@ -51,27 +48,25 @@ NrFlowMonitorPrintStats(const Ptr<FlowMonitor>& monitor,
         {
             protoStream.str("UDP");
         }
-        outFile << "Flow " << i->first << " (" << t.sourceAddress << ":" << t.sourcePort << " -> "
+        outFile << "Flow " << flowId << " (" << t.sourceAddress << ":" << t.sourcePort << " -> "
                 << t.destinationAddress << ":" << t.destinationPort << ") proto "
                 << protoStream.str() << "\n";
-        outFile << "  Tx Packets: " << i->second.txPackets << "\n";
-        outFile << "  Tx Bytes:   " << i->second.txBytes << "\n";
-        outFile << "  TxOffered:  "
-                << i->second.txBytes * 8.0 / flowDurationSeconds / 1000.0 / 1000.0 << " Mbps\n";
-        outFile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
-        if (i->second.rxPackets > 0)
+        outFile << "  Tx Packets: " << stats.txPackets << "\n";
+        outFile << "  Tx Bytes:   " << stats.txBytes << "\n";
+        outFile << "  TxOffered:  " << stats.GetTxOfferedLoad(flowDuration) / 1e6 << " Mbps\n";
+        outFile << "  Rx Bytes:   " << stats.rxBytes << "\n";
+        if (stats.rxPackets > 0)
         {
-            // Measure the duration of the flow from receiver's perspective
-            averageFlowThroughput +=
-                i->second.rxBytes * 8.0 / flowDurationSeconds / 1000 / 1000;
-            averageFlowDelay += 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets;
+            double throughputMbps = stats.GetRxThroughput(flowDuration) / 1e6;
+            double delayMs = stats.GetMeanDelay().GetMilliSeconds();
+            double jitterMs = stats.GetMeanJitter().GetMilliSeconds();
 
-            outFile << "  Throughput: "
-                    << i->second.rxBytes * 8.0 / flowDurationSeconds / 1000 / 1000 << " Mbps\n";
-            outFile << "  Mean delay:  "
-                    << 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets << " ms\n";
-            outFile << "  Mean jitter:  "
-                    << 1000 * i->second.jitterSum.GetSeconds() / i->second.rxPackets << " ms\n";
+            averageFlowThroughput += throughputMbps;
+            averageFlowDelay += delayMs;
+
+            outFile << "  Throughput: " << throughputMbps << " Mbps\n";
+            outFile << "  Mean delay:  " << delayMs << " ms\n";
+            outFile << "  Mean jitter:  " << jitterMs << " ms\n";
         }
         else
         {
@@ -79,14 +74,15 @@ NrFlowMonitorPrintStats(const Ptr<FlowMonitor>& monitor,
             outFile << "  Mean delay:  0 ms\n";
             outFile << "  Mean jitter: 0 ms\n";
         }
-        outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
+        outFile << "  Rx Packets: " << stats.rxPackets << "\n";
     }
 
     NrFlowMonitorStats result;
-    if (!stats.empty())
+    uint32_t flowCount = monitor->GetFlowStats().size();
+    if (flowCount > 0)
     {
-        result.meanFlowThroughputMbps = averageFlowThroughput / stats.size();
-        result.meanFlowDelayMs = averageFlowDelay / stats.size();
+        result.meanFlowThroughputMbps = averageFlowThroughput / flowCount;
+        result.meanFlowDelayMs = averageFlowDelay / flowCount;
     }
 
     outFile << "\n\n  Mean flow throughput: " << result.meanFlowThroughputMbps << "\n";
@@ -96,7 +92,7 @@ NrFlowMonitorPrintStats(const Ptr<FlowMonitor>& monitor,
 
     if (printToStdout)
     {
-        std::ifstream f(outputFilePath.c_str());
+        std::ifstream f(outputFilePath);
         if (f.is_open())
         {
             std::cout << f.rdbuf();
