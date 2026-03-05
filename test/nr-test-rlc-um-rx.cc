@@ -92,7 +92,11 @@ NrRlcUmTestCase::DoRun()
     // Connect RLC with Test PDCP
     rlc->SetNrRlcSapUser(rxPdcp->GetNrRlcSapUser());
 
-    NS_LOG_INFO("Step 1: Initialized m_rxBuffer with SN 0, 502, 1016, 1017, 1018");
+    // 1) Bug check: In the implementation before MR !354, SNs {1016, 1017} remained in m_rxBuffer
+    // un-reassembled. In the updated implementation (MR !354), these PDUs are reassembled before
+    // advancing VR(UR) to 1018.
+
+    NS_LOG_INFO("Step 1.1: Initialized m_rxBuffer with SN 0, 502, 1016, 1017, 1018");
     rlc->m_rxBuffer[0] = CreateRlcPdu(10, 0, 0x00, NrRlcHeader::FIRST_BYTE);
     rlc->m_rxBuffer[1016] = CreateRlcPdu(20, 1016, 0x00, NrRlcHeader::FIRST_BYTE);
     rlc->m_rxBuffer[1017] =
@@ -102,7 +106,7 @@ NrRlcUmTestCase::DoRun()
     rlc->m_rxBuffer[502] = CreateRlcPdu(30, 502, 0x00, NrRlcHeader::FIRST_BYTE);
 
     NS_LOG_INFO(
-        "Step 2: Reception window set (VR(UR)=1015, VR(UH)=503, windowSize=512) -> [1015, 503)");
+        "Step 1.2: Reception window set (VR(UR)=1015, VR(UH)=503, windowSize=512) -> [1015, 503)");
     rlc->m_vrUr = 1015;
     rlc->m_vrUx = 0;
     rlc->m_vrUh = 503;
@@ -112,7 +116,7 @@ NrRlcUmTestCase::DoRun()
     rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
 
     // Create RLC PDU with SN=505, FI = 00, E = 0
-    NS_LOG_INFO("Step 3: Creating PDU with SN=505");
+    NS_LOG_INFO("Step 1.3: Creating PDU with SN=505");
     Ptr<Packet> pdu = CreateRlcPdu(50, 505, 0x00, NrRlcHeader::FIRST_BYTE);
 
     // Add RLC packet tag
@@ -124,15 +128,13 @@ NrRlcUmTestCase::DoRun()
     rxPduParams.lcid = 0;
     rxPduParams.rnti = 0;
 
-    NS_LOG_INFO("Step 4: Calling DoReceivePdu with SN=505");
+    NS_LOG_INFO("Step 1.4: Calling DoReceivePdu with SN=505");
     NS_LOG_INFO("-----------------------------------------------------------------------------");
     rlc->DoReceivePdu(rxPduParams);
 
     NS_LOG_INFO("-----------------------------------------------------------------------------");
-    NS_LOG_INFO("Step 5: DoReceivePdu finished");
+    NS_LOG_INFO("Step 1.5: DoReceivePdu finished");
 
-    // Bug check: Old code leaves SN {1016, 1017} in m_rxBuffer un-reassembled.
-    // Updated code (MR !354) reassembles them before advancing VR(UR) to 1018.
     for (const auto& entry : rlc->m_rxBuffer)
     {
         uint16_t sn = entry.first;
@@ -168,6 +170,114 @@ NrRlcUmTestCase::DoRun()
     {
         NS_LOG_INFO("SN = " << entry.first);
     }
+
+    NS_LOG_INFO("-----------------------------------------------------------------------------");
+
+    // 2) Bug check: In the implementation before MR !354, SN {1016, 1017} remain in m_rxBuffer
+    // without being reassembled. Therefore, when a new PDU with SN=1016 is received by RLC UM RX,
+    // the code detects that a PDU with the same SN already exists in the buffer and the ASSERT is
+    // triggered. In the updated implementation (MR !354), these PDUs are reassembled before
+    // advancing VR(UR) to 1018, so they are removed from m_rxBuffer.
+
+    NS_LOG_INFO(
+        "Step 2.1: Reception window set (VR(UR)=504, VR(UH)=1016, windowSize=512) -> [504, 1016)");
+    rlc->m_vrUr = 504;
+    rlc->m_vrUx = 0;
+    rlc->m_vrUh = 1016;
+    rlc->m_windowSize = 512;
+
+    rlc->m_expectedSeqNumber = 504;
+    rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
+
+    NS_LOG_INFO("Step 2.2: Store SN=1015 and remove SN=502 from the RX buffer (m_rxBuffer), as it "
+                "should have already been reassembled");
+    rlc->m_rxBuffer[1015] = CreateRlcPdu(20, 1015, 0x00, NrRlcHeader::FIRST_BYTE);
+    rlc->m_rxBuffer.erase(502);
+
+    NS_LOG_INFO("Step 2.3: Creating PDU with SN=1016");
+    Ptr<Packet> pdu_1016 =
+        CreateRlcPdu(50, 1016, 0x00, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE);
+    // Add RLC packet tag
+    NrRlcTag rlcTag_1016(Simulator::Now());
+    pdu_1016->AddByteTag(rlcTag_1016);
+    rxPduParams.p = pdu_1016;
+
+    NS_LOG_INFO("Step 2.4: Calling DoReceivePdu with SN=1016");
+    NS_LOG_INFO("-----------------------------------------------------------------------------");
+    rlc->DoReceivePdu(rxPduParams);
+    NS_LOG_INFO("-----------------------------------------------------------------------------");
+    NS_LOG_INFO("m_rxBuffer key (SN) contents after DoReceivePdu:");
+    for (const auto& entry : rlc->m_rxBuffer)
+    {
+        NS_LOG_INFO("SN = " << entry.first);
+    }
+    NS_LOG_INFO("-----------------------------------------------------------------------------");
+
+    // 3) Bug check: In the implementation before MR !354, some PDUs were not removed from the RX
+    // buffer. This could cause the same SN to be received again in a new cycle while a PDU with the
+    // same SN from the previous cycle still exists in m_rxBuffer. For example, SN=1016 could
+    // arrive again even though SN=1016 from the previous cycle is still present. If the current
+    // PDU with SN=1016 is lost (corrupted or not received), the leftover PDU from the previous
+    // cycle could be processed, leading to an incorrect FI transition.
+    //
+    // In the updated implementation (MR !354), these PDUs are reassembled before advancing VR(UR)
+    // to 1018, ensuring they are removed from m_rxBuffer and avoiding such incorrect FI
+    // transitions.
+
+    NS_LOG_INFO(
+        "Step 3.1: Reception window set (VR(UR)=1014, VR(UH)=502, windowSize=512) -> [1014, 502)");
+    rlc->m_vrUr = 1014;
+    rlc->m_vrUx = 0;
+    rlc->m_vrUh = 502;
+    rlc->m_windowSize = 512;
+
+    rlc->m_expectedSeqNumber = 1014;
+    rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
+
+    NS_LOG_INFO("Step 3.2: Creating PDU with SN=502");
+    Ptr<Packet> pdu_502 =
+        CreateRlcPdu(50, 502, 0x00, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE);
+    // Add RLC packet tag
+    NrRlcTag rlcTag_502(Simulator::Now());
+    pdu_502->AddByteTag(rlcTag_502);
+    rxPduParams.p = pdu_502;
+
+    NS_LOG_INFO("Step 3.3: Calling DoReceivePdu with SN=502");
+    NS_LOG_INFO("-----------------------------------------------------------------------------");
+    rlc->DoReceivePdu(rxPduParams);
+
+    NS_LOG_INFO("-----------------------------------------------------------------------------");
+    NS_LOG_INFO("m_rxBuffer key (SN) contents after DoReceivePdu:");
+    for (const auto& entry : rlc->m_rxBuffer)
+    {
+        NS_LOG_INFO("SN = " << entry.first);
+    }
+    NS_LOG_INFO("-----------------------------------------------------------------------------");
+
+    // 4) Check wrap-around: Set the window VR(UR) to 1023 with a packet SN=0 already in the buffer,
+    // and verify that the wrap-around behaves correctly.
+
+    NS_LOG_INFO("Step 4.1: Window check, Reception window set (VR(UR)=1023, VR(UH)=511, "
+                "windowSize=512) -> [1023, 511)");
+    rlc->m_vrUr = 1023;
+    rlc->m_vrUx = 0;
+    rlc->m_vrUh = 511;
+    rlc->m_windowSize = 512;
+
+    rlc->m_expectedSeqNumber = 1023;
+    rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
+
+    NS_LOG_INFO("Step 4.2: Creating PDU with SN=511");
+    Ptr<Packet> pdu_511 =
+        CreateRlcPdu(50, 511, 0x00, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE);
+    // Add RLC packet tag
+    NrRlcTag rlcTag_511(Simulator::Now());
+    pdu_511->AddByteTag(rlcTag_511);
+    rxPduParams.p = pdu_511;
+
+    NS_LOG_INFO("Step 4.3: Calling DoReceivePdu with SN=511");
+    NS_LOG_INFO("-----------------------------------------------------------------------------");
+    rlc->DoReceivePdu(rxPduParams);
 }
 
 /**
