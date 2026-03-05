@@ -58,8 +58,8 @@ NrFlowMonitorPrintStats(const Ptr<FlowMonitor>& monitor,
         if (stats.rxPackets > 0)
         {
             double throughputMbps = stats.GetRxThroughput(flowDuration) / 1e6;
-            double delayMs = stats.GetMeanDelay().GetMilliSeconds();
-            double jitterMs = stats.GetMeanJitter().GetMilliSeconds();
+            double delayMs = stats.GetMeanDelay().ToDouble(Time::MS);
+            double jitterMs = stats.GetMeanJitter().ToDouble(Time::MS);
 
             averageFlowThroughput += throughputMbps;
             averageFlowDelay += delayMs;
