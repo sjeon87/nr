@@ -506,6 +506,10 @@ NrRlcUm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
     }
     else
     {
+        NS_ASSERT_MSG(m_rxBuffer.count(seqNumber.GetValue()) == 0,
+                      "INTERNAL ERROR: PDU with SN=" << seqNumber.GetValue()
+                                                     << " already exists in the RX buffer.");
+
         NS_LOG_LOGIC("Place PDU in the reception buffer");
         m_rxBuffer[seqNumber.GetValue()] = rxPduParams.p;
     }
