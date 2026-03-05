@@ -52,6 +52,7 @@ $ ./ns3 run "cttc-nr-demo --PrintHelp"
 #include "ns3/config-store-module.h"
 #include "ns3/core-module.h"
 #include "ns3/flow-monitor-module.h"
+#include "ns3/nr-flow-monitor-output-helper.h"
 #include "ns3/internet-apps-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/mobility-module.h"
@@ -576,72 +577,9 @@ main(int argc, char* argv[])
     */
 
     // Print per-flow statistics
-    monitor->CheckForLostPackets();
-    Ptr<Ipv4FlowClassifier> classifier =
-        DynamicCast<Ipv4FlowClassifier>(flowmonHelper.GetClassifier());
-    Time flowDuration = simTime - udpAppStartTime;
-
-    double averageFlowThroughput = 0.0;
-    double averageFlowDelay = 0.0;
-
-    std::ofstream outFile(outputDir + "/" + simTag, std::ofstream::out | std::ofstream::trunc);
-    outFile.setf(std::ios_base::fixed);
-
-    for (const auto& [flowId, stats] : monitor->GetFlowStats())
-    {
-        Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(flowId);
-        std::stringstream protoStream;
-        protoStream << static_cast<uint16_t>(t.protocol);
-        if (t.protocol == 6)
-        {
-            protoStream.str("TCP");
-        }
-        if (t.protocol == 17)
-        {
-            protoStream.str("UDP");
-        }
-        outFile << "Flow " << flowId << " (" << t.sourceAddress << ":" << t.sourcePort << " -> "
-                << t.destinationAddress << ":" << t.destinationPort << ") proto "
-                << protoStream.str() << "\n";
-        outFile << "  Tx Packets: " << stats.txPackets << "\n";
-        outFile << "  Tx Bytes:   " << stats.txBytes << "\n";
-        outFile << "  TxOffered:  " << stats.GetTxOfferedLoad(flowDuration) / 1e6 << " Mbps\n";
-        outFile << "  Rx Bytes:   " << stats.rxBytes << "\n";
-        if (stats.rxPackets > 0)
-        {
-            double throughputMbps = stats.GetRxThroughput(flowDuration) / 1e6;
-            double delayMs = stats.GetMeanDelay().GetMilliSeconds();
-            double jitterMs = stats.GetMeanJitter().GetMilliSeconds();
-
-            averageFlowThroughput += throughputMbps;
-            averageFlowDelay += delayMs;
-
-            outFile << "  Throughput: " << throughputMbps << " Mbps\n";
-            outFile << "  Mean delay:  " << delayMs << " ms\n";
-            outFile << "  Mean jitter:  " << jitterMs << " ms\n";
-        }
-        else
-        {
-            outFile << "  Throughput:  0 Mbps\n";
-            outFile << "  Mean delay:  0 ms\n";
-            outFile << "  Mean jitter: 0 ms\n";
-        }
-        outFile << "  Rx Packets: " << stats.rxPackets << "\n";
-    }
-
-    uint32_t flowCount = monitor->GetFlowStats().size();
-    double meanFlowThroughput = (flowCount > 0) ? averageFlowThroughput / flowCount : 0.0;
-    double meanFlowDelay = (flowCount > 0) ? averageFlowDelay / flowCount : 0.0;
-
-    outFile << "\n\n  Mean flow throughput: " << meanFlowThroughput << "\n";
-    outFile << "  Mean flow delay: " << meanFlowDelay << "\n";
-    outFile.close();
-
-    std::ifstream f(outputDir + "/" + simTag);
-    if (f.is_open())
-    {
-        std::cout << f.rdbuf();
-    }
+    double flowDuration = (simTime - udpAppStartTime).GetSeconds();
+    auto [meanFlowThroughput, meanFlowDelay] =
+        NrFlowMonitorPrintStats(monitor, flowmonHelper, flowDuration, outputDir + "/" + simTag);
 
     Simulator::Destroy();
 
