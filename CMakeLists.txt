@@ -99,6 +99,7 @@ set(source_files
     model/nr-component-carrier.cc
     model/nr-control-messages.cc
     model/nr-csi-rs-filter.cc
+    model/nr-link-filter.cc
     model/nr-eesm-cc-t1.cc
     model/nr-eesm-cc-t2.cc
     model/nr-eesm-cc.cc
@@ -291,6 +292,7 @@ set(header_files
     model/nr-component-carrier.h
     model/nr-control-messages.h
     model/nr-csi-rs-filter.h
+    model/nr-link-filter.h
     model/nr-eesm-cc-t1.h
     model/nr-eesm-cc-t2.h
     model/nr-eesm-cc.h
