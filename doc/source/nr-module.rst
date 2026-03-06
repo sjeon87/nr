@@ -1923,6 +1923,103 @@ Similarly, the ported classes/structures/tests had their ``Lte`` prefix replaced
 For example, LTE's ``LteRlc`` is the counterpart for NR's ``NrRlc``.
 For model details see: https://www.nsnam.org/docs/release/3.29/models/html/lte-design.html#rlc
 
+RLC UM
+======
+An RLC PDU is constructed either from complete RLC SDUs (one or more SDUs concatenated within the same PDU)
+or from segmented RLC SDUs (a single SDU divided into multiple parts, with each part carried in a separate RLC PDU).
+
+.. _fig-rlcUmTx-conSeg:
+
+.. figure:: figures/rlc/rlc_um_pdu_tx_conSeg.*
+   :align: center
+   :scale: 28%
+
+   Example of concatenation and segmentation in RLC UM layer.
+
+During transmission, an RLC header is added to form an RLC PDU. The RLC UM header contains the following fields:
+
+.. code-block:: text
+
+    SN = Sequence Number
+    FI = Framing Info, indicates whether the PDU starts and/or ends with an RLC SDU:
+        00 = starts and ends with SDU
+        01 = starts with SDU but does not end
+        10 = does not start but ends with SDU
+        11 = neither starts nor ends with SDU
+    E = Extension Bit (0: no more LIs; 1: at least one more LI follows)
+    LI = Length Indicator (length in bytes of an SDU or SDU segment within the PDU)
+
+.. _fig-rlcUmTx:
+
+.. figure:: figures/rlc/rlc_um_pdu_tx.*
+   :align: center
+   :scale: 26%
+
+   Example of RLC PDUs creation.
+
+Sequence Number (SN) space is circular (10-bit SN): 0, 1, …, 1023, 0, 1, 2, …., 1022, 1023, 0, 1, ....
+
+.. _fig-rlcUmSn:
+
+.. figure:: figures/rlc/rlc_um_sn.*
+   :align: center
+   :scale: 28%
+
+   10-bit Sequence Number.
+
+
+At the receiver, when an RLC PDU arrives at ``DoReceivePdu``, the first step is to check whether the packet is valid.
+If it is valid, it is placed in the reception buffer ``m_rxBuffer``; otherwise, it is discarded.
+Next, the code verifies whether the received SN falls within the current reception window. This window defines the range
+of SNs that the receiver currently considers valid, allowing it to distinguish between old and new SNs. The maximum size
+of the reception window is 512, which is half of the total 1024 possible values for a 10-bit SN (2^{10} = 1024).
+The reception window is defined by the interval [VR(UR),VR(UH)), i.e. VR(UR) <= SN < VR(UH):
+
+     * VR(UR): The oldest RLC SN that has not yet been received (lower edge of the window).
+     * VR(UH): The newest RLC SN + 1 received within the current window.
+
+If VR(UR) ≠ VR(UH), there are missing PDUs, then t-reordering timer is activated, and VR(UX) is updated, which represents
+the upper edge of the reordering window. VR(UX) takes the value of VR(UH) at the moment reordering timer starts.
+   * PDUs with VR(UR) ≤ SNs ≤ VR(UX) are included in the current reordering window and will be delivered together
+     once t-Reordering expires.
+   * PDUs with SN > VR(UX) are buffered for future reordering operations.
+
+.. _fig-rlcUmRxWindow:
+
+.. figure:: figures/rlc/rlc_um_rx_window.*
+   :align: center
+   :scale: 28%
+
+   RLC UM reception window.
+
+If the RLC PDU is not discarded, the first step is to check whether the current SN is within the reception window.
+If it is not, VR(UH) is updated as: VR(UH) = SN + 1. Next, the code checks if there are any PDUs within the window that
+have become old due to the window sliding. Any such old PDUs must be reassembled and delivered to the higher layers using
+``ReassembleAndDeliver``. Finally, it verifies whether VR(UR) is still within the reception window. If it is not, VR(UR)
+must be adjusted (temporary VR(UR)). If the PDU corresponding to the new temporary VR(UR) is already present in  ``m_rxBuffer``,
+``ReassembleAndDeliver`` is called again. After this, VR(UR) is updated to the first SN that is not present in the buffer.
+
+When ``ReassembleAndDeliver`` is called, the received FI is checked to determine which part of the RLC SDU is going to be
+delivered to PDCP. There are two states for this: WAITING_SO_FULL (waiting for the start of a SDU) and
+WAITING_SI_SF (waiting for a non-start of a SDU).
+
+.. code-block:: text
+
+   Example: We receive an RLC PDU with FI = 00, so we remain in the WAITING_SO_FULL state. If there is no packet loss,
+   the next PDU will have FI = 00 or FI = 01.
+      * If FI = 00, the state remains WAITING_SO_FULL.
+      * If FI = 01, the state transitions to WAITING_SI_SF.
+      * If FI = 10 or FI = 11, this transition is invalid, and an assert will be triggered.
+
+.. _fig-rlcUmRx:
+
+.. figure:: figures/rlc/rlc_um_rx_state_machine.*
+   :align: center
+   :scale: 30 %
+
+   RLC UM reception state machine diagram.
+
+After checking the FI, the RLC PDU is delivered to PDCP for processing.
 
 PDCP layer
 **********
