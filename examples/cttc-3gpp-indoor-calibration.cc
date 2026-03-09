@@ -8,6 +8,7 @@
 #include "ns3/core-module.h"
 #include "ns3/flow-monitor-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/nr-flow-monitor-output-helper.h"
 #include "ns3/mobility-module.h"
 #include "ns3/nr-eps-bearer-tag.h"
 #include "ns3/nr-module.h"
@@ -768,72 +769,9 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
     Simulator::Stop(simTime);
     Simulator::Run();
     // Print per-flow statistics
-    monitor->CheckForLostPackets();
-    Ptr<Ipv4FlowClassifier> classifier =
-        DynamicCast<Ipv4FlowClassifier>(flowmonHelper.GetClassifier());
-    FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats();
-    double averageFlowThroughput = 0.0;
-    double averageFlowDelay = 0.0;
-    std::ofstream outFile;
-    std::string filename = resultsDirPath + "/" + tag + "flow";
-    outFile.open(filename.c_str(), std::ofstream::out | std::ofstream::trunc);
-    if (!outFile.is_open())
-    {
-        std::cerr << "Can't open file " << filename << std::endl;
-    }
-    outFile.setf(std::ios_base::fixed);
     double flowDuration = (udpAppStopTimeDl - udpAppStartTimeDl).GetSeconds();
-    for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin();
-         i != stats.end();
-         ++i)
-    {
-        Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
-        std::stringstream protoStream;
-        protoStream << (uint16_t)t.protocol;
-        if (t.protocol == 6)
-        {
-            protoStream.str("TCP");
-        }
-        if (t.protocol == 17)
-        {
-            protoStream.str("UDP");
-        }
-        outFile << "Flow " << i->first << " (" << t.sourceAddress << ":" << t.sourcePort << " -> "
-                << t.destinationAddress << ":" << t.destinationPort << ") proto "
-                << protoStream.str() << "\n";
-        outFile << "  Tx Packets: " << i->second.txPackets << "\n";
-        outFile << "  Tx Bytes:   " << i->second.txBytes << "\n";
-        outFile << "  TxOffered:  " << i->second.txBytes * 8.0 / flowDuration / 1000.0 / 1000.0
-                << " Mbps\n";
-        outFile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
-        if (i->second.rxPackets > 0)
-        {
-            // Measure the duration of the flow from receiver's perspective
-            averageFlowThroughput += i->second.rxBytes * 8.0 / flowDuration / 1000 / 1000;
-            averageFlowDelay += 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets;
-            outFile << "  Throughput: " << i->second.rxBytes * 8.0 / flowDuration / 1000 / 1000
-                    << " Mbps\n";
-            outFile << "  Mean delay:  "
-                    << 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets << " ms\n";
-            outFile << "  Mean jitter:  "
-                    << 1000 * i->second.jitterSum.GetSeconds() / i->second.rxPackets << " ms\n";
-        }
-        else
-        {
-            outFile << "  Throughput:  0 Mbps\n";
-            outFile << "  Mean delay:  0 ms\n";
-            outFile << "  Mean jitter: 0 ms\n";
-        }
-        outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
-    }
-    outFile << "\n\n  Mean flow throughput: " << averageFlowThroughput / stats.size() << "\n";
-    outFile << "  Mean flow delay: " << averageFlowDelay / stats.size() << "\n";
-    outFile.close();
-    std::ifstream f(filename.c_str());
-    if (f.is_open())
-    {
-        std::cout << f.rdbuf();
-    }
+    NrFlowMonitorPrintStats(monitor, flowmonHelper, flowDuration, resultsDirPath + "/" + tag + "flow");
+
     Simulator::Destroy();
 }
 
