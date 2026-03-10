@@ -773,25 +773,20 @@ main(int argc, char* argv[])
                 << protoStream.str() << "\n";
         outFile << "  Tx Packets: " << i->second.txPackets << "\n";
         outFile << "  Tx Bytes:   " << i->second.txBytes << "\n";
-        outFile << "  TxOffered:  "
-                << i->second.txBytes * 8.0 / (simTime - udpAppStartTime) / 1000 / 1000 << " Mbps\n";
+        Time flowDuration = Seconds(simTime - udpAppStartTime);
+        outFile << "  TxOffered:  " << i->second.GetTxOfferedLoad(flowDuration) / 1e6
+                << " Mbps\n";
         outFile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
         if (i->second.rxPackets > 0)
         {
-            // Measure the duration of the flow from receiver's perspective
-            // double rxDuration = i->second.timeLastRxPacket.GetSeconds () -
-            // i->second.timeFirstTxPacket.GetSeconds ();
-            double rxDuration = (simTime - udpAppStartTime);
+            double throughputMbps = i->second.GetRxThroughput(flowDuration) / 1e6;
+            double delayMs = i->second.GetMeanDelay().ToDouble(Time::MS);
 
-            averageFlowThroughput += i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000;
-            averageFlowDelay += 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets;
+            averageFlowThroughput += throughputMbps;
+            averageFlowDelay += delayMs;
 
-            outFile << "  Throughput: " << i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000
-                    << " Mbps\n";
-            outFile << "  Mean delay:  "
-                    << 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets << " ms\n";
-            // outFile << "  Mean upt:  " << i->second.uptSum / i->second.rxPackets / 1000/1000 << "
-            // Mbps \n";
+            outFile << "  Throughput: " << throughputMbps << " Mbps\n";
+            outFile << "  Mean delay:  " << delayMs << " ms\n";
             outFile << "  Mean jitter:  "
                     << 1000 * i->second.jitterSum.GetSeconds() / i->second.rxPackets << " ms\n";
         }
