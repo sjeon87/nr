@@ -181,27 +181,12 @@ class Nr3gppIndoorCalibration
      */
     ~Nr3gppIndoorCalibration();
 
-    /**
-     * @brief Function selects UE nodes that are placed with a minimum
-     * distance from its closest gNB.
-     * @param ueNodes - container of UE nodes
-     * @param gnbNodes - container of gNB nodes
-     * @param min3DDistance - the minimum that shall be between UE and gNB
-     * @param numberOfUesToBeSelected - the number of UE nodes to be selected
-     * from the original container
-     */
-    NodeContainer SelectWellPlacedUes(const NodeContainer ueNodes,
-                                      const NodeContainer gnbNodes,
-                                      double min3DDistance,
-                                      uint32_t numberOfUesToBeSelected);
-
   private:
     std::ofstream m_outSinrFile;         //!< the output file stream for the SINR file
     std::ofstream m_outSnrFile;          //!< the output file stream for the SNR file
     std::ofstream m_outRssiFile;         //!< the output file stream for the RSSI file
     std::ofstream m_outUePositionsFile;  //!< the output file stream for the UE positions file
     std::ofstream m_outGnbPositionsFile; //!< the output file stream for the gNB positions file
-    std::ofstream m_outDistancesFile;    //!< the output file stream for the distances file
 };
 
 /**
@@ -323,54 +308,6 @@ Nr3gppIndoorCalibration::~Nr3gppIndoorCalibration()
     m_outRssiFile.close();
 }
 
-NodeContainer
-Nr3gppIndoorCalibration::SelectWellPlacedUes(const NodeContainer ueNodes,
-                                             const NodeContainer gnbNodes,
-                                             double minDistance,
-                                             uint32_t numberOfUesToBeSelected)
-{
-    NodeContainer ueNodesFiltered;
-    bool correctDistance = true;
-
-    for (auto itUe = ueNodes.Begin(); itUe != ueNodes.End(); itUe++)
-    {
-        correctDistance = true;
-        Ptr<MobilityModel> ueMm = (*itUe)->GetObject<MobilityModel>();
-        Vector uePos = ueMm->GetPosition();
-
-        for (auto itGnb = gnbNodes.Begin(); itGnb != gnbNodes.End(); itGnb++)
-        {
-            Ptr<MobilityModel> gnbMm = (*itGnb)->GetObject<MobilityModel>();
-            Vector gnbPos = gnbMm->GetPosition();
-            double x = uePos.x - gnbPos.x;
-            double y = uePos.y - gnbPos.y;
-            double distance = sqrt(x * x + y * y);
-
-            if (distance < minDistance)
-            {
-                correctDistance = false;
-                // NS_LOG("The UE node "<<(*itUe)->GetId() << " has wrong position, discarded.");
-                break;
-            }
-            else
-            {
-                m_outDistancesFile << distance << std::endl;
-            }
-        }
-
-        if (correctDistance)
-        {
-            ueNodesFiltered.Add(*itUe);
-        }
-        if (ueNodesFiltered.GetN() >= numberOfUesToBeSelected)
-        {
-            // there are enough candidate UE nodes
-            break;
-        }
-    }
-    return ueNodesFiltered;
-}
-
 void
 Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
                              double bandwidthBand,
@@ -467,14 +404,6 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
         NS_ABORT_MSG("Can't open file " << filenameGnbPositions);
     }
 
-    m_outDistancesFile.open(filenameDistances.c_str());
-    m_outDistancesFile.setf(std::ios_base::fixed);
-
-    if (!m_outDistancesFile.is_open())
-    {
-        NS_ABORT_MSG("Can't open file " << filenameDistances);
-    }
-
     // create base stations and mobile terminals
     NodeContainer gNbNodes;
     NodeContainer ueNodes;
@@ -512,7 +441,7 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
 
     ueMobility.SetMobilityModel("ns3::FastFadingConstantPositionMobilityModel",
                                 "FakeVelocity",
-                                VectorValue(Vector{speed, 0, 0}));
+                                VectorValue(Vector{speed / 3.6, 0, 0}));
 
     Ptr<RandomBoxPositionAllocator> ueRandomRectPosAlloc =
         CreateObject<RandomBoxPositionAllocator>();
@@ -544,7 +473,6 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
 
     m_outUePositionsFile.close();
     m_outGnbPositionsFile.close();
-    m_outDistancesFile.close();
 
     // setup the nr simulation
     Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
@@ -669,9 +597,9 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
         nrHelper->SetUeAntennaAttribute("IsDualPolarized", BooleanValue(true));
         nrHelper->SetUeAntennaAttribute("PolSlantAngle", DoubleValue(0 * M_PI / 180.0));
     }
-    // Set gNB pointing downwards (ceiling mounted) and UE pointing upwards (phone resting in desk)
-    nrHelper->SetGnbAntennaAttribute("DowntiltAngle", DoubleValue(downtiltAnglegNB * M_PI / 180.0));
-    nrHelper->SetUeAntennaAttribute("DowntiltAngle", DoubleValue(-downtiltAnglegNB * M_PI / 180.0));
+    // Set gNB pointing downwards (ceiling mounted)
+    nrHelper->SetGnbAntennaAttribute("DowntiltAngle",
+                                     DoubleValue(-downtiltAnglegNB * M_PI / 180.0));
     nrHelper->SetGnbAntennaAttribute("NumVerticalPorts", UintegerValue(dropParam.numVPortsGnb));
     nrHelper->SetGnbAntennaAttribute("NumHorizontalPorts", UintegerValue(dropParam.numHPortsGnb));
     nrHelper->SetUeAntennaAttribute("NumVerticalPorts", UintegerValue(dropParam.numVPortsUe));
@@ -769,15 +697,15 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
             MakeBoundCallback(&UeRssiPerProcessedChunkTrace, this));
     }
     // enable the traces provided by the nr module
-    nrHelper->EnableTraces();
+    // nrHelper->EnableTraces();
     nrHelper->GetPhyRxTrace()->SetResultsFolder(resultsDirPath + tag);
     nrHelper->EnableDlDataPhyTraces();
-    nrHelper->EnableDlCtrlPhyTraces();
-    nrHelper->EnableDlCtrlPhyTraces();
-    nrHelper->EnablePathlossTraces();
-    nrHelper->EnableDlDataPathlossTraces(ueNetDevs);
-    nrHelper->EnableDlCtrlPathlossTraces(ueNetDevs);
-    nrHelper->EnableUlPhyTraces();
+    // nrHelper->EnableDlCtrlPhyTraces();
+    // nrHelper->EnableDlCtrlPhyTraces();
+    // nrHelper->EnablePathlossTraces();
+    // nrHelper->EnableDlDataPathlossTraces(ueNetDevs);
+    // nrHelper->EnableDlCtrlPathlossTraces(ueNetDevs);
+    // nrHelper->EnableUlPhyTraces();
     FlowMonitorHelper flowmonHelper;
     NodeContainer endpointNodes;
     endpointNodes.Add(remoteHost);
@@ -859,12 +787,9 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
 int
 main(int argc, char* argv[])
 {
-    // Angles for 30 GHz scenario, but shifted 90 degrees for column because 3GPP
-    // assumes beam is centered in 0 degrees and we assume at 90.
-    // We also include the beam perpendicular to the panel (90, 90), equivalent to 3GPP (0, 90),
-    // since it significantly affects results, better overlapping with 3GPP reference curves.
+    // Angles for 30 GHz scenario
     std::string columnAngles = "-67.5|-22.5|0.0|22.5|67.5";
-    std::string rowAngles = "45.0|90.0|135.0";
+    std::string rowAngles = "45.0|135.0";
 
     // Set 3GPP indoor calibration settings based on RP-180524 as defaults at the very beginning
     // of simulation, so users can override these settings via command line
@@ -928,7 +853,7 @@ main(int argc, char* argv[])
                  "of traces",
                  duration);
     cmd.AddValue("enableGnbIso", "Enable Isotropic antenna for the gNB", enableGnbIso);
-    cmd.AddValue("enableGnbIso", "Enable Isotropic antenna for the UE", enableUeIso);
+    cmd.AddValue("enableUeIso", "Enable Isotropic antenna for the UE", enableUeIso);
     cmd.AddValue("indoorScenario",
                  "The indoor scenario to be used can be: InH-OfficeMixed or InH-OfficeOpen",
                  indoorScenario);
@@ -980,7 +905,7 @@ main(int argc, char* argv[])
         enableShadowing = false;
         beamformingMethod = "KroneckerBeamforming";
         speed = 3.00;
-        polarizedAntennas = false;
+        polarizedAntennas = true;
         numVPortsGnb = 1;
         numHPortsGnb = 1;
         numVPortsUe = 1;
@@ -991,7 +916,7 @@ main(int argc, char* argv[])
         indoorScenario = "InH-OfficeMixed";
 
         initParams.colAngles = {-67.5, -22.5, 0.0, 22.5, 67.5};
-        initParams.rowAngles = {45.0, 90.0, 135.0};
+        initParams.rowAngles = {45.0, 135.0};
     }
     Nr3gppIndoorCalibration phase1CalibrationScenario;
 
