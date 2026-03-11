@@ -444,8 +444,8 @@ NrRadioLinkFailureTestCase::CheckConnected(Ptr<NetDevice> ueDevice, NetDeviceCon
     // Verifying other attributes on both sides.
     uint16_t ueDlBwp = ueRrc->GetPrimaryDlIndex();
     uint16_t ueUlBwp = ueRrc->GetPrimaryUlIndex();
-    uint32_t ueDlArfcn = ueNrDevice->GetArfcn(ueDlBwp);
-    uint32_t ueUlArfcn = ueNrDevice->GetArfcn(ueUlBwp);
+    uint32_t ueDlArfcn = ueNrDevice->GetBwpArfcn(ueDlBwp);
+    uint32_t ueUlArfcn = ueNrDevice->GetBwpArfcn(ueUlBwp);
     uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
     uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
 

@@ -626,8 +626,8 @@ NrX2HandoverMeasuresTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDev
     // Verifying other attributes on both sides.
     uint16_t ueDlBwp = ueRrc->GetPrimaryDlIndex();
     uint16_t ueUlBwp = ueRrc->GetPrimaryUlIndex();
-    uint32_t ueDlArfcn = nrUeDevice->GetArfcn(ueDlBwp);
-    uint32_t ueUlArfcn = nrUeDevice->GetArfcn(ueUlBwp);
+    uint32_t ueDlArfcn = nrUeDevice->GetBwpArfcn(ueDlBwp);
+    uint32_t ueUlArfcn = nrUeDevice->GetBwpArfcn(ueUlBwp);
     uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
     uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
 
