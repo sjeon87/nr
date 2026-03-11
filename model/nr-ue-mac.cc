@@ -887,8 +887,8 @@ NrUeMac::SendRetxData(uint32_t usefulTbs, uint32_t activeLcsRetx)
 
     // Currently active flows may not be the same as those that were reported to gNB
     // so when dividing resources among active flows we may enter to the situation to
-    // asign less than what is the minimum TB size supported by RLC, i.e., 7 bytes.
-    // In the following, we check how many flows we can accomodate now, and
+    // assign less than what is the minimum TB size supported by RLC, i.e., 7 bytes.
+    // In the following, we check how many flows we can accommodate now, and
     // we start from the lower lcId, since the m_ulBsrReceived map is in ascending order.
 
     if (usefulTbs > (activeLcsRetx * MIN_TB_SIZE))
@@ -936,7 +936,7 @@ NrUeMac::SendRetxData(uint32_t usefulTbs, uint32_t activeLcsRetx)
             m_lcInfoMap.at(bsr.lcid).macSapUser->NotifyTxOpportunity(txParams);
             // After this call, m_ulDciTotalUsed has been updated with the
             // correct amount of bytes... but it is up to us in updating the BSR
-            // value, substracting the amount of bytes transmitted
+            // value, subtracting the amount of bytes transmitted
             bsr.retxQueueSize -= std::min(bsr.retxQueueSize, assignedBytes);
 
             if (lcToSendNow == 0)
