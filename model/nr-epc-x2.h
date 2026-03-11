@@ -59,10 +59,10 @@ class NrX2CellInfo : public SimpleRefCount<NrX2CellInfo>
     /**
      * Constructor
      *
-     * @param localCellIds local cell IDs
-     * @param remoteCellIds remote cell IDs
+     * @param localCellId local cell IDs
+     * @param remoteCellId remote cell IDs
      */
-    NrX2CellInfo(std::vector<uint16_t> localCellIds, std::vector<uint16_t> remoteCellIds);
+    NrX2CellInfo(uint16_t localCellId, uint16_t remoteCellId);
     virtual ~NrX2CellInfo();
 
     /**
@@ -73,8 +73,8 @@ class NrX2CellInfo : public SimpleRefCount<NrX2CellInfo>
     NrX2CellInfo& operator=(const NrX2CellInfo& value);
 
   public:
-    std::vector<uint16_t> m_localCellIds;  ///< local cell IDs
-    std::vector<uint16_t> m_remoteCellIds; ///< remote cell IDs
+    uint16_t m_localCellId;  ///< local cell IDs
+    uint16_t m_remoteCellId; ///< remote cell IDs
 };
 
 /**
@@ -119,12 +119,12 @@ class NrEpcX2 : public Object
      * Add an X2 interface to this EPC X2 entity
      * @param gnb1CellId the cell ID of the current eNodeB
      * @param gnb1X2Address the address of the current eNodeB
-     * @param gnb2CellIds the cell IDs of the neighbouring eNodeB
+     * @param gnb2CellId the cell ID of the neighbouring eNodeB
      * @param gnb2X2Address the address of the neighbouring eNodeB
      */
     void AddX2Interface(uint16_t gnb1CellId,
                         Ipv4Address gnb1X2Address,
-                        std::vector<uint16_t> gnb2CellIds,
+                        uint16_t gnb2CellId,
                         Ipv4Address gnb2X2Address);
 
     /**

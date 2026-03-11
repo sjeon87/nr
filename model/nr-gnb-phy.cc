@@ -689,7 +689,7 @@ NrGnbPhy::QueueMib()
     mib.dlBandwidth = GetChannelBandwidth() / (1000 * 100);
     mib.systemFrameNumber = 1;
     Ptr<NrMibMessage> mibMsg = Create<NrMibMessage>();
-    mibMsg->SetSourceBwp(GetBwpId());
+    mibMsg->SetSourceBwpArfcn(DoGetArfcn());
     mibMsg->SetMib(mib);
     EnqueueCtrlMsgNow(mibMsg);
 }
@@ -700,7 +700,7 @@ NrGnbPhy::QueueSib()
     NS_LOG_FUNCTION(this);
     Ptr<NrSib1Message> msg = Create<NrSib1Message>();
     msg->SetSib1(m_sib1);
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     EnqueueCtrlMsgNow(msg);
 }
 
@@ -1231,7 +1231,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
                                    << +rar.rarPayload.raPreambleId << " at:" << Simulator::Now()
                                    << " for slot:" << alloc.m_sfnSf << " kDelay:" << kDelay
                                    << "k1Delay:" << k1Delay);
-            ulMsg3DciMsg->SetSourceBwp(GetBwpId());
+            ulMsg3DciMsg->SetSourceBwpArfcn(DoGetArfcn());
         }
         if (kDelay != 0)
         {
@@ -1264,7 +1264,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
             {
                 Ptr<NrDlDciMessage> dciMsg = Create<NrDlDciMessage>(dciElem);
 
-                dciMsg->SetSourceBwp(GetBwpId());
+                dciMsg->SetSourceBwpArfcn(DoGetArfcn());
                 dciMsg->SetKDelay(kDelay);
                 dciMsg->SetK1Delay(k1Delay);
                 msg = dciMsg;
@@ -1273,7 +1273,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
             {
                 Ptr<NrUlDciMessage> dciMsg = Create<NrUlDciMessage>(dciElem);
 
-                dciMsg->SetSourceBwp(GetBwpId());
+                dciMsg->SetSourceBwpArfcn(DoGetArfcn());
                 dciMsg->SetKDelay(kDelay);
                 msg = dciMsg;
             }
@@ -1606,7 +1606,7 @@ NrGnbPhy::UlSrs(const std::shared_ptr<DciInfoElementTdma>& dci)
     for (auto& i : m_deviceMap)
     {
         Ptr<NrUeNetDevice> ueDev = DynamicCast<NrUeNetDevice>(i);
-        uint64_t ueRnti = (DynamicCast<NrUePhy>(ueDev->GetPhy(0)))->GetRnti();
+        uint64_t ueRnti = (DynamicCast<NrUePhy>(ueDev->GetPhy(GetBwpId())))->GetRnti();
         if (dci->m_rnti == ueRnti)
         {
             // Even if we change the beamforming vector, we hope that the scheduler

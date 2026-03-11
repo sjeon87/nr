@@ -25,10 +25,10 @@ NS_OBJECT_ENSURE_REGISTERED(BwpManagerAlgorithmStatic);
 #define DECLARE_ATTR(NAME, DESC, GETTER, SETTER)                                                   \
     .AddAttribute(NAME,                                                                            \
                   DESC,                                                                            \
-                  UintegerValue(0),                                                                \
+                  UintegerValue(16),                                                               \
                   MakeUintegerAccessor(&BwpManagerAlgorithmStatic::GETTER,                         \
                                        &BwpManagerAlgorithmStatic::SETTER),                        \
-                  MakeUintegerChecker<uint8_t>(0, 5))
+                  MakeUintegerChecker<uint8_t>(0, 16))
 
 TypeId
 BwpManagerAlgorithmStatic::GetTypeId()
@@ -239,7 +239,7 @@ BwpManagerAlgorithmStatic::GetTypeId()
 uint8_t
 BwpManagerAlgorithmStatic::GetBwpForQosFlow(const NrQosFlow::FiveQi& v) const
 {
-    return m_fiveQiToBwpMap.at(v == 0 ? 1 : v);
+    return m_fiveQiToBwpMap.at(v);
 }
 
 } // namespace ns3

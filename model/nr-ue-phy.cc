@@ -209,6 +209,34 @@ NrUePhy::GetTypeId()
                             "Report UE measurements RSRP (dBm) and RSRQ (dB).",
                             MakeTraceSourceAccessor(&NrUePhy::m_reportUeMeasurements),
                             "ns3::NrUePhy::RsrpRsrqTracedCallback")
+            .AddAttribute("Qout",
+                          "corresponds to 10% block error rate of a hypothetical PDCCH transmission"
+                          "taking into account the PCFICH errors with transmission parameters."
+                          "see 3GPP TS 36.213 4.2.1 and TS 36.133 7.6",
+                          DoubleValue(-5),
+                          MakeDoubleAccessor(&NrUePhy::m_qOut),
+                          MakeDoubleChecker<double>())
+            .AddAttribute("Qin",
+                          "corresponds to 2% block error rate of a hypothetical PDCCH transmission"
+                          "taking into account the PCFICH errors with transmission parameters."
+                          "see 3GPP TS 36.213 4.2.1 and TS 36.133 7.6",
+                          DoubleValue(-3.9),
+                          MakeDoubleAccessor(&NrUePhy::m_qIn),
+                          MakeDoubleChecker<double>())
+            .AddAttribute(
+                "NumQoutEvalSf",
+                "This specifies the total number of consecutive subframes"
+                "which corresponds to the Qout evaluation period",
+                UintegerValue(200), // see 3GPP 3GPP TS 36.133 7.6.2.1
+                MakeUintegerAccessor(&NrUePhy::SetNumQoutEvalSf, &NrUePhy::GetNumQoutEvalSf),
+                MakeUintegerChecker<uint16_t>())
+            .AddAttribute(
+                "NumQinEvalSf",
+                "This specifies the total number of consecutive subframes"
+                "which corresponds to the Qin evaluation period",
+                UintegerValue(100), // see 3GPP 3GPP TS 36.133 7.6.2.1
+                MakeUintegerAccessor(&NrUePhy::SetNumQinEvalSf, &NrUePhy::GetNumQinEvalSf),
+                MakeUintegerChecker<uint16_t>())
             .AddAttribute("EnableRlfDetection",
                           "If true, RLF detection will be enabled.",
                           BooleanValue(true),
@@ -295,6 +323,40 @@ NrUePhy::GetRsrp() const
     return m_rsrp;
 }
 
+void
+NrUePhy::SetNumQoutEvalSf(uint16_t numSubframes)
+{
+    NS_LOG_FUNCTION(this << numSubframes);
+    NS_ABORT_MSG_IF(numSubframes % 10 != 0,
+                    "Number of subframes used for Qout "
+                    "evaluation must be multiple of 10");
+    m_numOfQoutEvalSf = numSubframes;
+}
+
+void
+NrUePhy::SetNumQinEvalSf(uint16_t numSubframes)
+{
+    NS_LOG_FUNCTION(this << numSubframes);
+    NS_ABORT_MSG_IF(numSubframes % 10 != 0,
+                    "Number of subframes used for Qin "
+                    "evaluation must be multiple of 10");
+    m_numOfQinEvalSf = numSubframes;
+}
+
+uint16_t
+NrUePhy::GetNumQoutEvalSf() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_numOfQoutEvalSf;
+}
+
+uint16_t
+NrUePhy::GetNumQinEvalSf() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_numOfQinEvalSf;
+}
+
 Ptr<NrUePowerControl>
 NrUePhy::GetUplinkPowerControl() const
 {
@@ -377,7 +439,7 @@ NrUePhy::SendRachPreamble(uint32_t PreambleId, uint32_t Rnti)
     NS_LOG_FUNCTION(this << PreambleId);
     m_raPreambleId = PreambleId;
     Ptr<NrRachPreambleMessage> msg = Create<NrRachPreambleMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     msg->SetRapId(PreambleId);
     EnqueueCtrlMsgNow(msg);
 }
@@ -398,12 +460,12 @@ NrUePhy::ProcessSrsDci(const SfnSf& ulSfnSf, const std::shared_ptr<DciInfoElemen
 }
 
 void
-NrUePhy::RegisterToGnb(uint16_t bwpId)
+NrUePhy::RegisterToGnb(uint16_t cellId)
 {
     NS_LOG_FUNCTION(this);
 
     InitializeMessageList();
-    DoSetCellId(bwpId);
+    DoSetCellId(cellId);
 }
 
 void
@@ -634,7 +696,9 @@ NrUePhy::PhyCtrlMessagesReceived(const Ptr<NrControlMessage>& msg)
     {
         Ptr<NrSib1Message> msg2 = DynamicCast<NrSib1Message>(msg);
         m_phyRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
-        m_ueCphySapUser->RecvSystemInformationBlockType1(GetCellId(), msg2->GetSib1());
+        m_ueCphySapUser->RecvSystemInformationBlockType1(GetCellId(),
+                                                         DoGetArfcn(),
+                                                         msg2->GetSib1());
     }
     else if (msg->GetMessageType() == NrControlMessage::RAR)
     {
@@ -952,8 +1016,10 @@ NrUePhy::DlCtrl(const std::shared_ptr<DciInfoElementTdma>& dci)
                       << +dci->m_symStart << "-" << +(dci->m_symStart + dci->m_numSym - 1)
                       << "\t start " << Simulator::Now() << " end "
                       << (Simulator::Now() + varTtiDuration));
-
-    m_tryToPerformLbt = true;
+    if (!m_lastSlotStart.IsZero())
+    {
+        m_tryToPerformLbt = true;
+    }
 
     m_spectrumPhy->AddExpectedDlCtrlEnd(Simulator::Now() + varTtiDuration);
 
@@ -971,7 +1037,7 @@ NrUePhy::UlSrs(const std::shared_ptr<DciInfoElementTdma>& dci)
 
     std::list<Ptr<NrControlMessage>> srsMsg;
     Ptr<NrSrsMessage> srs = Create<NrSrsMessage>();
-    srs->SetSourceBwp(GetBwpId());
+    srs->SetSourceBwpArfcn(DoGetArfcn());
     srsMsg.emplace_back(srs);
     Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
 
@@ -1056,8 +1122,14 @@ NrUePhy::DlData(const std::shared_ptr<DciInfoElementTdma>& dci)
 {
     NS_LOG_FUNCTION(this);
 
-    m_receptionEnabled = true;
     Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
+
+    if (GetRbNum() != dci->m_rbgBitmask.size())
+    {
+        return varTtiDuration;
+    }
+
+    m_receptionEnabled = true;
     NS_ASSERT(dci->m_rnti == m_rnti);
     m_spectrumPhy->AddExpectedTb({dci->m_ndi,
                                   dci->m_tbSize,
@@ -1084,13 +1156,18 @@ Time
 NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma>& dci)
 {
     NS_LOG_FUNCTION(this);
+    Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
+
+    if (GetRbNum() != dci->m_rbgBitmask.size())
+    {
+        return varTtiDuration;
+    }
     if (m_enableUplinkPowerControl)
     {
         m_txPower = m_powerControl->GetPuschTxPower(
             (FromRBGBitmaskToRBAssignment(dci->m_rbgBitmask)).size());
     }
     SetSubChannelsForTransmission(FromRBGBitmaskToRBAssignment(dci->m_rbgBitmask), dci->m_numSym);
-    Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
     std::list<Ptr<NrControlMessage>> ctrlMsg;
     Ptr<PacketBurst> pktBurst = GetPacketBurst(m_currentSlot, dci->m_symStart, dci->m_rnti);
     if (pktBurst && pktBurst->GetNPackets() > 0)
@@ -1249,7 +1326,7 @@ NrUePhy::CreateDlCqiFeedbackMessage(const SpectrumValue& sinr)
     NS_LOG_FUNCTION(this);
     // Create DL CQI CTRL message
     Ptr<NrDlCqiMessage> msg = Create<NrDlCqiMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     DlCqiInfo dlcqi;
 
     dlcqi.m_rnti = m_rnti;
@@ -1290,7 +1367,7 @@ NrUePhy::EnqueueDlHarqFeedback(const DlHarqInfo& m)
     NS_LOG_FUNCTION(this);
     // get the feedback from NrSpectrumPhy and send it through ideal PUCCH to gNB
     Ptr<NrDlHarqFeedbackMessage> msg = Create<NrDlHarqFeedbackMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     msg->SetDlHarqFeedback(m);
 
     auto k1It = m_harqIdToK1Map.find(m.m_harqProcessId);
@@ -1345,6 +1422,7 @@ void
 NrUePhy::DoStartCellSearch(uint16_t arfcn)
 {
     NS_LOG_FUNCTION(this << arfcn);
+    InitializeMessageList();
     DoSetInitialBandwidth();
 }
 
@@ -1494,14 +1572,6 @@ NrUePhy::ReportUeMeasurements()
 
         m_reportRsrpTrace(GetCellId(), m_imsi, m_rnti, avg_rsrp, GetBwpId());
 
-        // trigger RLF detection only when UE has an active RRC connection
-        // and RLF detection attribute is set to true
-        if (m_isConnected && m_enableRlfDetection)
-        {
-            double avrgSinrForRlf = ComputeAvgSinr(m_ctrlSinrForRlf);
-            RlfDetection(10 * log10(avrgSinrForRlf));
-        }
-
         NrUeCphySapUser::UeMeasurementsElement newEl;
         newEl.m_cellId = (*it).first;
         newEl.m_rsrp = avg_rsrp;
@@ -1548,7 +1618,16 @@ NrUePhy::ReportDlCtrlSinr(const SpectrumValue& sinr)
     }
 
     NS_ASSERT(rbUsed);
+    m_ctrlSinrForRlf = sinr;
     m_dlCtrlSinrTrace(GetCellId(), m_rnti, sinrSum / rbUsed, GetBwpId());
+
+    // trigger RLF detection only when UE has an active RRC connection
+    // and RLF detection attribute is set to true
+    if (m_isConnected && m_enableRlfDetection)
+    {
+        double avrgSinrForRlf = ComputeAvgSinr(m_ctrlSinrForRlf);
+        RlfDetection(10 * log10(avrgSinrForRlf));
+    }
 }
 
 uint8_t
@@ -1688,19 +1767,16 @@ NrUePhy::SetPhySapUser(NrUePhySapUser* ptr)
 }
 
 void
-NrUePhy::DoNotifyConnectionSuccessful()
+NrUePhy::NotifyConnectionSuccessful()
 {
     /**
      * Radio link failure detection should take place only on the
      * primary carrier to avoid errors due to multiple calls to the
      * same methods at the RRC layer
      */
-    if (GetBwpId() == 0)
-    {
-        m_isConnected = true;
-        // Initialize the parameters for radio link failure detection
-        InitializeRlfParams();
-    }
+    m_isConnected = true;
+    // Initialize the parameters for radio link failure detection
+    InitializeRlfParams();
 }
 
 void
@@ -1861,7 +1937,7 @@ NrUePhy::GenerateDlCqiReportMimo(const NrMimoSignal& rxSignal,
     m_cqiFeedbackTrace(m_rnti, cqi.m_wbCqi, cqi.m_mcs, cqi.m_rank);
 
     auto msg = Create<NrDlCqiMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     msg->SetDlCqi(dlcqi);
 
     DoSendControlMessage(msg);
@@ -2022,6 +2098,12 @@ Ptr<NrPmSearch>
 NrUePhy::GetPmSearch() const
 {
     return m_pmSearch;
+}
+
+void
+NrUePhy::SetTargetGnb(Ptr<NrGnbNetDevice> gnbNetDev)
+{
+    DynamicCast<NrUeNetDevice>(m_netDevice)->SetTargetGnb(gnbNetDev);
 }
 
 } // namespace ns3

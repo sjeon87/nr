@@ -31,11 +31,13 @@
 #include "ns3/nr-gnb-mac.h"
 #include "ns3/nr-gnb-net-device.h"
 #include "ns3/nr-gnb-phy.h"
+#include "ns3/nr-handover-algorithm.h"
 #include "ns3/nr-initial-association.h"
 #include "ns3/nr-mac-scheduler-tdma-rr.h"
 #include "ns3/nr-pm-search-full.h"
 #include "ns3/nr-rrc-protocol-ideal.h"
-#include "ns3/nr-rrc-protocol-real.h"
+#include "ns3/nr-rrc-protocol-real-gnb.h"
+#include "ns3/nr-rrc-protocol-real-ue.h"
 #include "ns3/nr-ue-mac.h"
 #include "ns3/nr-ue-net-device.h"
 #include "ns3/nr-ue-phy.h"
@@ -491,12 +493,14 @@ NrHelper::InstallSingleUeDevice(
         auto mac = CreateUeMac();
         cc->SetMac(mac);
 
-        auto phy = CreateUePhy(
-            n,
-            allBwps[bwpId].get(),
-            dev,
-            MakeCallback(&NrUeNetDevice::EnqueueDlHarqFeedback, dev),
-            std::bind(&NrUeNetDevice::RouteIngoingCtrlMsgs, dev, std::placeholders::_1, bwpId));
+        auto phy = CreateUePhy(n,
+                               allBwps[bwpId].get(),
+                               dev,
+                               MakeCallback(&NrUeNetDevice::EnqueueDlHarqFeedback, dev),
+                               std::bind(&NrUeNetDevice::RouteIngoingCtrlMsgs,
+                                         dev,
+                                         std::placeholders::_1,
+                                         cc->GetArfcn()));
 
         phy->SetBwpId(bwpId);
         cc->SetPhy(phy);
@@ -534,6 +538,8 @@ NrHelper::InstallSingleUeDevice(
     rrc->SetNrCcmRrcSapProvider(ccmUe->GetNrCcmRrcSapProvider());
     ccmUe->SetNrCcmRrcSapUser(rrc->GetNrCcmRrcSapUser());
     ccmUe->SetNumberOfComponentCarriers(ueCcMap.size());
+    DynamicCast<BwpManagerUe>(ccmUe)->SetGetPrimaryUlFn(
+        [rrc]() { return rrc->GetPrimaryUlIndex(); });
 
     if (m_useIdealRrc)
     {
@@ -735,6 +741,8 @@ NrHelper::InstallSingleGnbDevice(
     NS_ABORT_MSG_IF(m_cellIdCounter == 65535, "max num gNBs exceeded");
 
     Ptr<NrGnbNetDevice> dev = m_gnbNetDeviceFactory.Create<NrGnbNetDevice>();
+    Ptr<NrHandoverAlgorithm> handoverAlgorithm =
+        m_handoverAlgorithmFactory.Create<NrHandoverAlgorithm>();
 
     NS_LOG_DEBUG("Creating gNB, cellId = " << m_cellIdCounter);
     uint16_t cellId = m_cellIdCounter++; // New cellId
@@ -799,6 +807,10 @@ NrHelper::InstallSingleGnbDevice(
         DynamicCast<NrGnbComponentCarrierManager>(CreateObject<BwpManagerGnb>());
     DynamicCast<BwpManagerGnb>(ccmGnbManager)
         ->SetBwpManagerAlgorithm(m_gnbBwpManagerAlgoFactory.Create<BwpManagerAlgorithm>());
+
+    rrc->SetNrHandoverManagementSapProvider(
+        handoverAlgorithm->GetNrHandoverManagementSapProvider());
+    handoverAlgorithm->SetNrHandoverManagementSapUser(rrc->GetNrHandoverManagementSapUser());
 
     // Convert Gnb carrier map to only PhyConf map
     // we want to make RRC to be generic, to be able to work with any type of carriers, not only
@@ -909,6 +921,7 @@ NrHelper::InstallSingleGnbDevice(
     dev->SetAttribute("NrGnbComponentCarrierManager", PointerValue(ccmGnbManager));
     dev->SetCcMap(ccMap);
     dev->SetAttribute("NrGnbRrc", PointerValue(rrc));
+    dev->SetAttribute("NrHandoverAlgorithm", PointerValue(handoverAlgorithm));
 
     n->AddDevice(dev);
 
@@ -1124,18 +1137,13 @@ NrHelper::AttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbD
     {
         gnbNetDev->GetPhy(i)->RegisterUe(ueNetDev->GetImsi(), ueNetDev);
         ueNetDev->GetPhy(i)->RegisterToGnb(gnbNetDev->GetCellId());
-        ueNetDev->GetPhy(i)->SetDlAmc(
-            DynamicCast<NrMacSchedulerNs3>(gnbNetDev->GetScheduler(i))->GetDlAmc());
-        ueNetDev->GetPhy(i)->SetDlCtrlSyms(gnbNetDev->GetMac(i)->GetDlCtrlSyms());
-        ueNetDev->GetPhy(i)->SetUlCtrlSyms(gnbNetDev->GetMac(i)->GetUlCtrlSyms());
-        ueNetDev->GetPhy(i)->SetNumRbPerRbg(gnbNetDev->GetMac(i)->GetNumRbPerRbg());
-        ueNetDev->GetPhy(i)->SetRbOverhead(gnbNetDev->GetPhy(i)->GetRbOverhead());
-        ueNetDev->GetPhy(i)->SetSymbolsPerSlot(gnbNetDev->GetPhy(i)->GetSymbolsPerSlot());
-        ueNetDev->GetPhy(i)->SetNumerology(gnbNetDev->GetPhy(i)->GetNumerology());
-        ueNetDev->GetPhy(i)->SetPattern(gnbNetDev->GetPhy(i)->GetPattern());
+        ConfigureUePhyToSib1FromCellId(gnbNetDev->GetCellId(),
+                                       ueNetDev->GetRrc()->m_cphySapProvider.at(i));
         Ptr<NrEpcUeNas> ueNas = ueNetDev->GetNas();
-        ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));
-
+        if (i == 0)
+        {
+            ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));
+        }
         if (IsMimoFeedbackEnabled())
         {
             // Initialize parameters for MIMO precoding matrix search (PMI feedback)
@@ -1446,11 +1454,6 @@ NrHelper::AssignStreams(NetDeviceContainer c, int64_t stream)
         {
             for (uint32_t bwp = 0; bwp < nrUe->GetCcMapSize(); bwp++)
             {
-                Ptr<NrPmSearch> pmSearch = nrUe->GetPhy(bwp)->GetPmSearch();
-                if (pmSearch)
-                {
-                    currentStream += nrUe->GetPhy(bwp)->GetPmSearch()->AssignStreams(currentStream);
-                }
                 currentStream += nrUe->GetPhy(bwp)->GetSpectrumPhy()->AssignStreams(currentStream);
                 currentStream += nrUe->GetMac(bwp)->AssignStreams(currentStream);
                 currentStream +=
@@ -2046,6 +2049,58 @@ NrHelper::IsMimoFeedbackEnabled() const
         return true;
     }
     NS_ABORT_MSG("Unsupported NrHelper::CsiFeedbackFlags combination");
+}
+
+Ptr<NrGnbNetDevice>
+NrHelper::RetrieveGnbNetDevFromCellId(uint16_t cellId)
+{
+    // Search nodes for gNB PHY/MAC with corresponding cellId
+    Ptr<NrGnbNetDevice> gnbNet;
+
+    for (std::size_t nodeI = 0; nodeI < NodeList::GetNNodes(); nodeI++)
+    {
+        auto node = NodeList::GetNode(nodeI);
+        for (std::size_t deviceI = 0; deviceI < node->GetNDevices(); deviceI++)
+        {
+            auto device = node->GetDevice(deviceI);
+            gnbNet = DynamicCast<NrGnbNetDevice>(device);
+            if (gnbNet && gnbNet->GetCellId() == cellId)
+            {
+                return gnbNet;
+            }
+        }
+    }
+    return nullptr;
+}
+
+void
+NrHelper::ConfigureUePhyToSib1FromCellId(uint16_t cellId, ns3::NrUeCphySapProvider*& pProvider)
+{
+    auto gnbNet = RetrieveGnbNetDevFromCellId(cellId);
+    NS_ASSERT(gnbNet);
+
+    // Retrieve UE PHY ARFCN, then gNB BWP ID that matches it
+    auto ueArfcn = pProvider->GetArfcn();
+    auto bwpId = gnbNet->GetArfcnBwpId(ueArfcn);
+
+    Ptr<NrGnbPhy> gnbPhy = gnbNet->GetPhy(bwpId);
+    Ptr<NrGnbMac> gnbMac = gnbNet->GetMac(bwpId);
+    Ptr<NrMacScheduler> gnbMacScheduler = gnbNet->GetScheduler(bwpId);
+    NS_ASSERT(gnbPhy);
+    NS_ASSERT(gnbMac);
+    NS_ASSERT(gnbMacScheduler);
+
+    // todo: put this data into the actual SIB1 message, as part of ServingCellConfigCommonSIB
+    auto macScheduler = DynamicCast<NrMacSchedulerNs3>(gnbMacScheduler);
+    pProvider->SetDlAmc(macScheduler->GetDlAmc());       // not standard
+    pProvider->SetDlCtrlSyms(gnbMac->GetDlCtrlSyms());   // should be in SIB1
+    pProvider->SetUlCtrlSyms(gnbMac->GetUlCtrlSyms());   // should be in SIB1
+    pProvider->SetNumRbPerRbg(gnbMac->GetNumRbPerRbg()); // Should enforce the 3GPP standard here?
+    pProvider->SetRbOverhead(gnbPhy->GetRbOverhead());   // not standard
+    pProvider->SetSymbolsPerSlot(gnbPhy->GetSymbolsPerSlot()); // should be in SIB1
+    pProvider->SetNumerology(gnbPhy->GetNumerology());         // should be in SIB1
+    pProvider->SetPattern(gnbPhy->GetPattern());               // should be in SIB1
+    pProvider->SetTargetGnb(gnbNet);                           // not standard
 }
 
 } // namespace ns3

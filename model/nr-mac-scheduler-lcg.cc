@@ -26,16 +26,18 @@ NrMacSchedulerLC::NrMacSchedulerLC(const nr::LogicalChannelConfigListElement_s& 
     m_eRabGuaranteedBitrateDl = conf.m_eRabGuaranteedBitrateDl;
 }
 
+auto AddOverheadIfPositive = [](auto value) { return value > 0 ? value + 3 : value; };
+
 void
 NrMacSchedulerLC::Update(const NrMacSchedSapProvider::SchedDlRlcBufferReqParameters& params)
 {
     NS_LOG_FUNCTION(this);
     NS_ASSERT(params.m_logicalChannelIdentity == m_id);
-    m_rlcTransmissionQueueSize = params.m_rlcTransmissionQueueSize;
-    m_rlcRetransmissionQueueSize = params.m_rlcRetransmissionQueueSize;
-    m_rlcStatusPduSize = params.m_rlcStatusPduSize;
-    m_rlcRetransmissionHolDelay = params.m_rlcRetransmissionHolDelay;
-    m_rlcTransmissionQueueHolDelay = params.m_rlcTransmissionQueueHolDelay;
+    m_rlcTransmissionQueueSize = AddOverheadIfPositive(params.m_rlcTransmissionQueueSize);
+    m_rlcRetransmissionQueueSize = AddOverheadIfPositive(params.m_rlcRetransmissionQueueSize);
+    m_rlcStatusPduSize = AddOverheadIfPositive(params.m_rlcStatusPduSize);
+    m_rlcRetransmissionHolDelay = AddOverheadIfPositive(params.m_rlcRetransmissionHolDelay);
+    m_rlcTransmissionQueueHolDelay = AddOverheadIfPositive(params.m_rlcTransmissionQueueHolDelay);
 }
 
 uint32_t

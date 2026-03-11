@@ -22,6 +22,7 @@
 
 #include "ns3/fatal-error.h"
 #include "ns3/log.h"
+#include "ns3/nr-helper.h"
 #include "ns3/object-factory.h"
 #include "ns3/object-map.h"
 #include "ns3/simulator.h"
@@ -590,7 +591,10 @@ NrUeRrc::InitializeSrb0()
     lcConfig.fiveQi = NrQosFlow::GBR_CONV_VOICE;
     NrMacSapUser* msu =
         m_ccmRrcSapProvider->ConfigureSignalBearer(lcid, lcConfig, rlc->GetNrMacSapUser());
-    m_cmacSapProvider.at(GetPrimaryUlIndex())->AddLc(lcid, lcConfig, msu);
+    for (auto& mac : m_cmacSapProvider)
+    {
+        mac->AddLc(lcid, lcConfig, msu);
+    }
 }
 
 void
@@ -805,12 +809,15 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 
     switch (m_state)
     {
-    case IDLE_START:
+    case IDLE_START: {
         m_cellId = cellId;
         m_initDlArfcn = arfcn;
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
+        auto bwpId = GetArfcnBwpId(arfcn);
+        SetPrimaryDlIndex(bwpId);
+        m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
         SwitchToState(IDLE_WAIT_MIB);
-        break;
+    }
+    break;
 
     case IDLE_CELL_SEARCH:
     case IDLE_WAIT_MIB_SIB1:
@@ -912,9 +919,15 @@ NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformati
 
 void
 NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
+                                           uint32_t arfcn,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
     NS_LOG_FUNCTION(this);
+    if ((m_previousCellId == cellId) && (cellId != m_cellId))
+    {
+        // Receiving an old control message, we just ignore for now
+        return;
+    }
     switch (m_state)
     {
     case IDLE_WAIT_SIB1:
@@ -1133,6 +1146,28 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             m_cellId = mci.targetPhysCellId;
             NS_ASSERT(mci.haveCarrierFreq);
             NS_ASSERT(mci.haveCarrierBandwidth);
+            // We could reconfigure PHY and BWPs, or we can just switch the primary DL/UL
+            // indexes to match the correct frequency
+            if (m_previousCellId != mci.targetPhysCellId)
+            {
+                auto dlIt = std::find_if(m_cphySapProvider.begin(),
+                                         m_cphySapProvider.end(),
+                                         [arfcn = mci.carrierFreq.dlCarrierFreq](auto& phy) {
+                                             return phy->GetArfcn() == arfcn;
+                                         });
+                auto ulIt = std::find_if(m_cphySapProvider.begin(),
+                                         m_cphySapProvider.end(),
+                                         [arfcn = mci.carrierFreq.ulCarrierFreq](auto& phy) {
+                                             return phy->GetArfcn() == arfcn;
+                                         });
+                NS_ASSERT_MSG(
+                    (dlIt != m_cphySapProvider.end()) || (ulIt != m_cphySapProvider.end()),
+                    "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
+                NrHelper::ConfigureUePhyToSib1FromCellId(mci.targetPhysCellId, *dlIt);
+                NrHelper::ConfigureUePhyToSib1FromCellId(mci.targetPhysCellId, *ulIt);
+                SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
+                SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
+            }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.dlCarrierFreq);
             m_cphySapProvider.at(GetPrimaryDlIndex())
@@ -1149,6 +1184,7 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             NS_ASSERT_MSG(
                 mci.haveRachConfigDedicated,
                 "handover is only supported with non-contention-based random access procedure");
+            m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(mci.targetPhysCellId);
             m_cmacSapProvider.at(GetPrimaryUlIndex())
                 ->StartNonContentionBasedRandomAccessProcedure(
                     m_rnti,
@@ -1338,6 +1374,19 @@ NrUeRrc::SynchronizeToStrongestCell()
 
 } // end of void NrUeRrc::SynchronizeToStrongestCell ()
 
+std::size_t
+NrUeRrc::GetArfcnBwpId(uint32_t arfcn) const
+{
+    for (std::size_t i = 0; i < m_cphySapProvider.size(); i++)
+    {
+        if (m_cphySapProvider.at(i)->GetArfcn() == arfcn)
+        {
+            return i;
+        }
+    }
+    NS_FATAL_ERROR("No BWP found with arfcn " << arfcn);
+}
+
 void
 NrUeRrc::EvaluateCellForSelection()
 {
@@ -1377,18 +1426,24 @@ NrUeRrc::EvaluateCellForSelection()
     if (isSuitableCell)
     {
         m_cellId = cellId;
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(cellId, m_initDlArfcn);
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
+        // todo: search if a BWP has this ARFCN, if not, create a new BWP, switch primary DL/UL
+        // indexes, then configure it
+        auto bwpId = GetArfcnBwpId(m_initDlArfcn);
+        SetPrimaryDlIndex(bwpId);
+        m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(cellId, m_initDlArfcn);
+        m_cphySapProvider.at(bwpId)->SetDlBandwidth(m_dlBandwidth);
+        NrHelper::ConfigureUePhyToSib1FromCellId(m_cellId, m_cphySapProvider.at(bwpId));
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
-        // Once the UE is connected, m_connectionPending is
-        // set to false. So, when RLF occurs and UE performs
-        // cell selection upon leaving RRC_CONNECTED state,
-        // the following call to DoConnect will make the
-        // m_connectionPending to be true again. Thus,
-        // upon calling SwitchToState (IDLE_CAMPED_NORMALLY)
-        // UE state is instantly change to IDLE_WAIT_SIB2.
-        // This will make the UE to read the SIB2 message
-        // and start random access.
+
+        //  Once the UE is connected, m_connectionPending is
+        //  set to false. So, when RLF occurs and UE performs
+        //  cell selection upon leaving RRC_CONNECTED state,
+        //  the following call to DoConnect will make the
+        //  m_connectionPending to be true again. Thus,
+        //  upon calling SwitchToState (IDLE_CAMPED_NORMALLY)
+        //  UE state is instantly change to IDLE_WAIT_SIB2.
+        //  This will make the UE to read the SIB2 message
+        //  and start random access.
         if (!m_connectionPending)
         {
             NS_LOG_DEBUG("Calling DoConnect in state = " << ToString(m_state));
@@ -1543,6 +1598,10 @@ NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicate
             NrMacSapUser* msu =
                 m_ccmRrcSapProvider->ConfigureSignalBearer(lcid, lcConfig, rlc->GetNrMacSapUser());
             m_cmacSapProvider.at(GetPrimaryUlIndex())->AddLc(lcid, lcConfig, msu);
+            if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
+            {
+                m_cmacSapProvider.at(GetPrimaryDlIndex())->AddLc(lcid, lcConfig, msu);
+            }
             ++stamIt;
             NS_ASSERT_MSG(stamIt == rrcd.srbToAddModList.end(), "at most one SrbToAdd supported");
 

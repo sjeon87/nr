@@ -8,6 +8,8 @@
 #ifndef NR_UE_CPHY_SAP_H
 #define NR_UE_CPHY_SAP_H
 
+#include "nr-amc.h"
+#include "nr-gnb-net-device.h"
 #include "nr-rrc-sap.h"
 
 #include "ns3/ptr.h"
@@ -196,6 +198,14 @@ class NrUeCphySapProvider
      * @param imsi the IMSI of the UE
      */
     virtual void SetImsi(uint64_t imsi) = 0;
+    virtual void SetSymbolsPerSlot(uint32_t symbolsPerSlot) = 0;
+    virtual void SetPattern(std::string tddPattern) = 0;
+    virtual void SetDlCtrlSyms(uint8_t numDlCtrlSyms) = 0;
+    virtual void SetUlCtrlSyms(uint8_t numUlCtrlSyms) = 0;
+    virtual void SetNumRbPerRbg(uint32_t numRbPerRbg) = 0;
+    virtual void SetRbOverhead(double rbOverhead) = 0;
+    virtual void SetDlAmc(Ptr<const NrAmc> amc) = 0;
+    virtual void SetTargetGnb(Ptr<NrGnbNetDevice> gnbNetDev) = 0;
 };
 
 /**
@@ -252,6 +262,7 @@ class NrUeCphySapUser
      * @param sib1 the System Information Block Type 1 message
      */
     virtual void RecvSystemInformationBlockType1(uint16_t cellId,
+                                                 uint32_t arfcn,
                                                  NrRrcSap::SystemInformationBlockType1 sib1) = 0;
 
     /**
@@ -325,6 +336,14 @@ class MemberNrUeCphySapProvider : public NrUeCphySapProvider
     void ResetRlfParams() override;
     void StartInSyncDetection() override;
     void SetImsi(uint64_t imsi) override;
+    void SetSymbolsPerSlot(uint32_t symbolsPerSlot) override;
+    void SetPattern(std::string tddPattern) override;
+    void SetDlCtrlSyms(uint8_t numDlCtrlSyms) override;
+    void SetUlCtrlSyms(uint8_t numUlCtrlSyms) override;
+    void SetNumRbPerRbg(uint32_t numRbPerRbg) override;
+    void SetRbOverhead(double rbOverhead) override;
+    void SetDlAmc(Ptr<const NrAmc> amc) override;
+    void SetTargetGnb(Ptr<ns3::NrGnbNetDevice> gnbNetDev) override;
 
   private:
     C* m_owner; ///< the owner class
@@ -469,6 +488,62 @@ MemberNrUeCphySapProvider<C>::SetImsi(uint64_t imsi)
     m_owner->DoSetImsi(imsi);
 }
 
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetSymbolsPerSlot(uint32_t symbolsPerSlot)
+{
+    m_owner->SetSymbolsPerSlot(symbolsPerSlot);
+}
+
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetPattern(std::string tddPattern)
+{
+    m_owner->SetPattern(tddPattern);
+}
+
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetDlCtrlSyms(uint8_t numDlCtrlSyms)
+{
+    m_owner->SetDlCtrlSyms(numDlCtrlSyms);
+}
+
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetUlCtrlSyms(uint8_t numUlCtrlSyms)
+{
+    m_owner->SetUlCtrlSyms(numUlCtrlSyms);
+}
+
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetNumRbPerRbg(uint32_t numRbPerRbg)
+{
+    m_owner->SetNumRbPerRbg(numRbPerRbg);
+}
+
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetRbOverhead(double rbOverhead)
+{
+    m_owner->SetRbOverhead(rbOverhead);
+}
+
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetDlAmc(Ptr<const ns3::NrAmc> amc)
+{
+    m_owner->SetDlAmc(amc);
+}
+
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetTargetGnb(Ptr<ns3::NrGnbNetDevice> gnbNetDev)
+{
+    m_owner->SetTargetGnb(gnbNetDev);
+}
+
 /**
  * Template for the implementation of the NrUeCphySapUser as a member
  * of an owner class of type C to which all methods are forwarded
@@ -490,6 +565,7 @@ class MemberNrUeCphySapUser : public NrUeCphySapUser
     // methods inherited from NrUeCphySapUser go here
     void RecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformationBlock mib) override;
     void RecvSystemInformationBlockType1(uint16_t cellId,
+                                         uint32_t arfcn,
                                          NrRrcSap::SystemInformationBlockType1 sib1) override;
     void ReportUeMeasurements(NrUeCphySapUser::UeMeasurementsParameters params) override;
     void NotifyOutOfSync() override;
@@ -518,9 +594,10 @@ template <class C>
 void
 MemberNrUeCphySapUser<C>::RecvSystemInformationBlockType1(
     uint16_t cellId,
+    uint32_t arfcn,
     NrRrcSap::SystemInformationBlockType1 sib1)
 {
-    m_owner->DoRecvSystemInformationBlockType1(cellId, sib1);
+    m_owner->DoRecvSystemInformationBlockType1(cellId, arfcn, sib1);
 }
 
 template <class C>

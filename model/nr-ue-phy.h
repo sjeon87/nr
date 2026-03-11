@@ -145,6 +145,11 @@ class NrUePhy : public NrPhy
      */
     double GetRsrp() const;
 
+    void SetNumQoutEvalSf(uint16_t numSubframes);
+    void SetNumQinEvalSf(uint16_t numSubframes);
+    uint16_t GetNumQoutEvalSf() const;
+    uint16_t GetNumQinEvalSf() const;
+
     /**
      * @brief Get NR uplink power control entity
      *
@@ -174,7 +179,7 @@ class NrUePhy : public NrPhy
      *
      *
      */
-    void RegisterToGnb(uint16_t bwpId);
+    void RegisterToGnb(uint16_t cellId) override;
 
     /**
      * @brief Set the AMC pointer from the GNB
@@ -541,6 +546,16 @@ class NrUePhy : public NrPhy
 
     /// @brief Get the precoding matrix search engine
     Ptr<NrPmSearch> GetPmSearch() const;
+
+    /**
+     * Set the target gNB for the UE NetDevice from the PHY layer.
+     *
+     * This function emulates the hack implemented in NrHelper, so we have easier debugging time,
+     * by just probing this gNB pointer from the NrUeNetDevice. We can probably remove this.
+     *
+     * @param gnbNetDev A smart pointer to the gNB NetDevice to set as the target.
+     */
+    void SetTargetGnb(Ptr<NrGnbNetDevice> gnbNetDev);
 
   protected:
     /**
@@ -1050,7 +1065,7 @@ class NrUePhy : public NrPhy
     TracedCallback<uint16_t, uint16_t, double, double, bool, uint8_t> m_reportUeMeasurements;
 
     bool m_isConnected;
-    void DoNotifyConnectionSuccessful();
+    void NotifyConnectionSuccessful() override;
     /**
      * The 'Qin' attribute.
      * corresponds to 2% block error rate of a hypothetical PDCCH transmission

@@ -55,6 +55,7 @@ class NrUeCmacSapUser;
 class NrUeCmacSapProvider;
 class NrDataRadioBearerInfo;
 class NrSignalingRadioBearerInfo;
+class NrHelper;
 
 /**
  *
@@ -481,6 +482,7 @@ class NrUeRrc : public Object
      * @param msg NrRrcSap::SystemInformationBlockType1
      */
     void DoRecvSystemInformationBlockType1(uint16_t cellId,
+                                           uint32_t arfcn,
                                            NrRrcSap::SystemInformationBlockType1 msg);
     /**
      * Report UE measurements function
@@ -1351,12 +1353,14 @@ class NrUeRrc : public Object
      *
      */
     void ResetRlfParams();
+    std::size_t GetArfcnBwpId(uint32_t arfcn) const;
 
   public:
     /**
      * The number of component carriers.
      */
     uint16_t m_numberOfComponentCarriers;
+    friend class NrHelper;
 
 }; // end of class NrUeRrc
 

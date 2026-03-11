@@ -53,6 +53,7 @@ class UeMemberNrUeCmacSapProvider : public NrUeCmacSapProvider
     void SetRnti(uint16_t rnti) override;
     void NotifyConnectionSuccessful() override;
     void SetImsi(uint64_t imsi) override;
+    void RegisterToGnb(uint16_t cellId) override;
 
   private:
     NrUeMac* m_mac;
@@ -117,6 +118,12 @@ void
 UeMemberNrUeCmacSapProvider::SetImsi(uint64_t imsi)
 {
     m_mac->DoSetImsi(imsi);
+}
+
+void
+UeMemberNrUeCmacSapProvider::RegisterToGnb(uint16_t cellId)
+{
+    m_mac->m_phySapProvider->RegisterToGnb(cellId);
 }
 
 class UeMemberNrMacSapProvider : public NrMacSapProvider
@@ -373,6 +380,7 @@ NrUeMac::DoTransmitPdu(NrMacSapProvider::TransmitPduParameters params)
     NS_LOG_FUNCTION(this);
     if (m_ulDci == nullptr)
     {
+        NS_LOG_WARN("Null DCI received for transmission.");
         return;
     }
     NS_ASSERT(m_ulDci);
@@ -496,17 +504,17 @@ NrUeMac::SendBufferStatusReport(const SfnSf& dataSfn, uint8_t symStart)
 
         if (queue.at(lcg) != 0)
         {
-            NS_LOG_DEBUG("Adding 5 bytes for SHORT_BSR.");
+            NS_LOG_DEBUG("Adding 5 bytes for SHORT_BSR for LCID:" << +lcid);
             queue.at(lcg) += 5;
         }
         if ((*it).second.txQueueSize > 0)
         {
-            NS_LOG_DEBUG("Adding 3 bytes for TX subheader.");
+            NS_LOG_DEBUG("Adding 3 bytes for TX subheader for LCID:" << +lcid);
             queue.at(lcg) += 3;
         }
         if ((*it).second.retxQueueSize > 0)
         {
-            NS_LOG_DEBUG("Adding 3 bytes for RX subheader.");
+            NS_LOG_DEBUG("Adding 3 bytes for RX subheader for LCID:" << +lcid);
             queue.at(lcg) += 3;
         }
     }
@@ -521,7 +529,7 @@ NrUeMac::SendBufferStatusReport(const SfnSf& dataSfn, uint8_t symStart)
 
     // create the message. It is used only for tracing, but we don't send it...
     Ptr<NrBsrMessage> msg = Create<NrBsrMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     msg->SetBsr(bsr);
 
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), bsr.m_rnti, GetBwpId(), msg);
@@ -637,7 +645,7 @@ NrUeMac::SendSR() const
 
     // create the SR to send to the gNB
     Ptr<NrSRMessage> msg = Create<NrSRMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     msg->SetRNTI(m_rnti);
 
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
@@ -654,6 +662,7 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
 
     if (tag.GetRnti() != m_rnti) // Packet is for another user
     {
+        NS_LOG_WARN("Packet is for another user. RNTI does not correspond.");
         return;
     }
 
@@ -669,6 +678,7 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
     // Ignore non-existing lcids
     if (it == m_lcInfoMap.end())
     {
+        NS_LOG_WARN("LC info not found for this logical channel id:" << +header.GetLcId());
         return;
     }
 
@@ -676,7 +686,12 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
     // then p can be empty.
     if (rxParams.p->GetSize() > 0)
     {
+        NS_LOG_INFO("Call MAC SAP user to receive PDU" << rxParams.p->GetSize());
         it->second.macSapUser->ReceivePdu(rxParams);
+    }
+    else
+    {
+        NS_LOG_WARN("Empty packet.");
     }
 }
 
@@ -859,21 +874,56 @@ NrUeMac::SendRetxData(uint32_t usefulTbs, uint32_t activeLcsRetx)
 
     if (activeLcsRetx == 0)
     {
+        NS_LOG_INFO("Send Retx called, but active LCS retransmitting is 0");
         return;
     }
+    constexpr uint32_t MIN_TB_SIZE = 7;
+    NS_ABORT_MSG_IF(usefulTbs < MIN_TB_SIZE,
+                    "Assigned to small TB size per logical "
+                    "channel: "
+                        << usefulTbs << ", less than 7 bytes.");
+    uint32_t lcToSendNow = 0;
+    uint32_t bytesPerLcId = 0;
 
-    uint32_t bytesPerLcId = usefulTbs / activeLcsRetx;
+    // Currently active flows may not be the same as those that were reported to gNB
+    // so when dividing resources among active flows we may enter to the situation to
+    // assign less than what is the minimum TB size supported by RLC, i.e., 7 bytes.
+    // In the following, we check how many flows we can accommodate now, and
+    // we start from the lower lcId, since the m_ulBsrReceived map is in ascending order.
+
+    if (usefulTbs > (activeLcsRetx * MIN_TB_SIZE))
+    {
+        lcToSendNow = activeLcsRetx;
+        bytesPerLcId = usefulTbs / activeLcsRetx;
+    }
+    else
+    {
+        lcToSendNow = usefulTbs / MIN_TB_SIZE;
+        bytesPerLcId = usefulTbs / lcToSendNow;
+    }
+
+    NS_LOG_INFO("Assigned bytes per logical channel: "
+                << bytesPerLcId << " there are active TX flows" << activeLcsRetx
+                << " and now will send " << lcToSendNow << " logical channels.");
+
+    NS_ABORT_MSG_IF(lcToSendNow == 0,
+                    "Tx opportunity but not enough bytes even for a single LC to transmit.");
+    NS_ABORT_MSG_IF(bytesPerLcId < MIN_TB_SIZE,
+                    "Assigned too small TB per logical channel, less than 7 bytes.");
 
     for (auto& itBsr : m_ulBsrReceived)
     {
         auto& bsr = itBsr.second;
 
-        if (m_ulDciTotalUsed + bytesPerLcId <= usefulTbs)
+        uint32_t assignedBytes = std::min(bytesPerLcId, std::max<uint32_t>(7, bsr.retxQueueSize));
+
+        if (assignedBytes > 0 && m_ulDciTotalUsed + assignedBytes <= usefulTbs)
         {
+            lcToSendNow--;
             NrMacSapUser::TxOpportunityParameters txParams;
             txParams.lcid = bsr.lcid;
             txParams.rnti = m_rnti;
-            txParams.bytes = bytesPerLcId;
+            txParams.bytes = assignedBytes;
             txParams.layer = 0;
             txParams.harqId = m_ulDci->m_harqProcess;
             txParams.componentCarrierId = GetBwpId();
@@ -881,23 +931,24 @@ NrUeMac::SendRetxData(uint32_t usefulTbs, uint32_t activeLcsRetx)
             NS_LOG_INFO("Notifying RLC of LCID " << +bsr.lcid
                                                  << " of a TxOpp "
                                                     "of "
-                                                 << bytesPerLcId << " B for a RETX PDU");
+                                                 << assignedBytes << " B for a RETX PDU");
 
             m_lcInfoMap.at(bsr.lcid).macSapUser->NotifyTxOpportunity(txParams);
             // After this call, m_ulDciTotalUsed has been updated with the
             // correct amount of bytes... but it is up to us in updating the BSR
             // value, subtracting the amount of bytes transmitted
+            bsr.retxQueueSize -= std::min(bsr.retxQueueSize, assignedBytes);
 
-            // We need to use std::min here because bytesPerLcId can be
-            // greater than bsr.txQueueSize because scheduler can assign
-            // more bytes than needed due to how TB size is computed.
-            bsr.retxQueueSize -= std::min(bytesPerLcId, bsr.retxQueueSize);
+            if (lcToSendNow == 0)
+            {
+                return; // no more flows that can transmit now
+            }
         }
         else
         {
             NS_LOG_DEBUG("Something wrong with the calculation of overhead."
                          "Active LCS Retx: "
-                         << activeLcsRetx << " assigned to this: " << bytesPerLcId
+                         << activeLcsRetx << " assigned to this: " << assignedBytes
                          << ", with TBS of " << m_ulDci->m_tbSize << " usefulTbs " << usefulTbs
                          << " and total used " << m_ulDciTotalUsed);
         }
@@ -911,48 +962,68 @@ NrUeMac::SendTxData(uint32_t usefulTbs, uint32_t activeTx)
 
     if (activeTx == 0)
     {
+        NS_LOG_WARN("Function called but no active TX flows.");
         return;
     }
 
-    uint32_t bytesPerLcId = usefulTbs / activeTx;
-
-    for (auto& itBsr : m_ulBsrReceived)
+    // Apply shortest-job first policy to prioritize lcids with less data
+    while (m_ulDciTotalUsed < usefulTbs)
     {
-        auto& bsr = itBsr.second;
+        uint32_t availableBytes = usefulTbs - m_ulDciTotalUsed;
 
-        if (m_ulDciTotalUsed + bytesPerLcId <= usefulTbs)
+        uint32_t smallestBufferBytes = std::numeric_limits<uint32_t>::max();
+        uint8_t smallestBufferBsrLcid = std::numeric_limits<uint8_t>::max();
+        for (auto& itBsr : m_ulBsrReceived)
         {
-            NrMacSapUser::TxOpportunityParameters txParams;
-            txParams.lcid = bsr.lcid;
-            txParams.rnti = m_rnti;
-            txParams.bytes = bytesPerLcId;
-            txParams.layer = 0;
-            txParams.harqId = m_ulDci->m_harqProcess;
-            txParams.componentCarrierId = GetBwpId();
-
-            NS_LOG_INFO("Notifying RLC of LCID " << +bsr.lcid
-                                                 << " of a TxOpp "
-                                                    "of "
-                                                 << bytesPerLcId << " B for a TX PDU");
-
-            m_lcInfoMap.at(bsr.lcid).macSapUser->NotifyTxOpportunity(txParams);
-            // After this call, m_ulDciTotalUsed has been updated with the
-            // correct amount of bytes... but it is up to us in updating the BSR
-            // value, subtracting the amount of bytes transmitted
-
-            // We need to use std::min here because bytesPerLcId can be
-            // greater than bsr.txQueueSize because scheduler can assign
-            // more bytes than needed due to how TB size is computed.
-            bsr.txQueueSize -= std::min(bytesPerLcId, bsr.txQueueSize);
+            const auto& bsr = itBsr.second;
+            // Skip lcid with empty queue
+            if (bsr.txQueueSize == 0)
+            {
+                continue;
+            }
+            if (bsr.txQueueSize < smallestBufferBytes)
+            {
+                smallestBufferBsrLcid = bsr.lcid;
+                smallestBufferBytes = bsr.txQueueSize;
+            }
         }
-        else
+
+        // No LCID left to txop, even though we still have bytes available
+        if (smallestBufferBytes == std::numeric_limits<uint32_t>::max())
         {
-            NS_LOG_DEBUG("Something wrong with the calculation of overhead."
-                         "Active LCS TX: "
-                         << activeTx << " assigned to this: " << bytesPerLcId << ", with TBS of "
-                         << m_ulDci->m_tbSize << " usefulTbs " << usefulTbs << " and total used "
-                         << m_ulDciTotalUsed);
+            NS_LOG_INFO("No LCID left to offer transmission opportunity, even though there are "
+                        "bytes available.");
+            break;
         }
+
+        // We need to allocate at least 7 bytes per LCID due to RLC limitations
+        // But we can allocate up to availableBytes
+        uint32_t bytesPerLcId =
+            std::min(availableBytes, std::max<uint32_t>(smallestBufferBytes, 12));
+
+        auto& bsr = m_ulBsrReceived.at(smallestBufferBsrLcid);
+        NrMacSapUser::TxOpportunityParameters txParams;
+        txParams.lcid = bsr.lcid;
+        txParams.rnti = m_rnti;
+        txParams.bytes = bytesPerLcId;
+        txParams.layer = 0;
+        txParams.harqId = m_ulDci->m_harqProcess;
+        txParams.componentCarrierId = GetBwpId();
+
+        NS_LOG_INFO("Notifying RLC of LCID " << +bsr.lcid
+                                             << " of a TxOpp "
+                                                "of "
+                                             << bytesPerLcId << " B for a TX PDU");
+
+        m_lcInfoMap.at(bsr.lcid).macSapUser->NotifyTxOpportunity(txParams);
+        // After this call, m_ulDciTotalUsed has been updated with the
+        // correct amount of bytes... but it is up to us in updating the BSR
+        // value, subtracting the amount of bytes transmitted
+
+        // We need to use std::min here because bytesPerLcId can be
+        // greater than bsr.txQueueSize because scheduler can assign
+        // more bytes than needed due to how TB size is computed.
+        bsr.txQueueSize -= std::min(bytesPerLcId, bsr.txQueueSize);
     }
 }
 
@@ -1145,7 +1216,7 @@ NrUeMac::DoReceiveControlMessage(Ptr<NrControlMessage> msg)
     }
 
     default:
-        NS_LOG_LOGIC("Control message not supported/expected");
+        NS_LOG_LOGIC("Control message not supported/expected: " << msg->GetMessageType());
     }
 }
 
@@ -1219,7 +1290,7 @@ NrUeMac::RandomlySelectAndSendRaPreamble()
         m_raPreambleUniformVariable->GetInteger(0, m_rachConfig.numberOfRaPreambles - 1);
     NS_LOG_DEBUG(m_currentSlot << " Received System Information, send to PHY the "
                                   "RA preamble: "
-                               << m_raPreambleId);
+                               << +m_raPreambleId);
     SendRaPreamble(true);
 }
 
@@ -1251,7 +1322,7 @@ NrUeMac::SendRaPreamble(bool contention)
 
     // Tracing purposes
     Ptr<NrRachPreambleMessage> rachMsg = Create<NrRachPreambleMessage>();
-    rachMsg->SetSourceBwp(GetBwpId());
+    rachMsg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), rachMsg);
 }
 

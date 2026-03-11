@@ -34,16 +34,16 @@ NrControlMessage::GetMessageType() const
 }
 
 void
-NrControlMessage::SetSourceBwp(uint16_t bwpId)
+NrControlMessage::SetSourceBwpArfcn(uint32_t arfcn)
 {
-    m_bwpId = bwpId;
+    m_arfcn = arfcn;
 }
 
-uint16_t
-NrControlMessage::GetSourceBwp() const
+uint32_t
+NrControlMessage::GetSourceBwpArfcn() const
 {
-    NS_ABORT_IF(m_bwpId < 0);
-    return static_cast<uint16_t>(m_bwpId);
+    NS_ABORT_IF(m_arfcn == 0);
+    return m_arfcn;
 }
 
 NrSRMessage::NrSRMessage()
@@ -336,4 +336,48 @@ operator<<(std::ostream& os, const LteNrTddSlotType& item)
     return os;
 }
 
+std::ostream&
+operator<<(std::ostream& os, const NrControlMessage::messageType& item)
+{
+    switch (item)
+    {
+    case NrControlMessage::UL_DCI:
+        os << "UL_DCI";
+        break;
+    case NrControlMessage::DL_DCI:
+        os << "DL_DCI";
+        break;
+    case NrControlMessage::DL_CQI:
+        os << "DL_CQI";
+        break;
+    case NrControlMessage::MIB:
+        os << "MIB";
+        break;
+    case NrControlMessage::SIB1:
+        os << "SIB1";
+        break;
+    case NrControlMessage::RACH_PREAMBLE:
+        os << "RACH_PREAMBLE";
+        break;
+    case NrControlMessage::RAR:
+        os << "RAR";
+        break;
+    case NrControlMessage::BSR:
+        os << "BSR";
+        break;
+    case NrControlMessage::DL_HARQ:
+        os << "DL_HARQ";
+        break;
+    case NrControlMessage::SR:
+        os << "SR";
+        break;
+    case NrControlMessage::SRS:
+        os << "SRS";
+        break;
+    default:
+        os << "UNKNOWN";
+        break;
+    }
+    return os;
+}
 } // namespace ns3

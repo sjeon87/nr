@@ -5,9 +5,12 @@
  *
  * Author: Nicola Baldo <nbaldo@cttc.es>
  *         Budiarto Herman <budiarto.herman@magister.fi>
+ * Modified by: Gabriel Ferreira <gabrielcarvfer@gmail.com>
+ *              Biljana Bojovic <biljana.bojovic@cttc.es>
  */
 
 #include "ns3/core-module.h"
+#include "ns3/isotropic-antenna-model.h"
 #include "ns3/mobility-module.h"
 #include "ns3/network-module.h"
 #include "ns3/nr-module.h"
@@ -277,9 +280,27 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
     m_nrHelper = CreateObject<NrHelper>();
     m_nrHelper->SetAttribute("CsiFeedbackFlags", UintegerValue(CsiFeedbackFlag::CQI_PDSCH_SISO));
     m_nrHelper->SetAttribute("UseIdealRrc", BooleanValue(m_useIdealRrc));
-    auto bandwidthAndBWPPair =
-        m_nrHelper->CreateBandwidthParts({{2.8e9, 10e6, static_cast<uint8_t>(m_isFdd ? 2 : 1)}},
-                                         "UMa");
+
+    // Override the default antenna model with IsotropicAntennaModel
+    m_nrHelper->SetUeAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+    m_nrHelper->SetGnbAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+
+    // Configure Friis propagation loss model before assign it to band
+    Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
+    channelHelper->ConfigurePropagationFactory(FriisPropagationLossModel::GetTypeId());
+
+    // Create and set the channel with the band
+    CcBwpCreator ccBwpCreator;
+    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9,
+                                                   10e6,
+                                                   static_cast<uint8_t>(m_isFdd ? 2 : 1));
+    OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+    channelHelper->AssignChannelsToBands({band});
+
+    // Create bandwidth part from band
+    BandwidthPartInfoPtrVector allBwps;
+    allBwps = CcBwpCreator::GetAllBwps({band});
+
     if (m_isFdd)
     {
         Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
@@ -299,7 +320,7 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
                                   "Y",
                                   StringValue("0.5"),
                                   "Rho",
-                                  StringValue("ns3::UniformRandomVariable[Min=0|Max=0.4]"));
+                                  StringValue("ns3::UniformRandomVariable[Min=5|Max=20]"));
     mobility.Install(ueNodes);
 
     // the following positions the gnb at (1, 1, 0)
@@ -310,11 +331,11 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
 
     int64_t stream = 1;
     NetDeviceContainer gnbDevs;
-    gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
+    gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
     stream += m_nrHelper->AssignStreams(gnbDevs, stream);
 
     NetDeviceContainer ueDevs;
-    ueDevs = m_nrHelper->InstallUeDevice(ueNodes, bandwidthAndBWPPair.second);
+    ueDevs = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
     stream += m_nrHelper->AssignStreams(ueDevs, stream);
 
     if (m_isFdd)
@@ -335,6 +356,14 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
         for (uint32_t i = 0; i < ueDevs.GetN(); i++)
         {
             NrHelper::GetBwpManagerUe(ueDevs.Get(i))->SetOutputLink(0, 1);
+        }
+    }
+    else
+    {
+        for (uint32_t i = 0; i < gnbDevs.GetN(); i++)
+        {
+            NrHelper::GetGnbPhy(gnbDevs.Get(i), 0)
+                ->SetAttribute("Pattern", StringValue("DL|DL|DL|DL|UL"));
         }
     }
 
@@ -449,28 +478,33 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
 
     NS_LOG_INFO("UeRrc state is: " << ueRrc->GetState());
 
-    // Verifying UE context state in eNodeB RRC.
-
     Ptr<NrGnbNetDevice> nrGnbDevice = gnbDevice->GetObject<NrGnbNetDevice>();
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
     const bool hasContext = gnbRrc->HasUeManager(rnti);
 
+    // Verifying UE context state in gNB RRC.
     if (hasContext)
     {
         Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
         NS_ASSERT(ueManager);
-
         NS_LOG_INFO("GnbRrc context for RNTI: " << rnti
                                                 << " is in state: " << ueManager->GetState());
 
+        if (ueManager->GetState() != NrUeManager::CONNECTED_NORMALLY)
+        {
+            NS_LOG_WARN(
+                "NrUeManager state is in invalid state at time:" << Simulator::Now().GetSeconds());
+        }
+
         NS_TEST_ASSERT_MSG_EQ(ueManager->GetState(),
                               NrUeManager::CONNECTED_NORMALLY,
-                              "The context of RNTI " << rnti << " is in invalid state");
+                              "The context of RNTI " << rnti << " is in invalid state at time: "
+                                                     << Simulator::Now().GetSeconds());
     }
     else
     {
         NS_LOG_WARN(this << " RNTI " << rnti << " thinks that it has"
-                         << " established connection but the eNodeB thinks"
+                         << " established connection but the gNB thinks"
                          << " that the UE has failed on connection setup.");
         /*
          * The standard specifies that this case would exceed the maximum
@@ -485,7 +519,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
     uint16_t ueUlBwp = ueRrc->GetPrimaryUlIndex();
     uint32_t ueDlArfcn = ueNrDevice->GetBwpArfcn(ueDlBwp);
     uint32_t ueUlArfcn = ueNrDevice->GetBwpArfcn(ueUlBwp);
-    uint16_t ueImsi = ueNrDevice->GetImsi();
+    uint64_t ueImsi = ueNrDevice->GetImsi();
     uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
     uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
 
@@ -507,7 +541,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
         Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
         NS_ASSERT(ueManager);
         NrUeManager::State state = ueManager->GetState();
-        uint16_t gnbImsi = ueManager->GetImsi();
+        uint64_t gnbImsi = ueManager->GetImsi();
         NS_TEST_ASSERT_MSG_EQ(ueImsi, gnbImsi, "inconsistent Imsi");
 
         if (state == NrUeManager::CONNECTED_NORMALLY)
@@ -516,7 +550,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
             ueManager->GetAttribute("DataRadioBearerMap", gnbDataRadioBearerMapValue);
             NS_TEST_ASSERT_MSG_EQ(gnbDataRadioBearerMapValue.GetN(),
                                   m_nBearers,
-                                  "wrong num bearers at eNB");
+                                  "wrong num bearers at gNB");
             ObjectMapValue ueDataRadioBearerMapValue;
             ueRrc->GetAttribute("DataRadioBearerMap", ueDataRadioBearerMapValue);
             NS_TEST_ASSERT_MSG_EQ(ueDataRadioBearerMapValue.GetN(),
@@ -553,7 +587,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
             }
 
             NS_ASSERT_MSG(gnbBearerIt == gnbDataRadioBearerMapValue.End(),
-                          "too many bearers at eNB");
+                          "too many bearers at gNB");
             NS_ASSERT_MSG(ueBearerIt == ueDataRadioBearerMapValue.End(), "too many bearers at UE");
         }
     }
@@ -664,9 +698,26 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
     m_nrHelper->SetAttribute("CsiFeedbackFlags", UintegerValue(CsiFeedbackFlag::CQI_PDSCH_SISO));
     m_nrHelper->SetAttribute("UseIdealRrc", BooleanValue(m_useIdealRrc));
 
-    auto bandwidthAndBWPPair =
-        m_nrHelper->CreateBandwidthParts({{2.8e9, 10e6, static_cast<uint8_t>(m_isFdd ? 2 : 1)}},
-                                         "UMa");
+    // Override the default antenna model with IsotropicAntennaModel
+    m_nrHelper->SetUeAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+    m_nrHelper->SetGnbAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+
+    // Configure Friis propagation loss model before assign it to band
+    Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
+    channelHelper->ConfigurePropagationFactory(FriisPropagationLossModel::GetTypeId());
+
+    // Create and set the channel with the band
+    CcBwpCreator ccBwpCreator;
+    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9,
+                                                   10e6,
+                                                   static_cast<uint8_t>(m_isFdd ? 2 : 1));
+    OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+    channelHelper->AssignChannelsToBands({band});
+
+    // Create bandwidth part from band
+    BandwidthPartInfoPtrVector allBwps;
+    allBwps = CcBwpCreator::GetAllBwps({band});
+
     if (m_isFdd)
     {
         Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
@@ -693,15 +744,15 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
 
     int64_t stream = 1;
     NetDeviceContainer gnbDevs;
-    gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
+    gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
     stream += m_nrHelper->AssignStreams(gnbDevs, stream);
 
     NetDeviceContainer ueDevs;
-    ueDevs = m_nrHelper->InstallUeDevice(ueNodes, bandwidthAndBWPPair.second);
+    ueDevs = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
     stream += m_nrHelper->AssignStreams(ueDevs, stream);
 
     m_nrHelper->AttachToClosestGnb(ueDevs, gnbDevs);
-    /*
+
     // custom code used for testing purposes
     // instead of nrHelper->Attach () and nrHelper->ActivateXxx
 
@@ -743,7 +794,7 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
         m_isConnectionEstablished[imsi] = false;
 
         ++i;
-    }*/
+    }
 
     // Connect to trace sources in UEs
     Config::Connect(
@@ -754,15 +805,17 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
         "/NodeList/*/DeviceList/*/NrUeRrc/ConnectionTimeout",
         MakeCallback(&NrRrcConnectionEstablishmentErrorTestCase::ConnectionTimeoutCallback, this));
 
-    // Simulator::Schedule(m_jumpAwayTime, &NrRrcConnectionEstablishmentErrorTestCase::JumpAway,
-    // this); Simulator::Schedule(m_jumpAwayTime + MilliSeconds(99),
-    //                     &NrRrcConnectionEstablishmentErrorTestCase::CheckNotConnected,
-    //                     this,
-    //                     ueDevs.Get(0),
-    //                     gnbDevs.Get(0));
-    // Simulator::Schedule(m_jumpAwayTime + MilliSeconds(100),
-    //                     &NrRrcConnectionEstablishmentErrorTestCase::JumpBack,
-    //                     this);
+    Simulator::Schedule(m_jumpAwayTime, &NrRrcConnectionEstablishmentErrorTestCase::JumpAway, this);
+
+    Simulator::Schedule(m_jumpAwayTime + MilliSeconds(99),
+                        &NrRrcConnectionEstablishmentErrorTestCase::CheckNotConnected,
+                        this,
+                        ueDevs.Get(0),
+                        gnbDevs.Get(0));
+
+    Simulator::Schedule(m_jumpAwayTime + MilliSeconds(100),
+                        &NrRrcConnectionEstablishmentErrorTestCase::JumpBack,
+                        this);
 
     Simulator::Stop(MilliSeconds(/*tmax*/ +1));
 
@@ -806,292 +859,312 @@ NrRrcTestSuite::NrRrcTestSuite()
     //  LogComponentEnable ("NrUeRrc", LOG_INFO);
 
     NS_LOG_FUNCTION(this);
-    for (auto isFdd : {false, true})
+    // We do not test FDD with real RRC just yet.
+    // Problem routing control messages across different stacks.
+    //
+    // UE0 receives MIB and SIB.
+    // RRC configures downlink and uplink.
+    // UE1 sends rach preamble.
+    // gNB1 receives rach preamble. Prepares a UL-DCI with the RAR grant. Sends?
+    // gNB0 supposedly sends UL-DCI from gNB1.
+    // UE0 receives grant, but must forward to UE1.
+    // ...
+    // e.g. gNB0 gNB1
+    //       v    ^
+    //       UE0  UE1
+    std::vector<std::pair<bool, bool>> idealRrcAndFddCombinations{{true, false},
+                                                                  {true, true},
+                                                                  {false, false},
+                                                                  {false, true}};
+    for (auto [useIdealRrc, isFdd] : idealRrcAndFddCombinations)
     {
         // <----- all times in ms ----------------->
-        for (auto useIdealRrc : {/*false,*/ true}) // todo: fix RRC real
-        {
-            // isFdd nUes tConnBase delayDiscStart useIdealRrc nBearers tConnIncrPerUe errorExpected
-            // admitRrcConnectionRequest
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 1,
-                                                                 0,
-                                                                 0,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 1,
-                                                                 0,
-                                                                 100,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 1,
-                                                                 1,
-                                                                 0,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 1,
-                                                                 1,
-                                                                 100,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 1,
-                                                                 2,
-                                                                 0,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 1,
-                                                                 2,
-                                                                 100,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 0,
-                                                                 20,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 0,
-                                                                 20,
-                                                                 10,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 0,
-                                                                 20,
-                                                                 100,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 1,
-                                                                 20,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 1,
-                                                                 20,
-                                                                 10,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 1,
-                                                                 20,
-                                                                 100,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 2,
-                                                                 20,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 2,
-                                                                 20,
-                                                                 10,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::QUICK);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 2,
-                                                                 20,
-                                                                 100,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 3,
-                                                                 0,
-                                                                 20,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 4,
-                                                                 0,
-                                                                 20,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 4,
-                                                                 0,
-                                                                 20,
-                                                                 300,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 20,
-                                                                 0,
-                                                                 10,
-                                                                 1,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 50,
-                                                                 0,
-                                                                 0,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 true),
-                        TestCase::Duration::EXTENSIVE);
-
-            // Test cases to check admitRrcConnectionRequest=false
-            //                                                     nUes      tConnBase
-            //                                                     delayDiscStart useIdealRrc
-            //                                                        nBearers       tConnIncrPerUe
-            //                                                        errorExpected
-            //                                                        admitRrcConnectionRequest
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 1,
-                                                                 0,
-                                                                 0,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 false),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 1,
-                                                                 2,
-                                                                 100,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 false),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 0,
-                                                                 20,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 false),
-                        TestCase::Duration::EXTENSIVE);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 2,
-                                                                 1,
-                                                                 20,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 false),
-                        TestCase::Duration::QUICK);
-            AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
-                                                                 3,
-                                                                 0,
-                                                                 20,
-                                                                 0,
-                                                                 1,
-                                                                 false,
-                                                                 useIdealRrc,
-                                                                 false),
-                        TestCase::Duration::EXTENSIVE);
-        }
-
-        // Test cases with transmission error
-        AddTestCase(
-            new NrRrcConnectionEstablishmentErrorTestCase(isFdd,
-                                                          Seconds(0.020214),
-                                                          "failure at RRC Connection Request"),
-            TestCase::Duration::QUICK);
-        AddTestCase(
-            new NrRrcConnectionEstablishmentErrorTestCase(isFdd,
-                                                          Seconds(0.025),
-                                                          "failure at RRC Connection Setup"),
-            TestCase::Duration::QUICK);
-        /*
-         * With RLF implementation we now do support the Idle mode,
-         * thus it solve Bug 1762 Comment #25.
-         */
-        AddTestCase(new NrRrcConnectionEstablishmentErrorTestCase(
-                        isFdd,
-                        Seconds(0.030),
-                        "failure at RRC Connection Setup Complete"),
+        // isFdd nUes tConnBase delayDiscStart useIdealRrc nBearers tConnIncrPerUe errorExpected
+        // admitRrcConnectionRequest
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             1,
+                                                             0,
+                                                             0,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
                     TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             1,
+                                                             0,
+                                                             100,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             1,
+                                                             1,
+                                                             0,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             1,
+                                                             1,
+                                                             100,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             1,
+                                                             2,
+                                                             0,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             1,
+                                                             2,
+                                                             100,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             0,
+                                                             20,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             0,
+                                                             20,
+                                                             10,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             0,
+                                                             20,
+                                                             100,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             1,
+                                                             20,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             2,
+                                                             20,
+                                                             10,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             1,
+                                                             20,
+                                                             100,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             2,
+                                                             20,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             2,
+                                                             20,
+                                                             10,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             2,
+                                                             20,
+                                                             100,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             3,
+                                                             0,
+                                                             20,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             4,
+                                                             0,
+                                                             20,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             4,
+                                                             0,
+                                                             20,
+                                                             300,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             20,
+                                                             0,
+                                                             10,
+                                                             1,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             50,
+                                                             0,
+                                                             0,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             true),
+                    TestCase::Duration::QUICK);
+
+        // Test cases to check admitRrcConnectionRequest=false
+        //                                                     nUes      tConnBase
+        //                                                     delayDiscStart useIdealRrc
+        //                                                        nBearers       tConnIncrPerUe
+        //                                                        errorExpected
+        //                                                        admitRrcConnectionRequest
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             1,
+                                                             0,
+                                                             0,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             false),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             1,
+                                                             2,
+                                                             100,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             false),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             0,
+                                                             20,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             false),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             2,
+                                                             1,
+                                                             20,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             false),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
+                                                             3,
+                                                             0,
+                                                             20,
+                                                             0,
+                                                             1,
+                                                             false,
+                                                             useIdealRrc,
+                                                             false),
+                    TestCase::Duration::QUICK);
+
+        if (!useIdealRrc)
+        {
+            // Test cases with transmission error
+            AddTestCase(
+                new NrRrcConnectionEstablishmentErrorTestCase(isFdd,
+                                                              Seconds(0.020214),
+                                                              "failure at RRC Connection Request"),
+                TestCase::Duration::QUICK);
+            AddTestCase(
+                new NrRrcConnectionEstablishmentErrorTestCase(isFdd,
+                                                              Seconds(0.025),
+                                                              "failure at RRC Connection Setup"),
+                TestCase::Duration::QUICK);
+            /*
+             * With RLF implementation we now do support the Idle mode,
+             * thus it solve Bug 1762 Comment #25.
+             */
+            AddTestCase(new NrRrcConnectionEstablishmentErrorTestCase(
+                            isFdd,
+                            Seconds(0.030),
+                            "failure at RRC Connection Setup Complete"),
+                        TestCase::Duration::QUICK);
+        }
     }
 }
 

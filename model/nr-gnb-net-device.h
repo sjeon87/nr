@@ -6,6 +6,7 @@
 #define NR_GNB_NET_DEVICE_H
 
 #include "nr-fh-control.h"
+#include "nr-handover-algorithm.h"
 #include "nr-net-device.h"
 
 #include "ns3/deprecated.h"
@@ -96,9 +97,10 @@ class NrGnbNetDevice : public NrNetDevice
      * The gNB should divide the messages to the BWP they pertain to.
      *
      * @param msgList Message list
-     * @param sourceBwpId BWP Id from which the list originated
+     * @param sourceBwpArfcn BWP arfcn from which the list originated
      */
-    void RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgList, uint8_t sourceBwpId);
+    void RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgList,
+                              uint32_t sourceBwpArfcn);
 
     /**
      * @brief Route the outgoing messages to the right BWP
@@ -196,6 +198,7 @@ class NrGnbNetDevice : public NrNetDevice
 
   private:
     Ptr<NrGnbRrc> m_rrc;
+    Ptr<NrHandoverAlgorithm> m_handoverAlgorithm; ///< the handover algorithm
 
     uint16_t m_cellId; //!< Cell ID. Set by the helper.
 
