@@ -110,8 +110,13 @@ NrGnbNetDevice::RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msg
     {
         uint32_t bwpArfcn = DynamicCast<BwpManagerGnb>(m_componentCarrierManager)
                                 ->RouteIngoingCtrlMsgs(msg, sourceBwpArfcn);
+
+        NS_ASSERT_MSG(m_ccMap.size() <= std::numeric_limits<uint8_t>::max(),
+                      "m_ccMap too large for uint8_t");
+        auto nCc = static_cast<uint8_t>(m_ccMap.size());
+
         uint8_t bwpId = 0;
-        for (uint8_t i = 0; i < m_ccMap.size(); i++)
+        for (uint8_t i = 0; i < nCc; i++)
         {
             if (m_ccMap.at(i)->GetArfcn() == bwpArfcn)
             {
