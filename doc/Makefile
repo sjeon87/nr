@@ -45,6 +45,9 @@ IMAGES_EPS = \
 
 
 IMAGES_SEQDIAG = \
+	$(FIGURES)/nr-ue-context-removal-from-epc.seqdiag \
+	$(FIGURES)/nr-ue-context-removal-from-gnb-stack.seqdiag \
+	$(FIGURES)/nr-ue-procedures-after-rlf.seqdiag \
 #	$(FIGURES)/figure-name.seqdiag \
 
 
@@ -71,7 +74,8 @@ IMAGES_BUILD = \
 	${IMAGES_DIA:.dia=.png} \
 	${IMAGES_DIA:.dia=.pdf} \
 	${IMAGES_EPS:.eps=.png} \
-	${IMAGES_EPS:.eps=.pdf}
+	${IMAGES_EPS:.eps=.pdf} \
+	${IMAGES_SEQDIAG:.seqdiag=.png}
 
 
 

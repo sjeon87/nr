@@ -47,6 +47,16 @@ Design
 In this section, we present the design of the different features and procedures that we have developed following 3GPP Release-15 NR activity. For those features/mechanisms/layers that still have not been upgraded to NR, the current design following LTE specifications is also indicated.
 
 
+Simulation-wide settings
+************************
+
+During the adaptations to support RRC, some settings previously defined in lower layers are moved to NrHelper,
+due to their wide effects on the simulation. Some of these settings are simulator specific, and will be kept there
+(e.g. ``RbOverhead``, moved from ``NrGnbPhy`` to ``NrHelper``).
+Other settings are actually configurable according to the standard, and will be moved out once support is finished
+(e.g. ``NumRbPerRbg``, moved from ``NrGnbMac`` to ``NrHelper``). More details about these in `PHY layer`_ and `MAC layer`_ sections.
+
+
 Architecture
 ************
 The 'NR' module has been designed to perform end-to-end simulations of 3GPP-oriented cellular networks. The end-to-end overview of a typical simulation with the 'NR' module is drawn in :numref:`fig-e2e`. In dark gray, we represent the existing, and unmodified, ns-3 and LENA components. In light gray, we describe the NR components. On one side, we have a remote host (depicted as a single node in the Figure, for simplicity, but there can be multiple nodes) that connects to an PGW/SGW (Packet Gateway and Service Gateway), through a link. Such a connection can be defined with any technology that is currently available in ns-3.  The diagram illustrates a single link, but there are no limits on the topology, including any number of remote hosts. Inside the SGW/PGW, the ``NrEpcSgwPgwApp`` encapsulates the packet using the GTP protocol. Through an IP connection, which represents the backhaul of the NR network (again, described with a single link in the Figure, but the topology can vary), the GTP packet is received by the gNB. There, after decapsulating the payload, the packet is transmitted inside the NR stack through the entry point represented by the class ``NrGnbNetDevice``. The packet, if received correctly at the UE, is passed to higher layers by the class ``NrUeNetDevice``. The path crossed by packets in the UL case is the same as the one described above but in the opposite direction.
@@ -1376,9 +1386,164 @@ Invalid configurations include:
 
 - ``CSI_IM`` and ``CSI_IM|CQI_PDSCH_MIMO``, because CSI-IM relies on CSI-RS signals to trigger measurements.
 
+Radio Link Failure (RLF)
+========================
+
+In real NR networks, Radio link failure (RLF) can happen due to several reasons.
+It can be triggered if a UE is unable to decode PDCCH due to poor signal quality,
+upon maximum RLC retransmissions, RACH problems and other reasons. 3GPP only
+specifies guidelines to detect RLF at the UE side, in [TS36331]_ and [TS36133]_.
+On the other hand, the gNB implementation is expected to be vendor specific.
+To implement the RLF functionality in ns-3, we have assumed the following
+simplifications:
+
+ * The RLF detection procedure at eNodeB is not implemented. **Instead, a direct
+   function call by using the SAP between UE and gNB RRC (for both ideal and real
+   RRC) is used to notify the gNB about the RLF**.
+ * No RRC connection re-establishment procedure is implemented, thus, the UE
+   directly goes to the IDLE state upon RLF. This is in fact as per the standard
+   [TS36331]_ sec 5.3.11.3, since, at this stage the NR module does not support
+   the Access Stratum (AS) security.
+
+The above mentioned RLF specifications can be divided into the following two
+categories:
+
+ #. RLF detection
+ #. Actions upon RLF detection
+
+In the following, we will explain the RLF implementation in context of these
+two categories.
+
+RLF detection implementation
+############################
+
+The RLF detection at the UE is implemented as per [TS36133]_, i.e., by monitoring
+the radio link quality based on the reference signals (which in the simulation
+is equivalent to the PDCCH) in the downlink. Thus, it is independent of the method
+used for the downlink CQI computation.
+
+The RLF detection starts once the RRC connection is established between UE and
+gNodeB, i.e., UE is in "CONNECTED_NORMALLY" state; upon which the RLF parameters
+are configured (see ``NrUePhy::DoConfigureRadioLinkFailureDetection``). In real
+networks, these parameters are transmitted by the gNB using IE UE-TimersAndConstants or
+RLF-TimersAndConstants. However, for the sake of simplification, in the simulator
+they are presented as the attributes of the ``NrUePhy`` and ``NrUeRrc`` classes.
+Moreover, what concerns the carrier aggregation, i.e., when a UE is configured
+with multiple component carriers, the RLF detection is only performed by the
+primary component carrier, i.e. component carrier id 0
+(see ``NrUePhy::DoNotifyConnectionSuccessful``). In ``NrUePhy`` class, CQI
+calculation is triggered for every downlink subframe received,
+and the average SINR value is measured across all resource blocks. For the RLF
+detection, these SINR values are averaged over a downlink frame and if the result
+is less than a defined threshold Qout (default: -5dB), the frame cannot be decoded
+(see``NrUePhy::RadioLinkFailureDetection``). The Qout threshold corresponds to 10%
+block error rate (BLER) of a hypothetical PDCCH transmission taking into account
+the PCFICH errors [R4-081920]_. Once, the UE is unable to decode
+20 consecutive frames, i.e., the Qout evaluation period (200ms) is reached, an
+out-of-sync indication is sent to the UE RRC layer (see ``NrUeRrc::DoNotifyOutOfSync``).
+Else, the counter for the unsuccessfully decoded frames is reset to zero. At the
+``NrUeRrc``, when the number of consecutive out-of-sync indications matches with the
+value of N310 parameter, the T310 timer is started and NrUePhy is notified to start
+measuring for in-sync indications (see ``NrUePhy::DoStartInSyncDetection``). We note
+that, the UE RRC state is not changed till the expiration of T310 timer. If the
+resultant SINR values averaged over a downlink frame is greater than a defined
+threshold Qin (default: -3.8dB), the frame is considered to be successfully
+decoded. Qin corresponds to 2% BLER [R4-081920]_ of a hypothetical PDCCH transmission
+taking into account the PCFICH errors. Once the UE is able to decode 10
+consecutive frames, an in-sync indication is sent to the UE RRC layer
+(see ``NrUeRrc::DoNotifyInSync``). Else, the counter for the successfully decoded
+frames is reset to zero. If prior to the T310 timer expiry, the number of
+consecutive in-sync indications matches with N311 parameter of ``NrUeRrc``, the UE
+is considered back in-sync. At this stage, the related parameters are reset to
+initiate the radio link failure detection from the beginning
+(see ``NrUePhy::DoConfigureRadioLinkFailureDetection``). On the other hand, If the
+T310 timer expires, the UE considers that a RLF has occurred
+(see ``NrUeRrc::RadioLinkFailureDetected``).
+
+Actions upon RLF
+################
+
+Once the T310 timer is expired, a UE is considered to be in RLF; upon which the
+UE RRC:
+
+ * Sends a request to the gNB RRC to remove the UE context
+ * Moves to "CONNECTED_PHY_PROBLEM" state
+ * Notifies the UE NAS layer about the release of RRC connection.
+
+Then, after getting the notification from the UE RRC the NAS does the following:
+
+ * Delete all the QoS Flows (previously TFTs)
+ * Reset the bearer counter
+ * Restore the bearer list, which is used to activate the QoS flows for the next
+   RRC connection. This restoration of the QoS flows is achieved by maintaining an
+   additional list, i.e., ``m_qosFlowsToBeActivatedListForReconnection`` in NrEpcUeNas
+   class
+ * Switch the NAS state to OFF by calling NrEpcUeNas::Disconnect
+ * Tells the UE RRC to disconnect
+
+The UE RRC, upon receiving the call to disconnect from the ``NrEpcUeNas`` class,
+performs the action as specified by [TS36331]_ 5.3.11.3, and finally leaves the
+connected state, i.e., its RRC state is changed from "CONNECTED_PHY_PROBLEM" to
+"IDLE_START" to perform cell selection as shown in figure :ref:`fig-nr-ue-procedures-after-rlf`.
+
+..
+
+   TODO: Add UE RRC states figure, and update above text
+
+   perform cell selection as shown in figures
+   `fig-nr-ue-rrc-states` and :ref:`fig-nr-ue-procedures-after-rlf`.
+
+At this stage, the NR module does not support the paging functionality, therefore,
+to allow a UE to read SIB2 message after camping on a suitable cell after RLF, a
+work around is used in ``NrUeRrc::EvaluateCellForSelection`` method. As per this
+workaround, the UE RRC invokes the call to ``NrUeRrc::DoConnect`` method, which
+enables the UE to switch its state from "IDLE_CAMPED_NORMALLY" to "IDLE_WAIT_SIB2",
+thus, allowing it to perform the random access.
+
+.. _fig-nr-ue-procedures-after-rlf:
+
+.. figure:: figures/nr-ue-procedures-after-rlf.*
+   :scale: 95 %
+   :align: center
+
+   UE procedures after radio link failure
+
+The gNB RRC, after receiving the notification from the UE RRC starts the procedure
+of UE context deletion, which also involves the deletion of the UE context removal
+from the EPC :ref:`fig-nr-ue-context-removal-from-epc` and the gNB stack
+:ref:`fig-nr-ue-context-removal-from-gnb-stack`. We note that, the UE context
+at the MME is not removed since, QoS flows are only added at the start of a
+simulation in MME, and cannot be added again unless scheduled for addition
+during a simulation.
+
+.. _fig-nr-ue-context-removal-from-epc:
+
+.. figure:: figures/nr-ue-context-removal-from-epc.*
+   :scale: 80 %
+   :align: center
+
+   UE context removal from EPC
+
+.. _fig-nr-ue-context-removal-from-gnb-stack:
+
+.. figure:: figures/nr-ue-context-removal-from-gnb-stack.*
+   :scale: 80 %
+   :align: center
+
+   UE context removal from gNB stack
+
 MAC layer
 *********
 This section describes the different models supported and developed at MAC layer.
+
+Resource grouping
+=================
+
+5G-LENA previously required setting the number of RBs per RBG manually for each MAC. Until the RRC update
+is finalized, that number will be set according to the ``NrHelper::NumRbsPerRbg`` attribute.
+It is planned to eventually compute and assign that based on the BWP bandwidth, according to 3GPP TS 38.214
+nominal RBG size P for RA Type 0. The computation itself is already performed by the function
+``int nr::NumRbsPerRbg(int numRbs);``.
 
 
 Resource allocation model: OFDMA and TDMA
@@ -1547,6 +1712,13 @@ the scheduling criteria is the same as in the corresponding OFDMA
 schedulers, while the scheduling is performed in time-domain instead of
 the frequency-domain, and thus the resources being allocated are symbols instead of RBGs.
 
+After the UEs receive the DCIs containing their allocated resources,
+they inform the RLC layer of the available transmission opportunities.
+The RLC then selects which data to transmit next. Previously, the available bytes were distributed
+evenly across logical channels. Now, the bytes are allocated using a shortest-job-first policy,
+where logical channels with fewer bytes to transmit are served first. This approach reduces
+the likelihood of data traffic being prioritized over control messaging.
+
 Sub-band scheduling
 ===================
 
@@ -1633,9 +1805,17 @@ The test case ``NrSchedOfdmaMcsTestCase`` confirms this behavior works as expect
 
 Scheduler operation
 ===================
-In an NR system, the UL decisions for a slot are taken in a different moment than the DL decision for the same slot. In particular, since the UE must have the time to prepare the data to send, the gNB takes the UL scheduler decision in advance and then sends the UL grant taking into account these timings. Consider that the DL-DCIs are usually prepared two slots in advance with respect to when the MAC PDU is actually over the air. For the UL case, to permit two slots to the UE for preparing the data, the UL grant must be prepared four slots before the actual time in which the UE transmission is over the air. In two slots, the UL grant will be sent to the UE, and after two more slots, the gNB is expected to receive the UL data.
+In an NR system, the UL decisions for a slot are taken in a different moment than the DL decision for the same slot.
+In particular, since the UE must have the time to prepare the data to send, the gNB takes the UL scheduler decision
+in advance and then sends the UL grant taking into account these timings. Consider that the DL-DCIs are usually
+prepared two slots in advance with respect to when the MAC PDU is actually over the air. For the UL case, to permit
+two slots to the UE for preparing the data, the UL grant must be prepared four slots before the actual time
+in which the UE transmission is over the air. In two slots, the UL grant will be sent to the UE,
+and after two more slots, the gNB is expected to receive the UL data.
 
-At PHY layer, the gNB stores all the relevant information to properly schedule reception/transmission of data in a vector of slot allocations. The vector is guaranteed to be sorted by the starting symbol, to maintain the timing order between allocations. Each allocation contains the DCI created by the MAC, as well as other useful information.
+At PHY layer, the gNB stores all the relevant information to properly schedule reception/transmission of data in a
+vector of slot allocations. The vector is guaranteed to be sorted by the starting symbol, to maintain the timing
+order between allocations. Each allocation contains the DCI created by the MAC, as well as other useful information.
 
 
 .. _QosSchedulers:
@@ -2043,6 +2223,21 @@ Similarly, the ported classes/structures/tests had their ``Lte`` prefix replaced
 For example, LTE's ``LteRrc`` is the counterpart for NR's ``NrRrc``.
 For model details see: https://www.nsnam.org/docs/models/html/lte-design.html#rrc
 
+We are still in the process of porting all documentation, but we have already
+made significant changes to the ``NrRrcSap::MasterInformationBlock`` (MIB) to include the cell numerology.
+The ``NrRrcSap::SystemInformationBlockType1`` (SIB1) message has also been
+updated to include the 5G-NR ``ServingCellConfigCommon`` field, which contains:
+
+* the numerology of the downlink BWP
+* the number of symbols per slot
+* the number of downlink control symbols
+* the number of uplink control symbols
+* the TDD pattern
+* the RBG size (technically a flag, with the actual size inferred from the BWP bandwidth)
+
+This information allows the simulator to configure the initial DL BWP and perform initial cell selection automatically.
+As a result, UEs can now be placed directly into the simulation and will connect automatically to a nearby cell.
+In case of radio link failure, they will also search for a new cell to reconnect to.
 
 NAS layer
 *********
@@ -3593,3 +3788,13 @@ Open issues and future work
 .. [Maleki2023] Marjan Maleki, Juening Jin and Martin Haardt. "Low Complexity PMI Selection for BICM-MIMO Rate Maximization in 5G New Radio Systems". 2023 31st European Signal Processing Conference (EUSIPCO). doi: 10.23919/EUSIPCO58844.2023.10290121.
 
 .. [TS24501] 3GPP. "TS 24.501, Non-Access-Stratum (NAS) protocol for 5G System (5GS)", V19.4.0, 2025.
+
+..
+
+   References inherited from LTE
+
+.. [TS36133] 3GPP TS 36.133 "E-UTRA Requirements for support of radio resource management"
+
+.. [TS36331] 3GPP TS 36.331 "E-UTRA Radio Resource Control (RRC) protocol specification"
+
+.. [R4-081920] 3GPP TSGR4_48 R4-081920 "LTE PDCCH/PCFICH Demodulation Performance Results with Implementation Margin"
