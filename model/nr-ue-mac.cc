@@ -380,6 +380,7 @@ NrUeMac::DoTransmitPdu(NrMacSapProvider::TransmitPduParameters params)
     NS_LOG_FUNCTION(this);
     if (m_ulDci == nullptr)
     {
+        NS_LOG_WARN("Null DCI received for transmission.");
         return;
     }
     NS_ASSERT(m_ulDci);
@@ -661,6 +662,7 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
 
     if (tag.GetRnti() != m_rnti) // Packet is for another user
     {
+        NS_LOG_WARN("Packet is for another user. RNTI does not correspond.");
         return;
     }
 
@@ -676,6 +678,7 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
     // Ignore non-existing lcids
     if (it == m_lcInfoMap.end())
     {
+        NS_LOG_WARN("LC info not found for this logical channel id:" << +header.GetLcId());
         return;
     }
 
@@ -683,7 +686,12 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
     // then p can be empty.
     if (rxParams.p->GetSize() > 0)
     {
+        NS_LOG_INFO("Call MAC SAP user to receive PDU" << rxParams.p->GetSize());
         it->second.macSapUser->ReceivePdu(rxParams);
+    }
+    else
+    {
+        NS_LOG_WARN("Empty packet.");
     }
 }
 
@@ -866,6 +874,7 @@ NrUeMac::SendRetxData(uint32_t usefulTbs, uint32_t activeLcsRetx)
 
     if (activeLcsRetx == 0)
     {
+        NS_LOG_INFO("Send Retx called, but active LCS retransmitting is 0");
         return;
     }
     constexpr uint32_t MIN_TB_SIZE = 7;
@@ -953,6 +962,7 @@ NrUeMac::SendTxData(uint32_t usefulTbs, uint32_t activeTx)
 
     if (activeTx == 0)
     {
+        NS_LOG_WARN("Function called but no active TX flows.");
         return;
     }
 
@@ -981,6 +991,8 @@ NrUeMac::SendTxData(uint32_t usefulTbs, uint32_t activeTx)
         // No LCID left to txop, even though we still have bytes available
         if (smallestBufferBytes == std::numeric_limits<uint32_t>::max())
         {
+            NS_LOG_INFO("No LCID left to offer transmission opportunity, even though there are "
+                        "bytes available.");
             break;
         }
 
