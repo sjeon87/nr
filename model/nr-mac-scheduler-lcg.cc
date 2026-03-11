@@ -26,14 +26,30 @@ NrMacSchedulerLC::NrMacSchedulerLC(const nr::LogicalChannelConfigListElement_s& 
     m_eRabGuaranteedBitrateDl = conf.m_eRabGuaranteedBitrateDl;
 }
 
+auto AddMacSubHeader = [](auto value) { return value > 0 ? value + MAC_SUBHEADER_SIZE : value; };
+
 void
 NrMacSchedulerLC::Update(const NrMacSchedSapProvider::SchedDlRlcBufferReqParameters& params)
 {
     NS_LOG_FUNCTION(this);
     NS_ASSERT(params.m_logicalChannelIdentity == m_id);
-    m_rlcTransmissionQueueSize = params.m_rlcTransmissionQueueSize;
-    m_rlcRetransmissionQueueSize = params.m_rlcRetransmissionQueueSize;
-    m_rlcStatusPduSize = params.m_rlcStatusPduSize;
+    // the logical channel 0 or 1 take into account the MAC sub header
+    // because the packets in these logical channel can be very small,
+    // so if the scheduler does not take this subheader into account during the scheduling,
+    // we may get a very small transmission opportunity
+    // See: nr-mac-scheduler-ns-3 and what is passed to AssignData in DoScheduleDlData
+    if (m_id == 0 || m_id == 1)
+    {
+        m_rlcTransmissionQueueSize = AddMacSubHeader(params.m_rlcTransmissionQueueSize);
+        m_rlcRetransmissionQueueSize = AddMacSubHeader(params.m_rlcRetransmissionQueueSize);
+        m_rlcStatusPduSize = AddMacSubHeader(params.m_rlcStatusPduSize);
+    }
+    else
+    {
+        m_rlcTransmissionQueueSize = params.m_rlcTransmissionQueueSize;
+        m_rlcRetransmissionQueueSize = params.m_rlcRetransmissionQueueSize;
+        m_rlcStatusPduSize = params.m_rlcStatusPduSize;
+    }
     m_rlcRetransmissionHolDelay = params.m_rlcRetransmissionHolDelay;
     m_rlcTransmissionQueueHolDelay = params.m_rlcTransmissionQueueHolDelay;
 }
@@ -66,6 +82,22 @@ NrMacSchedulerLCG::NumOfLC() const
 {
     NS_LOG_FUNCTION(this);
     return static_cast<uint32_t>(m_lcMap.size());
+}
+
+uint32_t
+NrMacSchedulerLCG::NumOfActiveLC() const
+{
+    NS_LOG_FUNCTION(this);
+
+    uint32_t count = 0;
+    for (const auto& lc : m_lcMap)
+    {
+        if (GetTotalSizeOfLC(lc.first) > 0)
+        {
+            ++count;
+        }
+    }
+    return count;
 }
 
 bool

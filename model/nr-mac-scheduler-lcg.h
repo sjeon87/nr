@@ -15,6 +15,11 @@ namespace ns3
 {
 
 /**
+ * @brief Number of bytes in the sub-MAC headers per logical channel.
+ */
+inline constexpr uint32_t MAC_SUBHEADER_SIZE{3};
+
+/**
  * @ingroup scheduler
  * @brief Represent a DL Logical Channel of an UE
  *
@@ -127,6 +132,15 @@ class NrMacSchedulerLCG
      * @return the number of LC
      */
     uint32_t NumOfLC() const;
+    /**
+     * @brief Get the number of active logical channels in this logical channel group.
+     *
+     * An active logical channel is a logical channel whose total buffer occupancy
+     * is greater than zero.
+     *
+     * @return The number of active logical channels in this logical channel group.
+     */
+    uint32_t NumOfActiveLC() const;
     /**
      * @brief Insert LC in the group
      * @param lc LC to insert
