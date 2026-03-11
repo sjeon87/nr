@@ -1519,8 +1519,10 @@ NrMacSchedulerNs3::DoScheduleDlData(PointInFTPlane* spoint,
 
             for (std::size_t numLc = 0; numLc < distributedBytes.size(); numLc++)
             {
-                NS_ABORT_MSG_IF(distributedBytes.at(numLc).m_bytes <= 13,
-                                "To small TX opportunity");
+                if (distributedBytes.at(numLc).m_bytes <= 13)
+                {
+                    NS_LOG_WARN("To small TX opportunity");
+                }
                 bytesPerLc.at(numLc).emplace_back(distributedBytes.at(numLc).m_lcg,
                                                   distributedBytes.at(numLc).m_lcId,
                                                   distributedBytes.at(numLc).m_bytes);
