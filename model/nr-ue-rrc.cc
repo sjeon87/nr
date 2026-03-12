@@ -923,6 +923,11 @@ NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
     NS_LOG_FUNCTION(this);
+    if ((m_previousCellId == cellId) && (cellId != m_cellId))
+    {
+        // Receiving an old control message, we just ignore for now
+        return;
+    }
     switch (m_state)
     {
     case IDLE_WAIT_SIB1:
@@ -1195,6 +1200,7 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             NS_ASSERT_MSG(
                 mci.haveRachConfigDedicated,
                 "handover is only supported with non-contention-based random access procedure");
+            m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(mci.targetPhysCellId);
             m_cmacSapProvider.at(GetPrimaryUlIndex())
                 ->StartNonContentionBasedRandomAccessProcedure(
                     m_rnti,
