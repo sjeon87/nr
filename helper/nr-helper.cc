@@ -544,6 +544,8 @@ NrHelper::InstallSingleUeDevice(
     rrc->SetNrCcmRrcSapProvider(ccmUe->GetNrCcmRrcSapProvider());
     ccmUe->SetNrCcmRrcSapUser(rrc->GetNrCcmRrcSapUser());
     ccmUe->SetNumberOfComponentCarriers(ueCcMap.size());
+    DynamicCast<BwpManagerUe>(ccmUe)->SetGetPrimaryUlFn(
+        [rrc]() { return rrc->GetPrimaryUlIndex(); });
 
     if (m_useIdealRrc)
     {
