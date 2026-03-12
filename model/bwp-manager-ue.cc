@@ -152,4 +152,10 @@ BwpManagerUe::GetAlgorithm() const
     return m_algorithm;
 }
 
+void
+BwpManagerUe::SetGetPrimaryUlFn(std::function<uint8_t()> fn)
+{
+    m_getPrimaryUlFn = fn;
+}
+
 } // namespace ns3
