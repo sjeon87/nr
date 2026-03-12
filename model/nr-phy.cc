@@ -60,6 +60,8 @@ class NrMemberPhySapProvider : public NrPhySapProvider
 
     uint32_t GetRbNum() const override;
 
+    void RegisterToGnb(uint16_t cellId) override;
+
     uint32_t GetArfcn() const override;
 
   private:
@@ -145,6 +147,12 @@ uint32_t
 NrMemberPhySapProvider::GetRbNum() const
 {
     return m_phy->GetRbNum();
+}
+
+void
+NrMemberPhySapProvider::RegisterToGnb(uint16_t cellId)
+{
+    m_phy->RegisterToGnb(cellId);
 }
 
 uint32_t
@@ -980,6 +988,11 @@ NrPhy::ArfcnToFrequencyHz(uint32_t arfcn)
         NS_ABORT_MSG("ARFCN out of supported FR1/FR2/Patent range");
     }
     return freq;
+}
+
+void
+NrPhy::RegisterToGnb(uint16_t cellId)
+{
 }
 
 } // namespace ns3
