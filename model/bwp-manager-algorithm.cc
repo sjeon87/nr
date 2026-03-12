@@ -25,10 +25,10 @@ NS_OBJECT_ENSURE_REGISTERED(BwpManagerAlgorithmStatic);
 #define DECLARE_ATTR(NAME, DESC, GETTER, SETTER)                                                   \
     .AddAttribute(NAME,                                                                            \
                   DESC,                                                                            \
-                  UintegerValue(6),                                                                \
+                  UintegerValue(BwpManagerAlgorithm::NO_BWP_ASSIGNED),                             \
                   MakeUintegerAccessor(&BwpManagerAlgorithmStatic::GETTER,                         \
                                        &BwpManagerAlgorithmStatic::SETTER),                        \
-                  MakeUintegerChecker<uint8_t>(0, 6))
+                  MakeUintegerChecker<uint8_t>(0, BwpManagerAlgorithm::NO_BWP_ASSIGNED))
 
 TypeId
 BwpManagerAlgorithmStatic::GetTypeId()

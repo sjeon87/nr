@@ -135,6 +135,8 @@ class NrPhySapProvider
      * @return Get the number of resource blocks configured
      */
     virtual uint32_t GetRbNum() const = 0;
+
+    virtual uint32_t GetArfcn() const = 0;
 };
 
 /**

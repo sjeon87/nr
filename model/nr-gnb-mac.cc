@@ -568,7 +568,7 @@ NrGnbMac::ReceiveRachPreamble(uint32_t raId)
 {
     NS_LOG_FUNCTION(this);
     Ptr<NrRachPreambleMessage> rachMsg = Create<NrRachPreambleMessage>();
-    rachMsg->SetSourceBwp(GetBwpId());
+    rachMsg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     rachMsg->SetRapId(raId);
     m_macRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), raId, GetBwpId(), rachMsg);
 

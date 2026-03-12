@@ -809,12 +809,15 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 
     switch (m_state)
     {
-    case IDLE_START:
+    case IDLE_START: {
         m_cellId = cellId;
         m_initDlArfcn = arfcn;
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
+        auto bwpId = GetArfcnBwpId(arfcn);
+        SetPrimaryDlIndex(bwpId);
+        m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
         SwitchToState(IDLE_WAIT_MIB);
-        break;
+    }
+    break;
 
     case IDLE_CELL_SEARCH:
     case IDLE_WAIT_MIB_SIB1:
@@ -916,6 +919,7 @@ NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformati
 
 void
 NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
+                                           uint32_t arfcn,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
     NS_LOG_FUNCTION(this);
@@ -1137,6 +1141,44 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             m_cellId = mci.targetPhysCellId;
             NS_ASSERT(mci.haveCarrierFreq);
             NS_ASSERT(mci.haveCarrierBandwidth);
+            // We could reconfigure PHY and BWPs, or we can just switch the primary DL/UL
+            // indexes to match the correct frequency
+            if (m_previousCellId != mci.targetPhysCellId)
+            {
+                auto dlIt = std::find_if(m_cphySapProvider.begin(),
+                                         m_cphySapProvider.end(),
+                                         [arfcn = mci.carrierFreq.dlCarrierFreq](auto& phy) {
+                                             return phy->GetArfcn() == arfcn;
+                                         });
+                auto ulIt = std::find_if(m_cphySapProvider.begin(),
+                                         m_cphySapProvider.end(),
+                                         [arfcn = mci.carrierFreq.ulCarrierFreq](auto& phy) {
+                                             return phy->GetArfcn() == arfcn;
+                                         });
+                NS_ASSERT_MSG(
+                    (dlIt != m_cphySapProvider.end()) && (ulIt != m_cphySapProvider.end()),
+                    "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
+                auto dlBwp = std::distance(m_cphySapProvider.begin(), dlIt);
+                auto ulBwp = std::distance(m_cphySapProvider.begin(), ulIt);
+                ReconfigureFromSib1(dlBwp,
+                                    mci.targetPhysCellId,
+                                    m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
+                                    m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
+                                    m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
+                                    m_lastSib1.servingCellConfigCommon.numerology,
+                                    m_lastSib1.servingCellConfigCommon.tddPattern,
+                                    m_lastSib1.servingCellConfigCommon.rbgSize);
+                ReconfigureFromSib1(ulBwp,
+                                    mci.targetPhysCellId,
+                                    m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
+                                    m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
+                                    m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
+                                    m_lastSib1.servingCellConfigCommon.numerology,
+                                    m_lastSib1.servingCellConfigCommon.tddPattern,
+                                    m_lastSib1.servingCellConfigCommon.rbgSize);
+                SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
+                SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
+            }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.dlCarrierFreq);
             m_cphySapProvider.at(GetPrimaryDlIndex())
@@ -1342,6 +1384,19 @@ NrUeRrc::SynchronizeToStrongestCell()
 
 } // end of void NrUeRrc::SynchronizeToStrongestCell ()
 
+std::size_t
+NrUeRrc::GetArfcnBwpId(uint32_t arfcn) const
+{
+    for (std::size_t i = 0; i < m_cphySapProvider.size(); i++)
+    {
+        if (m_cphySapProvider.at(i)->GetArfcn() == arfcn)
+        {
+            return i;
+        }
+    }
+    NS_FATAL_ERROR("No BWP found with arfcn " << arfcn);
+}
+
 void
 NrUeRrc::EvaluateCellForSelection()
 {
@@ -1381,6 +1436,10 @@ NrUeRrc::EvaluateCellForSelection()
     if (isSuitableCell)
     {
         m_cellId = cellId;
+        // todo: for maximum flexibility, we could create a new MAC/PHY for the ARFCN if there is no
+        // currently setup
+        auto bwpId = GetArfcnBwpId(m_initDlArfcn);
+        SetPrimaryDlIndex(bwpId);
         m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(cellId, m_initDlArfcn);
         m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);

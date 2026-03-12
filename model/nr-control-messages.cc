@@ -34,16 +34,16 @@ NrControlMessage::GetMessageType() const
 }
 
 void
-NrControlMessage::SetSourceBwp(uint16_t bwpId)
+NrControlMessage::SetSourceBwpArfcn(uint32_t arfcn)
 {
-    m_bwpId = bwpId;
+    m_arfcn = arfcn;
 }
 
-uint16_t
-NrControlMessage::GetSourceBwp() const
+uint32_t
+NrControlMessage::GetSourceBwpArfcn() const
 {
-    NS_ABORT_IF(m_bwpId < 0);
-    return static_cast<uint16_t>(m_bwpId);
+    NS_ABORT_IF(m_arfcn == 0);
+    return m_arfcn;
 }
 
 NrSRMessage::NrSRMessage()
