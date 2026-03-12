@@ -117,10 +117,10 @@ class NrEpcX2 : public Object
 
     /**
      * Add an X2 interface to this EPC X2 entity
-     * @param gnb1CellId the cell ID of the current eNodeB
-     * @param gnb1X2Address the address of the current eNodeB
-     * @param gnb2CellId the cell ID of the neighbouring eNodeB
-     * @param gnb2X2Address the address of the neighbouring eNodeB
+     * @param gnb1CellId the cell ID of the current gNB
+     * @param gnb1X2Address the address of the current gNB
+     * @param gnb2CellId the cell ID of the neighbouring gNB
+     * @param gnb2X2Address the address of the neighbouring gNB
      */
     void AddX2Interface(uint16_t gnb1CellId,
                         Ipv4Address gnb1X2Address,

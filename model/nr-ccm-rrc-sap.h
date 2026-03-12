@@ -24,7 +24,7 @@ class NrRrcSap;
 
 /**
  * @brief Service Access Point (SAP) offered by the Component Carrier Manager (CCM)
- * instance to the eNodeB RRC instance.
+ * instance to the gNB RRC instance.
  *
  * This is the *Component Carrier Manager SAP Provider*, i.e., the part of the SAP
  * that contains the CCM methods called by the eNodeB RRC instance.

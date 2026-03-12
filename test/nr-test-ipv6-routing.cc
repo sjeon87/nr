@@ -22,7 +22,7 @@
 #include <algorithm>
 
 /* *
-   * Scenario:  3 UEs, 2 ENBs, 1 Remote Host, UE0<-->gNB0, UE1<-->gNB0, UE2<-->gNB1
+   * Scenario:  3 UEs, 2 gNBs, 1 Remote Host, UE0<-->gNB0, UE1<-->gNB0, UE2<-->gNB1
                 Servers: UE1, UE2, Remote Host
                 Client: UE0 (3 clients)
                 UDP Echo Packets transmitted between client and server
@@ -264,7 +264,7 @@ NrIpv6RoutingTestCase::DoRun()
     // Assign IP address to UEs, and install applications
     m_ueIpIface = nrEpcHelper->AssignUeIpv6Address(NetDeviceContainer(ueNrDevs));
 
-    // Attach two UEs at first eNodeB and one UE at second eNodeB
+    // Attach two UEs at first gNB and one UE at second gNB
     nrHelper->AttachToGnb(ueNrDevs.Get(0), nrGnbDevs.Get(0));
     nrHelper->AttachToGnb(ueNrDevs.Get(1), nrGnbDevs.Get(0));
     nrHelper->AttachToGnb(ueNrDevs.Get(2), nrGnbDevs.Get(1));

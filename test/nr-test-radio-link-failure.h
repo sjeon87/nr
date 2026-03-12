@@ -50,13 +50,13 @@ class NrRadioLinkFailureTestCase : public TestCase
     /**
      * @brief Creates an instance of the radio link failure test case.
      *
-     * @param numGnbs number of eNodeBs
+     * @param numGnbs number of gNBs
      * @param numUes number of UEs
      * @param simTime the simulation time
      * @param isIdealRrc if true, simulation uses Ideal RRC protocol, otherwise
      *                   simulation uses Real RRC protocol
      * @param uePositionList Position of the UEs
-     * @param gnbPositionList Position of the eNodeBs
+     * @param gnbPositionList Position of the gNBs
      * @param ueJumpAwayPosition Vector holding the UE jump away coordinates
      * @param checkConnectedList the time at which UEs should have an active RRC connection
      */
@@ -104,7 +104,7 @@ class NrRadioLinkFailureTestCase : public TestCase
      * @brief Check if the UE exist at the gNB
      * @param rnti the RNTI of the UE
      * @param gnbDevice the gNB device
-     * @return true if the UE exist at the eNB, otherwise false
+     * @return true if the UE exist at the gNB, otherwise false
      */
     bool CheckUeExistAtGnb(uint16_t rnti, Ptr<NetDevice> gnbDevice);
 
@@ -137,7 +137,7 @@ class NrRadioLinkFailureTestCase : public TestCase
                                          uint16_t rnti);
 
     /**
-     * @brief Connection established at eNodeB callback function
+     * @brief Connection established at gNB callback function
      * @param context the context string
      * @param imsi the IMSI
      * @param cellId the cell ID
@@ -149,7 +149,7 @@ class NrRadioLinkFailureTestCase : public TestCase
                                           uint16_t rnti);
 
     /**
-     * @brief This callback function is executed when UE context is removed at eNodeB
+     * @brief This callback function is executed when UE context is removed at gNB
      * @param context the context string
      * @param imsi the IMSI
      * @param cellId the cell ID
@@ -196,12 +196,12 @@ class NrRadioLinkFailureTestCase : public TestCase
      */
     void JumpAway(Vector UeJumpAwayPositionList);
 
-    uint32_t m_numGnbs;                    ///< number of eNodeBs
+    uint32_t m_numGnbs;                    ///< number of gNBs
     uint32_t m_numUes;                     ///< number of UEs
     Time m_simTime;                        ///< simulation time
     bool m_isIdealRrc;                     ///< whether the NR is configured to use ideal RRC
     std::vector<Vector> m_uePositionList;  ///< Position of the UEs
-    std::vector<Vector> m_gnbPositionList; ///< Position of the eNodeBs
+    std::vector<Vector> m_gnbPositionList; ///< Position of the gNBs
     std::vector<Time>
         m_checkConnectedList;    ///< the time at which UEs should have an active RRC connection
     Vector m_ueJumpAwayPosition; ///< Position where the UE(s) would jump

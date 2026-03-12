@@ -64,7 +64,7 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                checkConnectedList),
                 TestCase::Duration::QUICK);
 
-    // One eNB: Real RRC PROTOCOL todo: re-enable when RRC real is fully working
+    // One gNB: Real RRC PROTOCOL todo: re-enable when RRC real is fully working
     // AddTestCase(new NrRadioLinkFailureTestCase(1,
     //                                           1,
     //                                           Seconds(2),
@@ -75,7 +75,7 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
     //                                           checkConnectedList),
     //            TestCase::Duration::QUICK);
 
-    // Two eNBs: Ideal RRC PROTOCOL
+    // Two gNBs: Ideal RRC PROTOCOL
 
     // We place the second gNB close to the position where the UE will jump
     gnbPositionList.emplace_back(7020, 0, 0);
@@ -90,7 +90,7 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                checkConnectedList),
                 TestCase::Duration::QUICK);
 
-    // Two eNBs: Real RRC PROTOCOL todo: re-enable when RRC real is fully working
+    // Two gNBs: Real RRC PROTOCOL todo: re-enable when RRC real is fully working
     // AddTestCase(new NrRadioLinkFailureTestCase(2,
     //                                           1,
     //                                           Seconds(2),
@@ -126,7 +126,7 @@ NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs, uint32_t numUes, b
     {
         rrcProtocol = "RRC Real";
     }
-    oss << numGnbs << " eNBs, " << numUes << " UEs, " << rrcProtocol << " Protocol";
+    oss << numGnbs << " gNBs, " << numUes << " UEs, " << rrcProtocol << " Protocol";
     return oss.str();
 }
 
@@ -184,7 +184,7 @@ NrRadioLinkFailureTestCase::DoRun()
     NS_LOG_FUNCTION(this << GetName());
     uint16_t numBearersPerUe = 1;
     Time simTime = m_simTime;
-    double eNodeB_txPower = 40;
+    double gNB_txPower = 40;
 
     Config::SetDefault("ns3::NrHelper::UseIdealRrc", BooleanValue(m_isIdealRrc));
 
@@ -193,7 +193,7 @@ NrRadioLinkFailureTestCase::DoRun()
     nrHelper->SetEpcHelper(nrEpcHelper);
 
     //----power related (equal for all base stations)----
-    Config::SetDefault("ns3::NrGnbPhy::TxPower", DoubleValue(eNodeB_txPower));
+    Config::SetDefault("ns3::NrGnbPhy::TxPower", DoubleValue(gNB_txPower));
     Config::SetDefault("ns3::NrUePhy::TxPower", DoubleValue(23));
     Config::SetDefault("ns3::NrUePhy::NoiseFigure", DoubleValue(7));
     Config::SetDefault("ns3::NrGnbPhy::NoiseFigure", DoubleValue(2));
@@ -236,7 +236,7 @@ NrRadioLinkFailureTestCase::DoRun()
         ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>());
     remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
 
-    // Create Nodes: eNodeB and UE
+    // Create Nodes: gNB and UE
     NodeContainer gnbNodes;
     NodeContainer ueNodes;
     gnbNodes.Create(m_numGnbs);
@@ -281,7 +281,7 @@ NrRadioLinkFailureTestCase::DoRun()
     Ipv4InterfaceContainer ueIpIfaces;
     ueIpIfaces = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
 
-    // Attach a UE to a eNB
+    // Attach a UE to a gNB
     nrHelper->AttachToClosestGnb(ueDevs, gnbDevs);
 
     // Install and start applications on UEs and remote host
@@ -429,7 +429,7 @@ NrRadioLinkFailureTestCase::CheckConnected(Ptr<NetDevice> ueDevice, NetDeviceCon
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
     uint16_t rnti = ueRrc->GetRnti();
     Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
-    NS_TEST_ASSERT_MSG_NE(ueManager, nullptr, "RNTI " << rnti << " not found in eNB");
+    NS_TEST_ASSERT_MSG_NE(ueManager, nullptr, "RNTI " << rnti << " not found in gNB");
 
     NrUeManager::State ueManagerState = ueManager->GetState();
     NS_TEST_ASSERT_MSG_EQ(ueManagerState,
@@ -464,7 +464,7 @@ NrRadioLinkFailureTestCase::CheckConnected(Ptr<NetDevice> ueDevice, NetDeviceCon
 
     ObjectMapValue gnbDataRadioBearerMapValue;
     ueManager->GetAttribute("DataRadioBearerMap", gnbDataRadioBearerMapValue);
-    NS_TEST_ASSERT_MSG_EQ(gnbDataRadioBearerMapValue.GetN(), 1 + 1, "wrong num bearers at eNB");
+    NS_TEST_ASSERT_MSG_EQ(gnbDataRadioBearerMapValue.GetN(), 1 + 1, "wrong num bearers at gNB");
 
     ObjectMapValue ueDataRadioBearerMapValue;
     ueRrc->GetAttribute("DataRadioBearerMap", ueDataRadioBearerMapValue);
@@ -492,7 +492,7 @@ NrRadioLinkFailureTestCase::CheckConnected(Ptr<NetDevice> ueDevice, NetDeviceCon
         ++gnbBearerIt;
         ++ueBearerIt;
     }
-    NS_ASSERT_MSG(gnbBearerIt == gnbDataRadioBearerMapValue.End(), "too many bearers at eNB");
+    NS_ASSERT_MSG(gnbBearerIt == gnbDataRadioBearerMapValue.End(), "too many bearers at gNB");
     NS_ASSERT_MSG(ueBearerIt == ueDataRadioBearerMapValue.End(), "too many bearers at UE");
 }
 
@@ -509,15 +509,15 @@ NrRadioLinkFailureTestCase::CheckIdle(Ptr<NetDevice> ueDevice, NetDeviceContaine
 
     switch (numGnbDevices)
     {
-    // 1 eNB
+    // 1 gNB
     case 1:
         NS_TEST_ASSERT_MSG_EQ(ueRrc->GetState(), NrUeRrc::IDLE_CELL_SEARCH, "Wrong NrUeRrc state!");
         ueManagerFound = CheckUeExistAtGnb(rnti, gnbDevices.Get(0));
         NS_TEST_ASSERT_MSG_EQ(ueManagerFound,
                               false,
-                              "Unexpected RNTI with value " << rnti << " found in eNB");
+                              "Unexpected RNTI with value " << rnti << " found in gNB");
         break;
-    // 2 eNBs
+    // 2 gNBs
     case 2:
         NS_TEST_ASSERT_MSG_EQ(ueRrc->GetState(),
                               NrUeRrc::CONNECTED_NORMALLY,
@@ -525,7 +525,7 @@ NrRadioLinkFailureTestCase::CheckIdle(Ptr<NetDevice> ueDevice, NetDeviceContaine
         ueManagerFound = CheckUeExistAtGnb(rnti, gnbDevices.Get(1));
         NS_TEST_ASSERT_MSG_EQ(ueManagerFound,
                               true,
-                              "RNTI " << rnti << " is not attached to the eNB");
+                              "RNTI " << rnti << " is not attached to the gNB");
         break;
     default:
         NS_FATAL_ERROR("The RRC state of the UE in more then 2 gNB scenario is not defined. "

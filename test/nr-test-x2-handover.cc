@@ -495,7 +495,7 @@ NrX2HandoverTestCase::DoRun()
                                     gnbDevices.Get(hoEventIt->sourceGnbDeviceIndex),
                                     gnbDevices.Get(hoEventIt->targetGnbDeviceIndex));
 
-        // Once the handover is finished, teleport the UE near the target eNB
+        // Once the handover is finished, teleport the UE near the target gNB
         Simulator::Schedule(hoEventIt->startTime + MilliSeconds(40),
                             &NrX2HandoverTestCase::TeleportUeNearTargetGnb,
                             this,
@@ -553,7 +553,7 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
     uint16_t rnti = ueRrc->GetRnti();
     Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
-    NS_TEST_ASSERT_MSG_NE(ueManager, nullptr, "RNTI " << rnti << " not found in eNB");
+    NS_TEST_ASSERT_MSG_NE(ueManager, nullptr, "RNTI " << rnti << " not found in gNB");
 
     NrUeManager::State ueManagerState = ueManager->GetState();
     NS_TEST_ASSERT_MSG_EQ(ueManagerState,
@@ -594,7 +594,7 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
     ueManager->GetAttribute("DataRadioBearerMap", gnbDataRadioBearerMapValue);
     NS_TEST_ASSERT_MSG_EQ(gnbDataRadioBearerMapValue.GetN(),
                           m_nDedicatedBearers + 1,
-                          "wrong num bearers at eNB");
+                          "wrong num bearers at gNB");
 
     ObjectMapValue ueDataRadioBearerMapValue;
     ueRrc->GetAttribute("DataRadioBearerMap", ueDataRadioBearerMapValue);
@@ -630,7 +630,7 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
         ++gnbBearerIt;
         ++ueBearerIt;
     }
-    NS_ASSERT_MSG(gnbBearerIt == gnbDataRadioBearerMapValue.End(), "too many bearers at eNB");
+    NS_ASSERT_MSG(gnbBearerIt == gnbDataRadioBearerMapValue.End(), "too many bearers at gNB");
     NS_ASSERT_MSG(ueBearerIt == ueDataRadioBearerMapValue.End(), "too many bearers at UE");
 }
 
@@ -695,7 +695,7 @@ NrX2HandoverTestCase::CheckStatsAWhileAfterHandover(uint32_t ueIndex)
  * is used and handover is triggered manually. The automatic handover algorithms (A2A4, A3Rsrp)
  * are not tested.
  *
- * The tests are designed to check that eNB-buffered data received while a handover is in progress
+ * The tests are designed to check that gNB-buffered data received while a handover is in progress
  * is not lost but successfully forwarded. But the test suite doesn't test for possible loss of
  * RLC-buffered data because "lossless" handover is not implemented, and there are other application
  * send patterns (outside of the range tested here) that may incur losses.

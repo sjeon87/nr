@@ -273,7 +273,7 @@ NrUplinkPowerControlTestCase::DoRun()
     nrHelper->SetBeamformingHelper(idealBeamformingHelper);
     nrHelper->SetEpcHelper(nrEpcHelper);
 
-    // Create Nodes: eNodeB and UE
+    // Create Nodes: gNB and UE
     NodeContainer gnbNodes;
     NodeContainer ueNodes;
     gnbNodes.Create(1);
@@ -291,7 +291,7 @@ NrUplinkPowerControlTestCase::DoRun()
     mobility.Install(allNodes);
     m_ueMobility = ueNodes.Get(0)->GetObject<MobilityModel>();
 
-    // Create Devices and install them in the Nodes (eNB and UE)
+    // Create Devices and install them in the Nodes (gNB and UE)
     NetDeviceContainer gnbDevs;
     NetDeviceContainer ueDevs;
     nrHelper->SetGnbPhyAttribute("Numerology", UintegerValue(numerology));
