@@ -85,7 +85,7 @@ set(source_files
     model/bwp-manager-ue.cc
     model/ideal-beamforming-algorithm.cc
     model/lena-error-model.cc
-    model/nr-a2-a4-rsrq-handover-algorithm.cc
+    model/nr-a2-a4-rsrp-handover-algorithm.cc
     model/nr-a3-rsrp-handover-algorithm.cc
     model/nr-amc.cc
     model/nr-anr.cc
@@ -274,7 +274,7 @@ set(header_files
     model/bwp-manager-ue.h
     model/ideal-beamforming-algorithm.h
     model/lena-error-model.h
-    model/nr-a2-a4-rsrq-handover-algorithm.h
+    model/nr-a2-a4-rsrp-handover-algorithm.h
     model/nr-a3-rsrp-handover-algorithm.h
     model/nr-amc.h
     model/nr-anr-sap.h
@@ -520,19 +520,16 @@ set(test_sources
     test/nr-test-ue-measurements.cc
     test/nr-test-radio-link-failure.cc
     test/nr-test-cell-selection.cc
+    test/nr-test-x2-handover.cc
+    test/nr-test-x2-handover-measures.cc
     # cmake-format: off
     # todo:
-    # test/nr-test-x2-handover.cc                  \
-    # test/nr-test-x2-handover-measures.cc          \
-    # test/nr-test-lte-handover-delay.cc             | requires handover
-    # test/nr-test-lte-handover-failure.cc          /
-    # test/nr-test-lte-handover-target.cc          /
-    # test/nr-test-primary-cell-change.cc         /
+    # test/nr-test-handover-delay.cc
+    # test/nr-test-handover-failure.cc
+    # test/nr-test-handover-target.cc
+    # test/nr-test-primary-cell-change.cc         /  requires handover
     # test/nr-test-secondary-cell-handover.cc    /
     # test/nr-test-secondary-cell-selection.cc  /
-    #
-    # test/nr-test-carrier-aggregation.cc
-    # test/nr-test-cqi-generation.cc
     # cmake-format: on
 )
 
