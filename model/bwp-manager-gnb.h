@@ -58,13 +58,13 @@ class BwpManagerGnb : public NrRrComponentCarrierManager
     /**
      * @brief Decide the BWP for the control message received.
      * @param msg Message
-     * @param sourceBwpId BWP Id from which this message come from.
+     * @param sourceBwpArfcn BWP arfcn from which this message come from.
      *
      * The routing is made following the bandwidth part reported in the message.
      *
      * @return the BWP Id to which this message should be routed to.
      */
-    uint8_t RouteIngoingCtrlMsgs(const Ptr<NrControlMessage>& msg, uint8_t sourceBwpId) const;
+    uint32_t RouteIngoingCtrlMsgs(const Ptr<NrControlMessage>& msg, uint32_t sourceBwpArfcn) const;
 
     /**
      * @brief Route the outgoing messages to the right BWP

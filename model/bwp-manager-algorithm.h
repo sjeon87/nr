@@ -57,6 +57,16 @@ class BwpManagerAlgorithm : public Object
      * @return the bwp id that the algorithm selects for the 5QI specified
      */
     virtual uint8_t GetBwpForQosFlow(const NrQosFlow::FiveQi& v) const = 0;
+
+    /**
+     * NR supports up to 5 simultaneous BWPs, with one active per cell
+     */
+    constexpr static uint8_t MAXIMUM_CC_NR{5};
+
+    /**
+     * Arbitrary BwpId to route via primary BWP
+     */
+    constexpr static uint8_t NO_BWP_ASSIGNED{MAXIMUM_CC_NR + 1};
 };
 
 /**

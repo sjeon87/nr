@@ -109,7 +109,7 @@ class NrSpectrumPhy : public SpectrumPhy
     /**
      * @brief This callback method type is used to notify that CTRL is received
      */
-    typedef std::function<void(const std::list<Ptr<NrControlMessage>>&, uint8_t)>
+    typedef std::function<void(const std::list<Ptr<NrControlMessage>>&, uint32_t)>
         NrPhyRxCtrlEndOkCallback;
 
     /**

@@ -60,6 +60,8 @@ class NrMemberPhySapProvider : public NrPhySapProvider
 
     uint32_t GetRbNum() const override;
 
+    uint32_t GetArfcn() const override;
+
   private:
     NrPhy* m_phy;
 };
@@ -143,6 +145,12 @@ uint32_t
 NrMemberPhySapProvider::GetRbNum() const
 {
     return m_phy->GetRbNum();
+}
+
+uint32_t
+NrMemberPhySapProvider::GetArfcn() const
+{
+    return m_phy->DoGetArfcn();
 }
 
 /* ======= */

@@ -96,9 +96,10 @@ class NrGnbNetDevice : public NrNetDevice
      * The gNB should divide the messages to the BWP they pertain to.
      *
      * @param msgList Message list
-     * @param sourceBwpId BWP Id from which the list originated
+     * @param sourceBwpArfcn BWP arfcn from which the list originated
      */
-    void RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgList, uint8_t sourceBwpId);
+    void RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgList,
+                              uint32_t sourceBwpArfcn);
 
     /**
      * @brief Route the outgoing messages to the right BWP
