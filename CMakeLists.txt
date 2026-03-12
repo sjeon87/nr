@@ -522,11 +522,11 @@ set(test_sources
     test/nr-test-cell-selection.cc
     test/nr-test-x2-handover.cc
     test/nr-test-x2-handover-measures.cc
+    test/nr-test-handover-delay.cc
+    test/nr-test-handover-failure.cc
+    test/nr-test-handover-target.cc
     # cmake-format: off
     # todo:
-    # test/nr-test-handover-delay.cc
-    # test/nr-test-handover-failure.cc
-    # test/nr-test-handover-target.cc
     # test/nr-test-primary-cell-change.cc         /  requires handover
     # test/nr-test-secondary-cell-handover.cc    /
     # test/nr-test-secondary-cell-selection.cc  /
