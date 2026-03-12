@@ -922,6 +922,9 @@ class NrGnbPhy : public NrPhy
     std::map<uint16_t, std::set<Ptr<NrUeNetDevice>>> m_csiRsOffsetToUes; //!< Offset to UE map
 
     Time m_lastBfChange; //!< Saves the timestamp when the beamforming vector changes.
+
+    //!< Flag meant for test if RACH preamble discarding during handover
+    bool m_testDropRachPreambles{false};
 };
 
 } // namespace ns3

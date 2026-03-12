@@ -17,6 +17,7 @@
 #include "nr-ue-net-device.h"
 #include "nr-ue-phy.h"
 
+#include "ns3/boolean.h"
 #include "ns3/double.h"
 #include "ns3/enum.h"
 #include "ns3/log.h"
@@ -198,7 +199,13 @@ NrGnbPhy::GetTypeId()
                 "RBDataStats",
                 "Resource Block used for data: SfnSf, symbol, RB PHY map, bwp ID, cell ID",
                 MakeTraceSourceAccessor(&NrGnbPhy::m_rbStatistics),
-                "ns3::NrGnbPhy::RBStatsTracedCallback");
+                "ns3::NrGnbPhy::RBStatsTracedCallback")
+            .AddAttribute("TestDropRachPreambles",
+                          "Attribute is meant to emulate control channel loss of RACH preambles",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrGnbPhy::m_testDropRachPreambles),
+                          MakeBooleanChecker());
+
     return tid;
 }
 
@@ -1918,7 +1925,15 @@ NrGnbPhy::PhyCtrlMessagesReceived(const Ptr<NrControlMessage>& msg)
         Ptr<NrRachPreambleMessage> rachPreamble = DynamicCast<NrRachPreambleMessage>(msg);
         m_phyRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), 0, GetBwpId(), msg);
         NS_LOG_INFO("Received RACH Preamble in slot " << m_currentSlot);
-        m_phySapUser->ReceiveRachPreamble(rachPreamble->GetRapId());
+        if (m_testDropRachPreambles)
+        {
+            NS_LOG_WARN("FOR TEST ONLY: Dropped RACH Preamble " << rachPreamble->GetRapId()
+                                                                << " in slot " << m_currentSlot);
+        }
+        else
+        {
+            m_phySapUser->ReceiveRachPreamble(rachPreamble->GetRapId());
+        }
     }
     else if (msg->GetMessageType() == NrControlMessage::DL_HARQ)
     {
