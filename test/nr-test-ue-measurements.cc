@@ -273,7 +273,7 @@ NrUeMeasurementsTestCase::DoRun()
 
     // LogComponentEnable ("NrUeMeasurementsTest", LOG_LEVEL_ALL);
 
-    // Create Nodes: eNodeB and UE
+    // Create Nodes: gNB and UE
     NodeContainer nrNodes;
     NodeContainer ueNodes1;
     NodeContainer ueNodes2;
@@ -327,7 +327,7 @@ NrUeMeasurementsTestCase::DoRun()
     ueDevs1 = nrHelper->InstallUeDevice(ueNodes1, allBwps);
     ueDevs2 = nrHelper->InstallUeDevice(ueNodes2, allBwps);
 
-    // Attach UEs to eNodeBs
+    // Attach UEs to gNBs
     for (uint32_t i = 0; i < ueDevs1.GetN(); i++)
     {
         nrHelper->AttachToGnb(ueDevs1.Get(i), nrDevs.Get(0));
@@ -773,7 +773,7 @@ NrUeMeasurementsPiecewiseTestCase1::DoRun()
     // Disable Uplink Power Control
     Config::SetDefault("ns3::NrUePhy::EnableUplinkPowerControl", BooleanValue(false));
 
-    // Create Nodes: eNodeB and UE
+    // Create Nodes: gNB and UE
     NodeContainer nrNodes;
     NodeContainer ueNodes;
     nrNodes.Create(1);
@@ -782,7 +782,7 @@ NrUeMeasurementsPiecewiseTestCase1::DoRun()
     /*
      * The topology is the following:
      *
-     * eNodeB     UE
+     * gNB     UE
      *    |       |
      *    x ----- x --------- x --------------- x ------------------- x
      *      100 m |   200 m   |      300 m      |        400 m        |
@@ -791,7 +791,7 @@ NrUeMeasurementsPiecewiseTestCase1::DoRun()
      */
 
     Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
-    positionAlloc->Add(Vector(0.0, 0.0, 0.0));   // eNodeB
+    positionAlloc->Add(Vector(0.0, 0.0, 0.0));   // gNB
     positionAlloc->Add(Vector(100.0, 0.0, 0.0)); // UE
     MobilityHelper mobility;
     mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -832,7 +832,7 @@ NrUeMeasurementsPiecewiseTestCase1::DoRun()
     Ptr<NrGnbRrc> nrRrc = nrDevs.Get(0)->GetObject<NrGnbNetDevice>()->GetRrc();
     m_expectedMeasId = nrRrc->AddUeMeasReportConfig(m_config).at(0);
 
-    // Attach UE to eNodeB
+    // Attach UE to gNB
     nrHelper->AttachToGnb(ueDevs.Get(0), nrDevs.Get(0));
 
     // Activate an QoS flow
@@ -1494,7 +1494,7 @@ NrUeMeasurementsPiecewiseTestCase2::DoRun()
     // Disable Uplink Power Control
     Config::SetDefault("ns3::NrUePhy::EnableUplinkPowerControl", BooleanValue(false));
 
-    // Create Nodes: eNodeB and UE
+    // Create Nodes: gNB and UE
     NodeContainer nrNodes;
     NodeContainer ueNodes;
     nrNodes.Create(2);
@@ -1503,7 +1503,7 @@ NrUeMeasurementsPiecewiseTestCase2::DoRun()
     /*
      * The topology is the following:
      *
-     * eNodeB    UE                                                eNodeB
+     * gNB    UE                                                gNB
      *    |      |                                                    |
      *    x ---- x --------------- x ------- x --------------- x ---- x
      *      50 m |      200 m      |  100 m  |      200 m      | 50 m
@@ -1512,8 +1512,8 @@ NrUeMeasurementsPiecewiseTestCase2::DoRun()
      */
 
     Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
-    positionAlloc->Add(Vector(0.0, 0.0, 0.0));   // Serving eNodeB
-    positionAlloc->Add(Vector(600.0, 0.0, 0.0)); // Neighbour eNodeB
+    positionAlloc->Add(Vector(0.0, 0.0, 0.0));   // Serving gNB
+    positionAlloc->Add(Vector(600.0, 0.0, 0.0)); // Neighbour gNB
     positionAlloc->Add(Vector(50.0, 0.0, 0.0));  // UE
     MobilityHelper mobility;
     mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -1543,7 +1543,7 @@ NrUeMeasurementsPiecewiseTestCase2::DoRun()
     BandwidthPartInfoPtrVector allBwps;
     allBwps = CcBwpCreator::GetAllBwps({band});
 
-    // Create Devices and install them in the Nodes (eNB and UE)
+    // Create Devices and install them in the Nodes (gNB and UE)
     NetDeviceContainer nrDevs;
     NetDeviceContainer ueDevs;
     nrDevs = nrHelper->InstallGnbDevice(nrNodes, allBwps);
@@ -1559,7 +1559,7 @@ NrUeMeasurementsPiecewiseTestCase2::DoRun()
     Ptr<NrGnbRrc> nrRrc2 = nrDevs.Get(1)->GetObject<NrGnbNetDevice>()->GetRrc();
     nrRrc2->SetAttribute("AdmitHandoverRequest", BooleanValue(false));
 
-    // Attach UE to serving eNodeB
+    // Attach UE to serving gNB
     nrHelper->AttachToGnb(ueDevs.Get(0), nrDevs.Get(0));
 
     // Activate an QoS flow
@@ -1567,7 +1567,7 @@ NrUeMeasurementsPiecewiseTestCase2::DoRun()
     NrQosFlow flow(q);
     nrHelper->ActivateDataRadioBearer(ueDevs, flow);
 
-    // Connect to trace sources in serving eNodeB
+    // Connect to trace sources in serving gNB
     Config::Connect(
         "/NodeList/0/DeviceList/0/NrGnbRrc/RecvMeasurementReport",
         MakeCallback(&NrUeMeasurementsPiecewiseTestCase2::RecvMeasurementReportCallback, this));
@@ -1771,7 +1771,7 @@ NrUeMeasurementsPiecewiseTestSuite3::NrUeMeasurementsPiecewiseTestSuite3()
     // of the simulation.
     // 2. When neighbor 2 (gNB3) is placed at a very far position, its RSRP would
     // be less than the chosen threshold, hence, UE will not include it in its
-    // initial report(s) to its eNB.
+    // initial report(s) to its gNB.
     // 3. When neighbor 2 (gNB3) is placed at a near position, its RSRP would
     // always be above the chosen threshold, hence, the UE will include it in its
     // reports to its gNB (gNB1).
@@ -1834,7 +1834,7 @@ NrUeMeasurementsPiecewiseTestCase3::DoRun()
     // Disable Uplink Power Control
     Config::SetDefault("ns3::NrUePhy::EnableUplinkPowerControl", BooleanValue(false));
 
-    // Create Nodes: eNodeB and UE
+    // Create Nodes: gNB and UE
     NodeContainer nrNodes;
     NodeContainer ueNodes;
     nrNodes.Create(3);
@@ -1846,7 +1846,7 @@ NrUeMeasurementsPiecewiseTestCase3::DoRun()
      * We place the 3rd gNB initially very far so it does not fulfills
      * the entry condition to be reported.
      *
-     * eNodeB    UE              eNodeB                                  eNodeB
+     * gNB    UE              gNB                                  gNB
      *    |      |                 |                                       |
      *    x ---- x --------------- x -------------- x ---------------------x
      *      50 m         100 m             500      |         1000000
@@ -1854,9 +1854,9 @@ NrUeMeasurementsPiecewiseTestCase3::DoRun()
      */
 
     Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
-    positionAlloc->Add(Vector(0.0, 0.0, 0.0));       // Serving eNodeB
-    positionAlloc->Add(Vector(200.0, 0.0, 0.0));     // Neighbour eNodeB1
-    positionAlloc->Add(Vector(1000700.0, 0.0, 0.0)); // Neighbour eNodeB2
+    positionAlloc->Add(Vector(0.0, 0.0, 0.0));       // Serving gNB
+    positionAlloc->Add(Vector(200.0, 0.0, 0.0));     // Neighbour gNB1
+    positionAlloc->Add(Vector(1000700.0, 0.0, 0.0)); // Neighbour gNB2
     positionAlloc->Add(Vector(50.0, 0.0, 0.0));      // UE
     MobilityHelper mobility;
     mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -1886,7 +1886,7 @@ NrUeMeasurementsPiecewiseTestCase3::DoRun()
     BandwidthPartInfoPtrVector allBwps;
     allBwps = CcBwpCreator::GetAllBwps({band});
 
-    // Create Devices and install them in the Nodes (eNB and UE)
+    // Create Devices and install them in the Nodes (gNB and UE)
     NetDeviceContainer nrDevs;
     NetDeviceContainer ueDevs;
     nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaRR"));
@@ -1903,7 +1903,7 @@ NrUeMeasurementsPiecewiseTestCase3::DoRun()
     Ptr<NrGnbRrc> nrRrc3 = nrDevs.Get(2)->GetObject<NrGnbNetDevice>()->GetRrc();
     nrRrc3->SetAttribute("AdmitHandoverRequest", BooleanValue(false));
 
-    // Attach UE to serving eNodeB
+    // Attach UE to serving gNB
     nrHelper->AttachToGnb(ueDevs.Get(0), nrDevs.Get(0));
 
     // Activate an QoS flow
@@ -1911,7 +1911,7 @@ NrUeMeasurementsPiecewiseTestCase3::DoRun()
     NrQosFlow flow(q);
     nrHelper->ActivateDataRadioBearer(ueDevs, flow);
 
-    // Connect to trace sources in serving eNodeB
+    // Connect to trace sources in serving gNB
     Config::Connect(
         "/NodeList/0/DeviceList/0/NrGnbRrc/RecvMeasurementReport",
         MakeCallback(&NrUeMeasurementsPiecewiseTestCase3::RecvMeasurementReportCallback, this));
@@ -2413,7 +2413,7 @@ NrUeMeasurementsHandoverTestCase::DoRun()
     // Disable Uplink Power Control
     Config::SetDefault("ns3::NrUePhy::EnableUplinkPowerControl", BooleanValue(false));
 
-    // Create Nodes: eNodeB and UE
+    // Create Nodes: gNB and UE
     NodeContainer nrNodes;
     NodeContainer ueNodes;
     nrNodes.Create(2);
@@ -2422,15 +2422,15 @@ NrUeMeasurementsHandoverTestCase::DoRun()
     /*
      * The topology is the following:
      *
-     * eNodeB                   UE                     eNodeB
+     * gNB                   UE                     gNB
      *    |                     |                         |
      *    x ------------------- x ----------------------- x
      *             400 m                   500 m
      */
 
     Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
-    positionAlloc->Add(Vector(0.0, 0.0, 0.0));   // Source eNodeB
-    positionAlloc->Add(Vector(900.0, 0.0, 0.0)); // Target eNodeB
+    positionAlloc->Add(Vector(0.0, 0.0, 0.0));   // Source gNB
+    positionAlloc->Add(Vector(900.0, 0.0, 0.0)); // Target gNB
     positionAlloc->Add(Vector(400.0, 0.0, 0.0)); // UE
     MobilityHelper mobility;
     mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -2491,7 +2491,7 @@ NrUeMeasurementsHandoverTestCase::DoRun()
     nrDevs = nrHelper->InstallGnbDevice(nrNodes, allBwps);
     ueDevs = nrHelper->InstallUeDevice(ueNodes, allBwps);
 
-    // Setup UE measurement configuration in eNodeBs
+    // Setup UE measurement configuration in gNBs
     uint8_t measId;
     Ptr<NrGnbRrc> nrRrc1 = nrDevs.Get(0)->GetObject<NrGnbNetDevice>()->GetRrc();
     Ptr<NrGnbRrc> nrRrc2 = nrDevs.Get(1)->GetObject<NrGnbNetDevice>()->GetRrc();
@@ -2517,18 +2517,18 @@ NrUeMeasurementsHandoverTestCase::DoRun()
     Ipv4InterfaceContainer ueIpIfaces;
     ueIpIfaces = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
 
-    // Attach UE to serving eNodeB
+    // Attach UE to serving gNB
     nrHelper->AttachToGnb(ueDevs.Get(0), nrDevs.Get(0));
 
     // Add X2 interface
     nrHelper->AddX2Interface(nrNodes);
 
-    // Connect to trace sources in source eNodeB
+    // Connect to trace sources in source gNB
     Config::Connect(
         "/NodeList/3/DeviceList/0/NrGnbRrc/RecvMeasurementReport",
         MakeCallback(&NrUeMeasurementsHandoverTestCase::RecvMeasurementReportCallback, this));
 
-    // Connect to trace sources in target eNodeB
+    // Connect to trace sources in target gNB
     Config::Connect(
         "/NodeList/4/DeviceList/0/NrGnbRrc/RecvMeasurementReport",
         MakeCallback(&NrUeMeasurementsHandoverTestCase::RecvMeasurementReportCallback, this));

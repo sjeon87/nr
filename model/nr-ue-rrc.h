@@ -641,11 +641,11 @@ class NrUeRrc : public Object
      *          an error.
      *
      * The measurement configuration given as an argument is typically provided by
-     * the serving eNodeB. It is transmitted through the RRC protocol when the UE
+     * the serving gNB. It is transmitted through the RRC protocol when the UE
      * joins the cell, e.g., by connection establishment or by incoming handover.
-     * The information inside the argument can be configured from the eNodeB side,
+     * The information inside the argument can be configured from the gNB side,
      * which would then equally apply to all other UEs attached to the same
-     * eNodeB. See the NR module's User Documentation for more information on
+     * gNB. See the NR module's User Documentation for more information on
      * configuring this.
      *
      * \sa NrRrcSap::MeasConfig, NrUeRrc::m_varMeasReportList
@@ -700,7 +700,7 @@ class NrUeRrc : public Object
      *
      * An applicable entering condition (i.e., the condition evaluates to true)
      * will insert a new *reporting entry* to #m_varMeasReportList, so
-     * *measurement reports* would be produced and submitted to eNodeB. On the
+     * *measurement reports* would be produced and submitted to gNB. On the
      * other hand, an applicable leaving condition will remove the related
      * reporting entry from #m_varMeasReportList, so submission of related
      * measurement reports to eNodeB will be suspended.

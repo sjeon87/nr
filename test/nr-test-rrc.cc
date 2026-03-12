@@ -468,7 +468,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
 
     NS_LOG_INFO("UeRrc state is: " << ueRrc->GetState());
 
-    // Verifying UE context state in eNodeB RRC.
+    // Verifying UE context state in gNB RRC.
 
     Ptr<NrGnbNetDevice> nrGnbDevice = gnbDevice->GetObject<NrGnbNetDevice>();
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
@@ -489,7 +489,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
     else
     {
         NS_LOG_WARN(this << " RNTI " << rnti << " thinks that it has"
-                         << " established connection but the eNodeB thinks"
+                         << " established connection but the gNB thinks"
                          << " that the UE has failed on connection setup.");
         /*
          * The standard specifies that this case would exceed the maximum
@@ -535,7 +535,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
             ueManager->GetAttribute("DataRadioBearerMap", gnbDataRadioBearerMapValue);
             NS_TEST_ASSERT_MSG_EQ(gnbDataRadioBearerMapValue.GetN(),
                                   m_nBearers,
-                                  "wrong num bearers at eNB");
+                                  "wrong num bearers at gNB");
             ObjectMapValue ueDataRadioBearerMapValue;
             ueRrc->GetAttribute("DataRadioBearerMap", ueDataRadioBearerMapValue);
             NS_TEST_ASSERT_MSG_EQ(ueDataRadioBearerMapValue.GetN(),
@@ -572,7 +572,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
             }
 
             NS_ASSERT_MSG(gnbBearerIt == gnbDataRadioBearerMapValue.End(),
-                          "too many bearers at eNB");
+                          "too many bearers at gNB");
             NS_ASSERT_MSG(ueBearerIt == ueDataRadioBearerMapValue.End(), "too many bearers at UE");
         }
     }

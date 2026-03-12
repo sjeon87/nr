@@ -402,7 +402,7 @@ class NrRrcAsn1Header : public NrAsn1Header
 
 /**
  * This class only serves to discriminate which message type has been received
- * in uplink (ue to eNb) for channel DCCH
+ * in uplink (ue to gNB) for channel DCCH
  */
 class NrRrcUlDcchMessage : public NrRrcAsn1Header
 {
@@ -433,7 +433,7 @@ class NrRrcUlDcchMessage : public NrRrcAsn1Header
 
 /**
  * This class only serves to discriminate which message type has been received
- * in downlink (eNb to ue) for channel DCCH
+ * in downlink (gNB to ue) for channel DCCH
  */
 class NrRrcDlDcchMessage : public NrRrcAsn1Header
 {
@@ -464,7 +464,7 @@ class NrRrcDlDcchMessage : public NrRrcAsn1Header
 
 /**
  * This class only serves to discriminate which message type has been received
- * in uplink (ue to eNb) for channel CCCH
+ * in uplink (ue to gNB) for channel CCCH
  */
 class NrRrcUlCcchMessage : public NrRrcAsn1Header
 {
@@ -495,7 +495,7 @@ class NrRrcUlCcchMessage : public NrRrcAsn1Header
 
 /**
  * This class only serves to discriminate which message type has been received
- * in downlink (eNb to ue) for channel CCCH
+ * in downlink (gNB to ue) for channel CCCH
  */
 class NrRrcDlCcchMessage : public NrRrcAsn1Header
 {

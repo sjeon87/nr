@@ -578,7 +578,7 @@ class NrSpectrumPhy : public SpectrumPhy
     /// different UE) and at each time instant where the interference changes.
     void UpdateMimoSinrPerceived(const std::vector<MimoSinrChunk>& sinr);
     /**
-     * @return true if this class is inside an enb/gnb
+     * @return true if this class is inside an gnb
      */
     bool IsGnb() const;
 

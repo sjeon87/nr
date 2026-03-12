@@ -132,7 +132,7 @@ NrEpcSgwApplication::RecvFromS5uSocket(Ptr<Socket> socket)
     uint32_t teid = gtpu.GetTeid();
 
     Ipv4Address gnbAddr = m_gnbByTeidMap[teid];
-    NS_LOG_DEBUG("eNB " << gnbAddr << " TEID " << teid);
+    NS_LOG_DEBUG("gNB " << gnbAddr << " TEID " << teid);
     SendToS1uSocket(packet, gnbAddr, teid);
 }
 
@@ -225,7 +225,7 @@ NrEpcSgwApplication::DoRecvCreateSessionRequest(Ptr<Packet> packet)
     auto gnbit = m_gnbInfoByCellId.find(cellId);
     NS_ASSERT_MSG(gnbit != m_gnbInfoByCellId.end(), "unknown CellId " << cellId);
     Ipv4Address gnbAddr = gnbit->second.gnbAddr;
-    NS_LOG_DEBUG("eNB " << gnbAddr);
+    NS_LOG_DEBUG("gNB " << gnbAddr);
 
     NrGtpcHeader::Fteid_t mmeS11Fteid = msg.GetSenderCpFteid();
     NS_ASSERT_MSG(mmeS11Fteid.interfaceType == NrGtpcHeader::S11_MME_GTPC, "wrong interface type");
@@ -291,7 +291,7 @@ NrEpcSgwApplication::DoRecvModifyFlowRequest(Ptr<Packet> packet)
     auto gnbit = m_gnbInfoByCellId.find(cellId);
     NS_ASSERT_MSG(gnbit != m_gnbInfoByCellId.end(), "unknown CellId " << cellId);
     Ipv4Address gnbAddr = gnbit->second.gnbAddr;
-    NS_LOG_DEBUG("eNB " << gnbAddr);
+    NS_LOG_DEBUG("gNB " << gnbAddr);
 
     NrGtpcModifyFlowRequestMessage msgOut;
     msgOut.SetImsi(imsi);

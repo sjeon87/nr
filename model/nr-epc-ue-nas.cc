@@ -147,7 +147,7 @@ NrEpcUeNas::Connect(uint16_t cellId, uint32_t arfcn)
 {
     NS_LOG_FUNCTION(this << cellId << arfcn);
 
-    // force the UE RRC to be camped on a specific eNB
+    // force the UE RRC to be camped on a specific gNB
     m_asSapProvider->ForceCampedOnGnb(cellId, arfcn);
 
     // tell RRC to go into connected mode

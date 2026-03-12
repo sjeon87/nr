@@ -801,9 +801,9 @@ NrUeManager::RecvHandoverRequestAck(NrEpcX2SapUser::HandoverRequestAckParams par
         if (handoverCommand.nonCriticalExtension.sCellToAddModList.size() + 1 !=
             m_rrc->m_numberOfComponentCarriers)
         {
-            // Currently handover is only possible if source and target eNBs have equal number of
+            // Currently handover is only possible if source and target gNBs have equal number of
             // component carriers
-            NS_FATAL_ERROR("The source and target eNBs have unequal number of component carriers. "
+            NS_FATAL_ERROR("The source and target gNBs have unequal number of component carriers. "
                            "Target gNB CCs = "
                            << handoverCommand.nonCriticalExtension.sCellToAddModList.size() + 1
                            << " Source gNB CCs = " << m_rrc->m_numberOfComponentCarriers);
@@ -1091,7 +1091,7 @@ NrUeManager::SendRrcConnectionRelease()
 
     /**
      * Bearer de-activation indication towards epc-gnb application
-     * and removal of UE context at the eNodeB
+     * and removal of UE context at the gNB
      *
      */
     m_rrc->DoRecvIdealUeContextRemoveRequest(m_rnti);
@@ -1683,14 +1683,14 @@ NrUeManager::BuildNonCriticalExtensionConfigurationCa()
             ccId++;
         }
 
-        Ptr<BandwidthPartGnb> eNbCcm = it.second;
+        Ptr<BandwidthPartGnb> gnbCcm = it.second;
         NrRrcSap::SCellToAddMod component;
         component.sCellIndex = ccId;
-        component.cellIdentification.physCellId = eNbCcm->GetCellId();
-        component.cellIdentification.dlCarrierFreq = eNbCcm->GetArfcn();
+        component.cellIdentification.physCellId = gnbCcm->GetCellId();
+        component.cellIdentification.dlCarrierFreq = gnbCcm->GetArfcn();
         component.radioResourceConfigCommonSCell.haveNonUlConfiguration = true;
         component.radioResourceConfigCommonSCell.nonUlConfiguration.dlBandwidth =
-            eNbCcm->GetDlBandwidth();
+            gnbCcm->GetDlBandwidth();
         component.radioResourceConfigCommonSCell.nonUlConfiguration.antennaInfoCommon
             .antennaPortsCount = 0;
         component.radioResourceConfigCommonSCell.nonUlConfiguration.pdschConfigCommon
@@ -1698,9 +1698,9 @@ NrUeManager::BuildNonCriticalExtensionConfigurationCa()
         component.radioResourceConfigCommonSCell.nonUlConfiguration.pdschConfigCommon.pb = 0;
         component.radioResourceConfigCommonSCell.haveUlConfiguration = true;
         component.radioResourceConfigCommonSCell.ulConfiguration.ulFreqInfo.ulCarrierFreq =
-            eNbCcm->GetArfcn();
+            gnbCcm->GetArfcn();
         component.radioResourceConfigCommonSCell.ulConfiguration.ulFreqInfo.ulBandwidth =
-            eNbCcm->GetUlBandwidth();
+            gnbCcm->GetUlBandwidth();
         component.radioResourceConfigCommonSCell.ulConfiguration.ulPowerControlCommonSCell.alpha =
             0;
         // component.radioResourceConfigCommonSCell.ulConfiguration.soundingRsUlConfigCommon.type =
@@ -2540,7 +2540,7 @@ NrGnbRrc::HandoverJoiningTimeout(uint16_t rnti)
         /**
          * When the handover joining timer expires at the target cell,
          * then notify the source cell to release the RRC connection and
-         * delete the UE context at eNodeB and SGW/PGW. The
+         * delete the UE context at gNB and SGW/PGW. The
          * HandoverPreparationFailure message is reused to notify the source cell
          * through the X2 interface instead of creating a new message.
          */
@@ -2750,7 +2750,7 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
         /**
          * When the maximum non-contention based preambles is reached, then it is considered
          * handover has failed and source cell is notified to release the RRC connection and delete
-         * the UE context at eNodeB and SGW/PGW.
+         * the UE context at gNB and SGW/PGW.
          */
         ueManager = GetUeManager(rnti);
         NrEpcX2Sap::HandoverPreparationFailureParams msg = ueManager->BuildHoPrepFailMsg();

@@ -143,12 +143,12 @@ SchedTemporalFairnessTestCase::DoRun()
     allBwps = CcBwpCreator::GetAllBwps({band});
 
     // Create gNB and UE network devices
-    NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice(gnbContainer, allBwps);
+    NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gnbContainer, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueContainer, allBwps);
 
     // Assign random variable streams for reproducible results
     int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(enbNetDev, randomStream);
+    randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
     randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
 
     // Create the Internet and install the IP stack on the UEs
@@ -162,7 +162,7 @@ SchedTemporalFairnessTestCase::DoRun()
     ueIpIface = epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
 
     // Attach each UE to its gNB according to desired scenario
-    nrHelper->AttachToClosestGnb(ueNetDev, enbNetDev);
+    nrHelper->AttachToClosestGnb(ueNetDev, gnbNetDev);
 
     // Install dlPacketSink applications on UEs to receive CBR traffic from remote host
     uint16_t dlPort = 1234;
