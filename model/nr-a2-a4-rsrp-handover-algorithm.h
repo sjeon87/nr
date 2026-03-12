@@ -54,7 +54,7 @@ namespace ns3
  *     NodeContainer gnbNodes;
  *     // configure the nodes here...
  *
- *     nrHelper->SetHandoverAlgorithmType ("ns3::NrA2A4RsrqHandoverAlgorithm");
+ *     nrHelper->SetHandoverAlgorithmType ("ns3::NrA2A4RsrpHandoverAlgorithm");
  *     nrHelper->SetHandoverAlgorithmAttribute ("ServingCellThreshold",
  *                                               UintegerValue (30));
  *     nrHelper->SetHandoverAlgorithmAttribute ("NeighbourCellOffset",
@@ -65,13 +65,13 @@ namespace ns3
  *       NrHelper::InstallGnbDevice does not have any effect to the devices
  *       that have already been installed.
  */
-class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
+class NrA2A4RsrpHandoverAlgorithm : public NrHandoverAlgorithm
 {
   public:
     /// Creates an A2-A4-RSRQ handover algorithm instance.
-    NrA2A4RsrqHandoverAlgorithm();
+    NrA2A4RsrpHandoverAlgorithm();
 
-    ~NrA2A4RsrqHandoverAlgorithm() override;
+    ~NrA2A4RsrpHandoverAlgorithm() override;
 
     /**
      * @brief Get the type ID.
@@ -84,7 +84,7 @@ class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
     NrHandoverManagementSapProvider* GetNrHandoverManagementSapProvider() override;
 
     /// let the forwarder class access the protected and private members
-    friend class MemberNrHandoverManagementSapProvider<NrA2A4RsrqHandoverAlgorithm>;
+    friend class MemberNrHandoverManagementSapProvider<NrA2A4RsrpHandoverAlgorithm>;
 
   protected:
     // inherited from Object
@@ -176,7 +176,7 @@ class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
     /// Receive API calls from the gNB RRC instance.
     NrHandoverManagementSapProvider* m_handoverManagementSapProvider;
 
-}; // end of class NrA2A4RsrqHandoverAlgorithm
+}; // end of class NrA2A4RsrpHandoverAlgorithm
 
 } // end of namespace ns3
 

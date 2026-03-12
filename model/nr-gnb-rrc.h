@@ -427,6 +427,15 @@ class NrUeManager : public Object
     NrEpcX2Sap::HandoverCancelParams BuildHoCancelMsg();
 
     /**
+     * @brief Starts the handover joining timer for the UE.
+     * This method schedules the handover joining timeout event if the UE is in the HANDOVER_JOINING
+     * state. The timer is set to expire after the duration specified by
+     * m_handoverJoiningTimeoutDuration. Upon expiration, the HandoverJoiningTimeout callback
+     * is invoked on the gNB RRC with the UE's RNTI.
+     */
+    void StartHandoverJoiningTimer();
+
+    /**
      * TracedCallback signature for state transition events.
      *
      * @param [in] imsi
@@ -624,6 +633,14 @@ class NrUeManager : public Object
      * Complete from the UE.
      */
     std::list<std::pair<uint8_t, Ptr<Packet>>> m_packetBuffer;
+
+    // Deferred handover support
+    // A handover request may arrive while the UE is still in
+    // CONNECTION_SETUP (e.g. when the test schedules it at a fixed time).
+    // We store the target cell here and trigger PrepareHandover() as soon
+    // as RecvRrcConnectionSetupCompleted() moves us to CONNECTED_NORMALLY.
+    // 0 means no pending handover.
+    uint16_t m_pendingHandoverTargetCellId{0};
 
 }; // end of `class NrUeManager`
 

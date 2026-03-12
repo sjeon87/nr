@@ -30,6 +30,7 @@
 #include "ns3/nr-gnb-mac.h"
 #include "ns3/nr-gnb-net-device.h"
 #include "ns3/nr-gnb-phy.h"
+#include "ns3/nr-handover-algorithm.h"
 #include "ns3/nr-initial-association.h"
 #include "ns3/nr-mac-scheduler-tdma-rr.h"
 #include "ns3/nr-pm-search-full.h"
@@ -750,6 +751,8 @@ NrHelper::InstallSingleGnbDevice(
     NS_ABORT_MSG_IF(m_cellIdCounter == 65535, "max num gNBs exceeded");
 
     Ptr<NrGnbNetDevice> dev = m_gnbNetDeviceFactory.Create<NrGnbNetDevice>();
+    Ptr<NrHandoverAlgorithm> handoverAlgorithm =
+        m_handoverAlgorithmFactory.Create<NrHandoverAlgorithm>();
 
     NS_LOG_DEBUG("Creating gNB, cellId = " << m_cellIdCounter);
     uint16_t cellId = m_cellIdCounter++; // New cellId
@@ -816,6 +819,10 @@ NrHelper::InstallSingleGnbDevice(
         DynamicCast<NrGnbComponentCarrierManager>(CreateObject<BwpManagerGnb>());
     DynamicCast<BwpManagerGnb>(ccmGnbManager)
         ->SetBwpManagerAlgorithm(m_gnbBwpManagerAlgoFactory.Create<BwpManagerAlgorithm>());
+
+    rrc->SetNrHandoverManagementSapProvider(
+        handoverAlgorithm->GetNrHandoverManagementSapProvider());
+    handoverAlgorithm->SetNrHandoverManagementSapUser(rrc->GetNrHandoverManagementSapUser());
 
     // Convert Gnb carrier map to only PhyConf map
     // we want to make RRC to be generic, to be able to work with any type of carriers, not only
@@ -926,6 +933,7 @@ NrHelper::InstallSingleGnbDevice(
     dev->SetAttribute("NrGnbComponentCarrierManager", PointerValue(ccmGnbManager));
     dev->SetCcMap(ccMap);
     dev->SetAttribute("NrGnbRrc", PointerValue(rrc));
+    dev->SetAttribute("NrHandoverAlgorithm", PointerValue(handoverAlgorithm));
 
     n->AddDevice(dev);
 

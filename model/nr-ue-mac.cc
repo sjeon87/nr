@@ -1274,8 +1274,7 @@ NrUeMac::SendRaPreamble(bool contention)
         m_raPreambleId += preambleOverflow;
         g_raPreambleId += preambleOverflow;
     }
-    /*raRnti should be subframeNo -1 */
-    m_raRnti = 1;
+    m_raRnti = 1; // todo: set proper RA-RNTI
 
     // 3GPP 36.321 5.1.4
     m_phySapProvider->SendRachPreamble(m_raPreambleId, m_raRnti);
@@ -1302,7 +1301,7 @@ NrUeMac::StartWaitingForRaResponse()
 
 void
 NrUeMac::DoStartNonContentionBasedRandomAccessProcedure(uint16_t rnti,
-                                                        [[maybe_unused]] uint8_t preambleId,
+                                                        uint8_t preambleId,
                                                         uint8_t prachMask)
 {
     NS_LOG_FUNCTION(this << rnti << (uint16_t)preambleId << (uint16_t)prachMask);

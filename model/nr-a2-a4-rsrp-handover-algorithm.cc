@@ -11,7 +11,7 @@
 // Converted to handover algorithm interface by:
 //   Budiarto Herman <budiarto.herman@magister.fi>
 
-#include "nr-a2-a4-rsrq-handover-algorithm.h"
+#include "nr-a2-a4-rsrp-handover-algorithm.h"
 
 #include "ns3/log.h"
 #include "ns3/uinteger.h"
@@ -21,37 +21,37 @@
 namespace ns3
 {
 
-NS_LOG_COMPONENT_DEFINE("NrA2A4RsrqHandoverAlgorithm");
+NS_LOG_COMPONENT_DEFINE("NrA2A4RsrpHandoverAlgorithm");
 
-NS_OBJECT_ENSURE_REGISTERED(NrA2A4RsrqHandoverAlgorithm);
+NS_OBJECT_ENSURE_REGISTERED(NrA2A4RsrpHandoverAlgorithm);
 
 ///////////////////////////////////////////
 // Handover Management SAP forwarder
 ///////////////////////////////////////////
 
-NrA2A4RsrqHandoverAlgorithm::NrA2A4RsrqHandoverAlgorithm()
+NrA2A4RsrpHandoverAlgorithm::NrA2A4RsrpHandoverAlgorithm()
     : m_servingCellThreshold(30),
       m_neighbourCellOffset(1),
       m_handoverManagementSapUser(nullptr)
 {
     NS_LOG_FUNCTION(this);
     m_handoverManagementSapProvider =
-        new MemberNrHandoverManagementSapProvider<NrA2A4RsrqHandoverAlgorithm>(this);
+        new MemberNrHandoverManagementSapProvider<NrA2A4RsrpHandoverAlgorithm>(this);
 }
 
-NrA2A4RsrqHandoverAlgorithm::~NrA2A4RsrqHandoverAlgorithm()
+NrA2A4RsrpHandoverAlgorithm::~NrA2A4RsrpHandoverAlgorithm()
 {
     NS_LOG_FUNCTION(this);
 }
 
 TypeId
-NrA2A4RsrqHandoverAlgorithm::GetTypeId()
+NrA2A4RsrpHandoverAlgorithm::GetTypeId()
 {
     static TypeId tid =
-        TypeId("ns3::NrA2A4RsrqHandoverAlgorithm")
+        TypeId("ns3::NrA2A4RsrpHandoverAlgorithm")
             .SetParent<NrHandoverAlgorithm>()
             .SetGroupName("Nr")
-            .AddConstructor<NrA2A4RsrqHandoverAlgorithm>()
+            .AddConstructor<NrA2A4RsrpHandoverAlgorithm>()
             .AddAttribute(
                 "ServingCellThreshold",
                 "If the RSRQ of the serving cell is worse than this "
@@ -59,34 +59,36 @@ NrA2A4RsrqHandoverAlgorithm::GetTypeId()
                 "Expressed in quantized range of [0..34] as per Section "
                 "9.1.7 of 3GPP TS 36.133.",
                 UintegerValue(30),
-                MakeUintegerAccessor(&NrA2A4RsrqHandoverAlgorithm::m_servingCellThreshold),
-                MakeUintegerChecker<uint8_t>(0, 34))
+                MakeUintegerAccessor(&NrA2A4RsrpHandoverAlgorithm::m_servingCellThreshold),
+                MakeUintegerChecker<uint8_t>(
+                    0,
+                    127)) // todo: revert to RSRQ limit once implemented. Using RSRP
             .AddAttribute("NeighbourCellOffset",
                           "Minimum offset between the serving and the best neighbour "
                           "cell to trigger the handover. Expressed in quantized "
                           "range of [0..34] as per Section 9.1.7 of 3GPP TS 36.133.",
                           UintegerValue(1),
-                          MakeUintegerAccessor(&NrA2A4RsrqHandoverAlgorithm::m_neighbourCellOffset),
+                          MakeUintegerAccessor(&NrA2A4RsrpHandoverAlgorithm::m_neighbourCellOffset),
                           MakeUintegerChecker<uint8_t>());
     return tid;
 }
 
 void
-NrA2A4RsrqHandoverAlgorithm::SetNrHandoverManagementSapUser(NrHandoverManagementSapUser* s)
+NrA2A4RsrpHandoverAlgorithm::SetNrHandoverManagementSapUser(NrHandoverManagementSapUser* s)
 {
     NS_LOG_FUNCTION(this << s);
     m_handoverManagementSapUser = s;
 }
 
 NrHandoverManagementSapProvider*
-NrA2A4RsrqHandoverAlgorithm::GetNrHandoverManagementSapProvider()
+NrA2A4RsrpHandoverAlgorithm::GetNrHandoverManagementSapProvider()
 {
     NS_LOG_FUNCTION(this);
     return m_handoverManagementSapProvider;
 }
 
 void
-NrA2A4RsrqHandoverAlgorithm::DoInitialize()
+NrA2A4RsrpHandoverAlgorithm::DoInitialize()
 {
     NS_LOG_FUNCTION(this);
 
@@ -94,9 +96,10 @@ NrA2A4RsrqHandoverAlgorithm::DoInitialize()
                       << " (threshold=" << (uint16_t)m_servingCellThreshold << ")");
     NrRrcSap::ReportConfigEutra reportConfigA2;
     reportConfigA2.eventId = NrRrcSap::ReportConfigEutra::EVENT_A2;
-    reportConfigA2.threshold1.choice = NrRrcSap::ThresholdEutra::THRESHOLD_RSRQ;
+    reportConfigA2.threshold1.choice =
+        NrRrcSap::ThresholdEutra::THRESHOLD_RSRP; // todo: implement RSRQ
     reportConfigA2.threshold1.range = m_servingCellThreshold;
-    reportConfigA2.triggerQuantity = NrRrcSap::ReportConfigEutra::RSRQ;
+    reportConfigA2.triggerQuantity = NrRrcSap::ReportConfigEutra::RSRP; // todo: implement RSRQ
     reportConfigA2.reportInterval = NrRrcSap::ReportConfigEutra::MS240;
     m_a2MeasIds = m_handoverManagementSapUser->AddUeMeasReportConfigForHandover(reportConfigA2);
 
@@ -104,9 +107,10 @@ NrA2A4RsrqHandoverAlgorithm::DoInitialize()
                       << " (threshold=0)");
     NrRrcSap::ReportConfigEutra reportConfigA4;
     reportConfigA4.eventId = NrRrcSap::ReportConfigEutra::EVENT_A4;
-    reportConfigA4.threshold1.choice = NrRrcSap::ThresholdEutra::THRESHOLD_RSRQ;
-    reportConfigA4.threshold1.range = 0; // intentionally very low threshold
-    reportConfigA4.triggerQuantity = NrRrcSap::ReportConfigEutra::RSRQ;
+    reportConfigA4.threshold1.choice =
+        NrRrcSap::ThresholdEutra::THRESHOLD_RSRP; // todo: implement RSRQ
+    reportConfigA4.threshold1.range = 0;          // intentionally very low threshold
+    reportConfigA4.triggerQuantity = NrRrcSap::ReportConfigEutra::RSRP; // todo: implement RSRQ
     reportConfigA4.reportInterval = NrRrcSap::ReportConfigEutra::MS480;
     m_a4MeasIds = m_handoverManagementSapUser->AddUeMeasReportConfigForHandover(reportConfigA4);
 
@@ -114,23 +118,23 @@ NrA2A4RsrqHandoverAlgorithm::DoInitialize()
 }
 
 void
-NrA2A4RsrqHandoverAlgorithm::DoDispose()
+NrA2A4RsrpHandoverAlgorithm::DoDispose()
 {
     NS_LOG_FUNCTION(this);
     delete m_handoverManagementSapProvider;
 }
 
 void
-NrA2A4RsrqHandoverAlgorithm::DoReportUeMeas(uint16_t rnti, NrRrcSap::MeasResults measResults)
+NrA2A4RsrpHandoverAlgorithm::DoReportUeMeas(uint16_t rnti, NrRrcSap::MeasResults measResults)
 {
     NS_LOG_FUNCTION(this << rnti << (uint16_t)measResults.measId);
 
     if (std::find(begin(m_a2MeasIds), end(m_a2MeasIds), measResults.measId) !=
         std::end(m_a2MeasIds))
     {
-        NS_ASSERT_MSG(measResults.measResultPCell.rsrqResult <= m_servingCellThreshold,
+        NS_ASSERT_MSG(measResults.measResultPCell.rsrpResult <= m_servingCellThreshold,
                       "Invalid UE measurement report");
-        EvaluateHandover(rnti, measResults.measResultPCell.rsrqResult);
+        EvaluateHandover(rnti, measResults.measResultPCell.rsrpResult);
     }
     else if (std::find(begin(m_a4MeasIds), end(m_a4MeasIds), measResults.measId) !=
              std::end(m_a4MeasIds))
@@ -141,9 +145,9 @@ NrA2A4RsrqHandoverAlgorithm::DoReportUeMeas(uint16_t rnti, NrRrcSap::MeasResults
                  it != measResults.measResultListEutra.end();
                  ++it)
             {
-                NS_ASSERT_MSG(it->haveRsrqResult == true,
+                NS_ASSERT_MSG(it->haveRsrpResult == true,
                               "RSRQ measurement is missing from cellId " << it->physCellId);
-                UpdateNeighbourMeasurements(rnti, it->physCellId, it->rsrqResult);
+                UpdateNeighbourMeasurements(rnti, it->physCellId, it->rsrpResult);
             }
         }
         else
@@ -160,7 +164,7 @@ NrA2A4RsrqHandoverAlgorithm::DoReportUeMeas(uint16_t rnti, NrRrcSap::MeasResults
 } // end of DoReportUeMeas
 
 void
-NrA2A4RsrqHandoverAlgorithm::EvaluateHandover(uint16_t rnti, uint8_t servingCellRsrq)
+NrA2A4RsrpHandoverAlgorithm::EvaluateHandover(uint16_t rnti, uint8_t servingCellRsrq)
 {
     NS_LOG_FUNCTION(this << rnti << (uint16_t)servingCellRsrq);
 
@@ -179,10 +183,10 @@ NrA2A4RsrqHandoverAlgorithm::EvaluateHandover(uint16_t rnti, uint8_t servingCell
         uint8_t bestNeighbourRsrq = 0;
         for (auto it2 = it1->second.begin(); it2 != it1->second.end(); ++it2)
         {
-            if ((it2->second->m_rsrq > bestNeighbourRsrq) && IsValidNeighbour(it2->first))
+            if ((it2->second->m_rsrp > bestNeighbourRsrq) && IsValidNeighbour(it2->first))
             {
                 bestNeighbourCellId = it2->first;
-                bestNeighbourRsrq = it2->second->m_rsrq;
+                bestNeighbourRsrq = it2->second->m_rsrp;
             }
         }
 
@@ -194,8 +198,8 @@ NrA2A4RsrqHandoverAlgorithm::EvaluateHandover(uint16_t rnti, uint8_t servingCell
             if ((bestNeighbourRsrq - servingCellRsrq) >= m_neighbourCellOffset)
             {
                 NS_LOG_LOGIC("Trigger Handover to cellId " << bestNeighbourCellId);
-                NS_LOG_LOGIC("target cell RSRQ " << (uint16_t)bestNeighbourRsrq);
-                NS_LOG_LOGIC("serving cell RSRQ " << (uint16_t)servingCellRsrq);
+                NS_LOG_LOGIC("target cell RSRP " << (uint16_t)bestNeighbourRsrq);
+                NS_LOG_LOGIC("serving cell RSRP " << (uint16_t)servingCellRsrq);
 
                 // Inform gNB RRC about handover
                 m_handoverManagementSapUser->TriggerHandover(rnti, bestNeighbourCellId);
@@ -207,7 +211,7 @@ NrA2A4RsrqHandoverAlgorithm::EvaluateHandover(uint16_t rnti, uint8_t servingCell
 } // end of EvaluateMeasurementReport
 
 bool
-NrA2A4RsrqHandoverAlgorithm::IsValidNeighbour(uint16_t cellId)
+NrA2A4RsrpHandoverAlgorithm::IsValidNeighbour(uint16_t cellId)
 {
     NS_LOG_FUNCTION(this << cellId);
 
@@ -221,7 +225,7 @@ NrA2A4RsrqHandoverAlgorithm::IsValidNeighbour(uint16_t cellId)
 }
 
 void
-NrA2A4RsrqHandoverAlgorithm::UpdateNeighbourMeasurements(uint16_t rnti,
+NrA2A4RsrpHandoverAlgorithm::UpdateNeighbourMeasurements(uint16_t rnti,
                                                          uint16_t cellId,
                                                          uint8_t rsrq)
 {
@@ -245,7 +249,7 @@ NrA2A4RsrqHandoverAlgorithm::UpdateNeighbourMeasurements(uint16_t rnti,
     {
         neighbourCellMeasures = it2->second;
         neighbourCellMeasures->m_cellId = cellId;
-        neighbourCellMeasures->m_rsrp = 0;
+        neighbourCellMeasures->m_rsrp = rsrq; // todo: set to 0 when RSRQ is implemented
         neighbourCellMeasures->m_rsrq = rsrq;
     }
     else
@@ -253,7 +257,7 @@ NrA2A4RsrqHandoverAlgorithm::UpdateNeighbourMeasurements(uint16_t rnti,
         // insert a new cell entry
         neighbourCellMeasures = Create<UeMeasure>();
         neighbourCellMeasures->m_cellId = cellId;
-        neighbourCellMeasures->m_rsrp = 0;
+        neighbourCellMeasures->m_rsrp = rsrq; // todo: set to 0 when RSRQ is implemented
         neighbourCellMeasures->m_rsrq = rsrq;
         it1->second[cellId] = neighbourCellMeasures;
     }

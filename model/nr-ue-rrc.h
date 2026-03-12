@@ -1376,6 +1376,30 @@ class NrUeRrc : public Object
     void ResetRlfParams();
     std::size_t GetArfcnBwpId(uint32_t arfcn) const;
 
+    // Multi-BWP RACH lock
+    /** True while a RACH procedure is in progress on any BWP. */
+    bool m_rachInProgress{false};
+    /** BWP/CC index that owns the running RACH procedure. */
+    uint8_t m_rachBwpId{255};
+    /** Simulation time after which the lock expires unconditionally. */
+    Time m_rachDeadline{Seconds(0)};
+    /** Fallback timer: force-clears the lock if RACH never completes.
+     *  Fires at m_rachDeadline + 10 ms. */
+    EventId m_rachTimeoutEvent;
+    /**
+     * Maximum expected duration of one full RACH procedure.
+     */
+    Time m_rachLockDuration{MilliSeconds(120)};
+    /**
+     * @brief Clears the RACH (Random Access Channel) lock state for the UE
+     *
+     * This function resets the state variables related to the RACH procedure. It
+     * marks the RACH as not in progress, resets the BWP (Bandwidth Part) ID
+     * associated with the RACH, clears any configured RACH deadline, and cancels
+     * the pending RACH timeout event if one exists.
+     */
+    void ClearRachLock();
+
   public:
     /**
      * The number of component carriers.
