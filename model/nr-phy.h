@@ -442,6 +442,8 @@ class NrPhy : public Object
      */
     static uint32_t FrequencyHzToArfcn(double freqHz);
 
+    virtual void RegisterToGnb(uint16_t cellId);
+
     /**
      * Retrieves the Absolute Radio Frequency Channel Number (ARFCN)
      * of BWP associated with current NrPhy instance.

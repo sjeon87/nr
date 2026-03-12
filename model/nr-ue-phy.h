@@ -215,7 +215,7 @@ class NrUePhy : public NrPhy
      *
      *
      */
-    void RegisterToGnb(uint16_t bwpId);
+    void RegisterToGnb(uint16_t cellId) override;
 
     /**
      * @brief Set the AMC pointer from the GNB
