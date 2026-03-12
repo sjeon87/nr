@@ -1212,6 +1212,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
     if (!alloc.m_buildRarList.empty())
     {
         Ptr<NrRarMessage> ulMsg3DciMsg = Create<NrRarMessage>();
+        ulMsg3DciMsg->SetRaRnti(1); // todo: set proper RA-RNTI
         for (const auto& rarIt : alloc.m_buildRarList)
         {
             NrRarMessage::Rar rar{};

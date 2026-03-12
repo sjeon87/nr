@@ -56,7 +56,7 @@ struct CheckPointEvent
 /**
  * @ingroup nr-test
  *
- * @brief Test different X2 handover measures and algorithms, e.g. NrA2A4RsrqHandoverAlgorithm and
+ * @brief Test different X2 handover measures and algorithms, e.g. NrA2A4RsrpHandoverAlgorithm and
  * NrA3RsrpHandoverAlgorithm. Test defines different handover parameters and scenario
  * configurations.
  */
@@ -273,10 +273,10 @@ NrX2HandoverMeasuresTestCase::DoRun()
     m_nrHelper->SetAttribute("UseIdealRrc", BooleanValue(m_useIdealRrc));
     m_nrHelper->SetSchedulerTypeId(TypeId::LookupByName(m_schedulerType));
 
-    if (m_handoverAlgorithmType == "ns3::NrA2A4RsrqHandoverAlgorithm")
+    if (m_handoverAlgorithmType == "ns3::NrA2A4RsrpHandoverAlgorithm")
     {
-        m_nrHelper->SetHandoverAlgorithmType("ns3::NrA2A4RsrqHandoverAlgorithm");
-        m_nrHelper->SetHandoverAlgorithmAttribute("ServingCellThreshold", UintegerValue(30));
+        m_nrHelper->SetHandoverAlgorithmType("ns3::NrA2A4RsrpHandoverAlgorithm");
+        m_nrHelper->SetHandoverAlgorithmAttribute("ServingCellThreshold", UintegerValue(37));
         m_nrHelper->SetHandoverAlgorithmAttribute("NeighbourCellOffset", UintegerValue(1));
     }
     else if (m_handoverAlgorithmType == "ns3::NrA3RsrpHandoverAlgorithm")
@@ -601,10 +601,15 @@ NrX2HandoverMeasuresTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDev
     Ptr<NrUeNetDevice> nrUeDevice = ueDevice->GetObject<NrUeNetDevice>();
     Ptr<NrUeRrc> ueRrc = nrUeDevice->GetRrc();
     NS_TEST_ASSERT_MSG_EQ(ueRrc->GetState(), NrUeRrc::CONNECTED_NORMALLY, "Wrong NrUeRrc state!");
+    uint16_t rnti = ueRrc->GetRnti();
 
     Ptr<NrGnbNetDevice> nrGnbDevice = gnbDevice->GetObject<NrGnbNetDevice>();
+    NS_TEST_ASSERT_MSG_EQ(ueRrc->GetCellId(),
+                          nrGnbDevice->GetCellId(),
+                          "IMSI " << ueRrc->GetImsi() << " connected to CellId "
+                                  << ueRrc->GetCellId() << " instead of expected "
+                                  << nrGnbDevice->GetCellId());
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
-    uint16_t rnti = ueRrc->GetRnti();
     Ptr<NrUeManager> nrUeManager = gnbRrc->GetUeManager(rnti);
     NS_TEST_ASSERT_MSG_NE(nrUeManager, nullptr, "RNTI " << rnti << " not found in gNB");
 
@@ -788,7 +793,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
     };
 
     std::string sched = "ns3::NrMacSchedulerTdmaPF";
-    std::string ho = "ns3::NrA2A4RsrqHandoverAlgorithm";
+    std::string ho = "ns3::NrA2A4RsrpHandoverAlgorithm";
     for (auto useIdealRrc : {true, /*false*/})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, ho, admitHo, idealRrc

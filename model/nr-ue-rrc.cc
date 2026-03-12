@@ -539,6 +539,7 @@ NrUeRrc::SetUseRlcSm(bool val)
 void
 NrUeRrc::SetPrimaryUlIndex(uint16_t ulIndex)
 {
+    NS_LOG_FUNCTION(this << +ulIndex);
     m_primaryUlIndex = ulIndex;
 }
 
@@ -551,6 +552,7 @@ NrUeRrc::GetPrimaryUlIndex() const
 void
 NrUeRrc::SetPrimaryDlIndex(uint16_t dlIndex)
 {
+    NS_LOG_FUNCTION(this << +dlIndex);
     m_primaryDlIndex = dlIndex;
 }
 
@@ -704,7 +706,7 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
 {
     NS_LOG_FUNCTION(this << m_imsi << ToString(m_state));
     m_randomAccessSuccessfulTrace(m_imsi, m_cellId, m_rnti);
-
+    ClearRachLock();
     switch (m_state)
     {
     case IDLE_RANDOM_ACCESS: {
@@ -749,7 +751,7 @@ NrUeRrc::DoNotifyRandomAccessFailed()
 {
     NS_LOG_FUNCTION(this << m_imsi << ToString(m_state));
     m_randomAccessErrorTrace(m_imsi, m_cellId, m_rnti);
-
+    ClearRachLock();
     switch (m_state)
     {
     case IDLE_RANDOM_ACCESS: {
@@ -923,10 +925,33 @@ NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
     NS_LOG_FUNCTION(this);
-    if ((m_previousCellId == cellId) && (cellId != m_cellId))
+
+    // Guard 1 – serving-cell filter.
+    // While connected/connecting, reject SIB1 from any cell that is not the
+    // current serving cell; it would otherwise re-trigger cell selection.
+    if (m_state == CONNECTED_NORMALLY || m_state == IDLE_CONNECTING)
     {
-        // Receiving an old control message, we just ignore for now
-        return;
+        if (cellId != m_cellId)
+        {
+            NS_LOG_INFO("NrUeRrc: Discarding SIB1 from non-serving cell="
+                        << cellId << " (serving=" << m_cellId << " state=" << ToString(m_state)
+                        << " bwp=" << GetPrimaryDlIndex() << ")");
+            return;
+        }
+    }
+
+    // Guard 2 – multi-BWP RACH lock.
+    // If a RACH is already in-flight on a different BWP, discard until the
+    // deadline expires or the procedure completes (see ClearRachLock()).
+    if (m_rachInProgress && Simulator::Now() < m_rachDeadline)
+    {
+        if (GetPrimaryDlIndex() != m_rachBwpId)
+        {
+            NS_LOG_INFO("NrUeRrc: Discarding SIB1 — RACH in-flight on bwp="
+                        << +m_rachBwpId << " deadline=" << m_rachDeadline.As(Time::MS)
+                        << " ignored bwp=" << GetPrimaryDlIndex() << " cellId=" << cellId);
+            return;
+        }
     }
     switch (m_state)
     {
@@ -3283,11 +3308,46 @@ NrUeRrc::SendMeasurementReport(uint8_t measId)
 }
 
 void
+NrUeRrc::ClearRachLock()
+{
+    NS_LOG_FUNCTION(this << m_imsi);
+    m_rachInProgress = false;
+    m_rachBwpId = UINT8_MAX;
+    m_rachDeadline = Seconds(0);
+    m_rachTimeoutEvent.Cancel();
+}
+
+void
 NrUeRrc::StartConnection()
 {
     NS_LOG_FUNCTION(this << m_imsi);
     NS_ASSERT(m_hasReceivedMib);
     NS_ASSERT(m_hasReceivedSib2);
+
+    // Covers raResponseWindow (up to 40 slots) + contentionResolutionTimer
+    // (up to 64 ms) + processing margin.
+    // 120 ms is safe for FR1. 20 ms is safe for FR2.
+    if (m_lastSib1.servingCellConfigCommon.numerology >= 3)
+    {
+        m_rachLockDuration = MilliSeconds(20);
+    }
+    else
+    {
+        m_rachLockDuration = MilliSeconds(120);
+    }
+
+    // Set RACH lock, blocking other BWPs from calling StartConnection()
+    // concurrently via their own SIB1/MIB pipeline until we finish or timeout.
+    m_rachInProgress = true;
+    m_rachBwpId = static_cast<uint8_t>(GetPrimaryDlIndex());
+    m_rachDeadline = Simulator::Now() + m_rachLockDuration;
+    if (m_rachTimeoutEvent.IsPending())
+    {
+        m_rachTimeoutEvent.Cancel();
+    }
+    m_rachTimeoutEvent =
+        Simulator::Schedule(m_rachLockDuration + MilliSeconds(10), &NrUeRrc::ClearRachLock, this);
+
     m_connectionPending = false; // reset the flag
     SwitchToState(IDLE_RANDOM_ACCESS);
     m_cmacSapProvider.at(GetPrimaryUlIndex())->StartContentionBasedRandomAccessProcedure();
