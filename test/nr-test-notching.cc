@@ -50,6 +50,8 @@ class TestNotchingPhySapProvider : public NrPhySapProvider
     uint32_t GetRbNum() const override;
     BeamId GetBeamId(uint8_t rnti) const override;
     void SetParams(uint32_t numOfUesPerBeam, uint32_t numOfBeams);
+    void RegisterToGnb(uint16_t cellId) override;
+    uint32_t GetArfcn() const override;
 
   private:
     uint32_t m_sapNumOfUesPerBeam = 0;
@@ -159,6 +161,17 @@ TestNotchingPhySapProvider::GetBeamId(uint8_t rnti) const
         }
     }
     return beamId;
+}
+
+void
+TestNotchingPhySapProvider::RegisterToGnb(uint16_t cellId)
+{
+}
+
+uint32_t
+TestNotchingPhySapProvider::GetArfcn() const
+{
+    return 0;
 }
 
 class TestNotchingGnbMac : public NrGnbMac
