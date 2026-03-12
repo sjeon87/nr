@@ -591,7 +591,10 @@ NrUeRrc::InitializeSrb0()
     lcConfig.fiveQi = NrQosFlow::GBR_CONV_VOICE;
     NrMacSapUser* msu =
         m_ccmRrcSapProvider->ConfigureSignalBearer(lcid, lcConfig, rlc->GetNrMacSapUser());
-    m_cmacSapProvider.at(GetPrimaryUlIndex())->AddLc(lcid, lcConfig, msu);
+    for (auto& mac : m_cmacSapProvider)
+    {
+        mac->AddLc(lcid, lcConfig, msu);
+    }
 }
 
 void
