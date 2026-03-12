@@ -46,7 +46,7 @@ class NrUeMeasurementsTestSuite : public TestSuite
  * @ingroup nr-test
  *
  * @brief Test that UE measurements calculation works properly in a scenario
- * with 2 eNodeBs and 2UEs. Test that RSRP and RSRQ of the serving cell and of
+ * with 2 gNBs and 2UEs. Test that RSRP and RSRQ of the serving cell and of
  * the neighbor cell correspond to the reference values.
  */
 class NrUeMeasurementsTestCase : public TestCase
@@ -126,11 +126,11 @@ class NrUeMeasurementsPiecewiseTestSuite1 : public TestSuite
 /**
  * @ingroup nr-test
  *
- * @brief Testing UE measurements in NR with simulation of 1 eNodeB and 1 UE in
+ * @brief Testing UE measurements in NR with simulation of 1 gNB and 1 UE in
  *        piecewise configuration and 120 ms report interval. During the simulation
  *        the placement of UE is being changed several times. Four different
- *        cases are considered: UE is very near to eNodeB, UE is near to eNodeB,
- *        UE is far from eNodeB and UE is very far from eNodeB. Test checks
+ *        cases are considered: UE is very near to gNB, UE is near to gNB,
+ *        UE is far from gNB and UE is very far from gNB. Test checks
  *        if the measurements correspond to the real conditions of the UE, i.e.
  *        when the signal from serving cell becomes weak, the measurements should
  *        also start to correspond to the new channel conditions. Additionally, it
@@ -159,7 +159,7 @@ class NrUeMeasurementsPiecewiseTestCase1 : public TestCase
     ~NrUeMeasurementsPiecewiseTestCase1() override;
 
     /**
-     * @brief Triggers when eNodeB receives measurement report from UE, then
+     * @brief Triggers when gNB receives measurement report from UE, then
      *        perform verification on it.
      *
      * The trigger is set up beforehand by connecting to the
@@ -211,7 +211,7 @@ class NrUeMeasurementsPiecewiseTestCase1 : public TestCase
 
     /**
      * @brief The list of expected time when measurement reports are received by
-     *        eNodeB.
+     *        gNB.
      */
     std::vector<Time> m_expectedTime;
 
@@ -261,7 +261,7 @@ class NrUeMeasurementsPiecewiseTestSuite2 : public TestSuite
 /**
  * @ingroup nr-test
  *
- * @brief Testing UE measurements in NR with simulation of 2 eNodeB and 1 UE in
+ * @brief Testing UE measurements in NR with simulation of 2 gNB and 1 UE in
  *        piecewise configuration and 240 ms report interval.
  *        Here is intenisvely test events A1 and A2. A1 event should be triggered
  *        when the serving cell becomes better than a given threshold. A2 shall
@@ -294,7 +294,7 @@ class NrUeMeasurementsPiecewiseTestCase2 : public TestCase
     ~NrUeMeasurementsPiecewiseTestCase2() override;
 
     /**
-     * @brief Triggers when eNodeB receives measurement report from UE, then
+     * @brief Triggers when gNB receives measurement report from UE, then
      *        perform verification on it.
      *
      * The trigger is set up beforehand by connecting to the
@@ -346,7 +346,7 @@ class NrUeMeasurementsPiecewiseTestCase2 : public TestCase
 
     /**
      * @brief The list of expected time when measurement reports are received by
-     *        eNodeB.
+     *        gNB.
      */
     std::vector<Time> m_expectedTime;
 
@@ -396,7 +396,7 @@ class NrUeMeasurementsPiecewiseTestSuite3 : public TestSuite
 /**
  * @ingroup nr-test
  *
- * @brief Testing UE measurements in NR with simulation of 3 eNodeB and 1 UE in
+ * @brief Testing UE measurements in NR with simulation of 3 gNB and 1 UE in
  *        piecewise configuration and 240 ms report interval.
  *        This test is to cover a corner case using event A4, which is not
  *        covered by NrUeMeasurementsPiecewiseTestCase1 and
@@ -411,7 +411,7 @@ class NrUeMeasurementsPiecewiseTestSuite3 : public TestSuite
  *        SendMeasurementReport method again causes following buggy behaviors:
  *
  *        1. It generates an intermediate measurement event, which then leads
- *        to parallel intermediate measurement reports from a UE to its eNB.
+ *        to parallel intermediate measurement reports from a UE to its gNB.
  *
  *        2. The old EvenId is overwritten by the new EventId stored in
  *        VarMeasReportList. This makes us lose control over the old EventId
@@ -445,7 +445,7 @@ class NrUeMeasurementsPiecewiseTestCase3 : public TestCase
     ~NrUeMeasurementsPiecewiseTestCase3() override;
 
     /**
-     * @brief Triggers when eNodeB receives measurement report from UE, then
+     * @brief Triggers when gNB receives measurement report from UE, then
      *        perform verification on it.
      *
      * The trigger is set up beforehand by connecting to the
@@ -491,7 +491,7 @@ class NrUeMeasurementsPiecewiseTestCase3 : public TestCase
 
     /**
      * @brief The list of expected time when measurement reports are received by
-     *        eNodeB.
+     *        gNB.
      */
     std::vector<Time> m_expectedTime;
 
@@ -529,7 +529,7 @@ class NrUeMeasurementsHandoverTestSuite : public TestSuite
 /**
  * @ingroup nr-test
  *
- * @brief Testing UE measurements in NR with simulation of 2 eNodeB and 1 UE in
+ * @brief Testing UE measurements in NR with simulation of 2 gNB and 1 UE in
  *        a handover configuration.
  *
  * The simulation will run for the specified duration, while the handover
@@ -566,7 +566,7 @@ class NrUeMeasurementsHandoverTestCase : public TestCase
     ~NrUeMeasurementsHandoverTestCase() override;
 
     /**
-     * @brief Triggers when either one of the eNodeBs receives measurement report
+     * @brief Triggers when either one of the gNBs receives measurement report
      *        from UE, then perform verification on it.
      *
      * The trigger is set up beforehand by connecting to the
@@ -604,19 +604,19 @@ class NrUeMeasurementsHandoverTestCase : public TestCase
 
     /**
      * @brief The list of active report triggering configuration for the source
-     *        eNodeB.
+     *        gNB.
      */
     std::list<NrRrcSap::ReportConfigEutra> m_sourceConfigList;
 
     /**
      * @brief The list of active report triggering configuration for the target
-     *        eNodeB.
+     *        gNB.
      */
     std::list<NrRrcSap::ReportConfigEutra> m_targetConfigList;
 
     /**
      * @brief The list of expected time when measurement reports are received by
-     *        eNodeB.
+     *        gNB.
      */
     std::vector<Time> m_expectedTime;
 

@@ -1045,44 +1045,44 @@ NrHelper::DoHandoverRequest(Ptr<NetDevice> ueDev,
 
 void
 NrHelper::AttachToMaxRsrpGnb(const NetDeviceContainer& ueDevices,
-                             const NetDeviceContainer& enbDevices)
+                             const NetDeviceContainer& gnbDevices)
 {
     NS_LOG_FUNCTION(this);
-    NS_ASSERT_MSG(enbDevices.GetN() > 0, "gNB container should not be empty");
+    NS_ASSERT_MSG(gnbDevices.GetN() > 0, "gNB container should not be empty");
     for (auto i = ueDevices.Begin(); i != ueDevices.End(); i++)
     {
         // Since UE may not be attached to any gNB, it won't be properly configured via MIB
         // so we configure its numerology manually here. All gNBs numerology must match.
         {
             auto ueNetDevCast = DynamicCast<NrUeNetDevice>(*i);
-            auto gnbNetDevCast = DynamicCast<NrGnbNetDevice>(enbDevices.Get(0));
+            auto gnbNetDevCast = DynamicCast<NrGnbNetDevice>(gnbDevices.Get(0));
             ueNetDevCast->GetPhy(0)->SetNumerology(gnbNetDevCast->GetPhy(0)->GetNumerology());
         }
 
         // attach the UE to the highest RSRP gNB (this will change with active panel)
-        Simulator::ScheduleNow([=, this]() { AttachToMaxRsrpGnb(*i, enbDevices); });
+        Simulator::ScheduleNow([=, this]() { AttachToMaxRsrpGnb(*i, gnbDevices); });
     }
 }
 
 void
-NrHelper::AttachToMaxRsrpGnb(const Ptr<NetDevice>& ueDevice, const NetDeviceContainer& enbDevices)
+NrHelper::AttachToMaxRsrpGnb(const Ptr<NetDevice>& ueDevice, const NetDeviceContainer& gnbDevices)
 {
     NS_LOG_FUNCTION(this);
 
-    NS_ASSERT_MSG(enbDevices.GetN() > 0, "empty enb device container");
+    NS_ASSERT_MSG(gnbDevices.GetN() > 0, "empty gNB device container");
 
     auto nrInitAssoc = m_initialAttachmentFactory.Create<NrInitialAssociation>();
     ueDevice->GetObject<NrUeNetDevice>()->SetInitAssoc(nrInitAssoc);
 
     nrInitAssoc->SetUeDevice(ueDevice);
-    nrInitAssoc->SetGnbDevices(enbDevices);
+    nrInitAssoc->SetGnbDevices(gnbDevices);
     nrInitAssoc->SetColBeamAngles(m_initialParams.colAngles);
     nrInitAssoc->SetRowBeamAngles(m_initialParams.rowAngles);
     nrInitAssoc->FindAssociatedGnb();
-    auto maxRsrpEnbDevice = nrInitAssoc->GetAssociatedGnb();
-    NS_ASSERT(maxRsrpEnbDevice);
+    auto maxRsrpGnbDevice = nrInitAssoc->GetAssociatedGnb();
+    NS_ASSERT(maxRsrpGnbDevice);
 
-    AttachToGnb(ueDevice, maxRsrpEnbDevice);
+    AttachToGnb(ueDevice, maxRsrpGnbDevice);
 }
 
 void

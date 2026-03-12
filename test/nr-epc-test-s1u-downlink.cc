@@ -63,7 +63,7 @@ NrUeDlTestData::NrUeDlTestData(uint32_t n, uint32_t s)
 /**
  * @ingroup nr-test
  *
- * @brief Custom structure for testing eNodeB downlink data, contains
+ * @brief Custom structure for testing gNB downlink data, contains
  * the list of data structures for UEs
  */
 struct GnbDlTestData
@@ -83,7 +83,7 @@ class NrEpcS1uDlTestCase : public TestCase
      * Constructor
      *
      * @param name the name of the test case instance
-     * @param v list of eNodeB downlink test data information
+     * @param v list of gNB downlink test data information
      */
     NrEpcS1uDlTestCase(std::string name, std::vector<GnbDlTestData> v);
     ~NrEpcS1uDlTestCase() override;
@@ -142,7 +142,7 @@ NrEpcS1uDlTestCase::DoRun()
         CsmaHelper csmaCell;
         NetDeviceContainer cellDevices = csmaCell.Install(cell);
 
-        // the eNB's CSMA NetDevice acting as an NR NetDevice.
+        // the gNB's CSMA NetDevice acting as an NR NetDevice.
         Ptr<NetDevice> gnbDevice = cellDevices.Get(cellDevices.GetN() - 1);
 
         // Note that the NrEpcGnbApplication won't care of the actual NetDevice type
@@ -239,7 +239,7 @@ NrEpcS1uDlTestSuite::NrEpcS1uDlTestSuite()
     NrUeDlTestData f1(1, 100);
     e1.ues.push_back(f1);
     v1.push_back(e1);
-    AddTestCase(new NrEpcS1uDlTestCase("1 eNB, 1UE", v1), TestCase::Duration::QUICK);
+    AddTestCase(new NrEpcS1uDlTestCase("1 gNB, 1UE", v1), TestCase::Duration::QUICK);
 
     std::vector<GnbDlTestData> v2;
     GnbDlTestData e2;
@@ -248,12 +248,12 @@ NrEpcS1uDlTestSuite::NrEpcS1uDlTestSuite()
     NrUeDlTestData f2_2(2, 200);
     e2.ues.push_back(f2_2);
     v2.push_back(e2);
-    AddTestCase(new NrEpcS1uDlTestCase("1 eNB, 2UEs", v2), TestCase::Duration::QUICK);
+    AddTestCase(new NrEpcS1uDlTestCase("1 gNB, 2UEs", v2), TestCase::Duration::QUICK);
 
     std::vector<GnbDlTestData> v3;
     v3.push_back(e1);
     v3.push_back(e2);
-    AddTestCase(new NrEpcS1uDlTestCase("2 eNBs", v3), TestCase::Duration::QUICK);
+    AddTestCase(new NrEpcS1uDlTestCase("2 gNBs", v3), TestCase::Duration::QUICK);
 
     GnbDlTestData e3;
     NrUeDlTestData f3_1(3, 50);
@@ -266,14 +266,14 @@ NrEpcS1uDlTestSuite::NrEpcS1uDlTestSuite()
     v4.push_back(e3);
     v4.push_back(e1);
     v4.push_back(e2);
-    AddTestCase(new NrEpcS1uDlTestCase("3 eNBs", v4), TestCase::Duration::QUICK);
+    AddTestCase(new NrEpcS1uDlTestCase("3 gNBs", v4), TestCase::Duration::QUICK);
 
     std::vector<GnbDlTestData> v5;
     GnbDlTestData e5;
     NrUeDlTestData f5(10, 3000);
     e5.ues.push_back(f5);
     v5.push_back(e5);
-    AddTestCase(new NrEpcS1uDlTestCase("1 eNB, 10 pkts 3000 bytes each", v5),
+    AddTestCase(new NrEpcS1uDlTestCase("1 gNB, 10 pkts 3000 bytes each", v5),
                 TestCase::Duration::QUICK);
 
     std::vector<GnbDlTestData> v6;
@@ -281,7 +281,7 @@ NrEpcS1uDlTestSuite::NrEpcS1uDlTestSuite()
     NrUeDlTestData f6(50, 3000);
     e6.ues.push_back(f6);
     v6.push_back(e6);
-    AddTestCase(new NrEpcS1uDlTestCase("1 eNB, 50 pkts 3000 bytes each", v6),
+    AddTestCase(new NrEpcS1uDlTestCase("1 gNB, 50 pkts 3000 bytes each", v6),
                 TestCase::Duration::QUICK);
 
     std::vector<GnbDlTestData> v7;
@@ -289,7 +289,7 @@ NrEpcS1uDlTestSuite::NrEpcS1uDlTestSuite()
     NrUeDlTestData f7(10, 15000);
     e7.ues.push_back(f7);
     v7.push_back(e7);
-    AddTestCase(new NrEpcS1uDlTestCase("1 eNB, 10 pkts 15000 bytes each", v7),
+    AddTestCase(new NrEpcS1uDlTestCase("1 gNB, 10 pkts 15000 bytes each", v7),
                 TestCase::Duration::QUICK);
 
     std::vector<GnbDlTestData> v8;
@@ -297,6 +297,6 @@ NrEpcS1uDlTestSuite::NrEpcS1uDlTestSuite()
     NrUeDlTestData f8(100, 15000);
     e8.ues.push_back(f8);
     v8.push_back(e8);
-    AddTestCase(new NrEpcS1uDlTestCase("1 eNB, 100 pkts 15000 bytes each", v8),
+    AddTestCase(new NrEpcS1uDlTestCase("1 gNB, 100 pkts 15000 bytes each", v8),
                 TestCase::Duration::QUICK);
 }

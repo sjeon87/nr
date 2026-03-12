@@ -3277,7 +3277,7 @@ NrUeRrc::SendMeasurementReport(uint8_t measId)
         measReportIt->second.periodicReportTimer =
             Simulator::Schedule(reportInterval, &NrUeRrc::SendMeasurementReport, this, measId);
 
-        // send the measurement report to eNodeB
+        // send the measurement report to gNB
         m_rrcSapUser->SendMeasurementReport(measurementReport);
     }
 }

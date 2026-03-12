@@ -40,7 +40,7 @@ namespace ns3
  * offset, then the second condition of handover is fulfilled.
  *
  * When the first and second conditions above are fulfilled, the algorithm
- * informs the eNodeB RRC to trigger a handover.
+ * informs the gNB RRC to trigger a handover.
  *
  * The threshold for Event A2 can be configured in the `ServingCellThreshold`
  * attribute. The offset used in the second condition can also be configured by
@@ -171,9 +171,9 @@ class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
      */
     uint8_t m_neighbourCellOffset;
 
-    /// Interface to the eNodeB RRC instance.
+    /// Interface to the gNB RRC instance.
     NrHandoverManagementSapUser* m_handoverManagementSapUser;
-    /// Receive API calls from the eNodeB RRC instance.
+    /// Receive API calls from the gNB RRC instance.
     NrHandoverManagementSapProvider* m_handoverManagementSapProvider;
 
 }; // end of class NrA2A4RsrqHandoverAlgorithm

@@ -19,7 +19,7 @@ namespace ns3
  *  by MAC to CCM.
  *
  * This is the *Component Carrier Manager SAP Provider*, i.e., the part of the SAP
- * that contains the MAC methods called by the eNodeB CCM
+ * that contains the MAC methods called by the gNB CCM
  * instance.
  */
 class NrCcmMacSapProvider
@@ -53,7 +53,7 @@ class NrCcmMacSapProvider
  *
  * This is the *CCM MAC SAP User*, i.e., the part of the SAP
  * that contains the component carrier manager methods called
- * by the eNodeB MAC instance.
+ * by the gNB MAC instance.
  */
 class NrCcmMacSapUser : public NrMacSapUser
 {

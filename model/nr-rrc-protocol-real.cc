@@ -666,7 +666,7 @@ NrGnbRrcProtocolReal::DoSendRrcConnectionRelease(uint16_t rnti, NrRrcSap::RrcCon
      * Send RRC connection release in an idle way to ensure UE goes
      * to idle mode during handover failure and connection setup timeout.
      * Implemented to avoid unnecessary triggering of assert msgs due to reception of
-     * msgs (SRS CQI reports) from UE after UE context is deleted at eNodeB.
+     * msgs (SRS CQI reports) from UE after UE context is deleted at gNB.
      * TODO: Detection of handover failure and connection setup timeout at UE,
      * so that the RRC connection release can be sent through the physical channel again.
      */

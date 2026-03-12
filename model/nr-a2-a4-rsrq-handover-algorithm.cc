@@ -173,7 +173,7 @@ NrA2A4RsrqHandoverAlgorithm::EvaluateHandover(uint16_t rnti, uint8_t servingCell
     }
     else
     {
-        // Find the best neighbour cell (eNB)
+        // Find the best neighbour cell (gNB)
         NS_LOG_LOGIC("Number of neighbour cells = " << it1->second.size());
         uint16_t bestNeighbourCellId = 0;
         uint8_t bestNeighbourRsrq = 0;
@@ -197,7 +197,7 @@ NrA2A4RsrqHandoverAlgorithm::EvaluateHandover(uint16_t rnti, uint8_t servingCell
                 NS_LOG_LOGIC("target cell RSRQ " << (uint16_t)bestNeighbourRsrq);
                 NS_LOG_LOGIC("serving cell RSRQ " << (uint16_t)servingCellRsrq);
 
-                // Inform eNodeB RRC about handover
+                // Inform gNB RRC about handover
                 m_handoverManagementSapUser->TriggerHandover(rnti, bestNeighbourCellId);
             }
         }

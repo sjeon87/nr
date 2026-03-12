@@ -249,7 +249,7 @@ main(int argc, char* argv[])
         dlClient.SetAttribute("PacketSize", UintegerValue(100));
         clientApps.Add(dlClient.Install(remoteHost));
     }
-    // attach UEs to the closest eNB
+    // attach UEs to the closest gNB
     nrHelper->AttachToClosestGnb(ueNetDev, gNbNetDev);
     // start UDP server and client apps
     serverApps.Start(udpTime);

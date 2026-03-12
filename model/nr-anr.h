@@ -33,12 +33,12 @@ class NrNeighbourRelation;
  *
  * ANR is a conceptually a list of neighbouring cells called the Neighbour
  * Relation Table (NRT). ANR has the capability of automatically inserting new
- * entries into NRT based on measurement reports obtained from the eNodeB RRC
+ * entries into NRT based on measurement reports obtained from the gNB RRC
  * instance. Besides this, ANR also supports manual insertion and accepts
  * queries for the NRT content.
  *
- * The NrHelper class automatically installs one ANR instance for each eNodeB
- * RRC instance. When installed, ANR will assist the eNodeB RRC's handover
+ * The NrHelper class automatically installs one ANR instance for each gNB
+ * RRC instance. When installed, ANR will assist the gNB RRC's handover
  * function, e.g., by preventing an X2-based handover execution if there is no
  * X2 interface to the target neighbour cell. If this is not desired, it can be
  * disabled by the following code sample:
@@ -46,9 +46,9 @@ class NrNeighbourRelation;
  *     Config::SetDefault ("ns3::NrHelper::AnrEnabled", BooleanValue (false));
  *     Ptr<NrHelper> nrHelper = CreateObject<NrHelper> ();
  *
- * The communication between an ANR instance and the eNodeB RRC instance is done
+ * The communication between an ANR instance and the gNB RRC instance is done
  * through the *ANR SAP* interface. The ANR instance corresponds to the
- * "provider" part of this interface, while the eNodeB RRC instance takes the
+ * "provider" part of this interface, while the gNB RRC instance takes the
  * role of the "user" part. The following code skeleton establishes the
  * connection between both instances:
  *
@@ -70,7 +70,7 @@ class NrAnr : public Object
   public:
     /**
      * @brief Creates an ANR instance.
-     * @param servingCellId the cell ID of the eNodeB instance whom this ANR
+     * @param servingCellId the cell ID of the gNB instance whom this ANR
      *                      instance is to be associated with
      */
     NrAnr(uint16_t servingCellId);
@@ -156,7 +156,7 @@ class NrAnr : public Object
     /**
      * @brief Implementation of NrAnrSapProvider::GetNoHo.
      * @param cellId the Physical Cell ID of the neighbouring cell of interest
-     * @return if true, the Neighbour Relation shall *not* be used by the eNodeB
+     * @return if true, the Neighbour Relation shall *not* be used by the gNB
      *         for handover reasons
      */
     bool DoGetNoHo(uint16_t cellId) const;
@@ -165,7 +165,7 @@ class NrAnr : public Object
      * @brief Implementation of NrAnrSapProvider::GetNoX2.
      * @param cellId the Physical Cell ID of the neighbouring cell of interest
      * @return if true, the Neighbour Relation shall *not* use an X2 interface in
-     *         order to initiate procedures towards the eNodeB parenting the
+     *         order to initiate procedures towards the gNB parenting the
      *         target cell
      */
     bool DoGetNoX2(uint16_t cellId) const;
@@ -180,7 +180,7 @@ class NrAnr : public Object
 
     /**
      * @brief Reference to the "user" part of the ANR SAP interface, which is
-     *        provided by the eNodeB RRC instance.
+     *        provided by the gNB RRC instance.
      */
     NrAnrSapUser* m_anrSapUser;
 
@@ -190,7 +190,7 @@ class NrAnr : public Object
     uint8_t m_threshold;
 
     /**
-     * @brief Neighbour Relation between two eNodeBs (serving eNodeB and neighbour
+     * @brief Neighbour Relation between two gNBs (serving eNodeB and neighbour
      *        eNodeB).
      */
     struct NeighbourRelation_t

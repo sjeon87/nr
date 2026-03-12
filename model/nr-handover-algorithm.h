@@ -21,8 +21,8 @@ class NrHandoverManagementSapProvider;
  * @brief The abstract base class of a handover algorithm that operates using
  *        the Handover Management SAP interface.
  *
- * Handover algorithm receives measurement reports from an eNodeB RRC instance
- * and tells the eNodeB RRC instance when to do a handover.
+ * Handover algorithm receives measurement reports from an gNB RRC instance
+ * and tells the gNB RRC instance when to do a handover.
  *
  * This class is an abstract class intended to be inherited by subclasses that
  * implement its virtual methods. By inheriting from this abstract class, the
@@ -32,9 +32,9 @@ class NrHandoverManagementSapProvider;
  * NrHelper::SetHandoverAlgorithmType and
  * NrHelper::SetHandoverAlgorithmAttribute methods).
  *
- * The communication with the eNodeB RRC instance is done through the *Handover
+ * The communication with the gNB RRC instance is done through the *Handover
  * Management SAP* interface. The handover algorithm instance corresponds to the
- * "provider" part of this interface, while the eNodeB RRC instance takes the
+ * "provider" part of this interface, while the gNB RRC instance takes the
  * role of the "user" part. The following code skeleton establishes the
  * connection between both instances:
  *
