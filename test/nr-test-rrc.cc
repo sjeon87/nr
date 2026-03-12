@@ -278,9 +278,6 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
     m_nrHelper = CreateObject<NrHelper>();
     m_nrHelper->SetAttribute("CsiFeedbackFlags", UintegerValue(CsiFeedbackFlag::CQI_PDSCH_SISO));
     m_nrHelper->SetAttribute("UseIdealRrc", BooleanValue(m_useIdealRrc));
-    auto bandwidthAndBWPPair =
-        m_nrHelper->CreateBandwidthParts({{2.8e9, 10e6, static_cast<uint8_t>(m_isFdd ? 2 : 1)}},
-                                         "UMa");
 
     // Override the default antenna model with IsotropicAntennaModel
     m_nrHelper->SetUeAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
@@ -686,9 +683,26 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
     m_nrHelper->SetAttribute("CsiFeedbackFlags", UintegerValue(CsiFeedbackFlag::CQI_PDSCH_SISO));
     m_nrHelper->SetAttribute("UseIdealRrc", BooleanValue(m_useIdealRrc));
 
-    auto bandwidthAndBWPPair =
-        m_nrHelper->CreateBandwidthParts({{2.8e9, 10e6, static_cast<uint8_t>(m_isFdd ? 2 : 1)}},
-                                         "UMa");
+    // Override the default antenna model with IsotropicAntennaModel
+    m_nrHelper->SetUeAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+    m_nrHelper->SetGnbAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+
+    // Configure Friis propagation loss model before assign it to band
+    Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
+    channelHelper->ConfigurePropagationFactory(FriisPropagationLossModel::GetTypeId());
+
+    // Create and set the channel with the band
+    CcBwpCreator ccBwpCreator;
+    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9,
+                                                   10e6,
+                                                   static_cast<uint8_t>(m_isFdd ? 2 : 1));
+    OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+    channelHelper->AssignChannelsToBands({band});
+
+    // Create bandwidth part from band
+    BandwidthPartInfoPtrVector allBwps;
+    allBwps = CcBwpCreator::GetAllBwps({band});
+
     if (m_isFdd)
     {
         Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
@@ -715,11 +729,11 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
 
     int64_t stream = 1;
     NetDeviceContainer gnbDevs;
-    gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
+    gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
     stream += m_nrHelper->AssignStreams(gnbDevs, stream);
 
     NetDeviceContainer ueDevs;
-    ueDevs = m_nrHelper->InstallUeDevice(ueNodes, bandwidthAndBWPPair.second);
+    ueDevs = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
     stream += m_nrHelper->AssignStreams(ueDevs, stream);
 
     m_nrHelper->AttachToClosestGnb(ueDevs, gnbDevs);
