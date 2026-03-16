@@ -134,6 +134,7 @@ help:
 clean:
 	-rm -rf $(BUILDDIR)/*
 	-rm -f $(IMAGES_BUILD)
+	-rm -f $(FIGURES)/csi-test-fsm.png
 
 copy-sources:  $(SOURCES)
 	@mkdir -p $(FIGURES)
