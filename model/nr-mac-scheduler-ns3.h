@@ -875,8 +875,8 @@ class NrMacSchedulerNs3 : public NrMacScheduler
     uint8_t DoScheduleSrs(PointInFTPlane* spoint, SlotAllocInfo* allocInfo);
 
     static const unsigned m_macHdrSize = 0; //!< Mac Header size
-    static const uint32_t m_subHdrSize = 4; //!< Sub Header size (?)
     static const unsigned m_rlcHdrSize = 3; //!< RLC Header size
+    // The MAC sub header size defined in nr-mac-scheduler-lcg.h
 
   protected:
     /**
