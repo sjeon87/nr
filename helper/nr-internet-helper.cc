@@ -18,6 +18,7 @@ NS_LOG_COMPONENT_DEFINE("NrInternetHelper");
 
 NS_OBJECT_ENSURE_REGISTERED(NrInternetHelper);
 
+
 TypeId
 NrInternetHelper::GetTypeId()
 {
@@ -117,5 +118,55 @@ NrInternetHelper::GetRemoteHostAddress() const
 {
   return m_remoteHostAddr;
 }
+NrInternetEndpoints
+NrInternetHelper::SetupFullInternet(const NodeContainer& ueNodes,
+                                    const NetDeviceContainer& ueDevices,
+                                    const std::string& pgwSubnet,
+                                    const std::string& pgwMask,
+                                    const std::string& ueSubnet,
+                                    const std::string& ueMask)
+{
+  NS_ABORT_MSG_IF(m_epcHelper == nullptr, "NrInternetHelper: EPC helper not set");
 
+  Ptr<Node> pgw = m_epcHelper->GetPgwNode();
+
+  NodeContainer remoteHostContainer;
+  remoteHostContainer.Create(1);
+  m_remoteHost = remoteHostContainer.Get(0);
+
+  InternetStackHelper internet;
+  internet.Install(remoteHostContainer);
+  internet.Install(ueNodes);
+
+  PointToPointHelper p2ph;
+  p2ph.SetDeviceAttribute("DataRate", DataRateValue(m_backhaulRate));
+  p2ph.SetDeviceAttribute("Mtu", UintegerValue(m_backhaulMtu));
+  p2ph.SetChannelAttribute("Delay", TimeValue(m_backhaulDelay));
+
+  NetDeviceContainer internetDevices = p2ph.Install(pgw, m_remoteHost);
+
+  Ipv4AddressHelper pgwIpv4;
+  pgwIpv4.SetBase(pgwSubnet.c_str(), pgwMask.c_str());
+  Ipv4InterfaceContainer internetIfaces = pgwIpv4.Assign(internetDevices);
+  m_remoteHostAddr = internetIfaces.GetAddress(1);
+
+  Ipv4InterfaceContainer ueIfaces = m_epcHelper->AssignUeIpv4Address(ueDevices);
+
+  Ipv4StaticRoutingHelper ipv4RoutingHelper;
+  Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
+    ipv4RoutingHelper.GetStaticRouting(m_remoteHost->GetObject<Ipv4>());
+  remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address(ueSubnet.c_str()),
+                                             Ipv4Mask(ueMask.c_str()),
+                                             1);
+
+  const Ipv4Address gatewayAddress = m_epcHelper->GetUeDefaultGatewayAddress();
+  for (uint32_t i = 0; i < ueNodes.GetN(); ++i)
+  {
+    Ptr<Ipv4StaticRouting> ueStaticRouting =
+      ipv4RoutingHelper.GetStaticRouting(ueNodes.Get(i)->GetObject<Ipv4>());
+    ueStaticRouting->SetDefaultRoute(gatewayAddress, 1);
+  }
+
+  return {m_remoteHost, m_remoteHostAddr, ueIfaces};
+}
 } // namespace ns3

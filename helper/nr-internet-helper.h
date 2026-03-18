@@ -15,7 +15,12 @@
 
 namespace ns3
 {
-
+struct NrInternetEndpoints
+{
+  Ptr<Node> remoteHost;
+  Ipv4Address remoteHostAddress;
+  Ipv4InterfaceContainer ueIfaces;
+};
 class Node;
 class NrEpcHelper;
 
@@ -44,7 +49,12 @@ class NrInternetHelper : public Object
   Ptr<Node> GetRemoteHost() const;
 
   Ipv4Address GetRemoteHostAddress() const;
-
+  NrInternetEndpoints SetupFullInternet(const NodeContainer& ueNodes,
+                                        const NetDeviceContainer& ueDevices,
+                                        const std::string& pgwSubnet = "1.0.0.0",
+                                        const std::string& pgwMask = "255.0.0.0",
+                                        const std::string& ueSubnet = "7.0.0.0",
+                                        const std::string& ueMask = "255.0.0.0");
   private:
   Ptr<NrEpcHelper> m_epcHelper;
   Ptr<Node> m_remoteHost;
