@@ -231,6 +231,62 @@ NrMacSchedulerUeInfo::GetTotalDlBuffer() const
 }
 
 uint32_t
+NrMacSchedulerUeInfo::GetTotalNumDlLc() const
+{
+    NS_LOG_FUNCTION(this);
+
+    uint32_t total = 0;
+    for (const auto& [lcgId, lcg] : m_dlLCG)
+    {
+        total += lcg->NumOfLC();
+    }
+
+    return total;
+}
+
+uint32_t
+NrMacSchedulerUeInfo::GetTotalNumUlLc() const
+{
+    NS_LOG_FUNCTION(this);
+
+    uint32_t total = 0;
+    for (const auto& [lcgId, lcg] : m_ulLCG)
+    {
+        total += lcg->NumOfLC();
+    }
+
+    return total;
+}
+
+uint32_t
+NrMacSchedulerUeInfo::GetTotalNumActiveDlLc() const
+{
+    NS_LOG_FUNCTION(this);
+
+    uint32_t total = 0;
+    for (const auto& [lcgId, lcg] : m_dlLCG)
+    {
+        total += lcg->NumOfActiveLC();
+    }
+
+    return total;
+}
+
+uint32_t
+NrMacSchedulerUeInfo::GetTotalNumActiveUlLc() const
+{
+    NS_LOG_FUNCTION(this);
+
+    uint32_t total = 0;
+    for (const auto& [lcgId, lcg] : m_ulLCG)
+    {
+        total += lcg->NumOfActiveLC();
+    }
+
+    return total;
+}
+
+uint32_t
 NrMacSchedulerUeInfo::GetNumRbPerRbg() const
 {
     return m_getNumRbPerRbg();
