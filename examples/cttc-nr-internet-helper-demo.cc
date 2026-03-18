@@ -7,6 +7,9 @@
 #include "ns3/internet-module.h"
 #include "ns3/mobility-module.h"
 #include "ns3/nr-module.h"
+#include "ns3/nr-metrics-helper.h"
+#include "ns3/nr-radio-setup-helper.h"
+#include "ns3/nr-traffic-helper.h"
 
 using namespace ns3;
 
@@ -55,58 +58,41 @@ main(int argc, char* argv[])
   channelHelper->AssignChannelsToBands({band});
   BandwidthPartInfoPtrVector allBwps = CcBwpCreator::GetAllBwps({band});
 
-  nrHelper->SetGnbAntennaAttribute("NumRows", UintegerValue(4));
-  nrHelper->SetGnbAntennaAttribute("NumColumns", UintegerValue(8));
-  nrHelper->SetUeAntennaAttribute("NumRows", UintegerValue(2));
-  nrHelper->SetUeAntennaAttribute("NumColumns", UintegerValue(4));
+  Ptr<NrRadioSetupHelper> radioSetup = CreateObject<NrRadioSetupHelper>();
+  radioSetup->ApplyAntennaProfile(nrHelper, NrAntennaProfile{4, 8, 2, 4, false});
+  NrInstalledDevices devices =
+    radioSetup->InstallDevices(nrHelper,
+                               gridScenario.GetBaseStations(),
+                               gridScenario.GetUserTerminals(),
+                               allBwps);
 
-  NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gridScenario.GetBaseStations(), allBwps);
-  NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(gridScenario.GetUserTerminals(), allBwps);
+  Ptr<NrInternetHelper> net = CreateObject<NrInternetHelper>();
+  net->SetEpcHelper(nrEpcHelper);
+  net->SetBackhaulAttributes(DataRate("100Gb/s"), 2500, Seconds(0.0));
+  NrInternetEndpoints ep = net->SetupFullInternet(gridScenario.GetUserTerminals(), devices.ue);
 
-  // Internet helper usage starts here.
-  Ptr<NrInternetHelper> nrInternetHelper = CreateObject<NrInternetHelper>();
-  nrInternetHelper->SetEpcHelper(nrEpcHelper);
-  nrInternetHelper->SetBackhaulAttributes(DataRate("100Gb/s"), 2500, Seconds(0.0));
-  nrInternetHelper->SetupRemoteHostIpv4();
+  radioSetup->AttachToClosest(nrHelper, devices.ue, devices.gnb);
 
-  // Install UE stack and assign EPC-managed UE addresses.
-  InternetStackHelper internet;
-  internet.Install(gridScenario.GetUserTerminals());
-  Ipv4InterfaceContainer ueIpIfaces = nrInternetHelper->AssignUeIpv4(ueNetDev);
-  nrInternetHelper->SetupUeIpv4DefaultRoutes(gridScenario.GetUserTerminals());
+  Ptr<NrTrafficHelper> traffic = CreateObject<NrTrafficHelper>();
+  NrUdpFlowSpec dl;
+  dl.direction = NrTrafficDirection::DOWNLINK;
+  dl.port = 1234;
+  dl.packetSize = 100;
+  dl.interval = MilliSeconds(1);
+  dl.start = appStartTime;
+  dl.stop = simTime;
+  traffic->InstallUdpFlow(dl,
+                          ep.remoteHost,
+                          gridScenario.GetUserTerminals(),
+                          ep.ueIfaces,
+                          nrHelper,
+                          devices.ue);
 
-  // Attach after IPv4 is configured on UEs, otherwise default bearer activation asserts.
-  nrHelper->AttachToClosestGnb(ueNetDev, gnbNetDev);
-
-  uint16_t dlPort = 1234;
-  UdpServerHelper dlPacketSink(dlPort);
-  ApplicationContainer serverApps = dlPacketSink.Install(gridScenario.GetUserTerminals());
-
-  UdpClientHelper dlClient;
-  dlClient.SetAttribute("MaxPackets", UintegerValue(0xFFFFFFFF));
-  dlClient.SetAttribute("PacketSize", UintegerValue(100));
-  dlClient.SetAttribute("Interval", TimeValue(Seconds(0.001)));
-
-  ApplicationContainer clientApps;
-  for (uint32_t i = 0; i < ueIpIfaces.GetN(); ++i)
-  {
-    // Configure one downlink UDP source per UE from the remote host.
-    dlClient.SetAttribute("RemoteAddress", AddressValue(ueIpIfaces.GetAddress(i)));
-    dlClient.SetAttribute("RemotePort", UintegerValue(dlPort));
-    clientApps.Add(dlClient.Install(nrInternetHelper->GetRemoteHost()));
-  }
-
-  serverApps.Start(appStartTime);
-  clientApps.Start(appStartTime);
-  serverApps.Stop(simTime);
-  clientApps.Stop(simTime);
-
-  // Observe end-to-end traffic statistics on remote host + UE endpoints.
-  FlowMonitorHelper flowmonHelper;
-  NodeContainer endpointNodes;
-  endpointNodes.Add(nrInternetHelper->GetRemoteHost());
-  endpointNodes.Add(gridScenario.GetUserTerminals());
-  Ptr<FlowMonitor> monitor = flowmonHelper.Install(endpointNodes);
+  Ptr<NrMetricsHelper> metrics = CreateObject<NrMetricsHelper>();
+  NodeContainer endpoints;
+  endpoints.Add(ep.remoteHost);
+  endpoints.Add(gridScenario.GetUserTerminals());
+  Ptr<FlowMonitor> monitor = metrics->InstallFlowMonitor(endpoints);
 
   Simulator::Stop(simTime);
   Simulator::Run();

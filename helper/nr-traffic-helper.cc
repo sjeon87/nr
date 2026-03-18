@@ -3,7 +3,8 @@
 #include "nr-traffic-helper.h"
 
 #include "ns3/applications-module.h"
-#include "ns3/address-value.h"
+#include "ns3/address.h"
+#include "ns3/inet-socket-address.h"
 #include "ns3/log.h"
 #include "ns3/nr-qos-rule.h"
 
@@ -46,8 +47,7 @@ NrTrafficHelper::InstallUdpFlow(const NrUdpFlowSpec& spec,
   ApplicationContainer clientApps;
   for (uint32_t i = 0; i < ueIfaces.GetN(); ++i)
   {
-    client.SetAttribute("RemoteAddress", AddressValue(ueIfaces.GetAddress(i)));
-    client.SetAttribute("RemotePort", UintegerValue(spec.port));
+    client.SetAttribute("Remote", AddressValue(InetSocketAddress(ueIfaces.GetAddress(i), spec.port)));
     clientApps.Add(client.Install(remoteHost));
 
     if (spec.dedicatedQos)
@@ -62,7 +62,7 @@ NrTrafficHelper::InstallUdpFlow(const NrUdpFlowSpec& spec,
       pf.direction = (spec.direction == NrTrafficDirection::UPLINK)
                        ? NrQosRule::UPLINK
                        : NrQosRule::DOWNLINK;
-      rule->AddPacketFilter(pf);
+      rule->Add(pf);
       nrHelper->ActivateDedicatedQosFlow(ueDevices.Get(i), flow, rule);
     }
   }
@@ -77,3 +77,5 @@ NrTrafficHelper::InstallUdpFlow(const NrUdpFlowSpec& spec,
   all.Add(clientApps);
   return all;
 }
+
+} // namespace ns3

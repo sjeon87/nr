@@ -65,6 +65,9 @@ set(source_files
     helper/nr-helper.cc
     helper/nr-mac-rx-trace.cc
     helper/nr-internet-helper.cc
+    helper/nr-radio-setup-helper.cc
+    helper/nr-traffic-helper.cc
+    helper/nr-metrics-helper.cc
     helper/nr-mac-scheduling-stats.cc
     helper/nr-no-backhaul-epc-helper.cc
     helper/nr-phy-rx-trace.cc
@@ -254,6 +257,9 @@ set(header_files
     helper/nr-epc-helper.h
     helper/nr-helper.h
     helper/nr-internet-helper.h
+    helper/nr-radio-setup-helper.h
+    helper/nr-traffic-helper.h
+    helper/nr-metrics-helper.h
     helper/nr-mac-rx-trace.h
     helper/nr-mac-scheduling-stats.h
     helper/nr-no-backhaul-epc-helper.h
