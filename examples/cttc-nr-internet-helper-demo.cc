@@ -63,12 +63,13 @@ main(int argc, char* argv[])
   NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gridScenario.GetBaseStations(), allBwps);
   NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(gridScenario.GetUserTerminals(), allBwps);
 
-  // New helper usage starts here.
+  // Internet helper usage starts here.
   Ptr<NrInternetHelper> nrInternetHelper = CreateObject<NrInternetHelper>();
   nrInternetHelper->SetEpcHelper(nrEpcHelper);
   nrInternetHelper->SetBackhaulAttributes(DataRate("100Gb/s"), 2500, Seconds(0.0));
   nrInternetHelper->SetupRemoteHostIpv4();
 
+  // Install UE stack and assign EPC-managed UE addresses.
   InternetStackHelper internet;
   internet.Install(gridScenario.GetUserTerminals());
   Ipv4InterfaceContainer ueIpIfaces = nrInternetHelper->AssignUeIpv4(ueNetDev);
@@ -89,6 +90,7 @@ main(int argc, char* argv[])
   ApplicationContainer clientApps;
   for (uint32_t i = 0; i < ueIpIfaces.GetN(); ++i)
   {
+    // Configure one downlink UDP source per UE from the remote host.
     dlClient.SetAttribute("RemoteAddress", AddressValue(ueIpIfaces.GetAddress(i)));
     dlClient.SetAttribute("RemotePort", UintegerValue(dlPort));
     clientApps.Add(dlClient.Install(nrInternetHelper->GetRemoteHost()));
@@ -99,6 +101,7 @@ main(int argc, char* argv[])
   serverApps.Stop(simTime);
   clientApps.Stop(simTime);
 
+  // Observe end-to-end traffic statistics on remote host + UE endpoints.
   FlowMonitorHelper flowmonHelper;
   NodeContainer endpointNodes;
   endpointNodes.Add(nrInternetHelper->GetRemoteHost());

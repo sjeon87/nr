@@ -128,6 +128,7 @@ NrInternetHelper::SetupFullInternet(const NodeContainer& ueNodes,
 {
   NS_ABORT_MSG_IF(m_epcHelper == nullptr, "NrInternetHelper: EPC helper not set");
 
+  // Build PGW <-> remote host connectivity.
   Ptr<Node> pgw = m_epcHelper->GetPgwNode();
 
   NodeContainer remoteHostContainer;
@@ -136,6 +137,7 @@ NrInternetHelper::SetupFullInternet(const NodeContainer& ueNodes,
 
   InternetStackHelper internet;
   internet.Install(remoteHostContainer);
+  // UE stack must exist before IP assignment and route setup.
   internet.Install(ueNodes);
 
   PointToPointHelper p2ph;
@@ -150,16 +152,19 @@ NrInternetHelper::SetupFullInternet(const NodeContainer& ueNodes,
   Ipv4InterfaceContainer internetIfaces = pgwIpv4.Assign(internetDevices);
   m_remoteHostAddr = internetIfaces.GetAddress(1);
 
+  // Assign UE addresses through EPC-managed addressing.
   Ipv4InterfaceContainer ueIfaces = m_epcHelper->AssignUeIpv4Address(ueDevices);
 
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
     ipv4RoutingHelper.GetStaticRouting(m_remoteHost->GetObject<Ipv4>());
+  // Route remote-host traffic towards UE subnet via PGW link.
   remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address(ueSubnet.c_str()),
                                              Ipv4Mask(ueMask.c_str()),
                                              1);
 
   const Ipv4Address gatewayAddress = m_epcHelper->GetUeDefaultGatewayAddress();
+  // Set UE default routes towards EPC gateway.
   for (uint32_t i = 0; i < ueNodes.GetN(); ++i)
   {
     Ptr<Ipv4StaticRouting> ueStaticRouting =
