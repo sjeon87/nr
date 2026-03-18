@@ -16,7 +16,7 @@
  * @file nr-test-sched-lc.cc
  * @ingroup test
  *
- * @brief This file contain tests for the round-robin nature of nr-mac-scheduler-lc-rr.
+ * @brief This file contains tests for the round-robin nature of nr-mac-scheduler-lc-rr.
  * It tests that different logical channels get scheduled the necessary amount of bytes,
  * according to their requirements. And if there are leftover bytes, they are distributed
  * properly, so all bytes in a txop are available for use by LCs.
@@ -71,10 +71,10 @@ class NrTestMacSchedLcRr : public TestCase
             m_lcg.emplace(lcgId, std::move(lcgEntry));
             nr::LogicalChannelConfigListElement_s config{.m_fiveQi = 5};
             auto lcEntry = std::make_unique<NrMacSchedulerLC>(config);
-            lcEntry->m_id = lcgId;
+            lcEntry->m_id = 3;
             m_lcg.at(lcgId)->Insert(std::move(lcEntry));
             NrMacSchedSapProvider::SchedDlRlcBufferReqParameters params{};
-            params.m_logicalChannelIdentity = lcgId;
+            params.m_logicalChannelIdentity = 3;
             params.m_rlcTransmissionQueueSize = lcgBytes;
             m_lcg.at(lcgId)->UpdateInfo(params);
         }
