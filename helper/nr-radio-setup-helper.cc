@@ -27,6 +27,7 @@ NrRadioSetupHelper::ApplyAntennaProfile(Ptr<NrHelper> nrHelper, const NrAntennaP
 {
   NS_ABORT_MSG_IF(nrHelper == nullptr, "NrRadioSetupHelper: nrHelper is null");
 
+  // Apply a compact antenna profile used across many NR examples.
   nrHelper->SetGnbAntennaAttribute("NumRows", UintegerValue(profile.gnbRows));
   nrHelper->SetGnbAntennaAttribute("NumColumns", UintegerValue(profile.gnbCols));
   nrHelper->SetUeAntennaAttribute("NumRows", UintegerValue(profile.ueRows));
@@ -46,6 +47,7 @@ NrRadioSetupHelper::InstallDevices(Ptr<NrHelper> nrHelper,
                                    const BandwidthPartInfoPtrVector& bwps)
 {
   NS_ABORT_MSG_IF(nrHelper == nullptr, "NrRadioSetupHelper: nrHelper is null");
+  // Keep gNB/UE install sequence in one call site to reduce boilerplate.
   NrInstalledDevices out;
   out.gnb = nrHelper->InstallGnbDevice(gnbNodes, bwps);
   out.ue = nrHelper->InstallUeDevice(ueNodes, bwps);

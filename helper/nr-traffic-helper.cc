@@ -47,11 +47,13 @@ NrTrafficHelper::InstallUdpFlow(const NrUdpFlowSpec& spec,
   ApplicationContainer clientApps;
   for (uint32_t i = 0; i < ueIfaces.GetN(); ++i)
   {
+    // Use the modern "Remote" attribute to avoid deprecated address/port setters.
     client.SetAttribute("Remote", AddressValue(InetSocketAddress(ueIfaces.GetAddress(i), spec.port)));
     clientApps.Add(client.Install(remoteHost));
 
     if (spec.dedicatedQos)
     {
+      // Optional dedicated QoS activation for traffic matching this UDP flow.
       NrQosFlow flow(spec.fiveQi);
       Ptr<NrQosRule> rule = Create<NrQosRule>();
       NrQosRule::PacketFilter pf;

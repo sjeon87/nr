@@ -24,6 +24,7 @@ void
 NrMetricsHelper::EnableStandardTraces(Ptr<NrHelper> nrHelper, bool enable)
 {
   NS_ABORT_MSG_IF(nrHelper == nullptr, "NrMetricsHelper: nrHelper is null");
+  // Keep trace activation logic centralized for consistency across examples.
   if (enable)
   {
     nrHelper->EnableTraces();
@@ -43,6 +44,7 @@ NrMetricsHelper::ComputeFlowSummary(Ptr<FlowMonitor> monitor,
   NS_ABORT_MSG_IF(monitor == nullptr, "NrMetricsHelper: monitor is null");
 
   NrFlowSummary out;
+  // Standard post-run flow-monitor checks shared by many NR examples.
   monitor->CheckForLostPackets();
   const auto stats = monitor->GetFlowStats();
   out.flowCount = stats.size();

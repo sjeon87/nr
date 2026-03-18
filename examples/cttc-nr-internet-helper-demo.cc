@@ -13,6 +13,22 @@
 
 using namespace ns3;
 
+/**
+ * @ingroup examples
+ * @file cttc-nr-internet-helper-demo.cc
+ * @brief Demonstrates helper-based reduction of repetitive NR scenario setup.
+ *
+ * The example illustrates a compact setup flow based on:
+ * - NrRadioSetupHelper for antenna/device install/attach pattern
+ * - NrInternetHelper for EPC/internet setup pattern
+ * - NrTrafficHelper for UDP + optional QoS flow pattern
+ * - NrMetricsHelper for FlowMonitor installation and KPI collection pattern
+ *
+ * Rationale:
+ * these setup blocks are repeated in many NR examples, and helperization
+ * keeps behavior consistent while reducing boilerplate.
+ */
+
 NS_LOG_COMPONENT_DEFINE("CttcNrInternetHelperDemo");
 
 int
@@ -58,6 +74,7 @@ main(int argc, char* argv[])
   channelHelper->AssignChannelsToBands({band});
   BandwidthPartInfoPtrVector allBwps = CcBwpCreator::GetAllBwps({band});
 
+  // Radio helper centralizes antenna setup + gNB/UE install + UE attach pattern.
   Ptr<NrRadioSetupHelper> radioSetup = CreateObject<NrRadioSetupHelper>();
   radioSetup->ApplyAntennaProfile(nrHelper, NrAntennaProfile{4, 8, 2, 4, false});
   NrInstalledDevices devices =
@@ -66,6 +83,7 @@ main(int argc, char* argv[])
                                gridScenario.GetUserTerminals(),
                                allBwps);
 
+  // Internet helper centralizes remote-host, UE IPv4 assignment, and route setup pattern.
   Ptr<NrInternetHelper> net = CreateObject<NrInternetHelper>();
   net->SetEpcHelper(nrEpcHelper);
   net->SetBackhaulAttributes(DataRate("100Gb/s"), 2500, Seconds(0.0));
@@ -73,6 +91,7 @@ main(int argc, char* argv[])
 
   radioSetup->AttachToClosest(nrHelper, devices.ue, devices.gnb);
 
+  // Traffic helper centralizes UDP app + optional dedicated QoS flow pattern.
   Ptr<NrTrafficHelper> traffic = CreateObject<NrTrafficHelper>();
   NrUdpFlowSpec dl;
   dl.direction = NrTrafficDirection::DOWNLINK;
@@ -88,6 +107,7 @@ main(int argc, char* argv[])
                           nrHelper,
                           devices.ue);
 
+  // Metrics helper centralizes FlowMonitor install and post-run KPI workflow.
   Ptr<NrMetricsHelper> metrics = CreateObject<NrMetricsHelper>();
   NodeContainer endpoints;
   endpoints.Add(ep.remoteHost);
