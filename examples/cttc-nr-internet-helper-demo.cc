@@ -63,8 +63,6 @@ main(int argc, char* argv[])
   NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gridScenario.GetBaseStations(), allBwps);
   NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(gridScenario.GetUserTerminals(), allBwps);
 
-  nrHelper->AttachToClosestGnb(ueNetDev, gnbNetDev);
-
   // New helper usage starts here.
   Ptr<NrInternetHelper> nrInternetHelper = CreateObject<NrInternetHelper>();
   nrInternetHelper->SetEpcHelper(nrEpcHelper);
@@ -75,6 +73,9 @@ main(int argc, char* argv[])
   internet.Install(gridScenario.GetUserTerminals());
   Ipv4InterfaceContainer ueIpIfaces = nrInternetHelper->AssignUeIpv4(ueNetDev);
   nrInternetHelper->SetupUeIpv4DefaultRoutes(gridScenario.GetUserTerminals());
+
+  // Attach after IPv4 is configured on UEs, otherwise default bearer activation asserts.
+  nrHelper->AttachToClosestGnb(ueNetDev, gnbNetDev);
 
   uint16_t dlPort = 1234;
   UdpServerHelper dlPacketSink(dlPort);
