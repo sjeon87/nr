@@ -1956,6 +1956,12 @@ void
 NrUePhy::GenerateCsiRsCqi()
 {
     NS_LOG_FUNCTION(this);
+
+    if (!m_isConnected)
+    {
+        NS_LOG_DEBUG("UE is disconnected, so not transmitting any CSI feedback.");
+        return;
+    }
     NS_ASSERT(m_csiRsMimoSignal.m_chanMat.GetSize() != 0);
     NrMimoSignal csiFeedbackSignal = m_csiRsMimoSignal;
     // if there is some old interference information use it,
@@ -1973,6 +1979,13 @@ void
 NrUePhy::CsiImEnded(const std::vector<MimoSignalChunk>& csiImSignalChunks)
 {
     NS_LOG_FUNCTION(this);
+
+    if (!m_isConnected)
+    {
+        NS_LOG_DEBUG("UE is disconnected, so not transmitting any CSI feedback.");
+        return;
+    }
+
     // Combine multiple CSI-IM signal chunks into a single channel,
     // and interference covariance
     auto csiFeedbackSignal = NrMimoSignal(csiImSignalChunks);
@@ -1991,6 +2004,13 @@ void
 NrUePhy::PdschMimoReceived(const std::vector<MimoSignalChunk>& pdschMimoChunks)
 {
     NS_LOG_FUNCTION(this);
+
+    if (!m_isConnected)
+    {
+        NS_LOG_DEBUG("UE is disconnected, so not transmitting any CSI feedback.");
+        return;
+    }
+
     // Combine multiple signal chunks into a single channel matrix and interference covariance
     auto csiFeedbackSignal = NrMimoSignal(pdschMimoChunks);
     // if alpha != 1, calculate the interference covariance moving average
