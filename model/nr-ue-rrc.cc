@@ -899,6 +899,7 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
         TrackCellArfcn(cellId, arfcn);
         auto bwpId = GetArfcnBwpId(arfcn);
         SetPrimaryDlIndex(bwpId);
+        m_cphySapProvider.at(bwpId)->SetNumerology(0);
         m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
         m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
         if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
