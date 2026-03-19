@@ -3784,6 +3784,13 @@ NrUeRrc::StartConnection()
 
     m_connectionPending = false; // reset the flag
     SwitchToState(IDLE_RANDOM_ACCESS);
+    // Bind the PHY to the selected cell before contention-based random access.
+    // RegisterToGnb() sets the PHY cellId so the RACH preamble (Msg1) is sent to
+    // this gNB and its response (RAR/Msg2) is accepted rather than filtered out;
+    // it also (re)initializes the L1/L2 control-message queue that carries the
+    // preamble. Without it, Msg1 would go out on a stale cellId into an
+    // uninitialized queue, so random access would never complete.
+    m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
     m_cmacSapProvider.at(GetPrimaryUlIndex())->StartContentionBasedRandomAccessProcedure();
 }
 
