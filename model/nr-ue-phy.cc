@@ -1416,6 +1416,7 @@ NrUePhy::DoReset()
     NS_LOG_FUNCTION(this);
     m_raPreambleId = 255; // value out of range
     m_isConnected = false;
+    m_avgIntCovMat = {};
 }
 
 void
@@ -2071,7 +2072,7 @@ NrUePhy::CalcAvgIntCovMat(NrCovMat* avgIntCovMat, const NrCovMat& newCovMat) con
         *avgIntCovMat = ComplexMatrixArray(newCovMat.GetNumRows(),
                                            newCovMat.GetNumCols(),
                                            newCovMat.GetNumPages());
-    };
+    }
 
     *avgIntCovMat = newCovMat * std::complex<double>{m_alphaCovMat, 0.0} +
                     *avgIntCovMat * std::complex<double>{1 - m_alphaCovMat, 0.0};
