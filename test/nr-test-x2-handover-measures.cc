@@ -276,7 +276,7 @@ NrX2HandoverMeasuresTestCase::DoRun()
     if (m_handoverAlgorithmType == "ns3::NrA2A4RsrpHandoverAlgorithm")
     {
         m_nrHelper->SetHandoverAlgorithmType("ns3::NrA2A4RsrpHandoverAlgorithm");
-        m_nrHelper->SetHandoverAlgorithmAttribute("ServingCellThreshold", UintegerValue(37));
+        m_nrHelper->SetHandoverAlgorithmAttribute("ServingCellThreshold", UintegerValue(53));
         m_nrHelper->SetHandoverAlgorithmAttribute("NeighbourCellOffset", UintegerValue(1));
     }
     else if (m_handoverAlgorithmType == "ns3::NrA3RsrpHandoverAlgorithm")

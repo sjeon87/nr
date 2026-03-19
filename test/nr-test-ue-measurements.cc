@@ -495,8 +495,8 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime << 200 << 320 << 440 << 560 << 680 << 800 << 920 << 1040 << 1160 << 1280 << 1400
                  << 1520 << 1640 << 1760 << 1880 << 2000 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 64 << 64 << 54 << 54 << 64 << 44 << 44 << 64 << 64 << 55 << 49 << 49 << 44 << 44
-                 << 49 << 55 << 55;
+    expectedRsrp << 80 << 80 << 70 << 70 << 80 << 60 << 60 << 80 << 80 << 71 << 65 << 65 << 60 << 60
+                 << 65 << 71 << 71;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A1 with very low threshold",
                     config,
@@ -505,11 +505,11 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
                 TestCase::Duration::EXTENSIVE);
 
     // With normal threshold
-    config.threshold1.range = 54;
+    config.threshold1.range = 70;
     expectedTime.clear();
     expectedTime << 200 << 320 << 440 << 560 << 680 << 1000 << 1120 << 1240 << 1360 << 2000 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 64 << 64 << 54 << 54 << 64 << 64 << 64 << 55 << 55 << 55 << 55;
+    expectedRsrp << 80 << 80 << 70 << 70 << 80 << 80 << 80 << 71 << 71 << 71 << 71;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A1 with normal threshold",
                     config,
@@ -522,7 +522,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime.clear();
     expectedTime << 264 << 384 << 504 << 624 << 744 << 1064 << 1184 << 1304 << 1424 << 2064 << 2184;
     expectedRsrp.clear();
-    expectedRsrp << 64 << 64 << 54 << 64 << 64 << 64 << 64 << 55 << 49 << 55 << 55;
+    expectedRsrp << 80 << 80 << 70 << 80 << 80 << 80 << 80 << 71 << 65 << 71 << 71;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A1 with short time-to-trigger",
                     config,
@@ -535,7 +535,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime.clear();
     expectedTime << 328 << 448 << 568 << 688 << 808 << 1128 << 1248 << 1368 << 1488 << 2128;
     expectedRsrp.clear();
-    expectedRsrp << 64 << 54 << 54 << 64 << 44 << 64 << 55 << 55 << 49 << 55;
+    expectedRsrp << 80 << 70 << 70 << 80 << 60 << 80 << 71 << 71 << 65 << 71;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A1 with long time-to-trigger",
                     config,
@@ -548,7 +548,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime.clear();
     expectedTime << 456 << 576 << 696 << 816 << 936 << 1056 << 1176 << 1296 << 1416 << 1536;
     expectedRsrp.clear();
-    expectedRsrp << 54 << 54 << 64 << 44 << 44 << 64 << 64 << 55 << 49 << 49;
+    expectedRsrp << 70 << 70 << 80 << 60 << 60 << 80 << 80 << 71 << 65 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A1 with super time-to-trigger",
                     config,
@@ -562,7 +562,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime.clear();
     expectedTime << 200 << 320 << 440 << 560 << 680 << 1000 << 1120 << 1240 << 1360 << 2200;
     expectedRsrp.clear();
-    expectedRsrp << 64 << 64 << 54 << 54 << 64 << 64 << 64 << 55 << 55 << 64;
+    expectedRsrp << 80 << 80 << 70 << 70 << 80 << 80 << 80 << 71 << 71 << 80;
     AddTestCase(
         new NrUeMeasurementsPiecewiseTestCase1("Piecewise test case 1 - Event A1 with hysteresis",
                                                config,
@@ -571,7 +571,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
         TestCase::Duration::QUICK);
 
     // With very high threshold
-    config.threshold1.range = 97;
+    config.threshold1.range = 113;
     config.hysteresis = 0;
     expectedTime.clear();
     expectedRsrp.clear();
@@ -597,11 +597,11 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
                 TestCase::Duration::TAKES_FOREVER);
 
     // With normal threshold
-    config.threshold1.range = 54;
+    config.threshold1.range = 70;
     expectedTime.clear();
     expectedTime << 800 << 920 << 1400 << 1520 << 1640 << 1760 << 1880;
     expectedRsrp.clear();
-    expectedRsrp << 44 << 44 << 49 << 49 << 44 << 44 << 49;
+    expectedRsrp << 60 << 60 << 65 << 65 << 60 << 60 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A2 with normal threshold",
                     config,
@@ -614,7 +614,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime.clear();
     expectedTime << 864 << 984 << 1464 << 1584 << 1704 << 1824 << 1944;
     expectedRsrp.clear();
-    expectedRsrp << 44 << 44 << 49 << 49 << 44 << 49 << 49;
+    expectedRsrp << 60 << 60 << 65 << 65 << 60 << 65 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A2 with short time-to-trigger",
                     config,
@@ -627,7 +627,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime.clear();
     expectedTime << 928 << 1048 << 1528 << 1648 << 1768 << 1888 << 2008;
     expectedRsrp.clear();
-    expectedRsrp << 44 << 64 << 49 << 44 << 44 << 49 << 55;
+    expectedRsrp << 60 << 80 << 65 << 60 << 60 << 65 << 71;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A2 with long time-to-trigger",
                     config,
@@ -640,7 +640,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime.clear();
     expectedTime << 1656 << 1776 << 1896 << 2016 << 2136;
     expectedRsrp.clear();
-    expectedRsrp << 44 << 44 << 49 << 55 << 55;
+    expectedRsrp << 60 << 60 << 65 << 71 << 71;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A2 with super time-to-trigger",
                     config,
@@ -654,7 +654,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     expectedTime.clear();
     expectedTime << 800 << 920 << 1400 << 1520 << 1640 << 1760 << 1880 << 2000 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 44 << 44 << 49 << 49 << 44 << 44 << 49 << 55 << 55;
+    expectedRsrp << 60 << 60 << 65 << 65 << 60 << 60 << 65 << 71 << 71;
     AddTestCase(
         new NrUeMeasurementsPiecewiseTestCase1("Piecewise test case 1 - Event A2 with hysteresis",
                                                config,
@@ -663,14 +663,14 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
         TestCase::Duration::EXTENSIVE);
 
     // With very high threshold
-    config.threshold1.range = 97;
+    config.threshold1.range = 113;
     config.hysteresis = 0;
     expectedTime.clear();
     expectedTime << 200 << 320 << 440 << 560 << 680 << 800 << 920 << 1040 << 1160 << 1280 << 1400
                  << 1520 << 1640 << 1760 << 1880 << 2000 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 64 << 64 << 54 << 54 << 64 << 44 << 44 << 64 << 64 << 55 << 49 << 49 << 44 << 44
-                 << 49 << 55 << 55;
+    expectedRsrp << 80 << 80 << 70 << 70 << 80 << 60 << 60 << 80 << 80 << 71 << 65 << 65 << 60 << 60
+                 << 65 << 71 << 71;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1(
                     "Piecewise test case 1 - Event A2 with very high threshold",
                     config,
@@ -701,7 +701,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     // === Event A4 (neighbour becomes better than threshold) ===
 
     config.eventId = NrRrcSap::ReportConfigEutra::EVENT_A4;
-    config.threshold1.range = 54;
+    config.threshold1.range = 70;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1("Piecewise test case 1 - Event A4",
                                                        config,
                                                        expectedTime,
@@ -712,7 +712,7 @@ NrUeMeasurementsPiecewiseTestSuite1::NrUeMeasurementsPiecewiseTestSuite1()
     // another absolute threshold2) ===
 
     config.eventId = NrRrcSap::ReportConfigEutra::EVENT_A5;
-    config.threshold2.range = 58;
+    config.threshold2.range = 74;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase1("Piecewise test case 1 - Event A5",
                                                        config,
                                                        expectedTime,
@@ -1023,7 +1023,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 920 << 1160 << 1400 << 1640 << 1880 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 70 << 60 << 70 << 49 << 70 << 53 << 49 << 53 << 56;
+    expectedRsrp << 86 << 76 << 86 << 65 << 86 << 69 << 65 << 69 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A1 with very low threshold",
                     config,
@@ -1032,11 +1032,11 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
                 TestCase::Duration::EXTENSIVE);
 
     // With normal threshold
-    config.threshold1.range = 58;
+    config.threshold1.range = 74;
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 1000 << 2200;
     expectedRsrp.clear();
-    expectedRsrp << 70 << 60 << 70 << 70 << 70;
+    expectedRsrp << 86 << 76 << 86 << 86 << 86;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A1 with normal threshold",
                     config,
@@ -1049,7 +1049,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 1000 << 1240 << 2200;
     expectedRsrp.clear();
-    expectedRsrp << 70 << 60 << 70 << 70 << 56 << 70;
+    expectedRsrp << 86 << 76 << 86 << 86 << 72 << 86;
     AddTestCase(
         new NrUeMeasurementsPiecewiseTestCase2("Piecewise test case 2 - Event A1 with hysteresis",
                                                config,
@@ -1084,11 +1084,11 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
                 TestCase::Duration::TAKES_FOREVER);
 
     // With normal threshold
-    config.threshold1.range = 58;
+    config.threshold1.range = 74;
     expectedTime.clear();
     expectedTime << 800 << 1200 << 1440 << 1680 << 1920 << 2160;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 56 << 53 << 49 << 53 << 56;
+    expectedRsrp << 65 << 72 << 69 << 65 << 69 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A2 with normal threshold",
                     config,
@@ -1101,7 +1101,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 800 << 1400 << 1640 << 1880 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 53 << 49 << 53 << 56;
+    expectedRsrp << 65 << 69 << 65 << 69 << 72;
     AddTestCase(
         new NrUeMeasurementsPiecewiseTestCase2("Piecewise test case 2 - Event A2 with hysteresis",
                                                config,
@@ -1115,7 +1115,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 920 << 1160 << 1400 << 1640 << 1880 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 70 << 60 << 70 << 49 << 70 << 53 << 49 << 53 << 56;
+    expectedRsrp << 86 << 76 << 86 << 65 << 86 << 69 << 65 << 69 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A2 with very high threshold",
                     config,
@@ -1132,7 +1132,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 800 << 1600;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 49;
+    expectedRsrp << 65 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A3 with positive offset",
                     config,
@@ -1145,7 +1145,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 800 << 1400 << 1640 << 1880;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 53 << 49 << 53;
+    expectedRsrp << 65 << 69 << 65 << 69;
     AddTestCase(
         new NrUeMeasurementsPiecewiseTestCase2("Piecewise test case 2 - Event A3 with zero offset",
                                                config,
@@ -1158,7 +1158,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 960 << 1560 << 1800 << 2040;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 53 << 53 << 56;
+    expectedRsrp << 65 << 69 << 69 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A3 with short time-to-trigger",
                     config,
@@ -1171,7 +1171,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 1720 << 1960 << 2200;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 53 << 70;
+    expectedRsrp << 65 << 69 << 86;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A3 with super time-to-trigger",
                     config,
@@ -1186,7 +1186,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 800 << 1000 << 1600 << 1840 << 2080 << 2200;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 70 << 49 << 53 << 56 << 70;
+    expectedRsrp << 65 << 86 << 65 << 69 << 72 << 86;
     AddTestCase(
         new NrUeMeasurementsPiecewiseTestCase2("Piecewise test case 2 - Event A3 with hysteresis",
                                                config,
@@ -1201,7 +1201,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 400 << 800 << 1200 << 1440 << 1680 << 1920 << 2160;
     expectedRsrp.clear();
-    expectedRsrp << 60 << 49 << 56 << 53 << 49 << 53 << 56;
+    expectedRsrp << 76 << 65 << 72 << 69 << 65 << 69 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A3 with negative offset",
                     config,
@@ -1218,7 +1218,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 920 << 1160 << 1400 << 1640 << 1880 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 70 << 60 << 70 << 49 << 70 << 53 << 49 << 53 << 56;
+    expectedRsrp << 86 << 76 << 86 << 65 << 86 << 69 << 65 << 69 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A4 with very low threshold",
                     config,
@@ -1227,11 +1227,11 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
                 TestCase::Duration::QUICK);
 
     // With normal threshold
-    config.threshold1.range = 58;
+    config.threshold1.range = 74;
     expectedTime.clear();
     expectedTime << 400 << 800 << 1600;
     expectedRsrp.clear();
-    expectedRsrp << 60 << 49 << 49;
+    expectedRsrp << 76 << 65 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A4 with normal threshold",
                     config,
@@ -1244,7 +1244,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 560 << 960 << 1760;
     expectedRsrp.clear();
-    expectedRsrp << 60 << 49 << 49;
+    expectedRsrp << 76 << 65 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A4 with short time-to-trigger",
                     config,
@@ -1269,7 +1269,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 800 << 1600 << 1840;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 49 << 53;
+    expectedRsrp << 65 << 65 << 69;
     AddTestCase(
         new NrUeMeasurementsPiecewiseTestCase2("Piecewise test case 2 - Event A4 with hysteresis",
                                                config,
@@ -1324,12 +1324,12 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
                 TestCase::Duration::TAKES_FOREVER);
 
     // With normal-low threshold
-    config.threshold1.range = 58;
+    config.threshold1.range = 74;
     config.threshold2.range = 0;
     expectedTime.clear();
     expectedTime << 800 << 1200 << 1440 << 1680 << 1920 << 2160;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 56 << 53 << 49 << 53 << 56;
+    expectedRsrp << 65 << 72 << 69 << 65 << 69 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A5 with normal-low threshold",
                     config,
@@ -1338,11 +1338,11 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
                 TestCase::Duration::EXTENSIVE);
 
     // With normal-normal threshold
-    config.threshold2.range = 58;
+    config.threshold2.range = 74;
     expectedTime.clear();
     expectedTime << 800 << 1600;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 49;
+    expectedRsrp << 65 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A5 with normal-normal threshold",
                     config,
@@ -1355,7 +1355,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 960 << 1760;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 49;
+    expectedRsrp << 65 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A5 with short time-to-trigger",
                     config,
@@ -1368,7 +1368,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     // expectedTime << 1720 << 1960 << 2200;
     expectedRsrp.clear();
-    // expectedRsrp << 52 << 56 << 72;
+    // expectedRsrp << 68 << 72 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A5 with super time-to-trigger",
                     config,
@@ -1382,7 +1382,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 800 << 1600 << 1840; //<< 2080;
     expectedRsrp.clear();
-    expectedRsrp << 49 << 49 << 53; // << 59;
+    expectedRsrp << 65 << 65 << 69; // << 59;
     AddTestCase(
         new NrUeMeasurementsPiecewiseTestCase2("Piecewise test case 2 - Event A5 with hysteresis",
                                                config,
@@ -1408,7 +1408,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 920 << 1160 << 1400 << 1640 << 1880 << 2120;
     expectedRsrp.clear();
-    expectedRsrp << 70 << 60 << 70 << 49 << 70 << 53 << 49 << 53 << 56;
+    expectedRsrp << 86 << 76 << 86 << 65 << 86 << 69 << 65 << 69 << 72;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A5 with high-low threshold",
                     config,
@@ -1417,11 +1417,11 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
                 TestCase::Duration::EXTENSIVE);
 
     // With high-normal threshold
-    config.threshold2.range = 58;
+    config.threshold2.range = 74;
     expectedTime.clear();
     expectedTime << 400 << 800 << 1600;
     expectedRsrp.clear();
-    expectedRsrp << 60 << 49 << 49;
+    expectedRsrp << 76 << 65 << 65;
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
                     "Piecewise test case 2 - Event A5 with high-normal threshold",
                     config,
@@ -1430,7 +1430,7 @@ NrUeMeasurementsPiecewiseTestSuite2::NrUeMeasurementsPiecewiseTestSuite2()
                 TestCase::Duration::TAKES_FOREVER);
 
     // With high-high threshold
-    config.threshold2.range = 97;
+    config.threshold2.range = 113;
     expectedTime.clear();
     expectedRsrp.clear();
     AddTestCase(new NrUeMeasurementsPiecewiseTestCase2(
@@ -2076,7 +2076,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 200 << 680 << 1200 << 1440 << 1680 << 1920;
     expectedRsrp.clear();
-    expectedRsrp << 52 << 52 << 50 << 50 << 50 << 50;
+    expectedRsrp << 68 << 68 << 66 << 66 << 66 << 66;
     AddTestCase(
         new NrUeMeasurementsHandoverTestCase("Handover test case - decreasing report interval",
                                              sourceConfigList,
@@ -2092,7 +2092,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 200 << 320 << 440 << 560 << 680 << 800 << 920 << 1200 << 1840;
     expectedRsrp.clear();
-    expectedRsrp << 52 << 52 << 52 << 52 << 52 << 52 << 52 << 50 << 50;
+    expectedRsrp << 68 << 68 << 68 << 68 << 68 << 68 << 68 << 66 << 66;
     AddTestCase(
         new NrUeMeasurementsHandoverTestCase("Handover test case - increasing report interval",
                                              sourceConfigList,
@@ -2106,11 +2106,11 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
 
     sourceConfigList.front().reportInterval = NrRrcSap::ReportConfigEutra::MS240;
     targetConfigList.front().reportInterval = NrRrcSap::ReportConfigEutra::MS240;
-    sourceConfigList.front().threshold1.range = 54;
-    sourceConfigList.front().threshold2.range = 54;
+    sourceConfigList.front().threshold1.range = 70;
+    sourceConfigList.front().threshold2.range = 70;
     sourceConfigList.front().a3Offset = 1;
-    targetConfigList.front().threshold1.range = 54;
-    targetConfigList.front().threshold2.range = 54;
+    targetConfigList.front().threshold1.range = 70;
+    targetConfigList.front().threshold2.range = 70;
     targetConfigList.front().a3Offset = 1;
 
     // Event A1 to Event A2
@@ -2119,7 +2119,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 1200 << 1440 << 1680 << 1920; // << 1200 << 1440 << 1680 << 1920;
     expectedRsrp.clear();
-    expectedRsrp << 50 << 50 << 50 << 50; // << 53 << 53 << 53 << 53;
+    expectedRsrp << 66 << 66 << 66 << 66; // << 53 << 53 << 53 << 53;
     AddTestCase(new NrUeMeasurementsHandoverTestCase("Handover test case - Event A1 to Event A2",
                                                      sourceConfigList,
                                                      targetConfigList,
@@ -2134,7 +2134,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 920; // << 1200 << 1440 << 1680 << 1920;
     expectedRsrp.clear();
-    expectedRsrp << 52 << 52 << 52 << 52; // << 53 << 53 << 53 << 53;
+    expectedRsrp << 68 << 68 << 68 << 68; // << 53 << 53 << 53 << 53;
     AddTestCase(new NrUeMeasurementsHandoverTestCase("Handover test case - Event A2 to Event A1",
                                                      sourceConfigList,
                                                      targetConfigList,
@@ -2162,7 +2162,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 1200 << 1440 << 1680 << 1920;
     expectedRsrp.clear();
-    expectedRsrp << 50 << 50 << 50 << 50;
+    expectedRsrp << 66 << 66 << 66 << 66;
     AddTestCase(new NrUeMeasurementsHandoverTestCase("Handover test case - Event A4 to Event A3",
                                                      sourceConfigList,
                                                      targetConfigList,
@@ -2177,7 +2177,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 920 << 1200 << 1440 << 1680 << 1920;
     expectedRsrp.clear();
-    expectedRsrp << 52 << 52 << 52 << 52 << 50 << 50 << 50 << 50;
+    expectedRsrp << 68 << 68 << 68 << 68 << 66 << 66 << 66 << 66;
     AddTestCase(new NrUeMeasurementsHandoverTestCase("Handover test case - Event A2 to Event A3",
                                                      sourceConfigList,
                                                      targetConfigList,
@@ -2192,7 +2192,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 1200 << 1440 << 1680 << 1920;
     expectedRsrp.clear();
-    expectedRsrp << 50 << 50 << 50 << 50;
+    expectedRsrp << 66 << 66 << 66 << 66;
     AddTestCase(new NrUeMeasurementsHandoverTestCase("Handover test case - Event A3 to Event A2",
                                                      sourceConfigList,
                                                      targetConfigList,
@@ -2229,8 +2229,8 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
 
     // === Threshold/offset difference ===
 
-    sourceConfigList.front().threshold1.range = 52;
-    targetConfigList.front().threshold1.range = 56;
+    sourceConfigList.front().threshold1.range = 68;
+    targetConfigList.front().threshold1.range = 70;
 
     // Event A1
     sourceConfigList.front().eventId = NrRrcSap::ReportConfigEutra::EVENT_A1;
@@ -2238,7 +2238,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 920;
     expectedRsrp.clear();
-    expectedRsrp << 52 << 52 << 52 << 52;
+    expectedRsrp << 68 << 68 << 68 << 68;
     AddTestCase(
         new NrUeMeasurementsHandoverTestCase("Handover test case - Event A1 threshold difference",
                                              sourceConfigList,
@@ -2254,7 +2254,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 1200 << 1440 << 1680 << 1920;
     expectedRsrp.clear();
-    expectedRsrp << 50 << 50 << 50 << 50;
+    expectedRsrp << 66 << 66 << 66 << 66;
     AddTestCase(
         new NrUeMeasurementsHandoverTestCase("Handover test case - Event A2 threshold difference",
                                              sourceConfigList,
@@ -2272,7 +2272,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 200 << 440 << 680 << 920;
     expectedRsrp.clear();
-    expectedRsrp << 52 << 52 << 52 << 52;
+    expectedRsrp << 68 << 68 << 68 << 68;
     AddTestCase(
         new NrUeMeasurementsHandoverTestCase("Handover test case - Event A3 offset difference",
                                              sourceConfigList,
@@ -2298,9 +2298,9 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
 
     // Event A5
     sourceConfigList.front().eventId = NrRrcSap::ReportConfigEutra::EVENT_A5;
-    sourceConfigList.front().threshold2.range = 52;
+    sourceConfigList.front().threshold2.range = 68;
     targetConfigList.front().eventId = NrRrcSap::ReportConfigEutra::EVENT_A5;
-    targetConfigList.front().threshold2.range = 56;
+    targetConfigList.front().threshold2.range = 72;
     expectedTime.clear();
     expectedRsrp.clear();
     AddTestCase(
@@ -2329,7 +2329,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 1300 << 1540 << 1780;
     expectedRsrp.clear();
-    expectedRsrp << 50 << 50 << 50;
+    expectedRsrp << 66 << 66 << 66;
     AddTestCase(new NrUeMeasurementsHandoverTestCase("Handover test case - decreasing TTT (short)",
                                                      sourceConfigList,
                                                      targetConfigList,
@@ -2344,7 +2344,7 @@ NrUeMeasurementsHandoverTestSuite::NrUeMeasurementsHandoverTestSuite()
     expectedTime.clear();
     expectedTime << 1224 << 1464 << 1704 << 1944 << 2840 << 3080 << 3320 << 3560 << 3800 << 4040;
     expectedRsrp.clear();
-    expectedRsrp << 52 << 52 << 52 << 52 << 50 << 50 << 50 << 50 << 50 << 50;
+    expectedRsrp << 68 << 68 << 68 << 68 << 66 << 66 << 66 << 66 << 66 << 66;
     AddTestCase(new NrUeMeasurementsHandoverTestCase("Handover test case - decreasing TTT (long)",
                                                      sourceConfigList,
                                                      targetConfigList,
