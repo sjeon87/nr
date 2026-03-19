@@ -1257,7 +1257,7 @@ NrUeMac::RandomlySelectAndSendRaPreamble()
         m_raPreambleUniformVariable->GetInteger(0, m_rachConfig.numberOfRaPreambles - 1);
     NS_LOG_DEBUG(m_currentSlot << " Received System Information, send to PHY the "
                                   "RA preamble: "
-                               << m_raPreambleId);
+                               << +m_raPreambleId);
     SendRaPreamble(true);
 }
 

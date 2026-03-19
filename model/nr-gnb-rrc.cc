@@ -1436,8 +1436,8 @@ NrUeManager::DoReceivePdcpSdu(NrPdcpSapUser::ReceivePdcpSduParameters params)
         tag.SetRnti(params.rnti);
         tag.SetQfi(nr::Lcid2Qfi(params.lcid));
         params.pdcpSdu->AddPacketTag(tag);
-        NS_LOG_DEBUG("Adding packet tag for RNTI " << params.rnti << " LCID " << params.lcid
-                                                   << " QFI " << nr::Lcid2Qfi(params.lcid));
+        NS_LOG_DEBUG("Adding packet tag for RNTI " << params.rnti << " LCID " << +params.lcid
+                                                   << " QFI " << +nr::Lcid2Qfi(params.lcid));
         m_rrc->m_forwardUpCallback(params.pdcpSdu);
     }
 }
