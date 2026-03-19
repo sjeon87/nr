@@ -206,7 +206,7 @@ NrHandoverTargetTestCase::CellShutdownCallback()
         NS_ASSERT(m_sourceGnbDev->GetCellId() == m_sourceCellId);
         NS_LOG_INFO("Shutting down cell " << m_sourceCellId);
         Ptr<NrGnbPhy> phy = m_sourceGnbDev->GetPhy(0);
-        phy->SetTxPower(0.1);
+        phy->SetTxPower(1);
     }
 }
 
@@ -215,7 +215,7 @@ NrHandoverTargetTestCase::DoRun()
 {
     NS_LOG_INFO(this << " " << GetName());
 
-    Config::SetDefault("ns3::NrGnbPhy::TxPower", DoubleValue(30));
+    Config::SetDefault("ns3::NrGnbPhy::TxPower", DoubleValue(36));
 
     Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
     Ptr<NrPointToPointEpcHelper> nrEpcHelper = CreateObject<NrPointToPointEpcHelper>();
@@ -233,7 +233,7 @@ NrHandoverTargetTestCase::DoRun()
     if (m_handoverAlgorithmType == "ns3::NrA2A4RsrpHandoverAlgorithm")
     {
         nrHelper->SetHandoverAlgorithmType("ns3::NrA2A4RsrpHandoverAlgorithm");
-        nrHelper->SetHandoverAlgorithmAttribute("ServingCellThreshold", UintegerValue(60));
+        nrHelper->SetHandoverAlgorithmAttribute("ServingCellThreshold", UintegerValue(70));
         nrHelper->SetHandoverAlgorithmAttribute("NeighbourCellOffset", UintegerValue(1));
     }
     else if (m_handoverAlgorithmType == "ns3::NrA3RsrpHandoverAlgorithm")
