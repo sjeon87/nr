@@ -11,13 +11,11 @@
 #include "ns3/ideal-beamforming-algorithm.h"
 #include "ns3/internet-apps-module.h"
 #include "ns3/internet-module.h"
-#include "ns3/ipv4-global-routing-helper.h"
 #include "ns3/log.h"
 #include "ns3/nr-helper.h"
 #include "ns3/nr-mac-scheduler-tdma-rr.h"
 #include "ns3/nr-module.h"
 #include "ns3/nr-point-to-point-epc-helper.h"
-#include "ns3/point-to-point-helper.h"
 #include "ns3/point-to-point-module.h"
 
 /**
@@ -477,26 +475,10 @@ main(int argc, char* argv[])
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost
-    Ptr<Node> pgw = nrEpcHelper->GetPgwNode();
-    NodeContainer remoteHostContainer;
-    remoteHostContainer.Create(1);
-    Ptr<Node> remoteHost = remoteHostContainer.Get(0);
-    InternetStackHelper internet;
-    internet.Install(remoteHostContainer);
+    auto [remoteHost, remoteHostIpv4Address] =
+        nrEpcHelper->SetupRemoteHost("100Gb/s", 2500, Seconds(0.000));
 
-    // connect a remoteHost to pgw. Setup routing too
-    PointToPointHelper p2ph;
-    p2ph.SetDeviceAttribute("DataRate", DataRateValue(DataRate("100Gb/s")));
-    p2ph.SetDeviceAttribute("Mtu", UintegerValue(2500));
-    p2ph.SetChannelAttribute("Delay", TimeValue(Seconds(0.000)));
-    NetDeviceContainer internetDevices = p2ph.Install(pgw, remoteHost);
-    Ipv4AddressHelper ipv4h;
-    Ipv4StaticRoutingHelper ipv4RoutingHelper;
-    ipv4h.SetBase("1.0.0.0", "255.0.0.0");
-    Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign(internetDevices);
-    Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
-        ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>());
-    remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
+    InternetStackHelper internet;
     internet.Install(gridScenario.GetUserTerminals());
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
@@ -583,7 +565,7 @@ main(int argc, char* argv[])
         {
             ulClientVoice.SetAttribute(
                 "Remote",
-                AddressValue(addressUtils::ConvertToSocketAddress(internetIpIfaces.GetAddress(1),
+                AddressValue(addressUtils::ConvertToSocketAddress(remoteHostIpv4Address,
                                                                   ulPortVoice)));
             clientApps.Add(ulClientVoice.Install(ue));
 
