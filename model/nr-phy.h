@@ -466,6 +466,7 @@ class NR_EXPORT NrPhy : public Object
     uint32_t DoGetArfcn() const;
 
     void ClearRntiSlotAllocInfo(uint16_t rnti);
+    void PurgeStaleSlotAllocInfo();
 
   protected:
     /**

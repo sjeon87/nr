@@ -138,8 +138,8 @@ NrEpcUeNas::Connect()
 {
     NS_LOG_FUNCTION(this);
 
-    // tell RRC to go into connected mode
-    m_asSapProvider->Connect();
+    // start scanning for cells in all configured BWPs
+    m_asSapProvider->StartCellSelection();
 }
 
 void
