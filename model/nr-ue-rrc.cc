@@ -751,6 +751,7 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
     NS_LOG_FUNCTION(this << m_imsi << ToString(m_state) << " cellId " << m_cellId << " rnti "
                          << m_rnti);
     m_randomAccessSuccessfulTrace(m_imsi, m_cellId, m_rnti);
+    m_rachAttempts = 0;
     ClearRachLock();
     switch (m_state)
     {
@@ -801,8 +802,20 @@ NrUeRrc::DoNotifyRandomAccessFailed()
     switch (m_state)
     {
     case IDLE_RANDOM_ACCESS: {
-        SwitchToState(IDLE_CAMPED_NORMALLY);
-        m_asSapUser->NotifyConnectionFailed();
+        m_rachAttempts++;
+        if (m_rachAttempts < m_rachAttemptsLimit)
+        {
+            SwitchToState(IDLE_CAMPED_NORMALLY);
+            m_asSapUser->NotifyConnectionFailed();
+        }
+        else
+        {
+            m_rachAttempts = 0;
+            m_hasReceivedSib1 = false;
+            m_hasReceivedSib2 = false;
+            SwitchToState(IDLE_CELL_SEARCH);
+            SynchronizeToStrongestCell();
+        }
     }
     break;
 
@@ -849,7 +862,20 @@ NrUeRrc::DoStartCellSelection(uint32_t arfcn)
     NS_ASSERT_MSG(m_state == IDLE_START,
                   "cannot start cell selection from state " << ToString(m_state));
     m_initDlArfcn = arfcn;
+    m_cphySapProvider.at(GetPrimaryDlIndex())->SetNumerology(0);
     m_cphySapProvider.at(GetPrimaryDlIndex())->StartCellSearch(arfcn);
+    SwitchToState(IDLE_CELL_SEARCH);
+}
+
+void
+NrUeRrc::DoStartCellSelection()
+{
+    NS_LOG_FUNCTION(this << m_imsi);
+    for (auto& phy : m_cphySapProvider)
+    {
+        phy->SetNumerology(0);
+        phy->StartCellSearch(phy->GetArfcn());
+    }
     SwitchToState(IDLE_CELL_SEARCH);
 }
 
@@ -1007,7 +1033,7 @@ NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
                                            uint32_t arfcn,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
-    NS_LOG_FUNCTION(this);
+    NS_LOG_FUNCTION(this << cellId << arfcn << msg.servingCellConfigCommon.numerology);
 
     // Guard 1 – serving-cell filter.
     // While connected/connecting, reject SIB1 from any cell that is not the
@@ -1146,6 +1172,17 @@ NrUeRrc::DoRecvSystemInformation(NrRrcSap::SystemInformation msg)
         case CONNECTED_PHY_PROBLEM:
         case CONNECTED_REESTABLISHING:
             m_hasReceivedSib2 = true;
+            if (m_rachInProgress)
+            {
+                // A RACH is already in-flight; applying SIB2 RACH config now would
+                // reset the MAC procedure mid-stream. Silently ignore — ClearRachLock()
+                // will fire on success or failure and the config is still valid.
+                NS_LOG_INFO(this << " IMSI " << m_imsi
+                                 << " ignoring duplicate SIB2 while RACH in-flight"
+                                    " on bwp "
+                                 << (uint16_t)m_rachBwpId);
+                break;
+            }
             m_ulBandwidth = msg.sib2.freqInfo.ulBandwidth;
             m_initUlArfcn = msg.sib2.freqInfo.ulCarrierFreq;
             m_sib2ReceivedTrace(m_imsi, m_cellId, m_rnti);
@@ -1490,6 +1527,7 @@ NrUeRrc::SynchronizeToStrongestCell()
     uint16_t maxRsrpCellId = 0;
     double maxRsrp = -std::numeric_limits<double>::infinity();
     double minRsrp = -140.0; // Minimum RSRP in dBm a UE can report
+    uint32_t maxRsrpArfcn = 0;
 
     for (auto it = m_storedMeasValues.begin(); it != m_storedMeasValues.end(); it++)
     {
@@ -1504,6 +1542,7 @@ NrUeRrc::SynchronizeToStrongestCell()
             {
                 maxRsrpCellId = it->first;
                 maxRsrp = it->second.rsrp;
+                maxRsrpArfcn = it->second.carrierFreq;
             }
         }
     }
@@ -1514,14 +1553,21 @@ NrUeRrc::SynchronizeToStrongestCell()
     }
     else
     {
-        NS_LOG_LOGIC(this << " cell " << maxRsrpCellId
+        NS_LOG_LOGIC(this << " cell " << maxRsrpCellId << " via arfcn " << maxRsrpArfcn
                           << " is the strongest untried surrounding cell");
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(maxRsrpCellId, m_initDlArfcn);
-        if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
-        {
-            m_cphySapProvider.at(GetPrimaryUlIndex())
-                ->SynchronizeWithGnb(maxRsrpCellId, m_initDlArfcn);
-        }
+        // We may receive MIBs from different BWPs. When that happens, we switch active BWP.
+        m_initDlArfcn = maxRsrpArfcn;
+        auto dlIt =
+            std::find_if(m_cphySapProvider.begin(),
+                         m_cphySapProvider.end(),
+                         [maxRsrpArfcn](auto& phy) { return phy->GetArfcn() == maxRsrpArfcn; });
+        NS_ASSERT_MSG((dlIt != m_cphySapProvider.end()),
+                      "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
+        auto dlBwp = std::distance(m_cphySapProvider.begin(), dlIt);
+        SetPrimaryDlIndex(dlBwp);
+        m_cmacSapProvider.at(dlBwp)->Reset();
+        m_cphySapProvider.at(dlBwp)->Reset();
+        m_cphySapProvider.at(dlBwp)->SynchronizeWithGnb(maxRsrpCellId, m_initDlArfcn);
         SwitchToState(IDLE_WAIT_MIB_SIB1);
     }
 } // end of void NrUeRrc::SynchronizeToStrongestCell ()
@@ -1583,8 +1629,9 @@ NrUeRrc::EvaluateCellForSelection()
         // currently setup
         auto bwpId = GetArfcnBwpId(m_initDlArfcn);
         SetPrimaryDlIndex(bwpId);
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(cellId, m_initDlArfcn);
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
+        m_cphySapProvider.at(bwpId)->SetNumerology(m_lastSib1.servingCellConfigCommon.numerology);
+        m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(cellId, m_initDlArfcn);
+        m_cphySapProvider.at(bwpId)->SetDlBandwidth(m_dlBandwidth);
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
         auto dlBwpIndex = GetPrimaryDlIndex();
         auto ulBwpIndex = GetPrimaryUlIndex();
@@ -2217,9 +2264,10 @@ NrUeRrc::SaveUeMeasurements(uint16_t cellId,
     }
 
     NS_LOG_DEBUG(this << " IMSI " << m_imsi << " state " << ToString(m_state) << ", measured cell "
-                      << cellId << ", carrier component Id " << +componentCarrierId << ", new RSRP "
-                      << rsrp << " stored " << storedMeasIt->second.rsrp << ", new RSRQ " << rsrq
-                      << " stored " << storedMeasIt->second.rsrq);
+                      << cellId << ", BWPid " << +componentCarrierId << ", arfcn "
+                      << storedMeasIt->second.carrierFreq << ", new RSRP " << rsrp << " stored "
+                      << storedMeasIt->second.rsrp << ", new RSRQ " << rsrq << " stored "
+                      << storedMeasIt->second.rsrq);
 
 } // end of void SaveUeMeasurements
 

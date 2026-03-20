@@ -920,6 +920,20 @@ NrPhy::ClearRntiSlotAllocInfo(uint16_t rnti)
     }
 }
 
+void
+NrPhy::PurgeStaleSlotAllocInfo()
+{
+    // Purge any SlotAllocInfo entries whose SfnSf was stamped under a
+    // different numerology (e.g. from the initial temporary BW during
+    // cell selection, before the MIB updates the numerology).
+    m_slotAllocInfo.erase(std::remove_if(m_slotAllocInfo.begin(),
+                                         m_slotAllocInfo.end(),
+                                         [this](const SlotAllocInfo& a) {
+                                             return a.m_sfnSf.GetNumerology() != GetNumerology();
+                                         }),
+                          m_slotAllocInfo.end());
+}
+
 size_t
 NrPhy::SlotAllocInfoSize() const
 {
