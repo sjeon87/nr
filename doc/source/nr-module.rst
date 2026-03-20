@@ -2239,6 +2239,17 @@ This information allows the simulator to configure the initial DL BWP and perfor
 As a result, UEs can now be placed directly into the simulation and will connect automatically to a nearby cell.
 In case of radio link failure, they will also search for a new cell to reconnect to.
 
+Limited handover support has been added, following the same architecture as LTE.
+A UE is able to hand over between different cells in the same BWP with the same numerology.
+Support for handover between different numerologies and BWPs is planned.
+The precoding matrix effect on interference is not accounted for when the transmitter
+and receiver have different numerologies. CSI feedback currently requires the antenna ports,
+maximum rank, and RI/PMI algorithm to be the same across gNBs.
+Beamforming is not currently configured, using quasi-omni beam by default.
+Tests were performed with TDD.
+
+RSRP measurement range was adjusted to the 5G-NR range, as per 3GPP [TS38133]_.
+
 NAS layer
 *********
 The simulator currently uses a ported version of the NAS layer available in LENA ns-3 LTE.
@@ -3733,7 +3744,7 @@ Open issues and future work
 
 .. [ff-api] FemtoForum , "LTE MAC Scheduler Interface v1.11". Document number: FF_Tech_001_v1.11 , Date issued: 12-10-2010.
 
-.. [TS38300] 3GPP TS 38.300, TSG RAN; NR; Overall description; Stage 2 (Release 16), v16.0.0, Dec. 2019
+.. [TS38133] 3GPP TS 38.133, 5G; NR; Requirements for support of radio resource management (Release 19), v19.3.0, Jan. 2026.
 
 .. [TS38211] 3GPP  TS  38.211, TSG  RAN;  NR;  Physical channels and modulation (Release 18), v18.4.0, Sep. 2024.
 
@@ -3742,6 +3753,8 @@ Open issues and future work
 .. [TS38213] 3GPP  TS  38.213, TSG  RAN;  NR;  Physical  layer  procedures  for  control (Release 16), v16.0.0, Dec. 2019.
 
 .. [TS38214] 3GPP  TS  38.214, TSG  RAN;  NR;  Physical  layer  procedures  for  data (Release 16), v16.0.0, Dec. 2019.
+
+.. [TS38300] 3GPP TS 38.300, TSG RAN; NR; Overall description; Stage 2 (Release 16), v16.0.0, Dec. 2019
 
 .. [calibration-l2sm] A.-M. Cipriano,  R.  Visoz,  and  T.  Salzer.  "Calibration  issues  of  PHY layer  abstractions  for  wireless  broadband  systems". IEEE  Vehicular Technology Conference, Sept. 2008.
 
