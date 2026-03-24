@@ -855,8 +855,7 @@ NrPhy::ClearRntiSlotAllocInfo(uint16_t rnti)
     NS_LOG_FUNCTION(this);
     for (auto& alloc : m_slotAllocInfo)
     {
-        std::remove_if(alloc.m_buildRarList.begin(),
-            alloc.m_buildRarList.end(),
+        std::erase_if(alloc.m_buildRarList,
             [rnti](const auto& rar) {
             return rar.ulMsg3Dci->m_rnti == rnti;
         });
@@ -876,6 +875,20 @@ NrPhy::ClearRntiSlotAllocInfo(uint16_t rnti)
         if (alloc.m_varTtiAllocInfo.size() != filteredVarTtiAllocInfo.size())
         {
             alloc.m_varTtiAllocInfo = filteredVarTtiAllocInfo;
+            uint8_t minStart = 0;
+            uint8_t maxSymbol = 0;
+            for(const auto& varTti : alloc.m_varTtiAllocInfo)
+            {
+                if (minStart > varTti.m_dci->m_symStart)
+                {
+                    minStart = varTti.m_dci->m_symStart;
+                }
+                if (maxSymbol < (varTti.m_dci->m_symStart + varTti.m_dci->m_numSym))
+                {
+                    maxSymbol = varTti.m_dci->m_symStart + varTti.m_dci->m_numSym;
+                }
+            }
+            alloc.m_numSymAlloc = maxSymbol - minStart;
         }
     }
 }

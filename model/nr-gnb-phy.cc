@@ -1009,6 +1009,10 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
         lastSymStart = allocation.m_dci->m_symStart;
     }
 
+    if (symUsed != allocInfo.m_numSymAlloc)
+    {
+        std::cout << "a" << std::endl;
+    }
     NS_ASSERT_MSG(symUsed == allocInfo.m_numSymAlloc,
                   "Allocated " << +allocInfo.m_numSymAlloc << " but only " << symUsed
                                << " written in stats");
