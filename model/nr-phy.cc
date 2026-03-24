@@ -849,6 +849,37 @@ NrPhy::PeekSlotAllocInfo(const SfnSf& sfnsf)
     NS_FATAL_ERROR("Didn't found the slot");
 }
 
+void
+NrPhy::ClearRntiSlotAllocInfo(uint16_t rnti)
+{
+    NS_LOG_FUNCTION(this);
+    for (auto& alloc : m_slotAllocInfo)
+    {
+        std::remove_if(alloc.m_buildRarList.begin(),
+            alloc.m_buildRarList.end(),
+            [rnti](const auto& rar) {
+            return rar.ulMsg3Dci->m_rnti == rnti;
+        });
+
+        std::deque<VarTtiAllocInfo> filteredVarTtiAllocInfo;
+        for (auto& varTti: alloc.m_varTtiAllocInfo)
+        {
+            if (varTti.m_dci->m_rnti == rnti)
+            {
+                NS_LOG_DEBUG("Removing VarTti DCI to removed rnti " << rnti);
+            }
+            else
+            {
+                filteredVarTtiAllocInfo.push_back(varTti);
+            }
+        }
+        if (alloc.m_varTtiAllocInfo.size() != filteredVarTtiAllocInfo.size())
+        {
+            alloc.m_varTtiAllocInfo = filteredVarTtiAllocInfo;
+        }
+    }
+}
+
 size_t
 NrPhy::SlotAllocInfoSize() const
 {
