@@ -1779,6 +1779,7 @@ NrUePhy::DoResetPhyAfterRlf()
 {
     NS_LOG_FUNCTION(this);
     // m_spectrumPhy->m_harqPhyModule->ClearDlHarqBuffer(m_rnti); // flush HARQ buffers
+    ClearRntiSlotAllocInfo(m_rnti);
     DoReset();
 }
 
