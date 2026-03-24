@@ -1981,6 +1981,7 @@ NrGnbPhy::DoRemoveUe(uint16_t rnti)
     if (it != m_ueAttachedRnti.end())
     {
         m_ueAttachedRnti.erase(it);
+        ClearRntiSlotAllocInfo(rnti);
     }
     else
     {

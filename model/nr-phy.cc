@@ -849,6 +849,64 @@ NrPhy::PeekSlotAllocInfo(const SfnSf& sfnsf)
     NS_FATAL_ERROR("Didn't found the slot");
 }
 
+void
+NrPhy::ClearRntiSlotAllocInfo(uint16_t rnti)
+{
+    NS_LOG_FUNCTION(this);
+    for (auto& alloc : m_slotAllocInfo)
+    {
+        std::erase_if(alloc.m_buildRarList,
+                      [rnti](const auto& rar) { return rar.ulMsg3Dci->m_rnti == rnti; });
+
+        std::deque<VarTtiAllocInfo> filteredVarTtiAllocInfo;
+        for (auto& varTti : alloc.m_varTtiAllocInfo)
+        {
+            if (varTti.m_dci->m_rnti == rnti)
+            {
+                NS_LOG_DEBUG("Removing VarTti DCI to removed rnti " << rnti);
+            }
+            else
+            {
+                filteredVarTtiAllocInfo.push_back(varTti);
+            }
+        }
+        alloc.m_varTtiAllocInfo = filteredVarTtiAllocInfo;
+        std::array<bool, 14> usedSymbols{false};
+        for (const auto& varTti : alloc.m_varTtiAllocInfo)
+        {
+            auto startingSymbol = usedSymbols.begin() + varTti.m_dci->m_symStart;
+            auto finalSymbol = startingSymbol + varTti.m_dci->m_numSym;
+            std::fill(startingSymbol, finalSymbol, true);
+        }
+        alloc.m_numSymAlloc = std::count(usedSymbols.begin(), usedSymbols.end(), true);
+        // update the slot type to stay consistent
+        bool hasDl = false;
+        bool hasUl = false;
+
+        for (const auto& varTti : alloc.m_varTtiAllocInfo)
+        {
+            if (!varTti.m_dci)
+            {
+                continue;
+            }
+
+            if (varTti.m_dci->m_format == DciInfoElementTdma::DL)
+            {
+                hasDl = true;
+            }
+            else if (varTti.m_dci->m_format == DciInfoElementTdma::UL)
+            {
+                hasUl = true;
+            }
+        }
+
+        alloc.m_type = hasDl && hasUl ? SlotAllocInfo::BOTH
+                       : hasDl        ? SlotAllocInfo::DL
+                       : hasUl        ? SlotAllocInfo::UL
+                                      : SlotAllocInfo::NONE;
+    }
+}
+
 size_t
 NrPhy::SlotAllocInfoSize() const
 {

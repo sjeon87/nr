@@ -452,6 +452,8 @@ class NrPhy : public Object
      */
     uint32_t DoGetArfcn() const;
 
+    void ClearRntiSlotAllocInfo(uint16_t rnti);
+
   protected:
     /**
      * @brief DoDispose method inherited from Object
