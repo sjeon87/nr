@@ -269,8 +269,8 @@ class NrMacSchedulerNs3 : public NrMacScheduler
     ~NrMacSchedulerNs3() override;
 
     // FH Control SAPs
-    void SetNrFhSchedSapProvider(NrFhSchedSapProvider* s) override;
-    NrFhSchedSapUser* GetNrFhSchedSapUser() override;
+    void SetNrFhSchedSapProvider(NrFhSchedSapProvider* s) override final;
+    NrFhSchedSapUser* GetNrFhSchedSapUser() override final;
 
     /**
      * @brief Install the AMC for the DL part
@@ -328,35 +328,35 @@ class NrMacSchedulerNs3 : public NrMacScheduler
         FTResources; //!< Represent an amount of RBG/symbols that can be, or is, assigned
 
     void DoCschedCellConfigReq(
-        const NrMacCschedSapProvider::CschedCellConfigReqParameters& params) override;
+        const NrMacCschedSapProvider::CschedCellConfigReqParameters& params) override final;
     void DoCschedUeConfigReq(
-        const NrMacCschedSapProvider::CschedUeConfigReqParameters& params) override;
+        const NrMacCschedSapProvider::CschedUeConfigReqParameters& params) override final;
     void DoSchedDlRlcBufferReq(
-        const NrMacSchedSapProvider::SchedDlRlcBufferReqParameters& params) override;
+        const NrMacSchedSapProvider::SchedDlRlcBufferReqParameters& params) override final;
     void DoSchedUlMacCtrlInfoReq(
-        const NrMacSchedSapProvider::SchedUlMacCtrlInfoReqParameters& params) override;
+        const NrMacSchedSapProvider::SchedUlMacCtrlInfoReqParameters& params) override final;
     void DoSchedDlCqiInfoReq(
-        const NrMacSchedSapProvider::SchedDlCqiInfoReqParameters& params) override;
+        const NrMacSchedSapProvider::SchedDlCqiInfoReqParameters& params) override final;
     void DoSchedUlCqiInfoReq(
-        const NrMacSchedSapProvider::SchedUlCqiInfoReqParameters& params) override;
+        const NrMacSchedSapProvider::SchedUlCqiInfoReqParameters& params) override final;
     void DoCschedUeReleaseReq(
-        const NrMacCschedSapProvider::CschedUeReleaseReqParameters& params) override;
+        const NrMacCschedSapProvider::CschedUeReleaseReqParameters& params) override final;
     void DoCschedLcConfigReq(
-        const NrMacCschedSapProvider::CschedLcConfigReqParameters& params) override;
+        const NrMacCschedSapProvider::CschedLcConfigReqParameters& params) override final;
     void DoCschedLcReleaseReq(
-        const NrMacCschedSapProvider::CschedLcReleaseReqParameters& params) override;
+        const NrMacCschedSapProvider::CschedLcReleaseReqParameters& params) override final;
     void DoSchedDlTriggerReq(
-        const NrMacSchedSapProvider::SchedDlTriggerReqParameters& params) override;
+        const NrMacSchedSapProvider::SchedDlTriggerReqParameters& params) override final;
     void DoSchedUlTriggerReq(
-        const NrMacSchedSapProvider::SchedUlTriggerReqParameters& params) override;
+        const NrMacSchedSapProvider::SchedUlTriggerReqParameters& params) override final;
     void DoSchedUlSrInfoReq(
-        const NrMacSchedSapProvider::SchedUlSrInfoReqParameters& params) override;
-    void DoSchedSetMcs(uint32_t mcs) override;
+        const NrMacSchedSapProvider::SchedUlSrInfoReqParameters& params) override final;
+    void DoSchedSetMcs(uint32_t mcs) override final;
     void DoSchedDlRachInfoReq(
-        const NrMacSchedSapProvider::SchedDlRachInfoReqParameters& params) override;
-    uint8_t GetDlCtrlSyms() const override;
-    uint8_t GetUlCtrlSyms() const override;
-    bool IsMaxSrsReached() const override;
+        const NrMacSchedSapProvider::SchedDlRachInfoReqParameters& params) override final;
+    uint8_t GetDlCtrlSyms() const override final;
+    uint8_t GetUlCtrlSyms() const override final;
+    bool IsMaxSrsReached() const override final;
 
     /**
      * @brief Assign a fixed random variable stream number to the random variables
@@ -555,7 +555,7 @@ class NrMacSchedulerNs3 : public NrMacScheduler
      *
      * @return Returns true if HARQ ReTx are enabled; otherwise false
      */
-    bool IsHarqReTxEnable() const override;
+    bool IsHarqReTxEnable() const override final;
 
     /**
      * @brief Sets the default RACH UL
