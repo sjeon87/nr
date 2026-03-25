@@ -51,7 +51,9 @@ class NrRadioLinkFailureTestCase : public TestCase
      * @brief Creates an instance of the radio link failure test case.
      *
      * @param numGnbs number of gNBs
-     * @param numUes number of UEs
+     * @param numUes number of UEs that will suffer the RLF
+     * @param numBackgroundUes the number of the background UEs which will not suffer the RLF;
+     * instead will stay connected and continue to operate normally
      * @param simTime the simulation time
      * @param isIdealRrc if true, simulation uses Ideal RRC protocol, otherwise
      *                   simulation uses Real RRC protocol
@@ -62,6 +64,7 @@ class NrRadioLinkFailureTestCase : public TestCase
      */
     NrRadioLinkFailureTestCase(uint32_t numGnbs,
                                uint32_t numUes,
+                               uint32_t numBackgroundUes,
                                Time simTime,
                                bool isIdealRrc,
                                std::vector<Vector> uePositionList,
@@ -76,10 +79,15 @@ class NrRadioLinkFailureTestCase : public TestCase
      * Builds the test name string based on provided parameter values
      * @param numGnbs the number of gNB nodes
      * @param numUes the number of UE nodes
+     * @param numBackgroundUes the number of the UE nodes connected normally throughput the
+     * simulation, now RLF
      * @param isIdealRrc True if the Ideal RRC protocol is used
      * @returns the name string
      */
-    std::string BuildNameString(uint32_t numGnbs, uint32_t numUes, bool isIdealRrc);
+    std::string BuildNameString(uint32_t numGnbs,
+                                uint32_t numUes,
+                                uint32_t numBackgroundUes,
+                                bool isIdealRrc);
     /**
      * @brief Setup the simulation according to the configuration set by the
      *        class constructor, run it, and verify the result.
@@ -198,6 +206,7 @@ class NrRadioLinkFailureTestCase : public TestCase
 
     uint32_t m_numGnbs;                    ///< number of gNBs
     uint32_t m_numUes;                     ///< number of UEs
+    uint32_t m_numBackgroundUes;           ///< number of the background UEs
     Time m_simTime;                        ///< simulation time
     bool m_isIdealRrc;                     ///< whether the NR is configured to use ideal RRC
     std::vector<Vector> m_uePositionList;  ///< Position of the UEs
@@ -209,11 +218,10 @@ class NrRadioLinkFailureTestCase : public TestCase
     /// The current UE RRC state.
     NrUeRrc::State m_lastState;
 
-    bool m_radioLinkFailureDetected;      ///< true if radio link fails
-    uint32_t m_numOfInSyncIndications;    ///< number of in-sync indications detected
-    uint32_t m_numOfOutOfSyncIndications; ///< number of out-of-sync indications detected
-    Ptr<MobilityModel> m_ueMobility;      ///< UE mobility model
-
+    bool m_radioLinkFailureDetected;              ///< true if radio link fails
+    uint32_t m_numOfInSyncIndications;            ///< number of in-sync indications detected
+    uint32_t m_numOfOutOfSyncIndications;         ///< number of out-of-sync indications detected
+    std::vector<Ptr<MobilityModel>> m_ueMobility; ///< UE mobility model
 }; // end of class NrRadioLinkFailureTestCase
 
 #endif /* NR_TEST_RADIO_LINK_FAILURE_H */
