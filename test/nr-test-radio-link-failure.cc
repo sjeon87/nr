@@ -56,6 +56,29 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
     //
     AddTestCase(new NrRadioLinkFailureTestCase(1,
                                                1,
+                                               0,
+                                               Seconds(2),
+                                               true,
+                                               uePositionList,
+                                               gnbPositionList,
+                                               ueJumpAwayPosition,
+                                               checkConnectedList),
+                TestCase::Duration::QUICK);
+
+    AddTestCase(new NrRadioLinkFailureTestCase(1,
+                                               1,
+                                               1,
+                                               Seconds(2),
+                                               true,
+                                               uePositionList,
+                                               gnbPositionList,
+                                               ueJumpAwayPosition,
+                                               checkConnectedList),
+                TestCase::Duration::QUICK);
+
+    AddTestCase(new NrRadioLinkFailureTestCase(1,
+                                               1,
+                                               2,
                                                Seconds(2),
                                                true,
                                                uePositionList,
@@ -82,6 +105,29 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
 
     AddTestCase(new NrRadioLinkFailureTestCase(2,
                                                1,
+                                               0,
+                                               Seconds(2),
+                                               true,
+                                               uePositionList,
+                                               gnbPositionList,
+                                               ueJumpAwayPosition,
+                                               checkConnectedList),
+                TestCase::Duration::QUICK);
+
+    AddTestCase(new NrRadioLinkFailureTestCase(2,
+                                               1,
+                                               1,
+                                               Seconds(2),
+                                               true,
+                                               uePositionList,
+                                               gnbPositionList,
+                                               ueJumpAwayPosition,
+                                               checkConnectedList),
+                TestCase::Duration::QUICK);
+
+    AddTestCase(new NrRadioLinkFailureTestCase(2,
+                                               1,
+                                               2,
                                                Seconds(2),
                                                true,
                                                uePositionList,
@@ -114,7 +160,10 @@ static NrRadioLinkFailureTestSuite g_nrRadioLinkFailureTestSuite;
  */
 
 std::string
-NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs, uint32_t numUes, bool isIdealRrc)
+NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs,
+                                            uint32_t numUes,
+                                            uint32_t numBackgroundUes,
+                                            bool isIdealRrc)
 {
     std::ostringstream oss;
     std::string rrcProtocol;
@@ -126,21 +175,24 @@ NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs, uint32_t numUes, b
     {
         rrcProtocol = "RRC Real";
     }
-    oss << numGnbs << " gNBs, " << numUes << " UEs, " << rrcProtocol << " Protocol";
+    oss << numGnbs << " gNBs, " << numUes << " UEs, " << numBackgroundUes << " background UEs,"
+        << rrcProtocol << " Protocol";
     return oss.str();
 }
 
 NrRadioLinkFailureTestCase::NrRadioLinkFailureTestCase(uint32_t numGnbs,
                                                        uint32_t numUes,
+                                                       uint32_t numBackgroundUes,
                                                        Time simTime,
                                                        bool isIdealRrc,
                                                        std::vector<Vector> uePositionList,
                                                        std::vector<Vector> gnbPositionList,
                                                        Vector ueJumpAwayPosition,
                                                        std::vector<Time> checkConnectedList)
-    : TestCase(BuildNameString(numGnbs, numUes, isIdealRrc)),
+    : TestCase(BuildNameString(numGnbs, numUes, numBackgroundUes, isIdealRrc)),
       m_numGnbs(numGnbs),
       m_numUes(numUes),
+      m_numBackgroundUes(numBackgroundUes),
       m_simTime(simTime),
       m_isIdealRrc(isIdealRrc),
       m_uePositionList(uePositionList),
@@ -239,8 +291,10 @@ NrRadioLinkFailureTestCase::DoRun()
     // Create Nodes: gNB and UE
     NodeContainer gnbNodes;
     NodeContainer ueNodes;
+    NodeContainer backgroundUeNodes;
     gnbNodes.Create(m_numGnbs);
     ueNodes.Create(m_numUes);
+    backgroundUeNodes.Create(m_numBackgroundUes);
 
     // Mobility
     Ptr<ListPositionAllocator> positionAllocGnb = CreateObject<ListPositionAllocator>();
@@ -264,7 +318,12 @@ NrRadioLinkFailureTestCase::DoRun()
     mobility.SetPositionAllocator(positionAllocUe);
     mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
     mobility.Install(ueNodes);
-    m_ueMobility = ueNodes.Get(0)->GetObject<MobilityModel>();
+    mobility.Install(backgroundUeNodes);
+
+    for (auto ueNode = ueNodes.Begin(); ueNode != ueNodes.End(); ++ueNode)
+    {
+        m_ueMobility.push_back((*ueNode)->GetObject<MobilityModel>());
+    }
 
     // Install NR Devices in gNB and UEs
     NetDeviceContainer gnbDevs;
@@ -273,11 +332,16 @@ NrRadioLinkFailureTestCase::DoRun()
     int64_t randomStream = 1;
     gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
     randomStream += nrHelper->AssignStreams(gnbDevs, randomStream);
-    ueDevs = nrHelper->InstallUeDevice(ueNodes, bandwidthAndBWPPair.second);
+
+    NodeContainer allUeNodes;
+    allUeNodes.Add(ueNodes);
+    allUeNodes.Add(backgroundUeNodes);
+
+    ueDevs = nrHelper->InstallUeDevice(allUeNodes, bandwidthAndBWPPair.second);
     randomStream += nrHelper->AssignStreams(ueDevs, randomStream);
 
     // Install the IP stack on the UEs
-    internet.Install(ueNodes);
+    internet.Install(allUeNodes);
     Ipv4InterfaceContainer ueIpIfaces;
     ueIpIfaces = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
 
@@ -297,7 +361,7 @@ NrRadioLinkFailureTestCase::DoRun()
 
     NS_LOG_DEBUG("UDP will use application interval " << udpInterval.As(Time::S));
 
-    for (uint32_t u = 0; u < m_numUes; ++u)
+    for (uint32_t u = 0; u < m_numUes + m_numBackgroundUes; ++u)
     {
         for (uint32_t b = 0; b < numBearersPerUe; ++b)
         {
@@ -317,13 +381,13 @@ NrRadioLinkFailureTestCase::DoRun()
 
             PacketSinkHelper dlPacketSinkHelper("ns3::UdpSocketFactory",
                                                 InetSocketAddress(Ipv4Address::GetAny(), dlPort));
-            dlServerApps.Add(dlPacketSinkHelper.Install(ueNodes.Get(u)));
+            dlServerApps.Add(dlPacketSinkHelper.Install(allUeNodes.Get(u)));
 
             NS_LOG_LOGIC("installing UDP UL app for UE " << u + 1);
             UdpClientHelper ulClientHelper(remoteHostAddr, ulPort);
             ulClientHelper.SetAttribute("Interval", TimeValue(udpInterval));
             ulClientHelper.SetAttribute("MaxPackets", UintegerValue(1000000));
-            ulClientApps.Add(ulClientHelper.Install(ueNodes.Get(u)));
+            ulClientApps.Add(ulClientHelper.Install(allUeNodes.Get(u)));
 
             PacketSinkHelper ulPacketSinkHelper("ns3::UdpSocketFactory",
                                                 InetSocketAddress(Ipv4Address::GetAny(), ulPort));
@@ -351,13 +415,18 @@ NrRadioLinkFailureTestCase::DoRun()
 
     nrHelper->EnableTraces();
 
-    for (uint32_t u = 0; u < m_numUes; ++u)
+    for (auto connTimeStamp = m_checkConnectedList.begin();
+         connTimeStamp != m_checkConnectedList.end();
+         ++connTimeStamp)
     {
-        Simulator::Schedule(m_checkConnectedList.at(u),
-                            &NrRadioLinkFailureTestCase::CheckConnected,
-                            this,
-                            ueDevs.Get(u),
-                            gnbDevs);
+        for (uint32_t u = 0; u < m_numUes + m_numBackgroundUes; ++u)
+        {
+            Simulator::Schedule(*connTimeStamp,
+                                &NrRadioLinkFailureTestCase::CheckConnected,
+                                this,
+                                ueDevs.Get(u),
+                                gnbDevs);
+        }
     }
 
     Simulator::Schedule(Seconds(0.4),
@@ -393,6 +462,12 @@ NrRadioLinkFailureTestCase::DoRun()
             "Error, UE transitions to idle state for other than radio link failure");
         CheckIdle(ueDevs.Get(u), gnbDevs);
     }
+
+    for (uint32_t u = m_numUes; u < m_numUes + m_numBackgroundUes; ++u)
+    {
+        CheckConnected(ueDevs.Get(u), gnbDevs);
+    }
+
     Simulator::Destroy();
 } // end of void NrRadioLinkFailureTestCase::DoRun ()
 
@@ -402,7 +477,10 @@ NrRadioLinkFailureTestCase::JumpAway(Vector UeJumpAwayPosition)
     NS_LOG_FUNCTION(this);
     // move to a far away location so that transmission errors occur
 
-    m_ueMobility->SetPosition(UeJumpAwayPosition);
+    for (auto mobIt = m_ueMobility.begin(); mobIt != m_ueMobility.end(); mobIt++)
+    {
+        (*mobIt)->SetPosition(UeJumpAwayPosition);
+    }
 }
 
 void
