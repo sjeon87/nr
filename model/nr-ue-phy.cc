@@ -1129,6 +1129,12 @@ NrUePhy::DlData(const std::shared_ptr<DciInfoElementTdma>& dci)
         return varTtiDuration;
     }
 
+    if (dci->m_rnti != m_rnti)
+    {
+        NS_LOG_DEBUG("Transmission scheduled before the UE disconnected");
+        return varTtiDuration;
+    }
+
     m_receptionEnabled = true;
     NS_ASSERT(dci->m_rnti == m_rnti);
     m_spectrumPhy->AddExpectedTb({dci->m_ndi,
