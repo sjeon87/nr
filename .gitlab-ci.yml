@@ -141,7 +141,8 @@ documentation:
   before_script:
     - apt-get update
     - DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
-    - apt-get install -y ccache cmake g++ python3 doxygen graphviz make imagemagick dia texlive texlive-font-utils python3-sphinx python3-sphinx-rtd-theme latexmk texlive texlive-science texlive-formats-extra texlive-base python3-jinja2 python3-pygments fonts-freefont-otf fonts-freefont-ttf git libeigen3-dev dvipng
+    - apt-get install -y ccache cmake g++ python3 doxygen graphviz make imagemagick dia texlive texlive-font-utils python3-sphinx python3-sphinx-rtd-theme latexmk texlive texlive-science texlive-formats-extra texlive-base python3-pip python3-jinja2 python3-pygments fonts-freefont-otf fonts-freefont-ttf git libeigen3-dev dvipng libjpeg-dev zlib1g-dev
+    - pip install seqdiag Pillow==9.5.0 --break-system-packages
     - sed -i "s/EPS,PDF,//g" /etc/ImageMagick-6/policy.xml
     - sed -i "s/none/read\ |\ write/g" /etc/ImageMagick-6/policy.xml
   image: ubuntu
