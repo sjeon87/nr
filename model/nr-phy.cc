@@ -856,12 +856,10 @@ NrPhy::ClearRntiSlotAllocInfo(uint16_t rnti)
     for (auto& alloc : m_slotAllocInfo)
     {
         std::erase_if(alloc.m_buildRarList,
-            [rnti](const auto& rar) {
-            return rar.ulMsg3Dci->m_rnti == rnti;
-        });
+                      [rnti](const auto& rar) { return rar.ulMsg3Dci->m_rnti == rnti; });
 
         std::deque<VarTtiAllocInfo> filteredVarTtiAllocInfo;
-        for (auto& varTti: alloc.m_varTtiAllocInfo)
+        for (auto& varTti : alloc.m_varTtiAllocInfo)
         {
             if (varTti.m_dci->m_rnti == rnti)
             {
@@ -872,24 +870,40 @@ NrPhy::ClearRntiSlotAllocInfo(uint16_t rnti)
                 filteredVarTtiAllocInfo.push_back(varTti);
             }
         }
-        if (alloc.m_varTtiAllocInfo.size() != filteredVarTtiAllocInfo.size())
+        alloc.m_varTtiAllocInfo = filteredVarTtiAllocInfo;
+        std::array<bool, 14> usedSymbols{false};
+        for (const auto& varTti : alloc.m_varTtiAllocInfo)
         {
-            alloc.m_varTtiAllocInfo = filteredVarTtiAllocInfo;
-            uint8_t minStart = 0;
-            uint8_t maxSymbol = 0;
-            for(const auto& varTti : alloc.m_varTtiAllocInfo)
-            {
-                if (minStart > varTti.m_dci->m_symStart)
-                {
-                    minStart = varTti.m_dci->m_symStart;
-                }
-                if (maxSymbol < (varTti.m_dci->m_symStart + varTti.m_dci->m_numSym))
-                {
-                    maxSymbol = varTti.m_dci->m_symStart + varTti.m_dci->m_numSym;
-                }
-            }
-            alloc.m_numSymAlloc = maxSymbol - minStart;
+            auto startingSymbol = usedSymbols.begin() + varTti.m_dci->m_symStart;
+            auto finalSymbol = startingSymbol + varTti.m_dci->m_numSym;
+            std::fill(startingSymbol, finalSymbol, true);
         }
+        alloc.m_numSymAlloc = std::count(usedSymbols.begin(), usedSymbols.end(), true);
+        // update the slot type to stay consistent
+        bool hasDl = false;
+        bool hasUl = false;
+
+        for (const auto& varTti : alloc.m_varTtiAllocInfo)
+        {
+            if (!varTti.m_dci)
+            {
+                continue;
+            }
+
+            if (varTti.m_dci->m_format == DciInfoElementTdma::DL)
+            {
+                hasDl = true;
+            }
+            else if (varTti.m_dci->m_format == DciInfoElementTdma::UL)
+            {
+                hasUl = true;
+            }
+        }
+
+        alloc.m_type = hasDl && hasUl ? SlotAllocInfo::BOTH
+                       : hasDl        ? SlotAllocInfo::DL
+                       : hasUl        ? SlotAllocInfo::UL
+                                      : SlotAllocInfo::NONE;
     }
 }
 
