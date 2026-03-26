@@ -427,6 +427,9 @@ NrGnbPhy::PushDlAllocation(const SfnSf& sfnSf) const
     NS_ASSERT(m_phySapUser);
 
     auto dci = m_phySapUser->GetDlCtrlDci();
+    NS_ASSERT_MSG(dci->m_numSym <= 14,
+                  "Invalid number of symbols: " << dci->m_numSym << " symbols. ");
+
     VarTtiAllocInfo dlCtrlVarTti(dci);
 
     SlotAllocInfo slotAllocInfo = SlotAllocInfo(sfnSf);
@@ -445,6 +448,8 @@ NrGnbPhy::PushUlAllocation(const SfnSf& sfnSf) const
     NS_ASSERT(m_phySapUser);
 
     auto dci = m_phySapUser->GetUlCtrlDci();
+    NS_ASSERT_MSG(dci->m_numSym <= 14,
+                  "Invalid number of symbols: " << dci->m_numSym << " symbols. ");
     VarTtiAllocInfo ulCtrlVarTti(dci);
 
     SlotAllocInfo slotAllocInfo = SlotAllocInfo(sfnSf);
@@ -782,6 +787,9 @@ NrGnbPhy::StartSlot(const SfnSf& startSlot)
                 VarTtiAllocInfo dlCtrlSlot(m_phySapUser->GetDlCtrlDci());
                 m_currSlotAllocInfo.m_varTtiAllocInfo.push_front(dlCtrlSlot);
                 m_currSlotAllocInfo.m_numSymAlloc += m_phySapUser->GetDlCtrlSymbols();
+                NS_ASSERT_MSG(m_currSlotAllocInfo.m_numSymAlloc <= 14,
+                              "Invalid number of symbols: " << m_currSlotAllocInfo.m_numSymAlloc
+                                                            << " symbols. ");
             }
         }
     }
@@ -956,9 +964,6 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
     uint32_t dataSym = 0;
     uint32_t ctrlSym = 0;
 
-    int lastSymStart = -1;
-    uint32_t symUsed = 0;
-
     for (const auto& allocation : allocInfo.m_varTtiAllocInfo)
     {
         uint32_t rbg = std::count(allocation.m_dci->m_rbgBitmask.begin(),
@@ -971,8 +976,6 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
             activeUe.insert(allocation.m_dci->m_rnti);
         }
 
-        NS_ASSERT(lastSymStart <= allocation.m_dci->m_symStart);
-
         auto rbgUsed = (rbg * GetNumRbPerRbg()) * allocation.m_dci->m_numSym;
         if (allocation.m_dci->m_type == DciInfoElementTdma::DATA ||
             allocation.m_dci->m_type == DciInfoElementTdma::MSG3)
@@ -983,27 +986,14 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
         {
             ctrlReg += rbgUsed;
         }
-
-        if (lastSymStart != allocation.m_dci->m_symStart)
-        {
-            symUsed += allocation.m_dci->m_numSym;
-
-            if (allocation.m_dci->m_type == DciInfoElementTdma::DATA ||
-                allocation.m_dci->m_type == DciInfoElementTdma::MSG3)
-            {
-                dataSym += allocation.m_dci->m_numSym;
-            }
-            else
-            {
-                ctrlSym += allocation.m_dci->m_numSym;
-            }
-        }
-
-        lastSymStart = allocation.m_dci->m_symStart;
     }
+    const auto nSymUsed = allocInfo.GetAllocInfoNumSymbols();
+    ctrlSym = allocInfo.GetAllocInfoNumSymbols(DciInfoElementTdma::VarTtiType::CTRL);
+    dataSym = allocInfo.GetAllocInfoNumSymbols(DciInfoElementTdma::VarTtiType::DATA |
+                                               DciInfoElementTdma::VarTtiType::MSG3);
 
-    NS_ASSERT_MSG(symUsed == allocInfo.m_numSymAlloc,
-                  "Allocated " << +allocInfo.m_numSymAlloc << " but only " << symUsed
+    NS_ASSERT_MSG(nSymUsed == allocInfo.m_numSymAlloc,
+                  "Allocated " << +allocInfo.m_numSymAlloc << " but only " << +nSymUsed
                                << " written in stats");
 
     m_phySlotDataStats(allocInfo.m_sfnSf,
@@ -1034,6 +1024,9 @@ NrGnbPhy::DoStartSlot()
     uint64_t currentSlotN = m_currentSlot.Normalize() % m_tddPattern.size();
 
     NS_LOG_DEBUG("Start Slot " << m_currentSlot << " of type " << m_tddPattern[currentSlotN]);
+    NS_ASSERT_MSG(m_currSlotAllocInfo.m_numSymAlloc <= 14,
+                  "Invalid number of symbols: " << m_currSlotAllocInfo.m_numSymAlloc
+                                                << " symbols. ");
 
     GenerateAllocationStatistics(m_currSlotAllocInfo);
 
