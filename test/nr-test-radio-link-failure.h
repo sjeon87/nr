@@ -61,6 +61,7 @@ class NrRadioLinkFailureTestCase : public TestCase
      * @param gnbPositionList Position of the gNBs
      * @param ueJumpAwayPosition Vector holding the UE jump away coordinates
      * @param checkConnectedList the time at which UEs should have an active RRC connection
+     * @param enableUplinkTraffic if true, UEs will generate uplink traffic
      */
     NrRadioLinkFailureTestCase(uint32_t numGnbs,
                                uint32_t numUes,
@@ -70,7 +71,8 @@ class NrRadioLinkFailureTestCase : public TestCase
                                std::vector<Vector> uePositionList,
                                std::vector<Vector> gnbPositionList,
                                Vector ueJumpAwayPosition,
-                               std::vector<Time> checkConnectedList);
+                               std::vector<Time> checkConnectedList,
+                               bool enableUplinkTraffic = true);
 
     ~NrRadioLinkFailureTestCase() override;
 
@@ -82,12 +84,14 @@ class NrRadioLinkFailureTestCase : public TestCase
      * @param numBackgroundUes the number of the UE nodes connected normally throughput the
      * simulation, now RLF
      * @param isIdealRrc True if the Ideal RRC protocol is used
+     * @param enableUplinkTraffic True if the uplink traffic is enabled along with the DL traffic
      * @returns the name string
      */
     std::string BuildNameString(uint32_t numGnbs,
                                 uint32_t numUes,
                                 uint32_t numBackgroundUes,
-                                bool isIdealRrc);
+                                bool isIdealRrc,
+                                bool enableUplinkTraffic);
     /**
      * @brief Setup the simulation according to the configuration set by the
      *        class constructor, run it, and verify the result.
@@ -222,6 +226,7 @@ class NrRadioLinkFailureTestCase : public TestCase
     uint32_t m_numOfInSyncIndications;            ///< number of in-sync indications detected
     uint32_t m_numOfOutOfSyncIndications;         ///< number of out-of-sync indications detected
     std::vector<Ptr<MobilityModel>> m_ueMobility; ///< UE mobility model
+    bool m_enableUplinkTraffic{true};
 }; // end of class NrRadioLinkFailureTestCase
 
 #endif /* NR_TEST_RADIO_LINK_FAILURE_H */
