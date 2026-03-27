@@ -129,9 +129,9 @@ class UeRrcProtocolReal : public Object
     /**
      * @brief Send ideal UE context remove request function
      *
-     * Notify eNodeB to release UE context once radio link failure
+     * Notify gNB to release UE context once radio link failure
      * or random access failure is detected. It is needed since no
-     * RLF detection mechanism at eNodeB is implemented
+     * RLF detection mechanism at gNB is implemented
      *
      * @param rnti the RNTI of the UE
      */

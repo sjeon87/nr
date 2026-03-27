@@ -50,24 +50,29 @@ class NrRadioLinkFailureTestCase : public TestCase
     /**
      * @brief Creates an instance of the radio link failure test case.
      *
-     * @param numGnbs number of eNodeBs
-     * @param numUes number of UEs
+     * @param numGnbs number of gNBs
+     * @param numUes number of UEs that will suffer the RLF
+     * @param numBackgroundUes the number of the background UEs which will not suffer the RLF;
+     * instead will stay connected and continue to operate normally
      * @param simTime the simulation time
      * @param isIdealRrc if true, simulation uses Ideal RRC protocol, otherwise
      *                   simulation uses Real RRC protocol
      * @param uePositionList Position of the UEs
-     * @param gnbPositionList Position of the eNodeBs
+     * @param gnbPositionList Position of the gNBs
      * @param ueJumpAwayPosition Vector holding the UE jump away coordinates
      * @param checkConnectedList the time at which UEs should have an active RRC connection
+     * @param enableUplinkTraffic if true, UEs will generate uplink traffic
      */
     NrRadioLinkFailureTestCase(uint32_t numGnbs,
                                uint32_t numUes,
+                               uint32_t numBackgroundUes,
                                Time simTime,
                                bool isIdealRrc,
                                std::vector<Vector> uePositionList,
                                std::vector<Vector> gnbPositionList,
                                Vector ueJumpAwayPosition,
-                               std::vector<Time> checkConnectedList);
+                               std::vector<Time> checkConnectedList,
+                               bool enableUplinkTraffic = true);
 
     ~NrRadioLinkFailureTestCase() override;
 
@@ -76,10 +81,17 @@ class NrRadioLinkFailureTestCase : public TestCase
      * Builds the test name string based on provided parameter values
      * @param numGnbs the number of gNB nodes
      * @param numUes the number of UE nodes
+     * @param numBackgroundUes the number of the UE nodes connected normally throughput the
+     * simulation, now RLF
      * @param isIdealRrc True if the Ideal RRC protocol is used
+     * @param enableUplinkTraffic True if the uplink traffic is enabled along with the DL traffic
      * @returns the name string
      */
-    std::string BuildNameString(uint32_t numGnbs, uint32_t numUes, bool isIdealRrc);
+    std::string BuildNameString(uint32_t numGnbs,
+                                uint32_t numUes,
+                                uint32_t numBackgroundUes,
+                                bool isIdealRrc,
+                                bool enableUplinkTraffic);
     /**
      * @brief Setup the simulation according to the configuration set by the
      *        class constructor, run it, and verify the result.
@@ -104,7 +116,7 @@ class NrRadioLinkFailureTestCase : public TestCase
      * @brief Check if the UE exist at the gNB
      * @param rnti the RNTI of the UE
      * @param gnbDevice the gNB device
-     * @return true if the UE exist at the eNB, otherwise false
+     * @return true if the UE exist at the gNB, otherwise false
      */
     bool CheckUeExistAtGnb(uint16_t rnti, Ptr<NetDevice> gnbDevice);
 
@@ -137,7 +149,7 @@ class NrRadioLinkFailureTestCase : public TestCase
                                          uint16_t rnti);
 
     /**
-     * @brief Connection established at eNodeB callback function
+     * @brief Connection established at gNB callback function
      * @param context the context string
      * @param imsi the IMSI
      * @param cellId the cell ID
@@ -149,7 +161,7 @@ class NrRadioLinkFailureTestCase : public TestCase
                                           uint16_t rnti);
 
     /**
-     * @brief This callback function is executed when UE context is removed at eNodeB
+     * @brief This callback function is executed when UE context is removed at gNB
      * @param context the context string
      * @param imsi the IMSI
      * @param cellId the cell ID
@@ -196,12 +208,13 @@ class NrRadioLinkFailureTestCase : public TestCase
      */
     void JumpAway(Vector UeJumpAwayPositionList);
 
-    uint32_t m_numGnbs;                    ///< number of eNodeBs
+    uint32_t m_numGnbs;                    ///< number of gNBs
     uint32_t m_numUes;                     ///< number of UEs
+    uint32_t m_numBackgroundUes;           ///< number of the background UEs
     Time m_simTime;                        ///< simulation time
     bool m_isIdealRrc;                     ///< whether the NR is configured to use ideal RRC
     std::vector<Vector> m_uePositionList;  ///< Position of the UEs
-    std::vector<Vector> m_gnbPositionList; ///< Position of the eNodeBs
+    std::vector<Vector> m_gnbPositionList; ///< Position of the gNBs
     std::vector<Time>
         m_checkConnectedList;    ///< the time at which UEs should have an active RRC connection
     Vector m_ueJumpAwayPosition; ///< Position where the UE(s) would jump
@@ -209,11 +222,11 @@ class NrRadioLinkFailureTestCase : public TestCase
     /// The current UE RRC state.
     NrUeRrc::State m_lastState;
 
-    bool m_radioLinkFailureDetected;      ///< true if radio link fails
-    uint32_t m_numOfInSyncIndications;    ///< number of in-sync indications detected
-    uint32_t m_numOfOutOfSyncIndications; ///< number of out-of-sync indications detected
-    Ptr<MobilityModel> m_ueMobility;      ///< UE mobility model
-
+    bool m_radioLinkFailureDetected;              ///< true if radio link fails
+    uint32_t m_numOfInSyncIndications;            ///< number of in-sync indications detected
+    uint32_t m_numOfOutOfSyncIndications;         ///< number of out-of-sync indications detected
+    std::vector<Ptr<MobilityModel>> m_ueMobility; ///< UE mobility model
+    bool m_enableUplinkTraffic{true};
 }; // end of class NrRadioLinkFailureTestCase
 
 #endif /* NR_TEST_RADIO_LINK_FAILURE_H */

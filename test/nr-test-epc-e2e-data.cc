@@ -398,7 +398,7 @@ NrEpcE2eDataTestSuite::NrEpcE2eDataTestSuite()
     u1.bearers.push_back(f1);
     e1.ues.push_back(u1);
     v1.push_back(e1);
-    AddTestCase(new NrEpcE2eDataTestCase("1 eNB, 1UE", v1), TestCase::Duration::QUICK);
+    AddTestCase(new NrEpcE2eDataTestCase("1 gNB, 1UE", v1), TestCase::Duration::QUICK);
 
     std::vector<GnbTestData> v2;
     GnbTestData e2;
@@ -411,12 +411,12 @@ NrEpcE2eDataTestSuite::NrEpcE2eDataTestSuite()
     u2_2.bearers.push_back(f2_2);
     e2.ues.push_back(u2_2);
     v2.push_back(e2);
-    AddTestCase(new NrEpcE2eDataTestCase("1 eNB, 2UEs", v2), TestCase::Duration::EXTENSIVE);
+    AddTestCase(new NrEpcE2eDataTestCase("1 gNB, 2UEs", v2), TestCase::Duration::EXTENSIVE);
 
     std::vector<GnbTestData> v3;
     v3.push_back(e1);
     v3.push_back(e2);
-    AddTestCase(new NrEpcE2eDataTestCase("2 eNBs", v3), TestCase::Duration::EXTENSIVE);
+    AddTestCase(new NrEpcE2eDataTestCase("2 gNBs", v3), TestCase::Duration::EXTENSIVE);
 
     GnbTestData e4;
     UeTestData u4_1;
@@ -435,7 +435,7 @@ NrEpcE2eDataTestSuite::NrEpcE2eDataTestSuite()
     v4.push_back(e4);
     v4.push_back(e1);
     v4.push_back(e2);
-    AddTestCase(new NrEpcE2eDataTestCase("3 eNBs", v4), TestCase::Duration::EXTENSIVE);
+    AddTestCase(new NrEpcE2eDataTestCase("3 gNBs", v4), TestCase::Duration::EXTENSIVE);
 
     GnbTestData e5;
     UeTestData u5;
@@ -444,7 +444,7 @@ NrEpcE2eDataTestSuite::NrEpcE2eDataTestSuite()
     e5.ues.push_back(u5);
     std::vector<GnbTestData> v5;
     v5.push_back(e5);
-    AddTestCase(new NrEpcE2eDataTestCase("1 eNB, 1UE with 1000 byte packets", v5),
+    AddTestCase(new NrEpcE2eDataTestCase("1 gNB, 1UE with 1000 byte packets", v5),
                 TestCase::Duration::EXTENSIVE);
 
     GnbTestData e6;
@@ -454,7 +454,7 @@ NrEpcE2eDataTestSuite::NrEpcE2eDataTestSuite()
     e6.ues.push_back(u6);
     std::vector<GnbTestData> v6;
     v6.push_back(e6);
-    AddTestCase(new NrEpcE2eDataTestCase("1 eNB, 1UE with 1400 byte packets", v6),
+    AddTestCase(new NrEpcE2eDataTestCase("1 gNB, 1UE with 1400 byte packets", v6),
                 TestCase::Duration::EXTENSIVE);
 
     GnbTestData e7;
@@ -466,7 +466,7 @@ NrEpcE2eDataTestSuite::NrEpcE2eDataTestSuite()
     e7.ues.push_back(u7);
     std::vector<GnbTestData> v7;
     v7.push_back(e7);
-    AddTestCase(new NrEpcE2eDataTestCase("1 eNB, 1UE with 2 bearers", v7),
+    AddTestCase(new NrEpcE2eDataTestCase("1 gNB, 1UE with 2 bearers", v7),
                 TestCase::Duration::EXTENSIVE);
 
     GnbTestData e8;
@@ -476,7 +476,7 @@ NrEpcE2eDataTestSuite::NrEpcE2eDataTestSuite()
     e8.ues.push_back(u8);
     std::vector<GnbTestData> v8;
     v8.push_back(e8);
-    AddTestCase(new NrEpcE2eDataTestCase("1 eNB, 1UE with fragmentation", v8),
+    AddTestCase(new NrEpcE2eDataTestCase("1 gNB, 1UE with fragmentation", v8),
                 TestCase::Duration::EXTENSIVE);
 
     GnbTestData e9;
@@ -486,6 +486,6 @@ NrEpcE2eDataTestSuite::NrEpcE2eDataTestSuite()
     e9.ues.push_back(u9);
     std::vector<GnbTestData> v9;
     v9.push_back(e9);
-    AddTestCase(new NrEpcE2eDataTestCase("1 eNB, 1UE with aggregation", v9),
+    AddTestCase(new NrEpcE2eDataTestCase("1 gNB, 1UE with aggregation", v9),
                 TestCase::Duration::EXTENSIVE);
 }

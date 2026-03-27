@@ -79,8 +79,8 @@ class BandwidthPartUe : public NrComponentCarrier
     void DoDispose() override;
 
   private:
-    Ptr<NrUePhy> m_phy; ///< the Phy instance of this eNodeB component carrier
-    Ptr<NrUeMac> m_mac; ///< the MAC instance of this eNodeB component carrier
+    Ptr<NrUePhy> m_phy; ///< the Phy instance of this gNB component carrier
+    Ptr<NrUeMac> m_mac; ///< the MAC instance of this gNB component carrier
 };
 
 } // namespace ns3

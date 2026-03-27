@@ -11,8 +11,8 @@
 // Converted to handover algorithm interface by:
 //   Budiarto Herman <budiarto.herman@magister.fi>
 
-#ifndef A2_A4_RSRQ_HANDOVER_ALGORITHM_H
-#define A2_A4_RSRQ_HANDOVER_ALGORITHM_H
+#ifndef A2_A4_RSRP_HANDOVER_ALGORITHM_H
+#define A2_A4_RSRP_HANDOVER_ALGORITHM_H
 
 #include "nr-handover-algorithm.h"
 #include "nr-handover-management-sap.h"
@@ -27,20 +27,20 @@ namespace ns3
 {
 
 /**
- * @brief Handover algorithm implementation based on RSRQ measurements, Event
+ * @brief Handover algorithm implementation based on RSRP measurements, Event
  *        A2 and Event A4.
  *
  * Handover decision made by this algorithm is primarily based on Event A2
- * measurements (serving cell's RSRQ becomes worse than threshold). When the
+ * measurements (serving cell's RSRP becomes worse than threshold). When the
  * event is triggered, the first condition of handover is fulfilled.
  *
- * Event A4 measurements (neighbour cell's RSRQ becomes better than threshold)
- * are used to detect neighbouring cells and their respective RSRQ. When a
- * neighbouring cell's RSRQ is higher than the serving cell's RSRQ by a certain
+ * Event A4 measurements (neighbour cell's RSRP becomes better than threshold)
+ * are used to detect neighbouring cells and their respective RSRP. When a
+ * neighbouring cell's RSRP is higher than the serving cell's RSRP by a certain
  * offset, then the second condition of handover is fulfilled.
  *
  * When the first and second conditions above are fulfilled, the algorithm
- * informs the eNodeB RRC to trigger a handover.
+ * informs the gNB RRC to trigger a handover.
  *
  * The threshold for Event A2 can be configured in the `ServingCellThreshold`
  * attribute. The offset used in the second condition can also be configured by
@@ -54,7 +54,7 @@ namespace ns3
  *     NodeContainer gnbNodes;
  *     // configure the nodes here...
  *
- *     nrHelper->SetHandoverAlgorithmType ("ns3::NrA2A4RsrqHandoverAlgorithm");
+ *     nrHelper->SetHandoverAlgorithmType ("ns3::NrA2A4RsrpHandoverAlgorithm");
  *     nrHelper->SetHandoverAlgorithmAttribute ("ServingCellThreshold",
  *                                               UintegerValue (30));
  *     nrHelper->SetHandoverAlgorithmAttribute ("NeighbourCellOffset",
@@ -65,13 +65,13 @@ namespace ns3
  *       NrHelper::InstallGnbDevice does not have any effect to the devices
  *       that have already been installed.
  */
-class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
+class NrA2A4RsrpHandoverAlgorithm : public NrHandoverAlgorithm
 {
   public:
-    /// Creates an A2-A4-RSRQ handover algorithm instance.
-    NrA2A4RsrqHandoverAlgorithm();
+    /// Creates an A2-A4-RSRP handover algorithm instance.
+    NrA2A4RsrpHandoverAlgorithm();
 
-    ~NrA2A4RsrqHandoverAlgorithm() override;
+    ~NrA2A4RsrpHandoverAlgorithm() override;
 
     /**
      * @brief Get the type ID.
@@ -84,7 +84,7 @@ class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
     NrHandoverManagementSapProvider* GetNrHandoverManagementSapProvider() override;
 
     /// let the forwarder class access the protected and private members
-    friend class MemberNrHandoverManagementSapProvider<NrA2A4RsrqHandoverAlgorithm>;
+    friend class MemberNrHandoverManagementSapProvider<NrA2A4RsrpHandoverAlgorithm>;
 
   protected:
     // inherited from Object
@@ -99,9 +99,9 @@ class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
      * Called when Event A2 is detected, then trigger a handover if needed.
      *
      * @param rnti The RNTI of the UE who reported the event.
-     * @param servingCellRsrq The RSRQ of this cell as reported by the UE.
+     * @param servingCellRsrp The RSRP of this cell as reported by the UE.
      */
-    void EvaluateHandover(uint16_t rnti, uint8_t servingCellRsrq);
+    void EvaluateHandover(uint16_t rnti, uint8_t servingCellRsrp);
 
     /**
      * Determines if a neighbour cell is a valid destination for handover.
@@ -120,9 +120,9 @@ class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
      *
      * @param rnti The RNTI of the UE who reported the event.
      * @param cellId The cell ID of the measured cell.
-     * @param rsrq The RSRQ of the cell as measured by the UE.
+     * @param rsrp The RSRP of the cell as measured by the UE.
      */
-    void UpdateNeighbourMeasurements(uint16_t rnti, uint16_t cellId, uint8_t rsrq);
+    void UpdateNeighbourMeasurements(uint16_t rnti, uint16_t cellId, uint8_t rsrp);
 
     /// The expected measurement identities for A2 measurements.
     std::vector<uint8_t> m_a2MeasIds;
@@ -131,14 +131,13 @@ class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
 
     /**
      * Measurements reported by a UE for a cell ID. The values are quantized
-     * according 3GPP TS 36.133 section 9.1.4 and 9.1.7.
+     * according 3GPP TS Table 10.1.6.1-1 of 3GPP TS 38.133.
      */
     class UeMeasure : public SimpleRefCount<UeMeasure>
     {
       public:
         uint16_t m_cellId; ///< Cell ID.
-        uint8_t m_rsrp;    ///< RSRP in quantized format. \todo Can be removed?
-        uint8_t m_rsrq;    ///< RSRQ in quantized format.
+        uint8_t m_rsrp;    ///< RSRP in quantized format.
     };
 
     /**
@@ -157,27 +156,26 @@ class NrA2A4RsrqHandoverAlgorithm : public NrHandoverAlgorithm
     MeasurementTable_t m_neighbourCellMeasures;
 
     /**
-     * The `ServingCellThreshold` attribute. If the RSRQ of the serving cell is
+     * The `ServingCellThreshold` attribute. If the RSRP of the serving cell is
      * worse than this threshold, neighbour cells are consider for handover.
-     * Expressed in quantized range of [0..34] as per Section 9.1.7 of
-     * 3GPP TS 36.133.
+     * Expressed in quantized range of [0..127] as per Table 10.1.6.1-1 of 3GPP TS 38.133.
      */
     uint8_t m_servingCellThreshold;
 
     /**
      * The `NeighbourCellOffset` attribute. Minimum offset between the serving
      * and the best neighbour cell to trigger the handover. Expressed in
-     * quantized range of [0..34] as per Section 9.1.7 of 3GPP TS 36.133.
+     * quantized range of [0..127] as per Table 10.1.6.1-1 of 3GPP TS 38.133.
      */
     uint8_t m_neighbourCellOffset;
 
-    /// Interface to the eNodeB RRC instance.
+    /// Interface to the gNB RRC instance.
     NrHandoverManagementSapUser* m_handoverManagementSapUser;
-    /// Receive API calls from the eNodeB RRC instance.
+    /// Receive API calls from the gNB RRC instance.
     NrHandoverManagementSapProvider* m_handoverManagementSapProvider;
 
-}; // end of class NrA2A4RsrqHandoverAlgorithm
+}; // end of class NrA2A4RsrpHandoverAlgorithm
 
 } // end of namespace ns3
 
-#endif /* A2_A4_RSRQ_HANDOVER_ALGORITHM_H */
+#endif /* A2_A4_RSRP_HANDOVER_ALGORITHM_H */

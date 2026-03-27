@@ -53,6 +53,7 @@ class UeMemberNrUeCmacSapProvider : public NrUeCmacSapProvider
     void SetRnti(uint16_t rnti) override;
     void NotifyConnectionSuccessful() override;
     void SetImsi(uint64_t imsi) override;
+    void RegisterToGnb(uint16_t cellId) override;
 
   private:
     NrUeMac* m_mac;
@@ -117,6 +118,12 @@ void
 UeMemberNrUeCmacSapProvider::SetImsi(uint64_t imsi)
 {
     m_mac->DoSetImsi(imsi);
+}
+
+void
+UeMemberNrUeCmacSapProvider::RegisterToGnb(uint16_t cellId)
+{
+    m_mac->m_phySapProvider->RegisterToGnb(cellId);
 }
 
 class UeMemberNrMacSapProvider : public NrMacSapProvider
@@ -521,7 +528,7 @@ NrUeMac::SendBufferStatusReport(const SfnSf& dataSfn, uint8_t symStart)
 
     // create the message. It is used only for tracing, but we don't send it...
     Ptr<NrBsrMessage> msg = Create<NrBsrMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     msg->SetBsr(bsr);
 
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), bsr.m_rnti, GetBwpId(), msg);
@@ -637,7 +644,7 @@ NrUeMac::SendSR() const
 
     // create the SR to send to the gNB
     Ptr<NrSRMessage> msg = Create<NrSRMessage>();
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     msg->SetRNTI(m_rnti);
 
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
@@ -1250,7 +1257,7 @@ NrUeMac::RandomlySelectAndSendRaPreamble()
         m_raPreambleUniformVariable->GetInteger(0, m_rachConfig.numberOfRaPreambles - 1);
     NS_LOG_DEBUG(m_currentSlot << " Received System Information, send to PHY the "
                                   "RA preamble: "
-                               << m_raPreambleId);
+                               << +m_raPreambleId);
     SendRaPreamble(true);
 }
 
@@ -1267,8 +1274,7 @@ NrUeMac::SendRaPreamble(bool contention)
         m_raPreambleId += preambleOverflow;
         g_raPreambleId += preambleOverflow;
     }
-    /*raRnti should be subframeNo -1 */
-    m_raRnti = 1;
+    m_raRnti = 1; // todo: set proper RA-RNTI
 
     // 3GPP 36.321 5.1.4
     m_phySapProvider->SendRachPreamble(m_raPreambleId, m_raRnti);
@@ -1282,7 +1288,7 @@ NrUeMac::SendRaPreamble(bool contention)
 
     // Tracing purposes
     Ptr<NrRachPreambleMessage> rachMsg = Create<NrRachPreambleMessage>();
-    rachMsg->SetSourceBwp(GetBwpId());
+    rachMsg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), rachMsg);
 }
 
@@ -1295,7 +1301,7 @@ NrUeMac::StartWaitingForRaResponse()
 
 void
 NrUeMac::DoStartNonContentionBasedRandomAccessProcedure(uint16_t rnti,
-                                                        [[maybe_unused]] uint8_t preambleId,
+                                                        uint8_t preambleId,
                                                         uint8_t prachMask)
 {
     NS_LOG_FUNCTION(this << rnti << (uint16_t)preambleId << (uint16_t)prachMask);

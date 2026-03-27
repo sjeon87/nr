@@ -17,6 +17,7 @@
 #include "nr-ue-net-device.h"
 #include "nr-ue-phy.h"
 
+#include "ns3/boolean.h"
 #include "ns3/double.h"
 #include "ns3/enum.h"
 #include "ns3/log.h"
@@ -198,7 +199,13 @@ NrGnbPhy::GetTypeId()
                 "RBDataStats",
                 "Resource Block used for data: SfnSf, symbol, RB PHY map, bwp ID, cell ID",
                 MakeTraceSourceAccessor(&NrGnbPhy::m_rbStatistics),
-                "ns3::NrGnbPhy::RBStatsTracedCallback");
+                "ns3::NrGnbPhy::RBStatsTracedCallback")
+            .AddAttribute("TestDropRachPreambles",
+                          "Attribute is meant to emulate control channel loss of RACH preambles",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrGnbPhy::m_testDropRachPreambles),
+                          MakeBooleanChecker());
+
     return tid;
 }
 
@@ -684,7 +691,7 @@ NrGnbPhy::QueueMib()
     mib.dlBandwidth = GetChannelBandwidth() / (1000 * 100);
     mib.systemFrameNumber = 1;
     Ptr<NrMibMessage> mibMsg = Create<NrMibMessage>();
-    mibMsg->SetSourceBwp(GetBwpId());
+    mibMsg->SetSourceBwpArfcn(DoGetArfcn());
     mibMsg->SetMib(mib);
     EnqueueCtrlMsgNow(mibMsg);
 }
@@ -695,7 +702,7 @@ NrGnbPhy::QueueSib()
     NS_LOG_FUNCTION(this);
     Ptr<NrSib1Message> msg = Create<NrSib1Message>();
     msg->SetSib1(m_sib1);
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     EnqueueCtrlMsgNow(msg);
 }
 
@@ -1002,6 +1009,10 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
         lastSymStart = allocation.m_dci->m_symStart;
     }
 
+    if (symUsed != allocInfo.m_numSymAlloc)
+    {
+        std::cout << "a" << std::endl;
+    }
     NS_ASSERT_MSG(symUsed == allocInfo.m_numSymAlloc,
                   "Allocated " << +allocInfo.m_numSymAlloc << " but only " << symUsed
                                << " written in stats");
@@ -1212,6 +1223,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
     if (!alloc.m_buildRarList.empty())
     {
         Ptr<NrRarMessage> ulMsg3DciMsg = Create<NrRarMessage>();
+        ulMsg3DciMsg->SetRaRnti(1); // todo: set proper RA-RNTI
         for (const auto& rarIt : alloc.m_buildRarList)
         {
             NrRarMessage::Rar rar{};
@@ -1226,7 +1238,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
                                    << +rar.rarPayload.raPreambleId << " at:" << Simulator::Now()
                                    << " for slot:" << alloc.m_sfnSf << " kDelay:" << kDelay
                                    << "k1Delay:" << k1Delay);
-            ulMsg3DciMsg->SetSourceBwp(GetBwpId());
+            ulMsg3DciMsg->SetSourceBwpArfcn(DoGetArfcn());
         }
         if (kDelay != 0)
         {
@@ -1259,7 +1271,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
             {
                 Ptr<NrDlDciMessage> dciMsg = Create<NrDlDciMessage>(dciElem);
 
-                dciMsg->SetSourceBwp(GetBwpId());
+                dciMsg->SetSourceBwpArfcn(DoGetArfcn());
                 dciMsg->SetKDelay(kDelay);
                 dciMsg->SetK1Delay(k1Delay);
                 msg = dciMsg;
@@ -1268,7 +1280,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
             {
                 Ptr<NrUlDciMessage> dciMsg = Create<NrUlDciMessage>(dciElem);
 
-                dciMsg->SetSourceBwp(GetBwpId());
+                dciMsg->SetSourceBwpArfcn(DoGetArfcn());
                 dciMsg->SetKDelay(kDelay);
                 msg = dciMsg;
             }
@@ -1917,7 +1929,15 @@ NrGnbPhy::PhyCtrlMessagesReceived(const Ptr<NrControlMessage>& msg)
         Ptr<NrRachPreambleMessage> rachPreamble = DynamicCast<NrRachPreambleMessage>(msg);
         m_phyRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), 0, GetBwpId(), msg);
         NS_LOG_INFO("Received RACH Preamble in slot " << m_currentSlot);
-        m_phySapUser->ReceiveRachPreamble(rachPreamble->GetRapId());
+        if (m_testDropRachPreambles)
+        {
+            NS_LOG_WARN("FOR TEST ONLY: Dropped RACH Preamble " << rachPreamble->GetRapId()
+                                                                << " in slot " << m_currentSlot);
+        }
+        else
+        {
+            m_phySapUser->ReceiveRachPreamble(rachPreamble->GetRapId());
+        }
     }
     else if (msg->GetMessageType() == NrControlMessage::DL_HARQ)
     {
@@ -1972,6 +1992,7 @@ NrGnbPhy::DoRemoveUe(uint16_t rnti)
     if (it != m_ueAttachedRnti.end())
     {
         m_ueAttachedRnti.erase(it);
+        ClearRntiSlotAllocInfo(rnti);
     }
     else
     {

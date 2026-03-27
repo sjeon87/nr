@@ -297,7 +297,7 @@ class NrBearerStatsConnector
     std::set<uint64_t>
         m_imsiSeenUe; //!< stores all UEs for which RLC and PDCP traces were connected
     std::set<uint64_t>
-        m_imsiSeenGnb; //!< stores all eNBs for which RLC and PDCP traces were connected
+        m_imsiSeenGnb; //!< stores all gNBs for which RLC and PDCP traces were connected
 
     /**
      * Struct used as key in m_ueManagerPathByCellIdRnti map
