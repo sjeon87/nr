@@ -87,6 +87,18 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                checkConnectedList),
                 TestCase::Duration::QUICK);
 
+    AddTestCase(new NrRadioLinkFailureTestCase(1,
+                                               1,
+                                               2,
+                                               Seconds(2),
+                                               true,
+                                               uePositionList,
+                                               gnbPositionList,
+                                               ueJumpAwayPosition,
+                                               checkConnectedList,
+                                               false),
+                TestCase::Duration::QUICK);
+
     // One gNB: Real RRC PROTOCOL todo: re-enable when RRC real is fully working
     // AddTestCase(new NrRadioLinkFailureTestCase(1,
     //                                           1,
@@ -136,6 +148,18 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                checkConnectedList),
                 TestCase::Duration::QUICK);
 
+    AddTestCase(new NrRadioLinkFailureTestCase(2,
+                                               1,
+                                               2,
+                                               Seconds(2),
+                                               true,
+                                               uePositionList,
+                                               gnbPositionList,
+                                               ueJumpAwayPosition,
+                                               checkConnectedList,
+                                               false),
+                TestCase::Duration::QUICK);
+
     // Two gNBs: Real RRC PROTOCOL todo: re-enable when RRC real is fully working
     // AddTestCase(new NrRadioLinkFailureTestCase(2,
     //                                           1,
@@ -163,7 +187,8 @@ std::string
 NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs,
                                             uint32_t numUes,
                                             uint32_t numBackgroundUes,
-                                            bool isIdealRrc)
+                                            bool isIdealRrc,
+                                            bool enableUplinkTraffic)
 {
     std::ostringstream oss;
     std::string rrcProtocol;
@@ -175,8 +200,17 @@ NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs,
     {
         rrcProtocol = "RRC Real";
     }
+    std::string trafficType;
+    if (enableUplinkTraffic)
+    {
+        trafficType = "DL and UL";
+    }
+    else
+    {
+        trafficType = "DL";
+    }
     oss << numGnbs << " gNBs, " << numUes << " UEs, " << numBackgroundUes << " background UEs,"
-        << rrcProtocol << " Protocol";
+        << rrcProtocol << " Protocol" << ", " << trafficType << " traffic";
     return oss.str();
 }
 
@@ -188,8 +222,9 @@ NrRadioLinkFailureTestCase::NrRadioLinkFailureTestCase(uint32_t numGnbs,
                                                        std::vector<Vector> uePositionList,
                                                        std::vector<Vector> gnbPositionList,
                                                        Vector ueJumpAwayPosition,
-                                                       std::vector<Time> checkConnectedList)
-    : TestCase(BuildNameString(numGnbs, numUes, numBackgroundUes, isIdealRrc)),
+                                                       std::vector<Time> checkConnectedList,
+                                                       bool enableUplinkTraffic)
+    : TestCase(BuildNameString(numGnbs, numUes, numBackgroundUes, isIdealRrc, enableUplinkTraffic)),
       m_numGnbs(numGnbs),
       m_numUes(numUes),
       m_numBackgroundUes(numBackgroundUes),
@@ -198,7 +233,8 @@ NrRadioLinkFailureTestCase::NrRadioLinkFailureTestCase(uint32_t numGnbs,
       m_uePositionList(uePositionList),
       m_gnbPositionList(gnbPositionList),
       m_checkConnectedList(checkConnectedList),
-      m_ueJumpAwayPosition(ueJumpAwayPosition)
+      m_ueJumpAwayPosition(ueJumpAwayPosition),
+      m_enableUplinkTraffic(enableUplinkTraffic)
 {
     NS_LOG_FUNCTION(this << GetName());
     m_lastState = NrUeRrc::NUM_STATES;
@@ -376,22 +412,26 @@ NrRadioLinkFailureTestCase::DoRun()
             NS_LOG_LOGIC("installing UDP DL app for UE " << u + 1);
             UdpClientHelper dlClientHelper(ueIpIfaces.GetAddress(u), dlPort);
             dlClientHelper.SetAttribute("Interval", TimeValue(udpInterval));
-            dlClientHelper.SetAttribute("MaxPackets", UintegerValue(1000000));
+            dlClientHelper.SetAttribute("MaxPackets", UintegerValue(UINT32_MAX));
             dlClientApps.Add(dlClientHelper.Install(remoteHost));
 
             PacketSinkHelper dlPacketSinkHelper("ns3::UdpSocketFactory",
                                                 InetSocketAddress(Ipv4Address::GetAny(), dlPort));
             dlServerApps.Add(dlPacketSinkHelper.Install(allUeNodes.Get(u)));
 
-            NS_LOG_LOGIC("installing UDP UL app for UE " << u + 1);
-            UdpClientHelper ulClientHelper(remoteHostAddr, ulPort);
-            ulClientHelper.SetAttribute("Interval", TimeValue(udpInterval));
-            ulClientHelper.SetAttribute("MaxPackets", UintegerValue(1000000));
-            ulClientApps.Add(ulClientHelper.Install(allUeNodes.Get(u)));
+            if (m_enableUplinkTraffic)
+            {
+                NS_LOG_LOGIC("installing UDP UL app for UE " << u + 1);
+                UdpClientHelper ulClientHelper(remoteHostAddr, ulPort);
+                ulClientHelper.SetAttribute("Interval", TimeValue(udpInterval));
+                ulClientHelper.SetAttribute("MaxPackets", UintegerValue(UINT32_MAX));
+                ulClientApps.Add(ulClientHelper.Install(allUeNodes.Get(u)));
 
-            PacketSinkHelper ulPacketSinkHelper("ns3::UdpSocketFactory",
-                                                InetSocketAddress(Ipv4Address::GetAny(), ulPort));
-            ulServerApps.Add(ulPacketSinkHelper.Install(remoteHost));
+                PacketSinkHelper ulPacketSinkHelper(
+                    "ns3::UdpSocketFactory",
+                    InetSocketAddress(Ipv4Address::GetAny(), ulPort));
+                ulServerApps.Add(ulPacketSinkHelper.Install(remoteHost));
+            }
 
             Ptr<NrQosRule> rule = Create<NrQosRule>();
             NrQosRule::PacketFilter dlpf;
