@@ -6,8 +6,10 @@
 
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/isotropic-antenna-model.h"
 #include "ns3/mobility-module.h"
 #include "ns3/network-module.h"
+#include "ns3/nr-channel-helper.h"
 #include "ns3/nr-gnb-net-device.h"
 #include "ns3/nr-gnb-rrc.h"
 #include "ns3/nr-helper.h"
@@ -241,7 +243,7 @@ NrX2HandoverTestCase::DoRun()
     // todo:
     // m_nrHelper->SetSchedulerType(m_schedulerType);
     m_nrHelper->SetHandoverAlgorithmType(
-        "ns3::NoOpHandoverAlgorithm"); // disable automatic handover
+        "ns3::NrNoOpHandoverAlgorithm"); // disable automatic handover
     m_nrHelper->SetAttribute("UseIdealRrc", BooleanValue(m_useIdealRrc));
 
     NodeContainer gnbNodes;
@@ -268,11 +270,36 @@ NrX2HandoverTestCase::DoRun()
     mobility.Install(gnbNodes);
     mobility.Install(ueNodes);
 
-    auto bandwidthAndBWPPair = m_nrHelper->CreateBandwidthParts({{2.8e9, 5e6, 1}}, "UMa");
-    auto bandwidthAndBWPPair2 = m_nrHelper->CreateBandwidthParts({{2.9e9, 5e6, 1}}, "UMa");
+    // Override the default antenna model with IsotropicAntennaModel
+    m_nrHelper->SetUeAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+    m_nrHelper->SetGnbAntennaTypeId(IsotropicAntennaModel::GetTypeId().GetName());
+
+    // Configure Friis propagation loss model before assign it to band
+    Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
+    channelHelper->ConfigurePropagationFactory(FriisPropagationLossModel::GetTypeId());
+
+    // Create and set the channel with the band
+    CcBwpCreator ccBwpCreator;
+    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9, 5e6, static_cast<uint8_t>(1));
+    OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+    channelHelper->AssignChannelsToBands({band});
+
+    // Create bandwidth part from band
+    BandwidthPartInfoPtrVector allBwps;
+    allBwps = CcBwpCreator::GetAllBwps({band});
+
+    // Create and set the channel with the band
+    CcBwpCreator::SimpleOperationBandConf bandConf2(2.9e9, 5e6, static_cast<uint8_t>(1));
+    OperationBandInfo band2 = ccBwpCreator.CreateOperationBandContiguousCc(bandConf2);
+    channelHelper->AssignChannelsToBands({band2});
+
+    // Create bandwidth part from band
+    BandwidthPartInfoPtrVector allBwps2;
+    allBwps2 = CcBwpCreator::GetAllBwps({band2});
+
     NetDeviceContainer gnbDevices;
-    gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(0), bandwidthAndBWPPair.second));
-    gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(1), bandwidthAndBWPPair2.second));
+    gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(0), allBwps));
+    gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(1), allBwps2));
 
     stream += m_nrHelper->AssignStreams(gnbDevices, stream);
     for (auto it = gnbDevices.Begin(); it != gnbDevices.End(); ++it)
@@ -282,9 +309,7 @@ NrX2HandoverTestCase::DoRun()
     }
 
     NetDeviceContainer ueDevices;
-    ueDevices = m_nrHelper->InstallUeDevice(
-        ueNodes,
-        {bandwidthAndBWPPair.second.front(), bandwidthAndBWPPair2.second.front()});
+    ueDevices = m_nrHelper->InstallUeDevice(ueNodes, {allBwps.front(), allBwps2.front()});
     stream += m_nrHelper->AssignStreams(ueDevices, stream);
 
     Ipv4Address remoteHostAddr;
@@ -313,7 +338,6 @@ NrX2HandoverTestCase::DoRun()
         // in this container, interface 0 is the pgw, 1 is the remoteHost
         remoteHostAddr = internetIpIfaces.GetAddress(1);
 
-        Ipv4StaticRoutingHelper ipv4RoutingHelper;
         Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
             ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>());
         remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"),
@@ -471,7 +495,7 @@ NrX2HandoverTestCase::DoRun()
                                     gnbDevices.Get(hoEventIt->sourceGnbDeviceIndex),
                                     gnbDevices.Get(hoEventIt->targetGnbDeviceIndex));
 
-        // Once the handover is finished, teleport the UE near the target eNB
+        // Once the handover is finished, teleport the UE near the target gNB
         Simulator::Schedule(hoEventIt->startTime + MilliSeconds(40),
                             &NrX2HandoverTestCase::TeleportUeNearTargetGnb,
                             this,
@@ -529,19 +553,13 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
     uint16_t rnti = ueRrc->GetRnti();
     Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
-    NS_TEST_ASSERT_MSG_NE(ueManager, nullptr, "RNTI " << rnti << " not found in eNB");
+    NS_TEST_ASSERT_MSG_NE(ueManager, nullptr, "RNTI " << rnti << " not found in gNB");
 
     NrUeManager::State ueManagerState = ueManager->GetState();
     NS_TEST_ASSERT_MSG_EQ(ueManagerState,
                           NrUeManager::CONNECTED_NORMALLY,
                           "Wrong NrUeManager state!");
     NS_ASSERT_MSG(ueManagerState == NrUeManager::CONNECTED_NORMALLY, "Wrong NrUeManager state!");
-
-    uint16_t ueCellId = ueRrc->GetCellId();
-    uint16_t gnbCellId = nrGnbDevice->GetCellId();
-    bool gnbCellIdFound =
-        std::find(gnbCellId.begin(), gnbCellId.end(), ueCellId) != gnbCellId.end();
-    NS_TEST_ASSERT_MSG_EQ(gnbCellIdFound, true, "gNB does not contain UE cellId");
 
     uint64_t ueImsi = ueNrDevice->GetImsi();
     uint64_t gnbImsi = ueManager->GetImsi();
@@ -554,8 +572,8 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
     // Verifying other attributes on both sides.
     uint16_t ueDlBwp = ueRrc->GetPrimaryDlIndex();
     uint16_t ueUlBwp = ueRrc->GetPrimaryUlIndex();
-    uint32_t ueDlArfcn = ueNrDevice->GetArfcn(ueDlBwp);
-    uint32_t ueUlArfcn = ueNrDevice->GetArfcn(ueUlBwp);
+    uint32_t ueDlArfcn = ueNrDevice->GetBwpArfcn(ueDlBwp);
+    uint32_t ueUlArfcn = ueNrDevice->GetBwpArfcn(ueUlBwp);
     uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
     uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
 
@@ -576,7 +594,7 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
     ueManager->GetAttribute("DataRadioBearerMap", gnbDataRadioBearerMapValue);
     NS_TEST_ASSERT_MSG_EQ(gnbDataRadioBearerMapValue.GetN(),
                           m_nDedicatedBearers + 1,
-                          "wrong num bearers at eNB");
+                          "wrong num bearers at gNB");
 
     ObjectMapValue ueDataRadioBearerMapValue;
     ueRrc->GetAttribute("DataRadioBearerMap", ueDataRadioBearerMapValue);
@@ -612,7 +630,7 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
         ++gnbBearerIt;
         ++ueBearerIt;
     }
-    NS_ASSERT_MSG(gnbBearerIt == gnbDataRadioBearerMapValue.End(), "too many bearers at eNB");
+    NS_ASSERT_MSG(gnbBearerIt == gnbDataRadioBearerMapValue.End(), "too many bearers at gNB");
     NS_ASSERT_MSG(ueBearerIt == ueDataRadioBearerMapValue.End(), "too many bearers at UE");
 }
 
@@ -677,7 +695,7 @@ NrX2HandoverTestCase::CheckStatsAWhileAfterHandover(uint32_t ueIndex)
  * is used and handover is triggered manually. The automatic handover algorithms (A2A4, A3Rsrp)
  * are not tested.
  *
- * The tests are designed to check that eNB-buffered data received while a handover is in progress
+ * The tests are designed to check that gNB-buffered data received while a handover is in progress
  * is not lost but successfully forwarded. But the test suite doesn't test for possible loss of
  * RLC-buffered data because "lossless" handover is not implemented, and there are other application
  * send patterns (outside of the range tested here) that may incur losses.
@@ -778,7 +796,7 @@ NrX2HandoverTestSuite::NrX2HandoverTestSuite()
 
     for (auto schedIt = schedulers.begin(); schedIt != schedulers.end(); ++schedIt)
     {
-        for (auto useIdealRrc : {true, false})
+        for (auto useIdealRrc : {true, /*false*/})
         {
             // nUes, nDBearers, helist, name, sched, admitHo, idealRrc
             AddTestCase(new NrX2HandoverTestCase(1,

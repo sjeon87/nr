@@ -236,8 +236,13 @@ NrUeManager::ConfigureSrb0()
         // MacSapUserForRlc in the ComponentCarrierManager MacSapUser
         NrMacSapUser* nrMacSapUser =
             m_rrc->m_ccmRrcSapProvider->ConfigureSignalBearer(lcinfo, rlc->GetNrMacSapUser());
-        // Signal Channel are only on Primary Carrier
-        m_rrc->m_cmacSapProvider.at(m_componentCarrierId)->AddLc(lcinfo, nrMacSapUser);
+        // Install signal channel on all carriers.
+        // Just avoiding issues when carrier is strictly downlink or uplink,
+        // But messages still need to be routed properly to primary downlink and uplink carriers.
+        for (uint16_t i = 0; i < m_rrc->m_numberOfComponentCarriers; i++)
+        {
+            m_rrc->m_cmacSapProvider.at(i)->AddLc(lcinfo, nrMacSapUser);
+        }
         m_rrc->m_ccmRrcSapProvider->AddLc(lcinfo, nrMacSapUser);
     }
 }
@@ -287,7 +292,10 @@ NrUeManager::ConfigureSrb1()
         NrMacSapUser* MacSapUserForRlc =
             m_rrc->m_ccmRrcSapProvider->ConfigureSignalBearer(lcinfo, rlc->GetNrMacSapUser());
         // Signal Channel are only on Primary Carrier
-        m_rrc->m_cmacSapProvider.at(m_componentCarrierId)->AddLc(lcinfo, MacSapUserForRlc);
+        for (uint16_t i = 0; i < m_rrc->m_numberOfComponentCarriers; i++)
+        {
+            m_rrc->m_cmacSapProvider.at(i)->AddLc(lcinfo, MacSapUserForRlc);
+        }
         m_rrc->m_ccmRrcSapProvider->AddLc(lcinfo, MacSapUserForRlc);
     }
 
@@ -330,10 +338,6 @@ NrUeManager::ConfigureMacPhy()
         break;
 
     case HANDOVER_JOINING:
-        m_handoverJoiningTimeout = Simulator::Schedule(m_rrc->m_handoverJoiningTimeoutDuration,
-                                                       &NrGnbRrc::HandoverJoiningTimeout,
-                                                       m_rrc,
-                                                       m_rnti);
         break;
 
     default:
@@ -573,6 +577,7 @@ NrUeManager::StartDataRadioBearers()
     {
         auto drbIt = m_drbMap.find(*drbIdIt);
         NS_ASSERT(drbIt != m_drbMap.end());
+        drbIt->second->Initialize();
     }
     m_drbsToBeStarted.clear();
 }
@@ -722,6 +727,8 @@ NrUeManager::PrepareHandover(uint16_t cellId)
         hpi.asConfig.sourceDlCarrierFreq = sourceComponentCarrier->GetArfcn();
         hpi.asConfig.sourceMeasConfig = m_rrc->m_ueMeasConfig;
         hpi.asConfig.sourceRadioResourceConfig = GetRadioResourceConfigForHandoverPreparationInfo();
+        hpi.asConfig.sourceMasterInformationBlock.numerology =
+            sourceComponentCarrier->GetPhy()->GetNumerology();
         hpi.asConfig.sourceMasterInformationBlock.dlBandwidth =
             sourceComponentCarrier->GetDlBandwidth();
         hpi.asConfig.sourceMasterInformationBlock.systemFrameNumber = 0;
@@ -760,6 +767,29 @@ NrUeManager::PrepareHandover(uint16_t cellId)
         SwitchToState(HANDOVER_PREPARATION);
     }
     break;
+    case CONNECTION_SETUP:
+        // The UE has not yet sent RrcConnectionSetupComplete; it will
+        // transition to CONNECTED_NORMALLY shortly. Store the request
+        // and let RecvRrcConnectionSetupCompleted() dispatch it.
+        if (m_pendingHandoverTargetCellId != 0)
+        {
+            NS_LOG_WARN("NrUeManager::PrepareHandover: RNTI="
+                        << m_rnti << " already has a pending HO to cell="
+                        << m_pendingHandoverTargetCellId << "; overwriting with cell=" << cellId);
+        }
+        NS_LOG_INFO("NrUeManager::PrepareHandover: RNTI="
+                    << m_rnti << " is in CONNECTION_SETUP; deferring HO to cell=" << cellId
+                    << " until CONNECTED_NORMALLY");
+        m_pendingHandoverTargetCellId = cellId;
+        return; // do NOT fall through; no X2 message yet
+
+    case HANDOVER_PATH_SWITCH: // already handed-over UE
+    case HANDOVER_LEAVING:     // concurrent HO in progress
+    case HANDOVER_JOINING:
+        NS_LOG_WARN("NrUeManager::PrepareHandover: RNTI="
+                    << m_rnti << " ignoring HO request to cell=" << cellId
+                    << " — already in handover state " << ToString(m_state));
+        return; // silently drop, retrying here would corrupt state
 
     default:
         NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
@@ -793,9 +823,9 @@ NrUeManager::RecvHandoverRequestAck(NrEpcX2SapUser::HandoverRequestAckParams par
         if (handoverCommand.nonCriticalExtension.sCellToAddModList.size() + 1 !=
             m_rrc->m_numberOfComponentCarriers)
         {
-            // Currently handover is only possible if source and target eNBs have equal number of
+            // Currently handover is only possible if source and target gNBs have equal number of
             // component carriers
-            NS_FATAL_ERROR("The source and target eNBs have unequal number of component carriers. "
+            NS_FATAL_ERROR("The source and target gNBs have unequal number of component carriers. "
                            "Target gNB CCs = "
                            << handoverCommand.nonCriticalExtension.sCellToAddModList.size() + 1
                            << " Source gNB CCs = " << m_rrc->m_numberOfComponentCarriers);
@@ -803,10 +833,6 @@ NrUeManager::RecvHandoverRequestAck(NrEpcX2SapUser::HandoverRequestAckParams par
     }
     m_rrc->m_rrcSapUser->SendRrcConnectionReconfiguration(m_rnti, handoverCommand);
     SwitchToState(HANDOVER_LEAVING);
-    m_handoverLeavingTimeout = Simulator::Schedule(m_rrc->m_handoverLeavingTimeoutDuration,
-                                                   &NrGnbRrc::HandoverLeavingTimeout,
-                                                   m_rrc,
-                                                   m_rnti);
     NS_ASSERT(handoverCommand.haveMobilityControlInfo);
     m_rrc->m_handoverStartTrace(m_imsi,
                                 m_rrc->ComponentCarrierToCellId(m_componentCarrierId),
@@ -835,6 +861,10 @@ NrUeManager::RecvHandoverRequestAck(NrEpcX2SapUser::HandoverRequestAckParams par
         }
     }
     m_rrc->m_x2SapProvider->SendSnStatusTransfer(sst);
+    m_handoverLeavingTimeout = Simulator::Schedule(m_rrc->m_handoverLeavingTimeoutDuration,
+                                                   &NrGnbRrc::HandoverLeavingTimeout,
+                                                   m_rrc,
+                                                   m_rnti);
 }
 
 NrRrcSap::RadioResourceConfigDedicated
@@ -1028,7 +1058,7 @@ NrUeManager::RecvHandoverPreparationFailure(uint16_t cellId)
         NS_ASSERT(cellId == m_targetCellId);
         NS_LOG_INFO("target gNB sent HO preparation failure, aborting HO");
         m_handoverLeavingTimeout.Cancel();
-        SendRrcConnectionRelease();
+        // SendRrcConnectionRelease(); // todo: not sure if we should remove or keep this
         break;
 
     default:
@@ -1083,7 +1113,7 @@ NrUeManager::SendRrcConnectionRelease()
 
     /**
      * Bearer de-activation indication towards epc-gnb application
-     * and removal of UE context at the eNodeB
+     * and removal of UE context at the gNB
      *
      */
     m_rrc->DoRecvIdealUeContextRemoveRequest(m_rnti);
@@ -1172,6 +1202,17 @@ NrUeManager::RecvRrcConnectionSetupCompleted(NrRrcSap::RrcConnectionSetupComplet
         else
         {
             SwitchToState(CONNECTED_NORMALLY);
+            // Fire a deferred handover request if one arrived during CONNECTION_SETUP.
+            // ScheduleNow avoids re-entrancy: PrepareHandover() sends X2 messages and
+            // modifies m_state, which must not happen inside this callback's stack.
+            if (m_pendingHandoverTargetCellId != 0)
+            {
+                uint16_t targetCell = m_pendingHandoverTargetCellId;
+                m_pendingHandoverTargetCellId = 0; // clear before scheduling
+                NS_LOG_INFO("NrUeManager: executing deferred HO to cell="
+                            << targetCell << " for RNTI=" << m_rnti);
+                Simulator::ScheduleNow(&NrUeManager::PrepareHandover, this, targetCell);
+            }
         }
         m_rrc->m_connectionEstablishedTrace(m_imsi,
                                             m_rrc->ComponentCarrierToCellId(m_componentCarrierId),
@@ -1260,7 +1301,14 @@ NrUeManager::RecvRrcConnectionReconfigurationCompleted(
         m_rrc->m_s1SapProvider->PathSwitchRequest(params);
     }
     break;
-
+    case INITIAL_RANDOM_ACCESS:
+        // Stale RrcConnectionReconfigurationCompleted from a previous failed
+        // handover attempt whose UE context was not yet fully cleaned up.
+        // The RNTI was recycled for a fresh attach; safely ignore the message.
+        NS_LOG_WARN("NrUeManager: ignoring stale "
+                    "RecvRrcConnectionReconfigurationCompleted in state "
+                    << ToString(m_state) << " (RNTI " << m_rnti << ")");
+        break;
     default:
         NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
         break;
@@ -1305,6 +1353,7 @@ void
 NrUeManager::RecvMeasurementReport(NrRrcSap::MeasurementReport msg)
 {
     uint8_t measId = msg.measResults.measId;
+    auto cellId = m_rrc->ComponentCarrierToCellId(m_componentCarrierId);
     NS_LOG_FUNCTION(this << (uint16_t)measId);
     NS_LOG_LOGIC(
         "measId " << (uint16_t)measId << " haveMeasResultNeighCells "
@@ -1313,9 +1362,8 @@ NrUeManager::RecvMeasurementReport(NrRrcSap::MeasurementReport msg)
                   << msg.measResults.haveMeasResultServFreqList << " measResultServFreqList "
                   << msg.measResults.measResultServFreqList.size());
     NS_LOG_LOGIC("serving cellId "
-                 << m_rrc->ComponentCarrierToCellId(m_componentCarrierId) << " RSRP "
-                 << (uint16_t)msg.measResults.measResultPCell.rsrpResult << " RSRQ "
-                 << (uint16_t)msg.measResults.measResultPCell.rsrqResult);
+                 << cellId << " RSRP " << (uint16_t)msg.measResults.measResultPCell.rsrpResult
+                 << " RSRQ " << (uint16_t)msg.measResults.measResultPCell.rsrqResult);
 
     for (auto it = msg.measResults.measResultListEutra.begin();
          it != msg.measResults.measResultListEutra.end();
@@ -1388,8 +1436,8 @@ NrUeManager::DoReceivePdcpSdu(NrPdcpSapUser::ReceivePdcpSduParameters params)
         tag.SetRnti(params.rnti);
         tag.SetQfi(nr::Lcid2Qfi(params.lcid));
         params.pdcpSdu->AddPacketTag(tag);
-        NS_LOG_DEBUG("Adding packet tag for RNTI " << params.rnti << " LCID " << params.lcid
-                                                   << " QFI " << nr::Lcid2Qfi(params.lcid));
+        NS_LOG_DEBUG("Adding packet tag for RNTI " << params.rnti << " LCID " << +params.lcid
+                                                   << " QFI " << +nr::Lcid2Qfi(params.lcid));
         m_rrc->m_forwardUpCallback(params.pdcpSdu);
     }
 }
@@ -1654,6 +1702,16 @@ NrUeManager::SwitchToState(State newState)
     }
 }
 
+void
+NrUeManager::StartHandoverJoiningTimer()
+{
+    NS_ASSERT_MSG(m_state == HANDOVER_JOINING, "unexpected state " << ToString(m_state));
+    m_handoverJoiningTimeout = Simulator::Schedule(m_rrc->m_handoverJoiningTimeoutDuration,
+                                                   &NrGnbRrc::HandoverJoiningTimeout,
+                                                   m_rrc,
+                                                   m_rnti);
+}
+
 NrRrcSap::NonCriticalExtensionConfiguration
 NrUeManager::BuildNonCriticalExtensionConfigurationCa()
 {
@@ -1675,14 +1733,14 @@ NrUeManager::BuildNonCriticalExtensionConfigurationCa()
             ccId++;
         }
 
-        Ptr<BandwidthPartGnb> eNbCcm = it.second;
+        Ptr<BandwidthPartGnb> gnbCcm = it.second;
         NrRrcSap::SCellToAddMod component;
         component.sCellIndex = ccId;
-        component.cellIdentification.physCellId = eNbCcm->GetCellId();
-        component.cellIdentification.dlCarrierFreq = eNbCcm->GetArfcn();
+        component.cellIdentification.physCellId = gnbCcm->GetCellId();
+        component.cellIdentification.dlCarrierFreq = gnbCcm->GetArfcn();
         component.radioResourceConfigCommonSCell.haveNonUlConfiguration = true;
         component.radioResourceConfigCommonSCell.nonUlConfiguration.dlBandwidth =
-            eNbCcm->GetDlBandwidth();
+            gnbCcm->GetDlBandwidth();
         component.radioResourceConfigCommonSCell.nonUlConfiguration.antennaInfoCommon
             .antennaPortsCount = 0;
         component.radioResourceConfigCommonSCell.nonUlConfiguration.pdschConfigCommon
@@ -1690,9 +1748,9 @@ NrUeManager::BuildNonCriticalExtensionConfigurationCa()
         component.radioResourceConfigCommonSCell.nonUlConfiguration.pdschConfigCommon.pb = 0;
         component.radioResourceConfigCommonSCell.haveUlConfiguration = true;
         component.radioResourceConfigCommonSCell.ulConfiguration.ulFreqInfo.ulCarrierFreq =
-            eNbCcm->GetArfcn();
+            gnbCcm->GetArfcn();
         component.radioResourceConfigCommonSCell.ulConfiguration.ulFreqInfo.ulBandwidth =
-            eNbCcm->GetUlBandwidth();
+            gnbCcm->GetUlBandwidth();
         component.radioResourceConfigCommonSCell.ulConfiguration.ulPowerControlCommonSCell.alpha =
             0;
         // component.radioResourceConfigCommonSCell.ulConfiguration.soundingRsUlConfigCommon.type =
@@ -2532,7 +2590,7 @@ NrGnbRrc::HandoverJoiningTimeout(uint16_t rnti)
         /**
          * When the handover joining timer expires at the target cell,
          * then notify the source cell to release the RRC connection and
-         * delete the UE context at eNodeB and SGW/PGW. The
+         * delete the UE context at gNB and SGW/PGW. The
          * HandoverPreparationFailure message is reused to notify the source cell
          * through the X2 interface instead of creating a new message.
          */
@@ -2576,6 +2634,27 @@ NrGnbRrc::SendHandoverRequest(uint16_t rnti, uint16_t cellId)
     NS_LOG_LOGIC("Request to send HANDOVER REQUEST");
     NS_ASSERT(m_configured);
 
+    // Guards that protect GetUeManager() from crashing.
+    // This path can be reached if SendHandoverRequest is called directly
+    // (e.g. from A3 event triggers in the scheduler) rather than through
+    // NrHelper::DoHandoverRequest.
+    if (rnti == 0)
+    {
+        NS_LOG_WARN("NrGnbRrc::SendHandoverRequest: ignoring RNTI=0 "
+                    "(UE disconnected). cellId="
+                    << cellId);
+        return;
+    }
+
+    if (!HasUeManager(rnti))
+    {
+        NS_LOG_WARN("NrGnbRrc::SendHandoverRequest: no UeManager for RNTI="
+                    << rnti << ". UE context was already removed "
+                    << "(T300 timeout / RLF / rejection). "
+                    << "Ignoring HO to cellId=" << cellId);
+        return;
+    }
+
     Ptr<NrUeManager> ueManager = GetUeManager(rnti);
     ueManager->PrepareHandover(cellId);
 }
@@ -2608,6 +2687,12 @@ NrGnbRrc::DoRecvRrcConnectionReconfigurationCompleted(
     NrRrcSap::RrcConnectionReconfigurationCompleted msg)
 {
     NS_LOG_FUNCTION(this << rnti);
+    if (!HasUeManager(rnti))
+    {
+        NS_LOG_WARN("DoRecvRrcConnectionReconfigurationCompleted: RNTI "
+                    << rnti << " not found, likely post-HandoverJoiningTimeout race. Dropping.");
+        return;
+    }
     GetUeManager(rnti)->RecvRrcConnectionReconfigurationCompleted(msg);
 }
 
@@ -2742,7 +2827,7 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
         /**
          * When the maximum non-contention based preambles is reached, then it is considered
          * handover has failed and source cell is notified to release the RRC connection and delete
-         * the UE context at eNodeB and SGW/PGW.
+         * the UE context at gNB and SGW/PGW.
          */
         ueManager = GetUeManager(rnti);
         NrEpcX2Sap::HandoverPreparationFailureParams msg = ueManager->BuildHoPrepFailMsg();
@@ -2799,6 +2884,9 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
     NS_LOG_LOGIC("targetCellId = " << ackParams.targetCellId);
 
     m_x2SapProvider->SendHandoverRequestAck(ackParams);
+
+    // Arm the HANDOVER JOINING watchdog only now that the ACK is committed.
+    ueManager->StartHandoverJoiningTimer();
 }
 
 void

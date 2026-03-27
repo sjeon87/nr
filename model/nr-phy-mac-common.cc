@@ -16,6 +16,28 @@ namespace ns3
 
 NS_LOG_COMPONENT_DEFINE("NrPhyMacCommon");
 
+uint8_t
+SlotAllocInfo::GetAllocInfoNumSymbols(uint8_t type) const
+{
+    NS_LOG_FUNCTION(this << +type);
+    using DciType = DciInfoElementTdma::VarTtiType;
+    NS_ASSERT_MSG(DciType::SRS <= type &&
+                      type <= (DciType::SRS | DciType::CTRL | DciType::DATA | DciType::MSG3),
+                  "Unknown combination of DciInfoElementTdma::VarTtiTypes");
+    std::array<bool, 14> symUsed{false};
+    for (const auto& allocation : m_varTtiAllocInfo)
+    {
+        // If DCI does not match one of the specified types, ignore it
+        if (allocation.m_dci->m_type & type)
+        {
+            auto startSym = allocation.m_dci->m_symStart;
+            auto lastSym = startSym + allocation.m_dci->m_numSym;
+            std::fill(symUsed.begin() + startSym, symUsed.begin() + lastSym, true);
+        }
+    }
+    return std::count(symUsed.begin(), symUsed.end(), true);
+}
+
 void
 SlotAllocInfo::Merge(const SlotAllocInfo& other)
 {
@@ -28,12 +50,14 @@ SlotAllocInfo::Merge(const SlotAllocInfo& other)
         m_type = BOTH;
     }
 
-    m_numSymAlloc += other.m_numSymAlloc;
-
     for (const auto& extAlloc : other.m_varTtiAllocInfo)
     {
         m_varTtiAllocInfo.push_front(extAlloc);
     }
+
+    m_numSymAlloc = GetAllocInfoNumSymbols();
+    NS_ASSERT_MSG(m_numSymAlloc <= 14,
+                  "Invalid number of symbols: " << m_numSymAlloc << " symbols. ");
 
     // Sort over the symStart of the DCI (VarTtiAllocInfo::operator <)
     std::stable_sort(m_varTtiAllocInfo.begin(), m_varTtiAllocInfo.end());

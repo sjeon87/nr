@@ -108,6 +108,8 @@ class NrUeCmacSapProvider
      * @param imsi the IMSI of the UE
      */
     virtual void SetImsi(uint64_t imsi) = 0;
+
+    virtual void RegisterToGnb(uint16_t cellId) = 0;
 };
 
 /**

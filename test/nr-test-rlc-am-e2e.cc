@@ -166,7 +166,7 @@ NrRlcAmE2eTestCase::DoRun()
     // Note: Just one gNB and UE is supported. Everything is done in InstallGnbDevice and
     // InstallUeDevice
 
-    // Attach one UE per eNodeB
+    // Attach one UE per gNB
     // for (uint16_t i = 0; i < numberOfNodes; i++)
     //   {
     //     nrSimpleHelper->Attach (ueNrDevs.Get(i), nrGnbDevs.Get(i));

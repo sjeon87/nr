@@ -645,12 +645,6 @@ NrMacSchedulerNs3::DoCschedUeReleaseReq(
         std::erase_if(slotAlloc.second.m_ulAllocations,
                       [rnti = params.m_rnti](auto& allocElem) { return allocElem.m_rnti == rnti; });
     }
-    NS_LOG_INFO("Removing uplink slot allocations with no scheduled UEs");
-    std::erase_if(m_ulAllocationMap, [this](auto& slotAlloc) {
-        const auto empty = slotAlloc.second.m_ulAllocations.empty();
-        NS_LOG_INFO("Removing uplink allocations for slot allocation " << slotAlloc.first);
-        return empty;
-    });
 
     NS_LOG_INFO("Release RNTI " << params.m_rnti);
 }
@@ -980,7 +974,8 @@ NrMacSchedulerNs3::DoSchedUlCqiInfoReq(
         auto itAlloc = m_ulAllocationMap.find(ulSfnSf.GetEncoding());
         // NS_ASSERT_MSG(itAlloc != m_ulAllocationMap.end(), "Can't find allocation for " <<
         // ulSfnSf);
-        if (itAlloc == m_ulAllocationMap.end())
+        if (itAlloc == m_ulAllocationMap.end() ||
+            (itAlloc != m_ulAllocationMap.end() && itAlloc->second.m_ulAllocations.empty()))
         {
             NS_LOG_INFO(
                 "We are stopping this early because there is nothing allocated to do. There could "
@@ -1572,6 +1567,9 @@ NrMacSchedulerNs3::DoScheduleDlData(PointInFTPlane* spoint,
             ChangeDlBeam(spoint, symPerBeam.at(GetBeam(beam)));
             usedSym += allocSym;
             slotAlloc->m_numSymAlloc += allocSym;
+            NS_ASSERT_MSG(slotAlloc->m_numSymAlloc <= 14,
+                          "Invalid number of symbols: " << slotAlloc->m_numSymAlloc
+                                                        << " symbols. ");
         }
     }
 
@@ -1740,6 +1738,9 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
             ChangeUlBeam(spoint, symPerBeam.at(GetBeam(beam)));
             usedSym += allocSym;
             slotAlloc->m_numSymAlloc += allocSym;
+            NS_ASSERT_MSG(slotAlloc->m_numSymAlloc <= 14,
+                          "Invalid number of symbols: " << slotAlloc->m_numSymAlloc
+                                                        << " symbols. ");
         }
     }
 
@@ -1848,6 +1849,9 @@ NrMacSchedulerNs3::ScheduleDl(const NrMacSchedSapProvider::SchedDlTriggerReqPara
                    DciInfoElementTdma::DL,
                    &dlSlot.m_slotAllocInfo.m_varTtiAllocInfo);
     dlSlot.m_slotAllocInfo.m_numSymAlloc += m_dlCtrlSymbols;
+    NS_ASSERT_MSG(dlSlot.m_slotAllocInfo.m_numSymAlloc <= 14,
+                  "Invalid number of symbols: " << dlSlot.m_slotAllocInfo.m_numSymAlloc
+                                                << " symbols. ");
 
     // In case of S slot, add UL CTRL and update the symbol used count
     if (params.m_slotType == LteNrTddSlotType::S)
@@ -1859,6 +1863,9 @@ NrMacSchedulerNs3::ScheduleDl(const NrMacSchedSapProvider::SchedDlTriggerReqPara
                       &dlSlot.m_slotAllocInfo.m_varTtiAllocInfo);
         ulAllocations.m_totUlSym += m_ulCtrlSymbols;
         dlSlot.m_slotAllocInfo.m_numSymAlloc += m_ulCtrlSymbols;
+        NS_ASSERT_MSG(dlSlot.m_slotAllocInfo.m_numSymAlloc <= 14,
+                      "Invalid number of symbols: " << dlSlot.m_slotAllocInfo.m_numSymAlloc
+                                                    << " symbols. ");
     }
 
     // compute active ue in the current subframe, group them by BeamId
@@ -1969,6 +1976,9 @@ NrMacSchedulerNs3::ScheduleUl(const NrMacSchedSapProvider::SchedUlTriggerReqPara
                   DciInfoElementTdma::UL,
                   &ulSlot.m_slotAllocInfo.m_varTtiAllocInfo);
     ulSlot.m_slotAllocInfo.m_numSymAlloc += m_ulCtrlSymbols;
+    NS_ASSERT_MSG(ulSlot.m_slotAllocInfo.m_numSymAlloc <= 14,
+                  "Invalid number of symbols: " << ulSlot.m_slotAllocInfo.m_numSymAlloc
+                                                << " symbols. ");
 
     // Doing UL for slot ulSlot
     DoScheduleUl(ulHarqFeedback, params.m_snfSf, &ulSlot.m_slotAllocInfo, params.m_slotType);
@@ -2078,6 +2088,8 @@ NrMacSchedulerNs3::DoScheduleUl(const std::vector<UlHarqInfo>& ulHarqFeedback,
                                     << " symbols for UL MSG3");
         ulSymAvail -= usedMsg3;
         allocInfo->m_numSymAlloc += usedMsg3;
+        NS_ASSERT_MSG(allocInfo->m_numSymAlloc <= 14,
+                      "Invalid number of symbols: " << allocInfo->m_numSymAlloc << " symbols. ");
     }
 
     if (!activeUlHarq.empty())
@@ -2272,6 +2284,9 @@ NrMacSchedulerNs3::DoScheduleSrs(PointInFTPlane* spoint, SlotAllocInfo* allocInf
         dci->m_rbgBitmask = GetUlBitmask();
 
         allocInfo->m_numSymAlloc += 1;
+        NS_ASSERT_MSG(allocInfo->m_numSymAlloc <= 14,
+                      "Invalid number of symbols: " << dci->m_numSym << " symbols. ");
+
         allocInfo->m_varTtiAllocInfo.emplace_front(dci);
 
         used++;
@@ -2406,6 +2421,8 @@ NrMacSchedulerNs3::DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
         dlSymAvail -= usedHarq;
         dlAssignationStartPoint.m_sym += usedHarq;
         allocInfo->m_numSymAlloc += usedHarq;
+        NS_ASSERT_MSG(allocInfo->m_numSymAlloc <= 14,
+                      "Invalid number of symbols: " << allocInfo->m_numSymAlloc << " symbols. ");
     }
 
     GetSecond GetUeInfoList;

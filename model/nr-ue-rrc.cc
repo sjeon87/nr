@@ -539,6 +539,7 @@ NrUeRrc::SetUseRlcSm(bool val)
 void
 NrUeRrc::SetPrimaryUlIndex(uint16_t ulIndex)
 {
+    NS_LOG_FUNCTION(this << +ulIndex);
     m_primaryUlIndex = ulIndex;
 }
 
@@ -551,6 +552,7 @@ NrUeRrc::GetPrimaryUlIndex() const
 void
 NrUeRrc::SetPrimaryDlIndex(uint16_t dlIndex)
 {
+    NS_LOG_FUNCTION(this << +dlIndex);
     m_primaryDlIndex = dlIndex;
 }
 
@@ -591,7 +593,10 @@ NrUeRrc::InitializeSrb0()
     lcConfig.fiveQi = NrQosFlow::GBR_CONV_VOICE;
     NrMacSapUser* msu =
         m_ccmRrcSapProvider->ConfigureSignalBearer(lcid, lcConfig, rlc->GetNrMacSapUser());
-    m_cmacSapProvider.at(GetPrimaryUlIndex())->AddLc(lcid, lcConfig, msu);
+    for (auto& mac : m_cmacSapProvider)
+    {
+        mac->AddLc(lcid, lcConfig, msu);
+    }
 }
 
 void
@@ -701,7 +706,7 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
 {
     NS_LOG_FUNCTION(this << m_imsi << ToString(m_state));
     m_randomAccessSuccessfulTrace(m_imsi, m_cellId, m_rnti);
-
+    ClearRachLock();
     switch (m_state)
     {
     case IDLE_RANDOM_ACCESS: {
@@ -746,7 +751,7 @@ NrUeRrc::DoNotifyRandomAccessFailed()
 {
     NS_LOG_FUNCTION(this << m_imsi << ToString(m_state));
     m_randomAccessErrorTrace(m_imsi, m_cellId, m_rnti);
-
+    ClearRachLock();
     switch (m_state)
     {
     case IDLE_RANDOM_ACCESS: {
@@ -806,12 +811,15 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 
     switch (m_state)
     {
-    case IDLE_START:
+    case IDLE_START: {
         m_cellId = cellId;
         m_initDlArfcn = arfcn;
-        m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
+        auto bwpId = GetArfcnBwpId(arfcn);
+        SetPrimaryDlIndex(bwpId);
+        m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
         SwitchToState(IDLE_WAIT_MIB);
-        break;
+    }
+    break;
 
     case IDLE_CELL_SEARCH:
     case IDLE_WAIT_MIB_SIB1:
@@ -913,9 +921,38 @@ NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformati
 
 void
 NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
+                                           uint32_t arfcn,
                                            NrRrcSap::SystemInformationBlockType1 msg)
 {
     NS_LOG_FUNCTION(this);
+
+    // Guard 1 – serving-cell filter.
+    // While connected/connecting, reject SIB1 from any cell that is not the
+    // current serving cell; it would otherwise re-trigger cell selection.
+    if (m_state == CONNECTED_NORMALLY || m_state == IDLE_CONNECTING)
+    {
+        if (cellId != m_cellId)
+        {
+            NS_LOG_INFO("NrUeRrc: Discarding SIB1 from non-serving cell="
+                        << cellId << " (serving=" << m_cellId << " state=" << ToString(m_state)
+                        << " bwp=" << GetPrimaryDlIndex() << ")");
+            return;
+        }
+    }
+
+    // Guard 2 – multi-BWP RACH lock.
+    // If a RACH is already in-flight on a different BWP, discard until the
+    // deadline expires or the procedure completes (see ClearRachLock()).
+    if (m_rachInProgress && Simulator::Now() < m_rachDeadline)
+    {
+        if (GetPrimaryDlIndex() != m_rachBwpId)
+        {
+            NS_LOG_INFO("NrUeRrc: Discarding SIB1 — RACH in-flight on bwp="
+                        << +m_rachBwpId << " deadline=" << m_rachDeadline.As(Time::MS)
+                        << " ignored bwp=" << GetPrimaryDlIndex() << " cellId=" << cellId);
+            return;
+        }
+    }
     switch (m_state)
     {
     case IDLE_WAIT_SIB1:
@@ -1134,6 +1171,44 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             m_cellId = mci.targetPhysCellId;
             NS_ASSERT(mci.haveCarrierFreq);
             NS_ASSERT(mci.haveCarrierBandwidth);
+            // We could reconfigure PHY and BWPs, or we can just switch the primary DL/UL
+            // indexes to match the correct frequency
+            if (m_previousCellId != mci.targetPhysCellId)
+            {
+                auto dlIt = std::find_if(m_cphySapProvider.begin(),
+                                         m_cphySapProvider.end(),
+                                         [arfcn = mci.carrierFreq.dlCarrierFreq](auto& phy) {
+                                             return phy->GetArfcn() == arfcn;
+                                         });
+                auto ulIt = std::find_if(m_cphySapProvider.begin(),
+                                         m_cphySapProvider.end(),
+                                         [arfcn = mci.carrierFreq.ulCarrierFreq](auto& phy) {
+                                             return phy->GetArfcn() == arfcn;
+                                         });
+                NS_ASSERT_MSG(
+                    (dlIt != m_cphySapProvider.end()) && (ulIt != m_cphySapProvider.end()),
+                    "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
+                auto dlBwp = std::distance(m_cphySapProvider.begin(), dlIt);
+                auto ulBwp = std::distance(m_cphySapProvider.begin(), ulIt);
+                ReconfigureFromSib1(dlBwp,
+                                    mci.targetPhysCellId,
+                                    m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
+                                    m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
+                                    m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
+                                    m_lastSib1.servingCellConfigCommon.numerology,
+                                    m_lastSib1.servingCellConfigCommon.tddPattern,
+                                    m_lastSib1.servingCellConfigCommon.rbgSize);
+                ReconfigureFromSib1(ulBwp,
+                                    mci.targetPhysCellId,
+                                    m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
+                                    m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
+                                    m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
+                                    m_lastSib1.servingCellConfigCommon.numerology,
+                                    m_lastSib1.servingCellConfigCommon.tddPattern,
+                                    m_lastSib1.servingCellConfigCommon.rbgSize);
+                SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
+                SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
+            }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.dlCarrierFreq);
             m_cphySapProvider.at(GetPrimaryDlIndex())
@@ -1150,6 +1225,7 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             NS_ASSERT_MSG(
                 mci.haveRachConfigDedicated,
                 "handover is only supported with non-contention-based random access procedure");
+            m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(mci.targetPhysCellId);
             m_cmacSapProvider.at(GetPrimaryUlIndex())
                 ->StartNonContentionBasedRandomAccessProcedure(
                     m_rnti,
@@ -1339,6 +1415,19 @@ NrUeRrc::SynchronizeToStrongestCell()
 
 } // end of void NrUeRrc::SynchronizeToStrongestCell ()
 
+std::size_t
+NrUeRrc::GetArfcnBwpId(uint32_t arfcn) const
+{
+    for (std::size_t i = 0; i < m_cphySapProvider.size(); i++)
+    {
+        if (m_cphySapProvider.at(i)->GetArfcn() == arfcn)
+        {
+            return i;
+        }
+    }
+    NS_FATAL_ERROR("No BWP found with arfcn " << arfcn);
+}
+
 void
 NrUeRrc::EvaluateCellForSelection()
 {
@@ -1378,6 +1467,10 @@ NrUeRrc::EvaluateCellForSelection()
     if (isSuitableCell)
     {
         m_cellId = cellId;
+        // todo: for maximum flexibility, we could create a new MAC/PHY for the ARFCN if there is no
+        // currently setup
+        auto bwpId = GetArfcnBwpId(m_initDlArfcn);
+        SetPrimaryDlIndex(bwpId);
         m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(cellId, m_initDlArfcn);
         m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
@@ -3209,9 +3302,19 @@ NrUeRrc::SendMeasurementReport(uint8_t measId)
         measReportIt->second.periodicReportTimer =
             Simulator::Schedule(reportInterval, &NrUeRrc::SendMeasurementReport, this, measId);
 
-        // send the measurement report to eNodeB
+        // send the measurement report to gNB
         m_rrcSapUser->SendMeasurementReport(measurementReport);
     }
+}
+
+void
+NrUeRrc::ClearRachLock()
+{
+    NS_LOG_FUNCTION(this << m_imsi);
+    m_rachInProgress = false;
+    m_rachBwpId = UINT8_MAX;
+    m_rachDeadline = Seconds(0);
+    m_rachTimeoutEvent.Cancel();
 }
 
 void
@@ -3220,6 +3323,31 @@ NrUeRrc::StartConnection()
     NS_LOG_FUNCTION(this << m_imsi);
     NS_ASSERT(m_hasReceivedMib);
     NS_ASSERT(m_hasReceivedSib2);
+
+    // Covers raResponseWindow (up to 40 slots) + contentionResolutionTimer
+    // (up to 64 ms) + processing margin.
+    // 120 ms is safe for FR1. 20 ms is safe for FR2.
+    if (m_lastSib1.servingCellConfigCommon.numerology >= 3)
+    {
+        m_rachLockDuration = MilliSeconds(20);
+    }
+    else
+    {
+        m_rachLockDuration = MilliSeconds(120);
+    }
+
+    // Set RACH lock, blocking other BWPs from calling StartConnection()
+    // concurrently via their own SIB1/MIB pipeline until we finish or timeout.
+    m_rachInProgress = true;
+    m_rachBwpId = static_cast<uint8_t>(GetPrimaryDlIndex());
+    m_rachDeadline = Simulator::Now() + m_rachLockDuration;
+    if (m_rachTimeoutEvent.IsPending())
+    {
+        m_rachTimeoutEvent.Cancel();
+    }
+    m_rachTimeoutEvent =
+        Simulator::Schedule(m_rachLockDuration + MilliSeconds(10), &NrUeRrc::ClearRachLock, this);
+
     m_connectionPending = false; // reset the flag
     SwitchToState(IDLE_RANDOM_ACCESS);
     m_cmacSapProvider.at(GetPrimaryUlIndex())->StartContentionBasedRandomAccessProcedure();

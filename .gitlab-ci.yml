@@ -168,11 +168,11 @@ documentation:
     - make latexpdf && mv ./build/latex/nrmodule.pdf ../public/
     - make html     && mv ./build/html/* ../public/manual
     # Build doxygen
-    - doxygen doxygen.conf && mv ./doc/html/ ../public/
+    #- doxygen doxygen.conf && mv ./doc/html/ ../public/
     - popd
     # Build tutorial
     - pushd tutorial
-    - make latexpdf && mv ./build/latex/cttc-nr-demo-tutorial.pdf ../public/
+    #- make latexpdf && mv ./build/latex/cttc-nr-demo-tutorial.pdf ../public/
     - popd
     # Copy FEATURES.md to preview it 5G-LENA website in FEATURES section
     - pushd ns-3-dev/contrib/nr

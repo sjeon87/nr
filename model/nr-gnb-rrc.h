@@ -427,6 +427,15 @@ class NrUeManager : public Object
     NrEpcX2Sap::HandoverCancelParams BuildHoCancelMsg();
 
     /**
+     * @brief Starts the handover joining timer for the UE.
+     * This method schedules the handover joining timeout event if the UE is in the HANDOVER_JOINING
+     * state. The timer is set to expire after the duration specified by
+     * m_handoverJoiningTimeoutDuration. Upon expiration, the HandoverJoiningTimeout callback
+     * is invoked on the gNB RRC with the UE's RNTI.
+     */
+    void StartHandoverJoiningTimer();
+
+    /**
      * TracedCallback signature for state transition events.
      *
      * @param [in] imsi
@@ -544,7 +553,7 @@ class NrUeManager : public Object
     uint8_t m_lastRrcTransactionIdentifier; ///< last RRC transaction identifier
 
     NrRrcSap::PhysicalConfigDedicated m_physicalConfigDedicated; ///< physical config dedicated
-    /// Pointer to the parent eNodeB RRC.
+    /// Pointer to the parent gNB RRC.
     Ptr<NrGnbRrc> m_rrc;
     /// The current NrUeManager state.
     State m_state;
@@ -624,6 +633,14 @@ class NrUeManager : public Object
      * Complete from the UE.
      */
     std::list<std::pair<uint8_t, Ptr<Packet>>> m_packetBuffer;
+
+    // Deferred handover support
+    // A handover request may arrive while the UE is still in
+    // CONNECTION_SETUP (e.g. when the test schedules it at a fixed time).
+    // We store the target cell here and trigger PrepareHandover() as soon
+    // as RecvRrcConnectionSetupCompleted() moves us to CONNECTED_NORMALLY.
+    // 0 means no pending handover.
+    uint16_t m_pendingHandoverTargetCellId{0};
 
 }; // end of `class NrUeManager`
 
@@ -884,7 +901,7 @@ class NrGnbRrc : public Object
      *  - Enabling MIB (Master Information Block) broadcast transmission
      *  - Enabling SIB (System Information Block) broadcast transmission
      *
-     * Typically runs when the eNodeB NetDevice is installed, for instance by
+     * Typically runs when the gNB NetDevice is installed, for instance by
      * `NrHelper::InstallGnbDevice` (i.e. before the simulation starts).
      *
      * @warning Raises an error when executed more than once.
@@ -1188,7 +1205,7 @@ class NrGnbRrc : public Object
      * NrGnbRrcSapProvider::RecvIdealUeContextRemoveRequest interface to
      * NrUeManager::RecvIdealUeContextRemoveRequest.
      *
-     * Remove the UE context at eNodeB and also remove the bearers established
+     * Remove the UE context at gNB and also remove the bearers established
      * at SGW/PGW node. Bearer info at MME is not deleted since they are added at
      * MME only at the beginning of simulation and if they are removed,
      * the bearers cannot be activated again.
@@ -1415,12 +1432,12 @@ class NrGnbRrc : public Object
      *                      cell
      *
      * CSG identity is a number identifying a Closed Subscriber Group which the
-     * cell belongs to. eNodeB is associated with a single CSG identity.
+     * cell belongs to. gNB is associated with a single CSG identity.
      *
      * The same CSG identity can also be associated to several UEs, which is
      * equivalent as enlisting these UEs as the members of this particular CSG.
      * When the CSG indication field is set to TRUE, only UEs which are members of
-     * the CSG (i.e. same CSG ID) can gain access to the eNodeB, therefore
+     * the CSG (i.e. same CSG ID) can gain access to the gNB, therefore
      * enforcing closed access mode. Otherwise, the eNodeB operates as a non-CSG
      * cell and implements open access mode.
      *

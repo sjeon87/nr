@@ -48,15 +48,15 @@ NrComponentCarrier::GetTypeId()
                 MakeUintegerChecker<uint32_t>(0, 262143))
             .AddAttribute(
                 "CsgId",
-                "The Closed Subscriber Group (CSG) identity that this eNodeB belongs to",
+                "The Closed Subscriber Group (CSG) identity that this gNB belongs to",
                 UintegerValue(0),
                 MakeUintegerAccessor(&NrComponentCarrier::SetCsgId, &NrComponentCarrier::GetCsgId),
                 MakeUintegerChecker<uint32_t>())
             .AddAttribute(
                 "CsgIndication",
                 "If true, only UEs which are members of the CSG (i.e. same CSG ID) "
-                "can gain access to the eNodeB, therefore enforcing closed access mode. "
-                "Otherwise, the eNodeB operates as a non-CSG cell and implements open access mode.",
+                "can gain access to the gNB, therefore enforcing closed access mode. "
+                "Otherwise, the gNB operates as a non-CSG cell and implements open access mode.",
                 BooleanValue(false),
                 MakeBooleanAccessor(&NrComponentCarrier::SetCsgIndication,
                                     &NrComponentCarrier::GetCsgIndication),
@@ -64,7 +64,7 @@ NrComponentCarrier::GetTypeId()
             .AddAttribute(
                 "PrimaryCarrier",
                 "If true, this Carrier Component will be the Primary Carrier Component (PCC) "
-                "Only one PCC per eNodeB is (currently) allowed",
+                "Only one PCC per gNB is (currently) allowed",
                 BooleanValue(false),
                 MakeBooleanAccessor(&NrComponentCarrier::SetAsPrimary,
                                     &NrComponentCarrier::IsPrimary),
