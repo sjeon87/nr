@@ -645,12 +645,6 @@ NrMacSchedulerNs3::DoCschedUeReleaseReq(
         std::erase_if(slotAlloc.second.m_ulAllocations,
                       [rnti = params.m_rnti](auto& allocElem) { return allocElem.m_rnti == rnti; });
     }
-    NS_LOG_INFO("Removing uplink slot allocations with no scheduled UEs");
-    std::erase_if(m_ulAllocationMap, [this](auto& slotAlloc) {
-        const auto empty = slotAlloc.second.m_ulAllocations.empty();
-        NS_LOG_INFO("Removing uplink allocations for slot allocation " << slotAlloc.first);
-        return empty;
-    });
 
     NS_LOG_INFO("Release RNTI " << params.m_rnti);
 }
@@ -980,7 +974,8 @@ NrMacSchedulerNs3::DoSchedUlCqiInfoReq(
         auto itAlloc = m_ulAllocationMap.find(ulSfnSf.GetEncoding());
         // NS_ASSERT_MSG(itAlloc != m_ulAllocationMap.end(), "Can't find allocation for " <<
         // ulSfnSf);
-        if (itAlloc == m_ulAllocationMap.end())
+        if (itAlloc == m_ulAllocationMap.end() ||
+            (itAlloc != m_ulAllocationMap.end() && itAlloc->second.m_ulAllocations.empty()))
         {
             NS_LOG_INFO(
                 "We are stopping this early because there is nothing allocated to do. There could "
