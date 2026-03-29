@@ -87,5 +87,17 @@ main(int argc, char* argv[])
     std::cout << errorModel << ". Results: " << std::endl;
     std::cout << tbs << std::endl;
 
-    return 0;
+    bool tbsCorrect = true;
+    if (amc->CalculateTbSize(0, 1, numRbsInBandwidth) != 8)
+    {
+        std::cerr << "Validation failed: MCS 0 TBS mismatch" << std::endl;
+        tbsCorrect = false;
+    }
+    if (amc->CalculateTbSize(28, 1, numRbsInBandwidth) != 257)
+    {
+        std::cerr << "Validation failed: MCS 28 TBS mismatch" << std::endl;
+        tbsCorrect = false;
+    }
+
+    return tbsCorrect ? EXIT_SUCCESS : EXIT_FAILURE;
 }
