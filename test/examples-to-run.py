@@ -131,6 +131,7 @@ cpp_examples = [
     ("cttc-3gpp-indoor-calibration", "True", "True"),
     ("cttc-nr-demo", "True", "True"),
     ("cttc-lte-ca-demo --simTime=1", "True", "True"),
+    ("cttc-nr-simple-qos-sched", "True", "True"),
     (
         'cttc-nr-cc-bwp-demo --simTime=0.8 --tddPattern="DL|S|UL|UL|DL|DL|S|UL|UL|DL|"',
         "True",
