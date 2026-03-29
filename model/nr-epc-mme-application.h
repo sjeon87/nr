@@ -72,7 +72,7 @@ class NrEpcMmeApplication : public Application
     /**
      * Add a new gNB to the MME
      *
-     * @param ecgi E-UTRAN Cell Global ID, the unique identifier of the eNodeB
+     * @param ecgi E-UTRAN Cell Global ID, the unique identifier of the gNB
      * @param gnbS1UAddr IPv4 address of the gNB for S1-U communications
      * @param gnbS1apSap the gNB side of the S1-AP SAP
      */

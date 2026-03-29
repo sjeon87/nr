@@ -109,7 +109,7 @@ class NrSpectrumPhy : public SpectrumPhy
     /**
      * @brief This callback method type is used to notify that CTRL is received
      */
-    typedef std::function<void(const std::list<Ptr<NrControlMessage>>&, uint8_t)>
+    typedef std::function<void(const std::list<Ptr<NrControlMessage>>&, uint32_t)>
         NrPhyRxCtrlEndOkCallback;
 
     /**
@@ -578,7 +578,7 @@ class NrSpectrumPhy : public SpectrumPhy
     /// different UE) and at each time instant where the interference changes.
     void UpdateMimoSinrPerceived(const std::vector<MimoSinrChunk>& sinr);
     /**
-     * @return true if this class is inside an enb/gnb
+     * @return true if this class is inside an gnb
      */
     bool IsGnb() const;
 

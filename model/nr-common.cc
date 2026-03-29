@@ -214,16 +214,16 @@ TransmissionModesLayers::TxMode2LayerNum(uint8_t txMode)
 double
 EutranMeasurementMapping::RsrpRange2Dbm(uint8_t range)
 {
-    // 3GPP TS 36.133 section 9.1.4 RSRP Measurement Report Mapping
-    NS_ASSERT_MSG(range <= 97, "value " << range << " is out of range");
-    return (double)range - 141.0;
+    // 3GPP TS 38.133 Table 10.1.6.1-1: SS-RSRP and CSI-RSRP measurement report mapping
+    NS_ASSERT_MSG(range <= 127, "value " << range << " is out of range");
+    return (double)range - 157.0;
 }
 
 uint8_t
 EutranMeasurementMapping::Dbm2RsrpRange(double dbm)
 {
-    // 3GPP TS 36.133 section 9.1.4 RSRP Measurement Report Mapping
-    double range = std::min(std::max(std::floor(dbm + 141), 0.0), 97.0);
+    // 3GPP TS 38.133 Table 10.1.6.1-1: SS-RSRP and CSI-RSRP measurement report mapping
+    double range = std::min(std::max(std::floor(dbm + 157), 0.0), 126.0);
     return (uint8_t)range;
 }
 

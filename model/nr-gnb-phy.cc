@@ -17,6 +17,7 @@
 #include "nr-ue-net-device.h"
 #include "nr-ue-phy.h"
 
+#include "ns3/boolean.h"
 #include "ns3/double.h"
 #include "ns3/enum.h"
 #include "ns3/log.h"
@@ -198,7 +199,13 @@ NrGnbPhy::GetTypeId()
                 "RBDataStats",
                 "Resource Block used for data: SfnSf, symbol, RB PHY map, bwp ID, cell ID",
                 MakeTraceSourceAccessor(&NrGnbPhy::m_rbStatistics),
-                "ns3::NrGnbPhy::RBStatsTracedCallback");
+                "ns3::NrGnbPhy::RBStatsTracedCallback")
+            .AddAttribute("TestDropRachPreambles",
+                          "Attribute is meant to emulate control channel loss of RACH preambles",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrGnbPhy::m_testDropRachPreambles),
+                          MakeBooleanChecker());
+
     return tid;
 }
 
@@ -427,6 +434,9 @@ NrGnbPhy::PushDlAllocation(const SfnSf& sfnSf) const
     NS_ASSERT(m_phySapUser);
 
     auto dci = m_phySapUser->GetDlCtrlDci();
+    NS_ASSERT_MSG(dci->m_numSym <= 14,
+                  "Invalid number of symbols: " << dci->m_numSym << " symbols. ");
+
     VarTtiAllocInfo dlCtrlVarTti(dci);
 
     SlotAllocInfo slotAllocInfo = SlotAllocInfo(sfnSf);
@@ -445,6 +455,8 @@ NrGnbPhy::PushUlAllocation(const SfnSf& sfnSf) const
     NS_ASSERT(m_phySapUser);
 
     auto dci = m_phySapUser->GetUlCtrlDci();
+    NS_ASSERT_MSG(dci->m_numSym <= 14,
+                  "Invalid number of symbols: " << dci->m_numSym << " symbols. ");
     VarTtiAllocInfo ulCtrlVarTti(dci);
 
     SlotAllocInfo slotAllocInfo = SlotAllocInfo(sfnSf);
@@ -684,7 +696,7 @@ NrGnbPhy::QueueMib()
     mib.dlBandwidth = GetChannelBandwidth() / (1000 * 100);
     mib.systemFrameNumber = 1;
     Ptr<NrMibMessage> mibMsg = Create<NrMibMessage>();
-    mibMsg->SetSourceBwp(GetBwpId());
+    mibMsg->SetSourceBwpArfcn(DoGetArfcn());
     mibMsg->SetMib(mib);
     EnqueueCtrlMsgNow(mibMsg);
 }
@@ -695,7 +707,7 @@ NrGnbPhy::QueueSib()
     NS_LOG_FUNCTION(this);
     Ptr<NrSib1Message> msg = Create<NrSib1Message>();
     msg->SetSib1(m_sib1);
-    msg->SetSourceBwp(GetBwpId());
+    msg->SetSourceBwpArfcn(DoGetArfcn());
     EnqueueCtrlMsgNow(msg);
 }
 
@@ -782,6 +794,9 @@ NrGnbPhy::StartSlot(const SfnSf& startSlot)
                 VarTtiAllocInfo dlCtrlSlot(m_phySapUser->GetDlCtrlDci());
                 m_currSlotAllocInfo.m_varTtiAllocInfo.push_front(dlCtrlSlot);
                 m_currSlotAllocInfo.m_numSymAlloc += m_phySapUser->GetDlCtrlSymbols();
+                NS_ASSERT_MSG(m_currSlotAllocInfo.m_numSymAlloc <= 14,
+                              "Invalid number of symbols: " << m_currSlotAllocInfo.m_numSymAlloc
+                                                            << " symbols. ");
             }
         }
     }
@@ -956,9 +971,6 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
     uint32_t dataSym = 0;
     uint32_t ctrlSym = 0;
 
-    int lastSymStart = -1;
-    uint32_t symUsed = 0;
-
     for (const auto& allocation : allocInfo.m_varTtiAllocInfo)
     {
         uint32_t rbg = std::count(allocation.m_dci->m_rbgBitmask.begin(),
@@ -971,8 +983,6 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
             activeUe.insert(allocation.m_dci->m_rnti);
         }
 
-        NS_ASSERT(lastSymStart <= allocation.m_dci->m_symStart);
-
         auto rbgUsed = (rbg * GetNumRbPerRbg()) * allocation.m_dci->m_numSym;
         if (allocation.m_dci->m_type == DciInfoElementTdma::DATA ||
             allocation.m_dci->m_type == DciInfoElementTdma::MSG3)
@@ -983,27 +993,14 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
         {
             ctrlReg += rbgUsed;
         }
-
-        if (lastSymStart != allocation.m_dci->m_symStart)
-        {
-            symUsed += allocation.m_dci->m_numSym;
-
-            if (allocation.m_dci->m_type == DciInfoElementTdma::DATA ||
-                allocation.m_dci->m_type == DciInfoElementTdma::MSG3)
-            {
-                dataSym += allocation.m_dci->m_numSym;
-            }
-            else
-            {
-                ctrlSym += allocation.m_dci->m_numSym;
-            }
-        }
-
-        lastSymStart = allocation.m_dci->m_symStart;
     }
+    const auto nSymUsed = allocInfo.GetAllocInfoNumSymbols();
+    ctrlSym = allocInfo.GetAllocInfoNumSymbols(DciInfoElementTdma::VarTtiType::CTRL);
+    dataSym = allocInfo.GetAllocInfoNumSymbols(DciInfoElementTdma::VarTtiType::DATA |
+                                               DciInfoElementTdma::VarTtiType::MSG3);
 
-    NS_ASSERT_MSG(symUsed == allocInfo.m_numSymAlloc,
-                  "Allocated " << +allocInfo.m_numSymAlloc << " but only " << symUsed
+    NS_ASSERT_MSG(nSymUsed == allocInfo.m_numSymAlloc,
+                  "Allocated " << +allocInfo.m_numSymAlloc << " but only " << +nSymUsed
                                << " written in stats");
 
     m_phySlotDataStats(allocInfo.m_sfnSf,
@@ -1034,6 +1031,9 @@ NrGnbPhy::DoStartSlot()
     uint64_t currentSlotN = m_currentSlot.Normalize() % m_tddPattern.size();
 
     NS_LOG_DEBUG("Start Slot " << m_currentSlot << " of type " << m_tddPattern[currentSlotN]);
+    NS_ASSERT_MSG(m_currSlotAllocInfo.m_numSymAlloc <= 14,
+                  "Invalid number of symbols: " << m_currSlotAllocInfo.m_numSymAlloc
+                                                << " symbols. ");
 
     GenerateAllocationStatistics(m_currSlotAllocInfo);
 
@@ -1212,6 +1212,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
     if (!alloc.m_buildRarList.empty())
     {
         Ptr<NrRarMessage> ulMsg3DciMsg = Create<NrRarMessage>();
+        ulMsg3DciMsg->SetRaRnti(1); // todo: set proper RA-RNTI
         for (const auto& rarIt : alloc.m_buildRarList)
         {
             NrRarMessage::Rar rar{};
@@ -1226,7 +1227,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
                                    << +rar.rarPayload.raPreambleId << " at:" << Simulator::Now()
                                    << " for slot:" << alloc.m_sfnSf << " kDelay:" << kDelay
                                    << "k1Delay:" << k1Delay);
-            ulMsg3DciMsg->SetSourceBwp(GetBwpId());
+            ulMsg3DciMsg->SetSourceBwpArfcn(DoGetArfcn());
         }
         if (kDelay != 0)
         {
@@ -1259,7 +1260,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
             {
                 Ptr<NrDlDciMessage> dciMsg = Create<NrDlDciMessage>(dciElem);
 
-                dciMsg->SetSourceBwp(GetBwpId());
+                dciMsg->SetSourceBwpArfcn(DoGetArfcn());
                 dciMsg->SetKDelay(kDelay);
                 dciMsg->SetK1Delay(k1Delay);
                 msg = dciMsg;
@@ -1268,7 +1269,7 @@ NrGnbPhy::RetrieveDciFromAllocation(const SlotAllocInfo& alloc,
             {
                 Ptr<NrUlDciMessage> dciMsg = Create<NrUlDciMessage>(dciElem);
 
-                dciMsg->SetSourceBwp(GetBwpId());
+                dciMsg->SetSourceBwpArfcn(DoGetArfcn());
                 dciMsg->SetKDelay(kDelay);
                 msg = dciMsg;
             }
@@ -1917,7 +1918,15 @@ NrGnbPhy::PhyCtrlMessagesReceived(const Ptr<NrControlMessage>& msg)
         Ptr<NrRachPreambleMessage> rachPreamble = DynamicCast<NrRachPreambleMessage>(msg);
         m_phyRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), 0, GetBwpId(), msg);
         NS_LOG_INFO("Received RACH Preamble in slot " << m_currentSlot);
-        m_phySapUser->ReceiveRachPreamble(rachPreamble->GetRapId());
+        if (m_testDropRachPreambles)
+        {
+            NS_LOG_WARN("FOR TEST ONLY: Dropped RACH Preamble " << rachPreamble->GetRapId()
+                                                                << " in slot " << m_currentSlot);
+        }
+        else
+        {
+            m_phySapUser->ReceiveRachPreamble(rachPreamble->GetRapId());
+        }
     }
     else if (msg->GetMessageType() == NrControlMessage::DL_HARQ)
     {
@@ -1972,6 +1981,7 @@ NrGnbPhy::DoRemoveUe(uint16_t rnti)
     if (it != m_ueAttachedRnti.end())
     {
         m_ueAttachedRnti.erase(it);
+        ClearRntiSlotAllocInfo(rnti);
     }
     else
     {

@@ -53,9 +53,9 @@ class NrNoOpHandoverAlgorithm : public NrHandoverAlgorithm
     void DoReportUeMeas(uint16_t rnti, NrRrcSap::MeasResults measResults) override;
 
   private:
-    /// Interface to the eNodeB RRC instance.
+    /// Interface to the gNB RRC instance.
     NrHandoverManagementSapUser* m_handoverManagementSapUser;
-    /// Receive API calls from the eNodeB RRC instance.
+    /// Receive API calls from the gNB RRC instance.
     NrHandoverManagementSapProvider* m_handoverManagementSapProvider;
 
 }; // end of class NrNoOpHandoverAlgorithm

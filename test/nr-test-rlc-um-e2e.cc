@@ -141,7 +141,7 @@ NrRlcUmE2eTestCase::DoRun()
     // Note: Just one gNB and UE are supported. Everything is done in InstallGnbDevice and
     // InstallUeDevice
 
-    // Attach one UE per eNodeB
+    // Attach one UE per gNB
     // for (uint16_t i = 0; i < numberOfNodes; i++)
     //   {
     //     nrSimpleHelper->Attach (ueNrDevs.Get(i), nrGnbDevs.Get(i));
@@ -169,7 +169,7 @@ NrRlcUmE2eTestCase::DoRun()
         "PhyRxDrop",
         MakeCallback(&NrRlcUmE2eTestCase::UlDropEvent, this));
 
-    // Sending packets from gNB RRC layer (eNB -> UE)
+    // Sending packets from gNB RRC layer (gNB -> UE)
     nrSimpleHelper->m_gnbRrc->SetArrivalTime(Seconds(0.010));
     nrSimpleHelper->m_gnbRrc->SetPduSize(100);
 
@@ -178,7 +178,7 @@ NrRlcUmE2eTestCase::DoRun()
     nrSimpleHelper->m_gnbMac->SetTxOppTime(Seconds(0.005));
     nrSimpleHelper->m_gnbMac->SetTxOpportunityMode(NrTestMac::RANDOM_MODE);
 
-    // Sending packets from UE RRC layer (UE -> eNB)
+    // Sending packets from UE RRC layer (UE -> gNB)
     nrSimpleHelper->m_ueRrc->SetArrivalTime(Seconds(0.010));
     nrSimpleHelper->m_ueRrc->SetPduSize(100);
 
@@ -210,8 +210,8 @@ NrRlcUmE2eTestCase::DoRun()
     // NS_LOG_INFO ("dl dev drops = " << m_dlDrops);
     // NS_LOG_INFO ("ul dev drops = " << m_ulDrops);
 
-    // NS_LOG_INFO ("eNB tx RRC count = " << txGnbRrcPdus);
-    // NS_LOG_INFO ("eNB rx RRC count = " << rxGnbRrcPdus);
+    // NS_LOG_INFO ("gNB tx RRC count = " << txGnbRrcPdus);
+    // NS_LOG_INFO ("gNB rx RRC count = " << rxGnbRrcPdus);
     // NS_LOG_INFO ("UE tx RRC count = " << txUeRrcPdus);
     // NS_LOG_INFO ("UE rx RRC count = " << rxUeRrcPdus);
 

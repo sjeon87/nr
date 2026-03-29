@@ -46,7 +46,12 @@ NrGnbNetDevice::GetTypeId()
                           "The RRC layer associated with the gNB",
                           PointerValue(),
                           MakePointerAccessor(&NrGnbNetDevice::m_rrc),
-                          MakePointerChecker<NrGnbRrc>());
+                          MakePointerChecker<NrGnbRrc>())
+            .AddAttribute("NrHandoverAlgorithm",
+                          "The handover algorithm associated to this GnbNetDevice",
+                          PointerValue(),
+                          MakePointerAccessor(&NrGnbNetDevice::m_handoverAlgorithm),
+                          MakePointerChecker<NrHandoverAlgorithm>());
     return tid;
 }
 
@@ -97,15 +102,19 @@ NrGnbNetDevice::GetNrFhControl()
 
 void
 NrGnbNetDevice::RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgList,
-                                     uint8_t sourceBwpId)
+                                     uint32_t sourceBwpArfcn)
 {
     NS_LOG_FUNCTION(this);
 
     for (const auto& msg : msgList)
     {
-        uint8_t bwpId = DynamicCast<BwpManagerGnb>(m_componentCarrierManager)
-                            ->RouteIngoingCtrlMsgs(msg, sourceBwpId);
-        m_ccMap.at(bwpId)->GetPhy()->PhyCtrlMessagesReceived(msg);
+        uint32_t bwpArfcn = DynamicCast<BwpManagerGnb>(m_componentCarrierManager)
+                                ->RouteIngoingCtrlMsgs(msg, sourceBwpArfcn);
+        auto bwpIt = std::find_if(m_ccMap.begin(), m_ccMap.end(), [bwpArfcn](const auto& bwp) {
+            return bwp.second->GetArfcn() == bwpArfcn;
+        });
+        NS_ASSERT_MSG(bwpIt != m_ccMap.end(), "gNB missing BWP with ARFCN: " << bwpArfcn);
+        bwpIt->second->GetPhy()->PhyCtrlMessagesReceived(msg);
     }
 }
 
@@ -252,6 +261,7 @@ NrGnbNetDevice::ConfigureCell()
     NS_ASSERT_MSG(!m_ccMap.empty(), "Component carrier map is empty");
     m_isCellConfigured = true;
     m_rrc->ConfigureCell(m_ccMap);
+    m_handoverAlgorithm->Initialize();
 }
 
 bool

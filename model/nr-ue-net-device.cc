@@ -154,15 +154,19 @@ NrUeNetDevice::EnqueueDlHarqFeedback(const DlHarqInfo& m) const
 
 void
 NrUeNetDevice::RouteIngoingCtrlMsgs(const std::list<Ptr<NrControlMessage>>& msgList,
-                                    uint8_t sourceBwpId)
+                                    uint32_t sourceBwpArfcn)
 {
     NS_LOG_FUNCTION(this);
 
     for (const auto& msg : msgList)
     {
-        uint8_t bwpId = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
-                            ->RouteIngoingCtrlMsg(msg, sourceBwpId);
-        m_ccMap.at(bwpId)->GetPhy()->PhyCtrlMessagesReceived(msg);
+        uint32_t bwpArfcn = DynamicCast<BwpManagerUe>(m_componentCarrierManager)
+                                ->RouteIngoingCtrlMsg(msg, sourceBwpArfcn);
+        auto bwpIt = std::find_if(m_ccMap.begin(), m_ccMap.end(), [bwpArfcn](auto& bwp) {
+            return bwp.second->GetArfcn() == bwpArfcn;
+        });
+        NS_ASSERT_MSG(bwpIt != m_ccMap.end(), "UE missing BWP with ARFCN: " << bwpArfcn);
+        bwpIt->second->GetPhy()->PhyCtrlMessagesReceived(msg);
     }
 }
 

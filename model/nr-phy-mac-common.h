@@ -122,10 +122,10 @@ struct DciInfoElementTdma
      */
     enum VarTtiType
     {
-        SRS = 0,  //!< Used for SRS (it would be like DCI format 2_3)
-        DATA = 1, //!< Used for DL/UL DATA
-        CTRL = 2, //!< Used for DL/UL CTRL
-        MSG3 = 3, //!< Used for UL MSG3
+        SRS = 1,  //!< Used for SRS (it would be like DCI format 2_3)
+        DATA = 2, //!< Used for DL/UL DATA
+        CTRL = 4, //!< Used for DL/UL CTRL
+        MSG3 = 8, //!< Used for UL MSG3
     };
 
     /**
@@ -391,6 +391,16 @@ struct SlotAllocInfo
      * @return true if m_varTtiAllocInfo contains a scheduled UL ctrl allocation (e.g., SRS)
      */
     bool ContainsUlCtrlAllocation() const;
+
+    /**
+     * @brief Get the number of symbols allocated for the given type of allocation
+     * @param type DciInfoElementTdma::VarTtiType identifier for DCI type
+     * @return number of allocated symbols in VarTti's DCIs
+     */
+    uint8_t GetAllocInfoNumSymbols(uint8_t type = DciInfoElementTdma::VarTtiType::SRS |
+                                                  DciInfoElementTdma::VarTtiType::DATA |
+                                                  DciInfoElementTdma::VarTtiType::CTRL |
+                                                  DciInfoElementTdma::VarTtiType::MSG3) const;
 
     SfnSf m_sfnSf{};                                     //!< SfnSf of this allocation
     uint32_t m_numSymAlloc{0};                           //!< Number of allocated symbols

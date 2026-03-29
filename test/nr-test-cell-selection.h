@@ -86,7 +86,7 @@ class NrCellSelectionTestCase : public TestCase
      * @param isEpcMode set to true for setting up simulation with EPC enabled
      * @param isIdealRrc if true, simulation uses Ideal RRC protocol, otherwise
      *                   simulation uses Real RRC protocol
-     * @param interSiteDistance the distance between eNodeB in meters
+     * @param interSiteDistance the distance between gNB in meters
      * @param ueSetupList a list of UE configuration to be installed in the
      *                    simulation
      */

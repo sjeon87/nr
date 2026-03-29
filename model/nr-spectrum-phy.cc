@@ -1870,7 +1870,7 @@ NrSpectrumPhy::EndRxCtrl()
     {
         if (m_phyRxCtrlEndOkCallback)
         {
-            m_phyRxCtrlEndOkCallback(m_rxControlMessageList, GetBwpId());
+            m_phyRxCtrlEndOkCallback(m_rxControlMessageList, GetNrPhy()->DoGetArfcn());
         }
     }
 

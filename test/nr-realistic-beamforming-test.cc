@@ -130,7 +130,7 @@ NrRealisticBeamformingTestCase::DoRun()
                     Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
                     channelHelper->ConfigureFactories("UMa", "LOS");
                     channelHelper->SetPathlossAttribute("ShadowingEnabled", BooleanValue(false));
-                    // Create Nodes: eNodeB and UE
+                    // Create Nodes: gNB and UE
                     NodeContainer gnbNodes;
                     NodeContainer ueNodes;
                     gnbNodes.Create(1);

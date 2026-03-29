@@ -260,7 +260,14 @@ NrGnbRrcProtocolIdeal::SetUeRrcSapProvider(uint16_t rnti, NrUeRrcSapProvider* p)
 {
     std::map<uint16_t, NrUeRrcSapProvider*>::iterator it;
     it = m_gnbRrcSapProviderMap.find(rnti);
-    NS_ASSERT_MSG(it != m_gnbRrcSapProviderMap.end(), "could not find RNTI = " << rnti);
+    if (it == m_gnbRrcSapProviderMap.end())
+    {
+        NS_LOG_WARN("NrGnbRrcProtocolIdeal::SetUeRrcSapProvider: RNTI "
+                    << rnti
+                    << " not found (UE context already removed, "
+                       "likely due to HandoverJoiningTimeout race). Dropping.");
+        return;
+    }
     it->second = p;
 }
 

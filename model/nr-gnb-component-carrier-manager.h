@@ -164,10 +164,10 @@ class NrGnbComponentCarrierManager : public Object
 
     std::map<uint16_t, NrUeInfo> m_ueInfo; //!< The map from RNTI to UE information.
     uint16_t m_noOfComponentCarriers; //!< The number component of carriers that are supported by
-                                      //!< this eNb.
+                                      //!< this gNB.
     // pointer to RRC object for direct function calls, e.g. when CCM needs to obtain
     // a pointer to RLC object of a specific flow
-    Ptr<NrGnbRrc> m_rrc; //!< A pointer to the RRC instance of this eNb.
+    Ptr<NrGnbRrc> m_rrc; //!< A pointer to the RRC instance of this gNB.
 
     /*
      * This interface is used to receive API calls from the RLC instance that through

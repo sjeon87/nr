@@ -277,7 +277,7 @@ RiPmiTestCase::DoRun()
     /**
      * Finally, create the gNB and the UE device.
      */
-    NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice(gnbContainer, allBwps);
+    NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gnbContainer, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueContainer, allBwps);
 
     std::map<uint16_t, CqiFeedbackTraceStats> cqiTraces;
@@ -298,13 +298,13 @@ RiPmiTestCase::DoRun()
     ueIpIface = epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
 
     // attach each UE to its gNB according to desired scenario
-    nrHelper->AttachToGnb(ueNetDev.Get(0), enbNetDev.Get(0));
+    nrHelper->AttachToGnb(ueNetDev.Get(0), gnbNetDev.Get(0));
 
     epcHelper->AssignStreams(0);
     internet.AssignStreams(remoteHost, 1000);
     internet.AssignStreams(gnbContainer, 2000);
     internet.AssignStreams(ueContainer, 3000);
-    nrHelper->AssignStreams(enbNetDev, 4000);
+    nrHelper->AssignStreams(gnbNetDev, 4000);
     nrHelper->AssignStreams(ueNetDev, 5000);
 
     /**

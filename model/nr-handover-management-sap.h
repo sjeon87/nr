@@ -14,10 +14,10 @@ namespace ns3
 
 /**
  * @brief Service Access Point (SAP) offered by the handover algorithm instance
- *        to the eNodeB RRC instance.
+ *        to the gNB RRC instance.
  *
  * This is the *Handover Management SAP Provider*, i.e., the part of the SAP
- * that contains the handover algorithm methods called by the eNodeB RRC
+ * that contains the handover algorithm methods called by the gNB RRC
  * instance.
  */
 class NrHandoverManagementSapProvider
@@ -41,11 +41,11 @@ class NrHandoverManagementSapProvider
 }; // end of class NrHandoverManagementSapProvider
 
 /**
- * @brief Service Access Point (SAP) offered by the eNodeB RRC instance to the
+ * @brief Service Access Point (SAP) offered by the gNB RRC instance to the
  *        handover algorithm instance.
  *
  * This is the *Handover Management SAP User*, i.e., the part of the SAP that
- * contains the eNodeB RRC methods called by the handover algorithm instance.
+ * contains the gNB RRC methods called by the handover algorithm instance.
  */
 class NrHandoverManagementSapUser
 {
@@ -54,15 +54,15 @@ class NrHandoverManagementSapUser
 
     /**
      * @brief Request a certain reporting configuration to be fulfilled by the UEs
-     *        attached to the eNodeB entity.
+     *        attached to the gNB entity.
      * @param reportConfig the UE measurement reporting configuration
      * @return the measurement identities associated with this newly added
      *         reporting configuration
      *
-     * The eNodeB RRC entity is expected to configure the same reporting
+     * The gNB RRC entity is expected to configure the same reporting
      * configuration in each of the attached UEs. When later in the simulation a
      * UE measurement report is received from a UE as a result of this
-     * configuration, the eNodeB RRC entity shall forward this report to the
+     * configuration, the gNB RRC entity shall forward this report to the
      * handover algorithm through the NrHandoverManagementSapProvider::ReportUeMeas
      * SAP function.
      *

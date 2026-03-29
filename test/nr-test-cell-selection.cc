@@ -41,7 +41,7 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE("NrCellSelectionTest");
 
 /*
- * This test suite sets up four cells (four eNBs) and six UEs.  Two of the
+ * This test suite sets up four cells (four gNBs) and six UEs.  Two of the
  * cells are CSG and two are non-CSG.  The six UEs associate with cells
  * based on their positions and random access procedures.  The test checks
  * that the UEs, at specific simulation times, are associated to expected
@@ -178,15 +178,15 @@ NrCellSelectionTestCase::DoRun()
      */
 
     // Create Nodes
-    NodeContainer enbNodes;
-    enbNodes.Create(4);
+    NodeContainer gnbNodes;
+    gnbNodes.Create(4);
     NodeContainer ueNodes;
     auto nUe = static_cast<uint16_t>(m_ueSetupList.size());
     ueNodes.Create(nUe);
 
     // Assign nodes to position
     Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
-    // eNodeB
+    // gNB
     positionAlloc->Add(Vector(0.0, m_interSiteDistance, 0.0));
     positionAlloc->Add(Vector(0.0, 0.0, 0.0));
     positionAlloc->Add(Vector(m_interSiteDistance, m_interSiteDistance, 0.0));
@@ -205,7 +205,7 @@ NrCellSelectionTestCase::DoRun()
     MobilityHelper mobility;
     mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
     mobility.SetPositionAllocator(positionAlloc);
-    mobility.Install(enbNodes);
+    mobility.Install(gnbNodes);
     mobility.Install(ueNodes);
 
     // Override the default antenna model with IsotropicAntennaModel
@@ -233,22 +233,22 @@ NrCellSelectionTestCase::DoRun()
     // cell ID 1 is a non-CSG cell
     // nrHelper->SetGnbDeviceAttribute("CsgId", UintegerValue(0));
     // nrHelper->SetGnbDeviceAttribute("CsgIndication", BooleanValue(false));
-    enbDevs.Add(nrHelper->InstallGnbDevice(enbNodes.Get(0), allBwps));
+    enbDevs.Add(nrHelper->InstallGnbDevice(gnbNodes.Get(0), allBwps));
 
     // cell ID 2 is a CSG cell
     // nrHelper->SetGnbDeviceAttribute("CsgId", UintegerValue(1));
     // nrHelper->SetGnbDeviceAttribute("CsgIndication", BooleanValue(true));
-    enbDevs.Add(nrHelper->InstallGnbDevice(enbNodes.Get(1), allBwps));
+    enbDevs.Add(nrHelper->InstallGnbDevice(gnbNodes.Get(1), allBwps));
 
     // cell ID 3 is a non-CSG cell
     // nrHelper->SetGnbDeviceAttribute("CsgId", UintegerValue(0));
     // nrHelper->SetGnbDeviceAttribute("CsgIndication", BooleanValue(false));
-    enbDevs.Add(nrHelper->InstallGnbDevice(enbNodes.Get(2), allBwps));
+    enbDevs.Add(nrHelper->InstallGnbDevice(gnbNodes.Get(2), allBwps));
 
     // cell ID 4 is a CSG cell
     // nrHelper->SetGnbDeviceAttribute("CsgId", UintegerValue(1));
     // nrHelper->SetGnbDeviceAttribute("CsgIndication", BooleanValue(true));
-    enbDevs.Add(nrHelper->InstallGnbDevice(enbNodes.Get(3), allBwps));
+    enbDevs.Add(nrHelper->InstallGnbDevice(gnbNodes.Get(3), allBwps));
 
     for (auto gnbIt = enbDevs.Begin(); gnbIt != enbDevs.End(); gnbIt++)
     {
@@ -280,7 +280,10 @@ NrCellSelectionTestCase::DoRun()
         NS_ASSERT(ueNas);
 
         // Enable idle mode cell selection
-        Simulator::Schedule(MilliSeconds(20), &NrEpcUeNas::StartCellSelection, ueNas, 1);
+        Simulator::Schedule(MilliSeconds(20),
+                            &NrEpcUeNas::StartCellSelection,
+                            ueNas,
+                            NrPhy::FrequencyHzToArfcn(2.8e9));
 
         ueDevs.Add(devs);
         Simulator::Schedule(itSetup->checkPoint,
