@@ -34,16 +34,16 @@ NrMacSchedulerLcRR::GetTypeId()
 }
 
 std::vector<NrMacSchedulerLcAlgorithm::Assignation>
-NrMacSchedulerLcRR::AssignBytesToDlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                      uint32_t tbs,
-                                      [[maybe_unused]] Time slotPeriod) const
+NrMacSchedulerLcRR::DoAssignBytesToDlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                        uint32_t tbs,
+                                        [[maybe_unused]] Time slotPeriod) const
 {
     return AssignBytesToLC(ueLCG, tbs);
 }
 
 std::vector<NrMacSchedulerLcAlgorithm::Assignation>
-NrMacSchedulerLcRR::AssignBytesToUlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                      uint32_t tbs) const
+NrMacSchedulerLcRR::DoAssignBytesToUlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                        uint32_t tbs) const
 {
     return AssignBytesToLC(ueLCG, tbs);
 }
@@ -53,24 +53,12 @@ NrMacSchedulerLcRR::AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& u
                                     uint32_t tbs) const
 {
     NS_LOG_FUNCTION(this);
-    GetSecond GetLCG;
 
     std::vector<NrMacSchedulerLcAlgorithm::Assignation> ret;
 
     NS_LOG_INFO("To distribute: " << tbs << " bytes over " << ueLCG.size() << " LCG");
 
-    std::map<std::pair<uint8_t, uint8_t>, std::pair<uint32_t, uint32_t>> activeLc;
-    for (const auto& lcg : ueLCG)
-    {
-        std::vector<uint8_t> lcs = GetLCG(lcg)->GetLCId();
-        for (const auto& lcId : lcs)
-        {
-            if (GetLCG(lcg)->GetTotalSizeOfLC(lcId) > 0)
-            {
-                activeLc[{lcg.first, lcId}] = {GetLCG(lcg)->GetTotalSizeOfLC(lcId), 0};
-            }
-        }
-    }
+    auto activeLc = RetrieveActiveLcs(ueLCG);
 
     if (activeLc.empty())
     {

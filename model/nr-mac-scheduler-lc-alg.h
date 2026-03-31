@@ -14,6 +14,11 @@
 namespace ns3
 {
 
+using Lcg = uint8_t;
+using LcId = uint8_t;
+using UnassignedBytes = uint32_t;
+using AssignedBytes = uint32_t;
+
 /**
  * @ingroup scheduler
  *
@@ -97,6 +102,33 @@ class NrMacSchedulerLcAlgorithm : public Object
 
     /**
      * @brief Method to decide how to distribute the assigned bytes to the different LCs
+     *        for the DL direction. It first allocates bytes to control channels, and then
+     *        applies the custom policy to remaining data channels with DoAssignBytesToDlLC.
+     * @param ueLCG LCG of an UE
+     * @param tbs TBS to divide between the LCG/LC
+     * @return A vector of Assignation
+     */
+    std::vector<Assignation> AssignBytesToDlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                               uint32_t tbs,
+                                               Time slotPeriod) const;
+
+    /**
+     * @brief Method to decide how to distribute the assigned bytes to the different LCs
+     *        for the UL direction. It first allocates bytes to control channels, and then
+     *        applies the custom policy to remaining data channels with DoAssignBytesToUlLC.
+     * @param ueLCG LCG of an UE
+     * @param tbs TBS to divide between the LCG/LC
+     * @return A vector of Assignation
+     */
+    std::vector<Assignation> AssignBytesToUlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                               uint32_t tbs) const;
+
+    static std::map<std::pair<Lcg, LcId>, std::pair<UnassignedBytes, AssignedBytes>>
+    RetrieveActiveLcs(const std::unordered_map<uint8_t, LCGPtr>& ueLCG);
+
+  private:
+    /**
+     * @brief Method to decide how to distribute the assigned bytes to the different LCs
      *        for the DL direction. Notice that in the DL more sophisticated algorithms
      *        can be applied since there is no limitation in the distinction among the
      *        various LCs as there is in the UL (in the UL the scheduler considers only
@@ -105,7 +137,7 @@ class NrMacSchedulerLcAlgorithm : public Object
      * @param tbs TBS to divide between the LCG/LC
      * @return A vector of Assignation
      */
-    virtual std::vector<Assignation> AssignBytesToDlLC(
+    virtual std::vector<Assignation> DoAssignBytesToDlLC(
         const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
         uint32_t tbs,
         Time slotPeriod) const = 0;
@@ -119,9 +151,19 @@ class NrMacSchedulerLcAlgorithm : public Object
      * @param tbs TBS to divide between the LCG/LC
      * @return A vector of Assignation
      */
-    virtual std::vector<Assignation> AssignBytesToUlLC(
+    virtual std::vector<Assignation> DoAssignBytesToUlLC(
         const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
         uint32_t tbs) const = 0;
+
+    static std::vector<NrMacSchedulerLcAlgorithm::Assignation> AssignControlBytes(
+        const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+        uint32_t tbs);
+
+    std::vector<NrMacSchedulerLcAlgorithm::Assignation> AssignBytesToLC(
+        const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+        uint32_t tbs,
+        Time slotPeriod,
+        bool isDl) const;
 };
 } // namespace ns3
 

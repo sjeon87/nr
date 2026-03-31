@@ -35,6 +35,7 @@ class NrMacSchedulerLcQos : public NrMacSchedulerLcAlgorithm
      */
     ~NrMacSchedulerLcQos() override;
 
+  private:
     /**
      * @brief Method to decide how to distribute the assigned bytes to the different LCs
      *        for the DL direction. This algorithm is based on the resource type and the
@@ -57,9 +58,9 @@ class NrMacSchedulerLcQos : public NrMacSchedulerLcAlgorithm
      * @param tbs TBS to divide between the LCG/LC
      * @return A vector of Assignation
      */
-    std::vector<Assignation> AssignBytesToDlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                               uint32_t tbs,
-                                               Time slotPeriod) const override;
+    std::vector<Assignation> DoAssignBytesToDlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                                 uint32_t tbs,
+                                                 Time slotPeriod) const override;
 
     /**
      * @brief Method to decide how to distribute the assigned bytes to the different LCs
@@ -69,8 +70,8 @@ class NrMacSchedulerLcQos : public NrMacSchedulerLcAlgorithm
      * @param tbs TBS to divide between the LCG/LC
      * @return A vector of Assignation
      */
-    std::vector<Assignation> AssignBytesToUlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                               uint32_t tbs) const override;
+    std::vector<Assignation> DoAssignBytesToUlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                                 uint32_t tbs) const override;
 };
 } // namespace ns3
 
