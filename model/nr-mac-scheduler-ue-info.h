@@ -233,6 +233,59 @@ class NrMacSchedulerUeInfo
     uint32_t GetTotalDlBuffer() const;
 
     /**
+     * @brief Get the total number of logical channels in the downlink LCG map.
+     *
+     * This method counts all logical channels contained in all downlink logical
+     * channel groups of the UE, regardless of whether they currently have data
+     * pending for transmission.
+     *
+     * @return The total number of downlink logical channels.
+     */
+    uint32_t GetTotalNumDlLc() const;
+
+    /**
+     * @brief Get the total number of logical channels in the uplink LCG map.
+     *
+     * This method counts all logical channels contained in all uplink logical
+     * channel groups of the UE, regardless of whether they currently have data
+     * pending for transmission.
+     *
+     * @return The total number of uplink logical channels.
+     */
+    uint32_t GetTotalNumUlLc() const;
+
+    /**
+     * @brief Get the total number of active logical channels in the downlink LCG map.
+     *
+     * An active logical channel is a logical channel whose buffer occupancy is
+     * greater than zero. This method sums the active logical channels across all
+     * downlink logical channel groups of the UE.
+     *
+     * @return The total number of active downlink logical channels.
+     */
+    uint32_t GetTotalNumActiveDlLc() const;
+
+    /**
+     * @brief Get the total number of active logical channels in the uplink LCG map.
+     *
+     * An active logical channel is a logical channel whose buffer occupancy is
+     * greater than zero. This method sums the active logical channels across all
+     * uplink logical channel groups of the UE.
+     *
+     * @return The total number of active uplink logical channels.
+     */
+    uint32_t GetTotalNumActiveUlLc() const;
+
+    /**
+     * @brief Check whether the UE has pending downlink signaling traffic.
+     *
+     * Downlink signaling traffic is carried in logical channel group 0.
+     *
+     * @return true if DL LCG 0 has pending bytes, false otherwise.
+     */
+    bool HasPendingDlSignalingTraffic() const;
+
+    /**
      * @brief Received CQI information
      */
     struct CqiInfo
