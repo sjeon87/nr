@@ -1522,6 +1522,13 @@ NrMacSchedulerNs3::DoScheduleDlData(PointInFTPlane* spoint,
 
             for (std::size_t numLc = 0; numLc < distributedBytes.size(); numLc++)
             {
+                // For RLC (because of RLC AM), we assume at least 7 bytes of TX opportunity,
+                // and subtract MAC_SUBHEADER_SIZE (3 bytes) from the assigned m_bytes.
+                if (distributedBytes.at(numLc).m_bytes < 7 + MAC_SUBHEADER_SIZE)
+                {
+                    NS_LOG_WARN("TX opportunity is too small: "
+                                << distributedBytes.at(numLc).m_bytes << " bytes.");
+                }
                 bytesPerLc.at(numLc).emplace_back(distributedBytes.at(numLc).m_lcg,
                                                   distributedBytes.at(numLc).m_lcId,
                                                   distributedBytes.at(numLc).m_bytes);
@@ -1540,10 +1547,11 @@ NrMacSchedulerNs3::DoScheduleDlData(PointInFTPlane* spoint,
 
             for (const auto& byteDistribution : distributedBytes)
             {
-                NS_ASSERT(byteDistribution.m_bytes >= 3);
+                NS_ASSERT(byteDistribution.m_bytes >= MAC_SUBHEADER_SIZE);
                 uint8_t lcId = byteDistribution.m_lcId;
                 uint8_t lcgId = byteDistribution.m_lcg;
-                uint32_t bytes = byteDistribution.m_bytes - 3; // Consider the subPdu overhead
+                // Consider the subPdu overhead
+                uint32_t bytes = byteDistribution.m_bytes - MAC_SUBHEADER_SIZE;
 
                 RlcPduInfo newRlcPdu(lcId, bytes);
                 HarqProcess& process = ue.first->m_dlHarq.Get(dci->m_harqProcess);
@@ -2366,6 +2374,23 @@ NrMacSchedulerNs3::CallNrFhControlForMapUpdate(
     m_nrFhSchedSapProvider->UpdateActiveUesMap(GetBwpId(), allocation, ueMap);
 }
 
+void
+NrMacSchedulerNs3::LogUesWithPendingDlSignalingTraffic(const ActiveUeMap& activeDlUe) const
+{
+    NS_LOG_FUNCTION(this);
+    for (const auto& beamEntry : activeDlUe)
+    {
+        for (const auto& ueEntry : beamEntry.second)
+        {
+            const auto& ueInfo = ueEntry.first;
+            if (ueInfo->HasPendingDlSignalingTraffic())
+            {
+                NS_LOG_WARN("UE " << ueInfo->m_rnti << " has pending DL signaling traffic.");
+            }
+        }
+    }
+}
+
 /**
  * @brief Schedule DL HARQ and data
  * @param dlSfnSf Slot number
@@ -2406,6 +2431,13 @@ NrMacSchedulerNs3::DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
                  << " Active Beams DL HARQ: " << activeDlHarq.size()
                  << " sym available: " << static_cast<uint32_t>(dlSymAvail) << " starting from sym "
                  << static_cast<uint32_t>(m_dlCtrlSymbols));
+
+    if (dlSymAvail == 0)
+    {
+        NS_LOG_WARN("No symbols available for DL data TX/RX.");
+        LogUesWithPendingDlSignalingTraffic(*activeDlUe);
+        return 0;
+    }
 
     if (!activeDlHarq.empty())
     {
@@ -2458,6 +2490,11 @@ NrMacSchedulerNs3::DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
                 break;
             }
         }
+    }
+
+    if (dlSymAvail == 0 && !activeDlUe->empty())
+    {
+        NS_LOG_WARN("No symbols available for new DL data transmissions.");
     }
 
     NS_ASSERT(dlAssignationStartPoint.m_rbg == 0);
