@@ -71,10 +71,13 @@ class NrTestMacSchedLcRr : public TestCase
             m_lcg.emplace(lcgId, std::move(lcgEntry));
             nr::LogicalChannelConfigListElement_s config{.m_fiveQi = 5};
             auto lcEntry = std::make_unique<NrMacSchedulerLC>(config);
-            lcEntry->m_id = lcgId;
+            // Limit the test check to DATA logical channels only.
+            // CTRL logical channels are handled by priority,
+            // and the logical channel assignment logic does not apply to them.
+            lcEntry->m_id = 3;
             m_lcg.at(lcgId)->Insert(std::move(lcEntry));
             NrMacSchedSapProvider::SchedDlRlcBufferReqParameters params{};
-            params.m_logicalChannelIdentity = lcgId;
+            params.m_logicalChannelIdentity = 3;
             params.m_rlcTransmissionQueueSize = lcgBytes;
             m_lcg.at(lcgId)->UpdateInfo(params);
         }
