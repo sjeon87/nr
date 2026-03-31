@@ -1522,6 +1522,7 @@ NrMacSchedulerNs3::DoScheduleDlData(PointInFTPlane* spoint,
 
             for (std::size_t numLc = 0; numLc < distributedBytes.size(); numLc++)
             {
+                NS_ABORT_MSG_IF(distributedBytes.at(numLc).m_bytes <= 7, "To small TX opportunity");
                 bytesPerLc.at(numLc).emplace_back(distributedBytes.at(numLc).m_lcg,
                                                   distributedBytes.at(numLc).m_lcId,
                                                   distributedBytes.at(numLc).m_bytes);
@@ -2407,6 +2408,26 @@ NrMacSchedulerNs3::DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
                  << " sym available: " << static_cast<uint32_t>(dlSymAvail) << " starting from sym "
                  << static_cast<uint32_t>(m_dlCtrlSymbols));
 
+    if (dlSymAvail == 0)
+    {
+        NS_LOG_INFO("No symbols available for DL data TX/RX.");
+        for (auto it = activeDlUe->begin(); it != activeDlUe->end(); it++)
+        {
+            for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++)
+            {
+                if (it2->first->m_dlLCG.find(0) != it2->first->m_dlLCG.end())
+                {
+                    if (it2->first->m_dlLCG[0]->GetTotalSize() > 0)
+                    {
+                        NS_LOG_WARN("UE " << it2->first->m_rnti
+                                          << " has pending DL LCG 0 traffic.");
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+
     if (!activeDlHarq.empty())
     {
         uint8_t usedHarq = ScheduleDlHarq(&dlAssignationStartPoint,
@@ -2458,6 +2479,12 @@ NrMacSchedulerNs3::DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
                 break;
             }
         }
+    }
+
+    if (dlSymAvail == 0 && !activeDlUe->empty())
+    {
+        NS_LOG_WARN("No symbols available for new DL data TX.");
+        return 0;
     }
 
     NS_ASSERT(dlAssignationStartPoint.m_rbg == 0);
