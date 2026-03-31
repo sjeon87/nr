@@ -26,6 +26,22 @@ NrMacSchedulerLC::NrMacSchedulerLC(const nr::LogicalChannelConfigListElement_s& 
     m_eRabGuaranteedBitrateDl = conf.m_eRabGuaranteedBitrateDl;
 }
 
+NrMacSchedulerLC::NrMacSchedulerLC(const NrMacSchedulerLC& o)
+{
+    m_id = o.m_id;
+    m_rlcTransmissionQueueSize = o.m_rlcTransmissionQueueSize;
+    m_rlcTransmissionQueueHolDelay = o.m_rlcTransmissionQueueHolDelay;
+    m_rlcRetransmissionHolDelay = o.m_rlcRetransmissionHolDelay;
+    m_rlcRetransmissionQueueSize = o.m_rlcRetransmissionQueueSize;
+    m_rlcStatusPduSize = o.m_rlcStatusPduSize;
+    m_delayBudget = o.m_delayBudget;
+    m_PER = o.m_PER;
+    m_resourceType = o.m_resourceType;
+    m_fiveQi = o.m_fiveQi;
+    m_priority = o.m_priority;
+    m_eRabGuaranteedBitrateDl = o.m_eRabGuaranteedBitrateDl;
+}
+
 auto
 AddMacSubHeader(auto value)
 {
@@ -295,6 +311,15 @@ void
 NrMacSchedulerLCG::ReleaseLC(uint8_t lcId)
 {
     m_lcMap.erase(lcId);
+}
+
+NrMacSchedulerLCG::NrMacSchedulerLCG(const NrMacSchedulerLCG& other)
+{
+    m_id = other.m_id;
+    for (const auto& [key, val] : other.m_lcMap)
+    {
+        m_lcMap[key] = std::make_unique<NrMacSchedulerLC>(*val);
+    }
 }
 
 } // namespace ns3

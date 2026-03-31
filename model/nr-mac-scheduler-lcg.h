@@ -47,7 +47,7 @@ class NrMacSchedulerLC
      * @brief NrMacSchedulerLC copy constructor (deleted)
      * @param o other instance
      */
-    NrMacSchedulerLC(const NrMacSchedulerLC& o) = delete;
+    NrMacSchedulerLC(const NrMacSchedulerLC& o);
     /**
      * @brief Overwrite all the parameters with the one contained in the message
      * @param params the message received from the RLC layer, containing the information about the
@@ -120,7 +120,7 @@ class NrMacSchedulerLCG
      * @brief NrMacSchedulerLCG copy constructor (deleted)
      * @param other other instance
      */
-    NrMacSchedulerLCG(const NrMacSchedulerLCG& other) = delete;
+    NrMacSchedulerLCG(const NrMacSchedulerLCG& other);
     /**
      * @brief Check if the LCG contains the LC id specified
      * @param lcId LC ID to check for
