@@ -87,7 +87,7 @@ NrMacSchedulerLcRR::AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& u
         // Calculate bytes to assign per LC this round
         uint32_t assignBlockSize = (numActive > 0) ? tbs / numActive : 1;
 
-        // Cap block size to smallest remaining buffer
+        // Cap block size to the smallest remaining buffer
         for (const auto& [lcId, lcData] : activeLc)
         {
             if (lcData.first > 0)
@@ -111,10 +111,20 @@ NrMacSchedulerLcRR::AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& u
                 continue;
             }
 
+            if (tbs >= assignBlockSize)
+            {
+                allocatedBytes += assignBlockSize;
+            }
+            else
+            {
+                allocatedBytes = tbs;
+            }
+
             // Assign block to this LC
-            tbs -= assignBlockSize;
-            unallocatedBytes -= assignBlockSize;
-            allocatedBytes += assignBlockSize;
+            tbs = (tbs >= assignBlockSize) ? tbs - assignBlockSize : uint32_t(0);
+            unallocatedBytes = (unallocatedBytes >= assignBlockSize)
+                                   ? unallocatedBytes - assignBlockSize
+                                   : uint32_t(0);
 
             if (tbs == 0)
             {
