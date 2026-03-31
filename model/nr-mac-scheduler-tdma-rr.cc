@@ -61,13 +61,13 @@ NrMacSchedulerTdmaRR::AssignedDlResources(const UePtrAndBufferReq& ue,
     }
     auto it = std::find(m_dlRrRntiDeque.begin(), m_dlRrRntiDeque.end(), GetUe(ue)->m_rnti);
 
-    // If transport block size increased, move to end of list
+    // If transport block size increased, move to the end of the list
     if (newTbSize > oldTbSize)
     {
         m_dlRrRntiDeque.erase(it);
         m_dlRrRntiDeque.push_back(GetUe(ue)->m_rnti);
     }
-    // If it decreased (resources were reaped), move to beginning of list
+    // If it decreased (resources were reaped), move to the beginning of the list
     else if (newTbSize < oldTbSize)
     {
         m_dlRrRntiDeque.erase(it);
