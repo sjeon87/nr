@@ -171,6 +171,23 @@ NrMacSchedulerLCG::GetTotalSizeOfLC(uint8_t lcId) const
     return m_lcMap.at(lcId)->GetTotalSize();
 }
 
+uint32_t
+NrMacSchedulerLCG::GetTotalSizeOfLCPlusOverheads(uint8_t lcId, bool isDl) const
+{
+    NS_LOG_FUNCTION(this);
+    NS_ABORT_IF(m_lcMap.empty());
+    uint32_t rlcOverhead = 2; // minimum RLC overhead due to header
+    if (lcId == 1)
+    {
+        // for SRB1 (using RLC AM) it's better to
+        // overestimate RLC overhead rather than
+        // underestimate it and risk unneeded
+        // segmentation which increases delay
+        rlcOverhead = 4;
+    }
+    return m_lcMap.at(lcId)->GetTotalSize() + rlcOverhead + MAC_SUBHEADER_SIZE;
+}
+
 std::vector<uint8_t>
 NrMacSchedulerLCG::GetLCId() const
 {

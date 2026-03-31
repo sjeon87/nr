@@ -32,19 +32,21 @@ NrMacSchedulerLcAlgorithm::GetTypeId()
 }
 
 std::map<std::pair<Lcg, LcId>, std::pair<UnassignedBytes, AssignedBytes>>
-NrMacSchedulerLcAlgorithm::RetrieveActiveLcs(const std::unordered_map<uint8_t, LCGPtr>& ueLCG)
+NrMacSchedulerLcAlgorithm::RetrieveActiveLcs(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                             bool isDl)
 {
     NS_LOG_FUNCTION_NOARGS();
-    GetSecond GetLCG;
     std::map<std::pair<Lcg, LcId>, std::pair<UnassignedBytes, AssignedBytes>> activeLc;
     for (const auto& lcg : ueLCG)
     {
-        std::vector<uint8_t> lcs = GetLCG(lcg)->GetLCId();
+        std::vector<uint8_t> lcs = lcg.second->GetLCId();
         for (const auto& lcId : lcs)
         {
-            if (GetLCG(lcg)->GetTotalSizeOfLC(lcId) > 0)
+            if (lcg.second->GetTotalSizeOfLC(lcId) > 0)
             {
-                activeLc[{lcg.first, lcId}] = {GetLCG(lcg)->GetTotalSizeOfLC(lcId), 0};
+                activeLc[{lcg.first, lcId}] = {
+                    lcg.second->GetTotalSizeOfLCPlusOverheads(lcId, isDl),
+                    0};
             }
         }
     }
@@ -53,10 +55,11 @@ NrMacSchedulerLcAlgorithm::RetrieveActiveLcs(const std::unordered_map<uint8_t, L
 
 std::vector<NrMacSchedulerLcAlgorithm::Assignation>
 NrMacSchedulerLcAlgorithm::AssignControlBytes(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                              uint32_t tbs)
+                                              uint32_t tbs,
+                                              bool isDl)
 {
     std::vector<NrMacSchedulerLcAlgorithm::Assignation> ret;
-    auto activeLc = RetrieveActiveLcs(ueLCG);
+    auto activeLc = RetrieveActiveLcs(ueLCG, isDl);
 
     if (activeLc.empty())
     {
@@ -78,6 +81,10 @@ NrMacSchedulerLcAlgorithm::AssignControlBytes(const std::unordered_map<uint8_t, 
             }
             else
             {
+                ret.emplace_back(lcId.first, lcId.second, tbs);
+                allocatedBytes = tbs;
+                unallocatedBytes -= tbs;
+                tbs = 0;
                 NS_LOG_WARN("TBS size " << tbs
                                         << " bytes is not sufficient for control channel LCID "
                                         << +lcId.second << " (" << unallocatedBytes << " bytes)");
@@ -102,7 +109,7 @@ NrMacSchedulerLcAlgorithm::AssignBytesToLC(const std::unordered_map<uint8_t, LCG
     }
 
     // We first handle allocation of control logic channels. They ALWAYS have priority over data.
-    auto ret = AssignControlBytes(ueLCGCopy, tbs);
+    auto ret = AssignControlBytes(ueLCGCopy, tbs, isDl);
 
     // If there was some control assignment, we need to clear it up on our ueLCG copy,
     // then pass to data

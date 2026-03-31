@@ -38,19 +38,20 @@ NrMacSchedulerLcRR::DoAssignBytesToDlLC(const std::unordered_map<uint8_t, LCGPtr
                                         uint32_t tbs,
                                         [[maybe_unused]] Time slotPeriod) const
 {
-    return AssignBytesToLC(ueLCG, tbs);
+    return AssignBytesToLC(ueLCG, tbs, true);
 }
 
 std::vector<NrMacSchedulerLcAlgorithm::Assignation>
 NrMacSchedulerLcRR::DoAssignBytesToUlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
                                         uint32_t tbs) const
 {
-    return AssignBytesToLC(ueLCG, tbs);
+    return AssignBytesToLC(ueLCG, tbs, false);
 }
 
 std::vector<NrMacSchedulerLcAlgorithm::Assignation>
 NrMacSchedulerLcRR::AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                    uint32_t tbs) const
+                                    uint32_t tbs,
+                                    bool isDl) const
 {
     NS_LOG_FUNCTION(this);
 
@@ -58,7 +59,7 @@ NrMacSchedulerLcRR::AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& u
 
     NS_LOG_INFO("To distribute: " << tbs << " bytes over " << ueLCG.size() << " LCG");
 
-    auto activeLc = RetrieveActiveLcs(ueLCG);
+    auto activeLc = RetrieveActiveLcs(ueLCG, isDl);
 
     if (activeLc.empty())
     {

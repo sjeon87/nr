@@ -180,6 +180,7 @@ class NrMacSchedulerLCG
      */
     uint32_t GetTotalSizeOfLC(uint8_t lcId) const;
 
+    uint32_t GetTotalSizeOfLCPlusOverheads(uint8_t lcId, bool isDl) const;
     /**
      * @brief Get a vector of LC ID
      * @return a vector with all the LC id present in this LCG

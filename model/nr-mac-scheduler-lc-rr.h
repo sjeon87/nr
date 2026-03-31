@@ -66,7 +66,8 @@ class NrMacSchedulerLcRR : public NrMacSchedulerLcAlgorithm
      * @return A vector of Assignation
      */
     std::vector<Assignation> AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                             uint32_t tbs) const;
+                                             uint32_t tbs,
+                                             bool isDl) const;
 };
 } // namespace ns3
 

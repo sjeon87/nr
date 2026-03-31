@@ -124,7 +124,7 @@ class NrMacSchedulerLcAlgorithm : public Object
                                                uint32_t tbs) const;
 
     static std::map<std::pair<Lcg, LcId>, std::pair<UnassignedBytes, AssignedBytes>>
-    RetrieveActiveLcs(const std::unordered_map<uint8_t, LCGPtr>& ueLCG);
+    RetrieveActiveLcs(const std::unordered_map<uint8_t, LCGPtr>& ueLCG, bool isDl);
 
   private:
     /**
@@ -157,7 +157,8 @@ class NrMacSchedulerLcAlgorithm : public Object
 
     static std::vector<NrMacSchedulerLcAlgorithm::Assignation> AssignControlBytes(
         const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-        uint32_t tbs);
+        uint32_t tbs,
+        bool isDl);
 
     std::vector<NrMacSchedulerLcAlgorithm::Assignation> AssignBytesToLC(
         const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
