@@ -5,6 +5,8 @@
  *
  * Author: Nicola Baldo <nbaldo@cttc.es>
  *         Budiarto Herman <budiarto.herman@magister.fi>
+ * Modified by: Gabriel Ferreira <gabrielcarvfer@gmail.com>
+ *              Biljana Bojovic <biljana.bojovic@cttc.es>
  */
 
 #include "ns3/core-module.h"
@@ -318,7 +320,7 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
                                   "Y",
                                   StringValue("0.5"),
                                   "Rho",
-                                  StringValue("ns3::UniformRandomVariable[Min=0|Max=0.4]"));
+                                  StringValue("ns3::UniformRandomVariable[Min=5|Max=20]"));
     mobility.Install(ueNodes);
 
     // the following positions the gnb at (1, 1, 0)
@@ -476,23 +478,27 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
 
     NS_LOG_INFO("UeRrc state is: " << ueRrc->GetState());
 
-    // Verifying UE context state in gNB RRC.
-
     Ptr<NrGnbNetDevice> nrGnbDevice = gnbDevice->GetObject<NrGnbNetDevice>();
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
     const bool hasContext = gnbRrc->HasUeManager(rnti);
 
+    // Verifying UE context state in gNB RRC.
     if (hasContext)
     {
         Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
         NS_ASSERT(ueManager);
-
         NS_LOG_INFO("GnbRrc context for RNTI: " << rnti
                                                 << " is in state: " << ueManager->GetState());
+        if (ueManager->GetState() != NrUeManager::CONNECTED_NORMALLY)
+        {
+            NS_LOG_WARN(
+                "NrUeManager state is in invalid state at time:" << Simulator::Now().GetSeconds());
+        }
 
         NS_TEST_ASSERT_MSG_EQ(ueManager->GetState(),
                               NrUeManager::CONNECTED_NORMALLY,
-                              "The context of RNTI " << rnti << " is in invalid state");
+                              "The context of RNTI " << rnti << " is in invalid state at time: "
+                                                     << Simulator::Now().GetSeconds());
     }
     else
     {
@@ -512,7 +518,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
     uint16_t ueUlBwp = ueRrc->GetPrimaryUlIndex();
     uint32_t ueDlArfcn = ueNrDevice->GetBwpArfcn(ueDlBwp);
     uint32_t ueUlArfcn = ueNrDevice->GetBwpArfcn(ueUlBwp);
-    uint16_t ueImsi = ueNrDevice->GetImsi();
+    uint64_t ueImsi = ueNrDevice->GetImsi();
     uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
     uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
 
@@ -534,7 +540,7 @@ NrRrcConnectionEstablishmentTestCase::CheckConnected(Ptr<NetDevice> ueDevice,
         Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
         NS_ASSERT(ueManager);
         NrUeManager::State state = ueManager->GetState();
-        uint16_t gnbImsi = ueManager->GetImsi();
+        uint64_t gnbImsi = ueManager->GetImsi();
         NS_TEST_ASSERT_MSG_EQ(ueImsi, gnbImsi, "inconsistent Imsi");
 
         if (state == NrUeManager::CONNECTED_NORMALLY)
@@ -745,7 +751,7 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
     stream += m_nrHelper->AssignStreams(ueDevs, stream);
 
     m_nrHelper->AttachToClosestGnb(ueDevs, gnbDevs);
-    /*
+
     // custom code used for testing purposes
     // instead of nrHelper->Attach () and nrHelper->ActivateXxx
 
@@ -787,7 +793,7 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
         m_isConnectionEstablished[imsi] = false;
 
         ++i;
-    }*/
+    }
 
     // Connect to trace sources in UEs
     Config::Connect(
@@ -798,15 +804,15 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
         "/NodeList/*/DeviceList/*/NrUeRrc/ConnectionTimeout",
         MakeCallback(&NrRrcConnectionEstablishmentErrorTestCase::ConnectionTimeoutCallback, this));
 
-    // Simulator::Schedule(m_jumpAwayTime, &NrRrcConnectionEstablishmentErrorTestCase::JumpAway,
-    // this); Simulator::Schedule(m_jumpAwayTime + MilliSeconds(99),
-    //                     &NrRrcConnectionEstablishmentErrorTestCase::CheckNotConnected,
-    //                     this,
-    //                     ueDevs.Get(0),
-    //                     gnbDevs.Get(0));
-    // Simulator::Schedule(m_jumpAwayTime + MilliSeconds(100),
-    //                     &NrRrcConnectionEstablishmentErrorTestCase::JumpBack,
-    //                     this);
+    Simulator::Schedule(m_jumpAwayTime, &NrRrcConnectionEstablishmentErrorTestCase::JumpAway, this);
+    Simulator::Schedule(m_jumpAwayTime + MilliSeconds(99),
+                        &NrRrcConnectionEstablishmentErrorTestCase::CheckNotConnected,
+                        this,
+                        ueDevs.Get(0),
+                        gnbDevs.Get(0));
+    Simulator::Schedule(m_jumpAwayTime + MilliSeconds(100),
+                        &NrRrcConnectionEstablishmentErrorTestCase::JumpBack,
+                        this);
 
     Simulator::Stop(MilliSeconds(/*tmax*/ +1));
 
@@ -863,12 +869,10 @@ NrRrcTestSuite::NrRrcTestSuite()
     // e.g. gNB0 gNB1
     //       v    ^
     //       UE0  UE1
-    std::vector<std::pair<bool, bool>> idealRrcAndFddCombinations{
-        {true, false},
-        {true, true},
-        // {false, false},
-        // {false, true}
-    };
+    std::vector<std::pair<bool, bool>> idealRrcAndFddCombinations{{true, false},
+                                                                  {true, true},
+                                                                  {false, false},
+                                                                  {false, true}};
     for (auto [useIdealRrc, isFdd] : idealRrcAndFddCombinations)
     {
         // <----- all times in ms ----------------->
@@ -883,7 +887,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              1,
                                                              0,
@@ -893,7 +897,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              1,
                                                              1,
@@ -903,7 +907,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              1,
                                                              1,
@@ -913,7 +917,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              1,
                                                              2,
@@ -923,7 +927,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              1,
                                                              2,
@@ -933,7 +937,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              0,
@@ -943,7 +947,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              0,
@@ -953,7 +957,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              0,
@@ -963,7 +967,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              1,
@@ -973,7 +977,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              1,
@@ -983,7 +987,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              1,
@@ -993,7 +997,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              2,
@@ -1003,7 +1007,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              2,
@@ -1023,7 +1027,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              3,
                                                              0,
@@ -1033,7 +1037,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              4,
                                                              0,
@@ -1043,7 +1047,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              4,
                                                              0,
@@ -1053,7 +1057,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              20,
                                                              0,
@@ -1063,7 +1067,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              50,
                                                              0,
@@ -1073,7 +1077,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              true),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
 
         // Test cases to check admitRrcConnectionRequest=false
         //                                                     nUes      tConnBase
@@ -1090,7 +1094,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              false),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              1,
                                                              2,
@@ -1100,7 +1104,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              false),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              0,
@@ -1110,7 +1114,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              false),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
         AddTestCase(new NrRrcConnectionEstablishmentTestCase(isFdd,
                                                              2,
                                                              1,
@@ -1130,7 +1134,7 @@ NrRrcTestSuite::NrRrcTestSuite()
                                                              false,
                                                              useIdealRrc,
                                                              false),
-                    TestCase::Duration::EXTENSIVE);
+                    TestCase::Duration::QUICK);
 
         if (!useIdealRrc)
         {
