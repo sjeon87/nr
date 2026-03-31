@@ -356,6 +356,14 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
             NrHelper::GetBwpManagerUe(ueDevs.Get(i))->SetOutputLink(0, 1);
         }
     }
+    else
+    {
+        for (uint32_t i = 0; i < gnbDevs.GetN(); i++)
+        {
+            NrHelper::GetGnbPhy(gnbDevs.Get(i), 0)
+                ->SetAttribute("Pattern", StringValue("DL|DL|DL|DL|UL"));
+        }
+    }
 
     // custom code used for testing purposes
     // instead of nrHelper->Attach () and nrHelper->ActivateXxx
