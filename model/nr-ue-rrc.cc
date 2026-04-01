@@ -1649,6 +1649,10 @@ NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicate
             NrMacSapUser* msu =
                 m_ccmRrcSapProvider->ConfigureSignalBearer(lcid, lcConfig, rlc->GetNrMacSapUser());
             m_cmacSapProvider.at(GetPrimaryUlIndex())->AddLc(lcid, lcConfig, msu);
+            if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
+            {
+                m_cmacSapProvider.at(GetPrimaryDlIndex())->AddLc(lcid, lcConfig, msu);
+            }
             ++stamIt;
             NS_ASSERT_MSG(stamIt == rrcd.srbToAddModList.end(), "at most one SrbToAdd supported");
 

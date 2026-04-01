@@ -380,6 +380,7 @@ NrUeMac::DoTransmitPdu(NrMacSapProvider::TransmitPduParameters params)
     NS_LOG_FUNCTION(this);
     if (m_ulDci == nullptr)
     {
+        NS_LOG_WARN("Null DCI received for transmission.");
         return;
     }
     NS_ASSERT(m_ulDci);
@@ -503,17 +504,22 @@ NrUeMac::SendBufferStatusReport(const SfnSf& dataSfn, uint8_t symStart)
 
         if (queue.at(lcg) != 0)
         {
-            NS_LOG_DEBUG("Adding 5 bytes for SHORT_BSR.");
+            NS_LOG_DEBUG("Adding 5 bytes for SHORT_BSR for LCID:" << +lcid);
             queue.at(lcg) += 5;
         }
         if ((*it).second.txQueueSize > 0)
         {
-            NS_LOG_DEBUG("Adding 3 bytes for TX subheader.");
+            NS_LOG_DEBUG("Adding 3 bytes for TX subheader for LCID:" << +lcid);
             queue.at(lcg) += 3;
         }
         if ((*it).second.retxQueueSize > 0)
         {
-            NS_LOG_DEBUG("Adding 3 bytes for RX subheader.");
+            NS_LOG_DEBUG("Adding 3 bytes for RX subheader for LCID:" << +lcid);
+            queue.at(lcg) += 3;
+        }
+        if ((*it).second.statusPduSize > 0)
+        {
+            NS_LOG_DEBUG("Adding 3 bytes for RLC status PDU subheader for LCID:" << +lcid);
             queue.at(lcg) += 3;
         }
     }
@@ -661,6 +667,7 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
 
     if (tag.GetRnti() != m_rnti) // Packet is for another user
     {
+        NS_LOG_WARN("Packet is for another user. RNTI does not correspond.");
         return;
     }
 
@@ -676,6 +683,7 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
     // Ignore non-existing lcids
     if (it == m_lcInfoMap.end())
     {
+        NS_LOG_WARN("LC info not found for this logical channel id:" << +header.GetLcId());
         return;
     }
 
@@ -683,7 +691,12 @@ NrUeMac::DoReceivePhyPdu(Ptr<Packet> p)
     // then p can be empty.
     if (rxParams.p->GetSize() > 0)
     {
+        NS_LOG_INFO("Call MAC SAP user to receive PDU" << rxParams.p->GetSize());
         it->second.macSapUser->ReceivePdu(rxParams);
+    }
+    else
+    {
+        NS_LOG_WARN("Empty packet.");
     }
 }
 
@@ -735,6 +748,7 @@ NrUeMac::RecvRaResponse(NrBuildRarListElement_s raResponse)
         lc0BsrIt->second.txQueueSize = 0;
         lc0BsrIt->second.retxQueueSize = 0;
         lc0BsrIt->second.statusPduSize = 0;
+        NS_LOG_INFO("BSR erase lcid=" << +lc0Lcid << " reason Msg3 sent");
         m_ulBsrReceived.erase(lc0BsrIt);
     }
 }
@@ -866,6 +880,7 @@ NrUeMac::SendRetxData(uint32_t usefulTbs, uint32_t activeLcsRetx)
 
     if (activeLcsRetx == 0)
     {
+        NS_LOG_INFO("Send Retx called, but active LCS retransmitting is 0");
         return;
     }
 
@@ -918,51 +933,71 @@ NrUeMac::SendTxData(uint32_t usefulTbs, uint32_t activeTx)
 
     if (activeTx == 0)
     {
-        NS_LOG_DEBUG("No active Tx for this UL-DCI");
+        NS_LOG_DEBUG("No active Tx flows for this UL-DCI");
         return;
     }
+
+    constexpr uint8_t signalingLcid = 1;
+    constexpr uint32_t minTxOpBytes = 7;
+    constexpr uint32_t rlcAmWorstCaseHeaderBytes = 4;
 
     // Apply shortest-job first policy to prioritize lcids with less data
     while (m_ulDciTotalUsed < usefulTbs)
     {
         uint32_t availableBytes = usefulTbs - m_ulDciTotalUsed;
-        if (availableBytes < 7)
+        if (availableBytes < minTxOpBytes)
         {
-            NS_LOG_INFO("Not enough bytes available to send a TxPDU, skipping");
+            NS_LOG_WARN("Not enough bytes available to send a TxPDU, skipping");
             break;
         }
 
         uint32_t smallestBufferBytes = std::numeric_limits<uint32_t>::max();
         uint8_t smallestBufferBsrLcid = std::numeric_limits<uint8_t>::max();
-        for (auto& itBsr : m_ulBsrReceived)
+        auto signalingIt = m_ulBsrReceived.find(signalingLcid);
+        if (signalingIt != m_ulBsrReceived.end() && signalingIt->second.txQueueSize > 0)
         {
-            const auto& bsr = itBsr.second;
-            // Skip lcid with empty queue
-            if (bsr.txQueueSize == 0)
+            // Prioritize LCID 1 (signaling) when it has pending data.
+            // We assume a worst-case RLC AM header of 4 bytes to reduce
+            // fragmentation of small signaling SDUs.
+            // Example: a 4-byte signaling SDU may need 8 bytes TxOpportunity
+            // (4 payload + 4 AM header) to be sent in one shot.
+            smallestBufferBsrLcid = signalingLcid;
+            smallestBufferBytes = signalingIt->second.txQueueSize + rlcAmWorstCaseHeaderBytes;
+            NS_LOG_DEBUG("LCID " << +signalingLcid
+                                 << " has signaling priority, selecting it first");
+        }
+        else
+        {
+            for (auto& itBsr : m_ulBsrReceived)
             {
-                NS_LOG_DEBUG("LCID " << +bsr.lcid << "has no data to send, skipping");
-                continue;
-            }
-            if (bsr.txQueueSize < smallestBufferBytes)
-            {
-                NS_LOG_DEBUG("LCID " << +bsr.lcid
-                                     << " has less data to send so far, prioritizing it");
-                smallestBufferBsrLcid = bsr.lcid;
-                smallestBufferBytes = bsr.txQueueSize;
+                const auto& bsr = itBsr.second;
+                // Skip lcid with empty queue
+                if (bsr.txQueueSize == 0)
+                {
+                    NS_LOG_DEBUG("LCID " << +bsr.lcid << "has no data to send, skipping");
+                    continue;
+                }
+                if (bsr.txQueueSize < smallestBufferBytes)
+                {
+                    NS_LOG_DEBUG("LCID " << +bsr.lcid
+                                         << " has less data to send so far, prioritizing it");
+                    smallestBufferBsrLcid = bsr.lcid;
+                    smallestBufferBytes = bsr.txQueueSize;
+                }
             }
         }
 
         if (smallestBufferBytes == std::numeric_limits<uint32_t>::max())
         {
-            NS_LOG_INFO("No LCID left to txop, even though we still have bytes available");
+            NS_LOG_INFO("No LCID left to offer transmission opportunity, even though there are "
+                        "bytes available.");
             break;
         }
 
         // We need to allocate at least 7 bytes per LCID due to RLC limitations
         // But we can allocate up to availableBytes
         uint32_t bytesPerLcId =
-            std::min(availableBytes, std::max<uint32_t>(smallestBufferBytes, 7));
-        NS_ASSERT_MSG(bytesPerLcId >= 7, "RLC needs at least 7 bytes TxOp");
+            std::min(availableBytes, std::max<uint32_t>(smallestBufferBytes, minTxOpBytes));
 
         auto& bsr = m_ulBsrReceived.at(smallestBufferBsrLcid);
         NS_LOG_DEBUG("LCID " << +bsr.lcid << " assigned a TxOp of " << bytesPerLcId << "/"
@@ -981,7 +1016,6 @@ NrUeMac::SendTxData(uint32_t usefulTbs, uint32_t activeTx)
                                              << " of a TxOpp "
                                                 "of "
                                              << bytesPerLcId << " B for a TX PDU");
-
         m_lcInfoMap.at(bsr.lcid).macSapUser->NotifyTxOpportunity(txParams);
         // After this call, m_ulDciTotalUsed has been updated with the
         // correct amount of bytes... but it is up to us in updating the BSR
@@ -1138,7 +1172,7 @@ NrUeMac::SendNewStatusData()
             }
             else
             {
-                NS_LOG_INFO("Cannot send StatusPdu of " << bsr.statusPduSize
+                NS_LOG_WARN("Cannot send StatusPdu of " << bsr.statusPduSize
                                                         << " B, we already used all the TBS");
             }
         }
@@ -1183,7 +1217,7 @@ NrUeMac::DoReceiveControlMessage(Ptr<NrControlMessage> msg)
     }
 
     default:
-        NS_LOG_LOGIC("Control message not supported/expected");
+        NS_LOG_LOGIC("Control message not supported/expected: " << msg->GetMessageType());
     }
 }
 
@@ -1274,7 +1308,8 @@ NrUeMac::SendRaPreamble(bool contention)
         m_raPreambleId += preambleOverflow;
         g_raPreambleId += preambleOverflow;
     }
-    m_raRnti = 1; // todo: set proper RA-RNTI
+    /*raRnti should be subframeNo -1 */
+    m_raRnti = 1;
 
     // 3GPP 36.321 5.1.4
     m_phySapProvider->SendRachPreamble(m_raPreambleId, m_raRnti);
@@ -1301,7 +1336,7 @@ NrUeMac::StartWaitingForRaResponse()
 
 void
 NrUeMac::DoStartNonContentionBasedRandomAccessProcedure(uint16_t rnti,
-                                                        uint8_t preambleId,
+                                                        [[maybe_unused]] uint8_t preambleId,
                                                         uint8_t prachMask)
 {
     NS_LOG_FUNCTION(this << rnti << (uint16_t)preambleId << (uint16_t)prachMask);
