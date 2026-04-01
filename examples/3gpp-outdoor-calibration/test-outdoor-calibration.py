@@ -39,7 +39,7 @@ REFERENCE_VALUES_PER_SIMULATION_CONFIG = [
             "ftpLambda": 1.7,
             "ueNumPergNb": num_ue,
             "appGenerationTime": 10,
-            "pattern": "F|F|F|F|UL",
+            "pattern": "DL|DL|DL|DL|UL",
         },
         {
             "meanUPT": 41.44,
