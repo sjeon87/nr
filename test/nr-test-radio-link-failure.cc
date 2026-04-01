@@ -43,8 +43,12 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
     Vector ueJumpAwayPosition;
 
     uePositionList.emplace_back(10, 0, 0);
-    gnbPositionList.emplace_back(0, 0, 0);
     ueJumpAwayPosition = Vector(7000.0, 0.0, 0.0);
+
+    // We place the second gNB close to the position where the UE will jump
+    gnbPositionList.emplace_back(0, 0, 0);
+    gnbPositionList.emplace_back(7020, 0, 0);
+
     // check before jumping
     checkConnectedList.push_back(Seconds(0.3));
     // check connection after jumping but before T310 timer expiration.
@@ -52,125 +56,100 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
     // before the expiration of T310 timer.
     checkConnectedList.push_back(Seconds(1));
 
-    // One gNB: Ideal RRC PROTOCOL
-    //
-    AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                               1,
-                                               0,
-                                               Seconds(2),
-                                               true,
-                                               uePositionList,
-                                               gnbPositionList,
-                                               ueJumpAwayPosition,
-                                               checkConnectedList),
-                TestCase::Duration::QUICK);
+    for (auto useIdealRrc : std::vector<bool>{true, false})
+    {
+        // One gNB
+        AddTestCase(new NrRadioLinkFailureTestCase(1,
+                                                   1,
+                                                   0,
+                                                   MilliSeconds(1800),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList),
+                    TestCase::Duration::QUICK);
 
-    AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                               1,
-                                               1,
-                                               Seconds(2),
-                                               true,
-                                               uePositionList,
-                                               gnbPositionList,
-                                               ueJumpAwayPosition,
-                                               checkConnectedList),
-                TestCase::Duration::QUICK);
+        AddTestCase(new NrRadioLinkFailureTestCase(1,
+                                                   1,
+                                                   1,
+                                                   MilliSeconds(1800),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList),
+                    TestCase::Duration::QUICK);
 
-    AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                               1,
-                                               2,
-                                               Seconds(2),
-                                               true,
-                                               uePositionList,
-                                               gnbPositionList,
-                                               ueJumpAwayPosition,
-                                               checkConnectedList),
-                TestCase::Duration::QUICK);
+        AddTestCase(new NrRadioLinkFailureTestCase(1,
+                                                   1,
+                                                   2,
+                                                   MilliSeconds(1800),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList),
+                    TestCase::Duration::QUICK);
 
-    AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                               1,
-                                               2,
-                                               Seconds(2),
-                                               true,
-                                               uePositionList,
-                                               gnbPositionList,
-                                               ueJumpAwayPosition,
-                                               checkConnectedList,
-                                               false),
-                TestCase::Duration::QUICK);
+        AddTestCase(new NrRadioLinkFailureTestCase(1,
+                                                   1,
+                                                   2,
+                                                   MilliSeconds(1800),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList,
+                                                   useIdealRrc),
+                    TestCase::Duration::QUICK);
 
-    // One gNB: Real RRC PROTOCOL todo: re-enable when RRC real is fully working
-    // AddTestCase(new NrRadioLinkFailureTestCase(1,
-    //                                           1,
-    //                                           Seconds(2),
-    //                                           false,
-    //                                           uePositionList,
-    //                                           gnbPositionList,
-    //                                           ueJumpAwayPosition,
-    //                                           checkConnectedList),
-    //            TestCase::Duration::QUICK);
+        // Two gNBs
+        AddTestCase(new NrRadioLinkFailureTestCase(2,
+                                                   1,
+                                                   0,
+                                                   Seconds(2),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList),
+                    TestCase::Duration::QUICK);
 
-    // Two gNBs: Ideal RRC PROTOCOL
+        AddTestCase(new NrRadioLinkFailureTestCase(2,
+                                                   1,
+                                                   1,
+                                                   Seconds(2),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList),
+                    TestCase::Duration::QUICK);
 
-    // We place the second gNB close to the position where the UE will jump
-    gnbPositionList.emplace_back(7020, 0, 0);
+        AddTestCase(new NrRadioLinkFailureTestCase(2,
+                                                   1,
+                                                   2,
+                                                   Seconds(2),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList),
+                    TestCase::Duration::QUICK);
 
-    AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                               1,
-                                               0,
-                                               Seconds(2),
-                                               true,
-                                               uePositionList,
-                                               gnbPositionList,
-                                               ueJumpAwayPosition,
-                                               checkConnectedList),
-                TestCase::Duration::QUICK);
-
-    AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                               1,
-                                               1,
-                                               Seconds(2),
-                                               true,
-                                               uePositionList,
-                                               gnbPositionList,
-                                               ueJumpAwayPosition,
-                                               checkConnectedList),
-                TestCase::Duration::QUICK);
-
-    AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                               1,
-                                               2,
-                                               Seconds(2),
-                                               true,
-                                               uePositionList,
-                                               gnbPositionList,
-                                               ueJumpAwayPosition,
-                                               checkConnectedList),
-                TestCase::Duration::QUICK);
-
-    AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                               1,
-                                               2,
-                                               Seconds(2),
-                                               true,
-                                               uePositionList,
-                                               gnbPositionList,
-                                               ueJumpAwayPosition,
-                                               checkConnectedList,
-                                               false),
-                TestCase::Duration::QUICK);
-
-    // Two gNBs: Real RRC PROTOCOL todo: re-enable when RRC real is fully working
-    // AddTestCase(new NrRadioLinkFailureTestCase(2,
-    //                                           1,
-    //                                           Seconds(2),
-    //                                           false,
-    //                                           uePositionList,
-    //                                           gnbPositionList,
-    //                                           ueJumpAwayPosition,
-    //                                           checkConnectedList),
-    //            TestCase::Duration::QUICK);
-
+        AddTestCase(new NrRadioLinkFailureTestCase(2,
+                                                   1,
+                                                   2,
+                                                   Seconds(2),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList,
+                                                   false),
+                    TestCase::Duration::QUICK);
+    }
 } // end of NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite ()
 
 /**
@@ -209,7 +188,7 @@ NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs,
     {
         trafficType = "DL";
     }
-    oss << numGnbs << " gNBs, " << numUes << " UEs, " << numBackgroundUes << " background UEs,"
+    oss << numGnbs << " gNBs, " << numUes << " UEs, " << numBackgroundUes << " background UEs, "
         << rrcProtocol << " Protocol" << ", " << trafficType << " traffic";
     return oss.str();
 }
@@ -281,6 +260,7 @@ NrRadioLinkFailureTestCase::DoRun()
     nrHelper->SetEpcHelper(nrEpcHelper);
 
     //----power related (equal for all base stations)----
+    Config::SetDefault("ns3::NrGnbPhy::Pattern", StringValue("DL|DL|DL|DL|UL"));
     Config::SetDefault("ns3::NrGnbPhy::TxPower", DoubleValue(gNB_txPower));
     Config::SetDefault("ns3::NrUePhy::TxPower", DoubleValue(23));
     Config::SetDefault("ns3::NrUePhy::NoiseFigure", DoubleValue(7));
