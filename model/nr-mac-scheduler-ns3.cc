@@ -1352,6 +1352,7 @@ NrMacSchedulerNs3::ComputeActiveUe(ActiveUeMap* activeUe,
                                    const std::string& mode) const
 {
     NS_LOG_FUNCTION(this);
+    const bool isDl = mode == "DL";
     for (const auto& ueInfo : m_ueMap)
     {
         uint32_t totBuffer = 0;
@@ -1367,7 +1368,10 @@ NrMacSchedulerNs3::ComputeActiveUe(ActiveUeMap* activeUe,
                                   << static_cast<uint32_t>(lcgInfo.first) << " bytes "
                                   << lcg->GetTotalSize());
             }
-            totBuffer += lcg->GetTotalSize();
+            for (auto lcId : lcg->GetLCId())
+            {
+                totBuffer += lcg->GetTotalSizeOfLCPlusOverheads(lcId, isDl);
+            }
         }
 
         const auto& harqV = GetHarqVector(ue);

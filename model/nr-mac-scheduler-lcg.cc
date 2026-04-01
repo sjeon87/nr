@@ -42,35 +42,16 @@ NrMacSchedulerLC::NrMacSchedulerLC(const NrMacSchedulerLC& o)
     m_eRabGuaranteedBitrateDl = o.m_eRabGuaranteedBitrateDl;
 }
 
-auto
-AddMacSubHeader(auto value)
-{
-    return value > 0 ? value + MAC_SUBHEADER_SIZE : 0;
-}
-
 void
 NrMacSchedulerLC::Update(const NrMacSchedSapProvider::SchedDlRlcBufferReqParameters& params)
 {
     NS_LOG_FUNCTION(this);
     NS_ASSERT(params.m_logicalChannelIdentity == m_id);
 
-    // the logical channel 0 or 1 take into account the MAC sub header
-    // because the packets in these logical channel can be very small,
-    // so if the scheduler does not take this subheader into account during the scheduling,
-    // we may get a very small transmission opportunity
-    // See: nr-mac-scheduler-ns-3 and what is passed to AssignData in DoScheduleDlData
-    if (m_id == 0 || m_id == 1)
-    {
-        m_rlcTransmissionQueueSize = AddMacSubHeader(params.m_rlcTransmissionQueueSize);
-        m_rlcRetransmissionQueueSize = AddMacSubHeader(params.m_rlcRetransmissionQueueSize);
-        m_rlcStatusPduSize = AddMacSubHeader(params.m_rlcStatusPduSize);
-    }
-    else
-    {
-        m_rlcTransmissionQueueSize = params.m_rlcTransmissionQueueSize;
-        m_rlcRetransmissionQueueSize = params.m_rlcRetransmissionQueueSize;
-        m_rlcStatusPduSize = params.m_rlcStatusPduSize;
-    }
+    m_rlcTransmissionQueueSize = params.m_rlcTransmissionQueueSize;
+    m_rlcRetransmissionQueueSize = params.m_rlcRetransmissionQueueSize;
+    m_rlcStatusPduSize = params.m_rlcStatusPduSize;
+
     m_rlcRetransmissionHolDelay = params.m_rlcRetransmissionHolDelay;
     m_rlcTransmissionQueueHolDelay = params.m_rlcTransmissionQueueHolDelay;
 }
@@ -176,6 +157,7 @@ NrMacSchedulerLCG::GetTotalSizeOfLCPlusOverheads(uint8_t lcId, bool isDl) const
 {
     NS_LOG_FUNCTION(this);
     NS_ABORT_IF(m_lcMap.empty());
+    uint32_t lcIdSize = m_lcMap.at(lcId)->GetTotalSize();
     uint32_t rlcOverhead = 2; // minimum RLC overhead due to header
     if (lcId == 1)
     {
@@ -185,7 +167,7 @@ NrMacSchedulerLCG::GetTotalSizeOfLCPlusOverheads(uint8_t lcId, bool isDl) const
         // segmentation which increases delay
         rlcOverhead = 4;
     }
-    return m_lcMap.at(lcId)->GetTotalSize() + rlcOverhead + MAC_SUBHEADER_SIZE;
+    return lcIdSize > 0 ? lcIdSize + rlcOverhead + MAC_SUBHEADER_SIZE : 0;
 }
 
 std::vector<uint8_t>
