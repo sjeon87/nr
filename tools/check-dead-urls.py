@@ -46,6 +46,7 @@ def make_client(timeout: float) -> httpx.Client:
         follow_redirects=True,
         http2=True,
         headers={"User-Agent": "url-checker-httpx/1.0"},
+        verify=False,
     )
 
 
