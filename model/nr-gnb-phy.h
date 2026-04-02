@@ -670,6 +670,13 @@ class NrGnbPhy : public NrPhy
     void QueueSib();
 
     /**
+     * @brief Check whether a slot type can carry DL control transmission.
+     * @param slotType slot type from the TDD pattern
+     * @return true for DL/S/F, false for UL
+     */
+    bool IsDlCapableSlot(LteNrTddSlotType slotType) const;
+
+    /**
      * @brief Effectively start the slot, as we have the channel.
      *
      * For each variable TTI, schedule a call to StartVarTti.
@@ -913,8 +920,10 @@ class NrGnbPhy : public NrPhy
     uint32_t m_n2Delay{0}; //!< minimum processing delay (in slots) needed to decode UL DCI and
                            //!< prepare UL data (UE side)
 
-    SfnSf m_currentSlot;     //!< The current slot number
-    bool m_isPrimary{false}; //!< Is this PHY a primary phy?
+    SfnSf m_currentSlot;      //!< The current slot number
+    bool m_isPrimary{false};  //!< Is this PHY a primary phy?
+    bool m_pendingMib{false}; //!< Whether MIB transmission is deferred to a DL-capable slot
+    bool m_pendingSib{false}; //!< Whether SIB1 transmission is deferred to a DL-capable slot
 
     bool m_enableCsiRs{false}; //!< Whether to enable or disable CSI-RS signalling
     CsiRsModel m_csiRsModel{CsiRsModel::CSI_RS_PER_UE}; //!< The CSI-RS model to be used
