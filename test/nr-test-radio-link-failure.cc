@@ -35,139 +35,84 @@ NS_LOG_COMPONENT_DEFINE("NrRadioLinkFailureTest");
  * Test Suite
  */
 NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
-    : TestSuite("nr-radio-link-failure", Type::SYSTEM)
+    : TestSuite("nr-rlf", Type::SYSTEM)
 {
-    std::vector<Vector> uePositionList;
-    std::vector<Vector> gnbPositionList;
-    std::vector<Time> checkConnectedList;
-    Vector ueJumpAwayPosition;
+    const auto addCasesForConfiguration =
+        [this](bool isIdealRrc,
+               NrRadioLinkFailureTestCase::TestFddTddSetupType setup,
+               uint32_t numGnbs,
+               uint32_t numBackgroundUes) {
+            std::vector<Vector> uePositionList;
+            std::vector<Vector> gnbPositionList;
+            std::vector<Time> checkConnectedList;
+            Vector ueJumpAwayPosition;
 
-    uePositionList.emplace_back(10, 0, 0);
-    ueJumpAwayPosition = Vector(7000.0, 0.0, 0.0);
+            uePositionList.emplace_back(10, 0, 1.5);
+            gnbPositionList.emplace_back(0, 0, 10);
+            if (numGnbs == 2)
+            {
+                // We place the second gNB close to the position where the UE will jump
+                gnbPositionList.emplace_back(15020, 0, 10);
+            }
+            ueJumpAwayPosition = Vector(15000.0, 0.0, 1.5);
+            // check before jumping
+            checkConnectedList.push_back(MilliSeconds(300));
+            // check connection after jumping but before T310 timer expiration.
+            // This is to make sure that UE stays in connected mode
+            // before the expiration of T310 timer.
+            checkConnectedList.push_back(Seconds(1));
 
-    // We place the second gNB close to the position where the UE will jump
-    gnbPositionList.emplace_back(0, 0, 0);
-    gnbPositionList.emplace_back(7020, 0, 0);
+            AddTestCase(new NrRadioLinkFailureTestCase(numGnbs,
+                                                       1,
+                                                       numBackgroundUes,
+                                                       MilliSeconds(2000),
+                                                       isIdealRrc,
+                                                       uePositionList,
+                                                       gnbPositionList,
+                                                       ueJumpAwayPosition,
+                                                       checkConnectedList,
+                                                       setup),
+                        TestCase::Duration::QUICK);
 
-    // check before jumping
-    checkConnectedList.push_back(Seconds(0.3));
-    // check connection after jumping but before T310 timer expiration.
-    // This is to make sure that UE stays in connected mode
-    // before the expiration of T310 timer.
-    checkConnectedList.push_back(Seconds(1));
+            if (numBackgroundUes == 2)
+            {
+                AddTestCase(new NrRadioLinkFailureTestCase(numGnbs,
+                                                           1,
+                                                           numBackgroundUes,
+                                                           MilliSeconds(2000),
+                                                           isIdealRrc,
+                                                           uePositionList,
+                                                           gnbPositionList,
+                                                           ueJumpAwayPosition,
+                                                           checkConnectedList,
+                                                           setup,
+                                                           false),
+                            TestCase::Duration::QUICK);
+            }
+        };
 
-    using isIdealRrc = bool;
-    for (auto [fddTddsetup, useIdealRrc] :
-         std::vector<std::pair<NrRadioLinkFailureTestCase::TestFddTddSetupType, isIdealRrc>>{
-             {NrRadioLinkFailureTestCase::TDD_DL_UL, true},
-             {NrRadioLinkFailureTestCase::TDD_MIXED_DL_UL_FLEXIBLE, true},
-             {NrRadioLinkFailureTestCase::TDD_ALL_FLEXIBLE, true},
-             //{NrRadioLinkFailureTestCase::FDD, true},
-             {NrRadioLinkFailureTestCase::TDD_DL_UL, false},
-             {NrRadioLinkFailureTestCase::TDD_MIXED_DL_UL_FLEXIBLE, false},
-             //{NrRadioLinkFailureTestCase::TDD_ALL_FLEXIBLE, false},
-             //{NrRadioLinkFailureTestCase::FDD, false},
-         })
+    using Setup = NrRadioLinkFailureTestCase::TestFddTddSetupType;
+    std::vector<std::pair<Setup, bool>> setupAndRrcCombinations{
+        {Setup::TDD_DL_UL, true},
+        {Setup::TDD_MIXED_DL_UL_FLEXIBLE, true},
+        {Setup::TDD_ALL_FLEXIBLE, true},
+        {Setup::FDD, true},
+        {Setup::TDD_DL_UL, false},
+        {Setup::TDD_MIXED_DL_UL_FLEXIBLE, false},
+        {Setup::FDD, false},
+    };
+    std::vector<uint32_t> numGnbCounts{1, 2};
+    std::vector<uint32_t> backgroundUeCounts{0, 1, 2, 4};
+
+    for (auto numGnbs : numGnbCounts)
     {
-        // One gNB
-        AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                                   1,
-                                                   0,
-                                                   MilliSeconds(1800),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList,
-                                                   fddTddsetup),
-                    TestCase::Duration::QUICK);
-
-        AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                                   1,
-                                                   1,
-                                                   MilliSeconds(1800),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList,
-                                                   fddTddsetup),
-                    TestCase::Duration::QUICK);
-
-        AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                                   1,
-                                                   2,
-                                                   MilliSeconds(1800),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList,
-                                                   fddTddsetup),
-                    TestCase::Duration::QUICK);
-
-        AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                                   1,
-                                                   2,
-                                                   MilliSeconds(1800),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList,
-                                                   fddTddsetup,
-                                                   false),
-                    TestCase::Duration::QUICK);
-
-        // Two gNBs
-        AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                                   1,
-                                                   0,
-                                                   Seconds(2),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList,
-                                                   fddTddsetup),
-                    TestCase::Duration::QUICK);
-
-        AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                                   1,
-                                                   1,
-                                                   Seconds(2),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList,
-                                                   fddTddsetup),
-                    TestCase::Duration::QUICK);
-
-        AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                                   1,
-                                                   2,
-                                                   Seconds(2),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList,
-                                                   fddTddsetup),
-                    TestCase::Duration::QUICK);
-
-        AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                                   1,
-                                                   2,
-                                                   Seconds(2),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList,
-                                                   fddTddsetup,
-                                                   false),
-                    TestCase::Duration::QUICK);
+        for (auto numBackgroundUes : backgroundUeCounts)
+        {
+            for (auto [setup, isIdealRrc] : setupAndRrcCombinations)
+            {
+                addCasesForConfiguration(isIdealRrc, setup, numGnbs, numBackgroundUes);
+            }
+        }
     }
 } // end of NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite ()
 
@@ -224,8 +169,8 @@ NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs,
         fddTddSetup = "TDD DFFFU";
         break;
     }
-    oss << numGnbs << " gNBs, " << numUes << " UEs, " << numBackgroundUes << " background UEs, "
-        << rrcProtocol << " Protocol" << ", " << fddTddSetup << ", " << trafficType << " traffic";
+    oss << fddTddSetup << ", " << rrcProtocol << ", " << numGnbs << " gNBs, " << numUes << " UEs, "
+        << numBackgroundUes << " background UEs," << trafficType << " traffic";
     return oss.str();
 }
 
@@ -310,14 +255,17 @@ NrRadioLinkFailureTestCase::DoRun()
     Config::SetDefault("ns3::NrUePhy::EnableUplinkPowerControl", BooleanValue(true));
     Config::SetDefault("ns3::NrUePowerControl::ClosedLoop", BooleanValue(true));
     Config::SetDefault("ns3::NrUePowerControl::AccumulationEnabled", BooleanValue(true));
+    Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(m_setup == FDD ? 1 : 0));
+    Config::SetDefault("ns3::ThreeGppPropagationLossModel::ShadowingEnabled", BooleanValue(false));
 
     //----frequency related----
     auto bandwidthAndBWPPair = nrHelper->CreateBandwidthParts(
-        {{1.93e9, 10e6, static_cast<uint8_t>((m_setup == FDD) ? 2 : 1)}},
-        "UMa");
+        {{1.93e9, 10e6, static_cast<uint8_t>(m_setup == FDD ? 2 : 1)}},
+        "UMa",
+        "LOS");
 
     //----others----
-    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaPF"));
+    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaRR"));
     Config::SetDefault("ns3::NrAmc::AmcModel", EnumValue(NrAmc::ShannonModel));
     Config::SetDefault("ns3::NrMacSchedulerNs3::EnableHarqReTx", BooleanValue(true));
 
@@ -412,7 +360,6 @@ NrRadioLinkFailureTestCase::DoRun()
             case FDD:
                 gnbDev->GetPhy(j)->SetPattern((j % 2 == 0) ? "DL|DL|DL|DL|DL" : "UL|UL|UL|UL|UL");
                 NrHelper::GetBwpManagerGnb(gnbDev)->SetOutputLink(1, 0);
-                Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
                 break;
             default:
                 NS_ABORT_MSG("Unknown setup type. Should be TDD_ALL_FLEXIBLE, TDD_DL_UL, or FDD");
@@ -509,7 +456,6 @@ NrRadioLinkFailureTestCase::DoRun()
             dlClientApps.Start(Seconds(0.27));
             ulServerApps.Start(Seconds(0.27));
             ulClientApps.Start(Seconds(0.27));
-
         } // end for b
     }
 
@@ -603,7 +549,7 @@ NrRadioLinkFailureTestCase::CheckConnected(Ptr<NetDevice> ueDevice, NetDeviceCon
         }
     }
 
-    NS_TEST_ASSERT_MSG_NE(nrGnbDevice, nullptr, "LTE gNB device not found");
+    NS_TEST_ASSERT_MSG_NE(nrGnbDevice, nullptr, "NR gNB device not found");
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
     uint16_t rnti = ueRrc->GetRnti();
     Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
@@ -693,7 +639,7 @@ NrRadioLinkFailureTestCase::CheckIdle(Ptr<NetDevice> ueDevice, NetDeviceContaine
         ueManagerFound = CheckUeExistAtGnb(rnti, gnbDevices.Get(0));
         NS_TEST_ASSERT_MSG_EQ(ueManagerFound,
                               false,
-                              "Unexpected RNTI with value " << rnti << " found in gNB");
+                              "Unexpected RNTI with value " << rnti << " found in gNB 0");
         break;
     // 2 gNBs
     case 2:
@@ -703,7 +649,7 @@ NrRadioLinkFailureTestCase::CheckIdle(Ptr<NetDevice> ueDevice, NetDeviceContaine
         ueManagerFound = CheckUeExistAtGnb(rnti, gnbDevices.Get(1));
         NS_TEST_ASSERT_MSG_EQ(ueManagerFound,
                               true,
-                              "RNTI " << rnti << " is not attached to the gNB");
+                              "RNTI " << rnti << " is not attached to the gNB 1");
         break;
     default:
         NS_FATAL_ERROR("The RRC state of the UE in more then 2 gNB scenario is not defined. "
@@ -717,7 +663,7 @@ NrRadioLinkFailureTestCase::CheckUeExistAtGnb(uint16_t rnti, Ptr<NetDevice> gnbD
 {
     NS_LOG_FUNCTION(this << rnti);
     Ptr<NrGnbNetDevice> nrGnbDevice = DynamicCast<NrGnbNetDevice>(gnbDevice);
-    NS_ABORT_MSG_IF(!nrGnbDevice, "LTE gNB device not found");
+    NS_ABORT_MSG_IF(!nrGnbDevice, "NR gNB device not found");
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
     bool ueManagerFound = gnbRrc->HasUeManager(rnti);
     return ueManagerFound;
