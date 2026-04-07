@@ -56,7 +56,18 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
     // before the expiration of T310 timer.
     checkConnectedList.push_back(Seconds(1));
 
-    for (auto useIdealRrc : std::vector<bool>{true, false})
+    using isIdealRrc = bool;
+    for (auto [fddTddsetup, useIdealRrc] :
+         std::vector<std::pair<NrRadioLinkFailureTestCase::TestFddTddSetupType, isIdealRrc>>{
+             {NrRadioLinkFailureTestCase::TDD_DL_UL, true},
+             {NrRadioLinkFailureTestCase::TDD_MIXED_DL_UL_FLEXIBLE, true},
+             {NrRadioLinkFailureTestCase::TDD_ALL_FLEXIBLE, true},
+             //{NrRadioLinkFailureTestCase::FDD, true},
+             {NrRadioLinkFailureTestCase::TDD_DL_UL, false},
+             {NrRadioLinkFailureTestCase::TDD_MIXED_DL_UL_FLEXIBLE, false},
+             //{NrRadioLinkFailureTestCase::TDD_ALL_FLEXIBLE, false},
+             //{NrRadioLinkFailureTestCase::FDD, false},
+         })
     {
         // One gNB
         AddTestCase(new NrRadioLinkFailureTestCase(1,
@@ -67,7 +78,8 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                    uePositionList,
                                                    gnbPositionList,
                                                    ueJumpAwayPosition,
-                                                   checkConnectedList),
+                                                   checkConnectedList,
+                                                   fddTddsetup),
                     TestCase::Duration::QUICK);
 
         AddTestCase(new NrRadioLinkFailureTestCase(1,
@@ -78,18 +90,8 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                    uePositionList,
                                                    gnbPositionList,
                                                    ueJumpAwayPosition,
-                                                   checkConnectedList),
-                    TestCase::Duration::QUICK);
-
-        AddTestCase(new NrRadioLinkFailureTestCase(1,
-                                                   1,
-                                                   2,
-                                                   MilliSeconds(1800),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList),
+                                                   checkConnectedList,
+                                                   fddTddsetup),
                     TestCase::Duration::QUICK);
 
         AddTestCase(new NrRadioLinkFailureTestCase(1,
@@ -101,7 +103,20 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                    gnbPositionList,
                                                    ueJumpAwayPosition,
                                                    checkConnectedList,
-                                                   useIdealRrc),
+                                                   fddTddsetup),
+                    TestCase::Duration::QUICK);
+
+        AddTestCase(new NrRadioLinkFailureTestCase(1,
+                                                   1,
+                                                   2,
+                                                   MilliSeconds(1800),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList,
+                                                   fddTddsetup,
+                                                   false),
                     TestCase::Duration::QUICK);
 
         // Two gNBs
@@ -113,7 +128,8 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                    uePositionList,
                                                    gnbPositionList,
                                                    ueJumpAwayPosition,
-                                                   checkConnectedList),
+                                                   checkConnectedList,
+                                                   fddTddsetup),
                     TestCase::Duration::QUICK);
 
         AddTestCase(new NrRadioLinkFailureTestCase(2,
@@ -124,18 +140,8 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                    uePositionList,
                                                    gnbPositionList,
                                                    ueJumpAwayPosition,
-                                                   checkConnectedList),
-                    TestCase::Duration::QUICK);
-
-        AddTestCase(new NrRadioLinkFailureTestCase(2,
-                                                   1,
-                                                   2,
-                                                   Seconds(2),
-                                                   useIdealRrc,
-                                                   uePositionList,
-                                                   gnbPositionList,
-                                                   ueJumpAwayPosition,
-                                                   checkConnectedList),
+                                                   checkConnectedList,
+                                                   fddTddsetup),
                     TestCase::Duration::QUICK);
 
         AddTestCase(new NrRadioLinkFailureTestCase(2,
@@ -147,6 +153,19 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
                                                    gnbPositionList,
                                                    ueJumpAwayPosition,
                                                    checkConnectedList,
+                                                   fddTddsetup),
+                    TestCase::Duration::QUICK);
+
+        AddTestCase(new NrRadioLinkFailureTestCase(2,
+                                                   1,
+                                                   2,
+                                                   Seconds(2),
+                                                   useIdealRrc,
+                                                   uePositionList,
+                                                   gnbPositionList,
+                                                   ueJumpAwayPosition,
+                                                   checkConnectedList,
+                                                   fddTddsetup,
                                                    false),
                     TestCase::Duration::QUICK);
     }
@@ -167,6 +186,7 @@ NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs,
                                             uint32_t numUes,
                                             uint32_t numBackgroundUes,
                                             bool isIdealRrc,
+                                            TestFddTddSetupType setup,
                                             bool enableUplinkTraffic)
 {
     std::ostringstream oss;
@@ -188,8 +208,24 @@ NrRadioLinkFailureTestCase::BuildNameString(uint32_t numGnbs,
     {
         trafficType = "DL";
     }
+    std::string fddTddSetup;
+    switch (setup)
+    {
+    case FDD:
+        fddTddSetup = "FDD";
+        break;
+    case TDD_DL_UL:
+        fddTddSetup = "TDD DDDDU";
+        break;
+    case TDD_ALL_FLEXIBLE:
+        fddTddSetup = "TDD FFFFF";
+        break;
+    case TDD_MIXED_DL_UL_FLEXIBLE:
+        fddTddSetup = "TDD DFFFU";
+        break;
+    }
     oss << numGnbs << " gNBs, " << numUes << " UEs, " << numBackgroundUes << " background UEs, "
-        << rrcProtocol << " Protocol" << ", " << trafficType << " traffic";
+        << rrcProtocol << " Protocol" << ", " << fddTddSetup << ", " << trafficType << " traffic";
     return oss.str();
 }
 
@@ -202,8 +238,14 @@ NrRadioLinkFailureTestCase::NrRadioLinkFailureTestCase(uint32_t numGnbs,
                                                        std::vector<Vector> gnbPositionList,
                                                        Vector ueJumpAwayPosition,
                                                        std::vector<Time> checkConnectedList,
+                                                       TestFddTddSetupType setup,
                                                        bool enableUplinkTraffic)
-    : TestCase(BuildNameString(numGnbs, numUes, numBackgroundUes, isIdealRrc, enableUplinkTraffic)),
+    : TestCase(BuildNameString(numGnbs,
+                               numUes,
+                               numBackgroundUes,
+                               isIdealRrc,
+                               setup,
+                               enableUplinkTraffic)),
       m_numGnbs(numGnbs),
       m_numUes(numUes),
       m_numBackgroundUes(numBackgroundUes),
@@ -213,6 +255,7 @@ NrRadioLinkFailureTestCase::NrRadioLinkFailureTestCase(uint32_t numGnbs,
       m_gnbPositionList(gnbPositionList),
       m_checkConnectedList(checkConnectedList),
       m_ueJumpAwayPosition(ueJumpAwayPosition),
+      m_setup(setup),
       m_enableUplinkTraffic(enableUplinkTraffic)
 {
     NS_LOG_FUNCTION(this << GetName());
@@ -260,7 +303,6 @@ NrRadioLinkFailureTestCase::DoRun()
     nrHelper->SetEpcHelper(nrEpcHelper);
 
     //----power related (equal for all base stations)----
-    Config::SetDefault("ns3::NrGnbPhy::Pattern", StringValue("DL|DL|DL|DL|UL"));
     Config::SetDefault("ns3::NrGnbPhy::TxPower", DoubleValue(gNB_txPower));
     Config::SetDefault("ns3::NrUePhy::TxPower", DoubleValue(23));
     Config::SetDefault("ns3::NrUePhy::NoiseFigure", DoubleValue(7));
@@ -270,7 +312,9 @@ NrRadioLinkFailureTestCase::DoRun()
     Config::SetDefault("ns3::NrUePowerControl::AccumulationEnabled", BooleanValue(true));
 
     //----frequency related----
-    auto bandwidthAndBWPPair = nrHelper->CreateBandwidthParts({{1.93e9, 5e6, 1}}, "UMa");
+    auto bandwidthAndBWPPair = nrHelper->CreateBandwidthParts(
+        {{1.93e9, 10e6, static_cast<uint8_t>((m_setup == FDD) ? 2 : 1)}},
+        "UMa");
 
     //----others----
     nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaPF"));
@@ -349,12 +393,48 @@ NrRadioLinkFailureTestCase::DoRun()
     gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
     randomStream += nrHelper->AssignStreams(gnbDevs, randomStream);
 
+    for (uint32_t i = 0; i < gnbDevs.GetN(); i++)
+    {
+        const auto gnbDev = DynamicCast<NrGnbNetDevice>(gnbDevs.Get(i));
+        for (std::size_t j = 0; j < gnbDev->GetBwpIds().size(); j++)
+        {
+            switch (m_setup)
+            {
+            case TDD_MIXED_DL_UL_FLEXIBLE:
+                gnbDev->GetPhy(j)->SetPattern("DL|F|F|F|UL");
+                break;
+            case TDD_ALL_FLEXIBLE:
+                gnbDev->GetPhy(j)->SetPattern("F|F|F|F|F");
+                break;
+            case TDD_DL_UL:
+                gnbDev->GetPhy(j)->SetPattern("DL|DL|DL|DL|UL");
+                break;
+            case FDD:
+                gnbDev->GetPhy(j)->SetPattern((j % 2 == 0) ? "DL|DL|DL|DL|DL" : "UL|UL|UL|UL|UL");
+                NrHelper::GetBwpManagerGnb(gnbDev)->SetOutputLink(1, 0);
+                Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
+                break;
+            default:
+                NS_ABORT_MSG("Unknown setup type. Should be TDD_ALL_FLEXIBLE, TDD_DL_UL, or FDD");
+            }
+        }
+    }
+
     NodeContainer allUeNodes;
     allUeNodes.Add(ueNodes);
     allUeNodes.Add(backgroundUeNodes);
 
     ueDevs = nrHelper->InstallUeDevice(allUeNodes, bandwidthAndBWPPair.second);
     randomStream += nrHelper->AssignStreams(ueDevs, randomStream);
+
+    if (m_setup == FDD)
+    {
+        for (uint32_t i = 0; i < ueDevs.GetN(); i++)
+        {
+            const auto ueDev = DynamicCast<NrUeNetDevice>(ueDevs.Get(i));
+            NrHelper::GetBwpManagerUe(ueDev)->SetOutputLink(0, 1);
+        }
+    }
 
     // Install the IP stack on the UEs
     internet.Install(allUeNodes);

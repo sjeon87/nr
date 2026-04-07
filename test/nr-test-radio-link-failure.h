@@ -47,6 +47,14 @@ class NrRadioLinkFailureTestSuite : public TestSuite
 class NrRadioLinkFailureTestCase : public TestCase
 {
   public:
+    enum TestFddTddSetupType
+    {
+        TDD_DL_UL,
+        TDD_ALL_FLEXIBLE,
+        TDD_MIXED_DL_UL_FLEXIBLE,
+        FDD
+    };
+
     /**
      * @brief Creates an instance of the radio link failure test case.
      *
@@ -72,6 +80,7 @@ class NrRadioLinkFailureTestCase : public TestCase
                                std::vector<Vector> gnbPositionList,
                                Vector ueJumpAwayPosition,
                                std::vector<Time> checkConnectedList,
+                               TestFddTddSetupType setup,
                                bool enableUplinkTraffic = true);
 
     ~NrRadioLinkFailureTestCase() override;
@@ -91,6 +100,7 @@ class NrRadioLinkFailureTestCase : public TestCase
                                 uint32_t numUes,
                                 uint32_t numBackgroundUes,
                                 bool isIdealRrc,
+                                TestFddTddSetupType setup,
                                 bool enableUplinkTraffic);
     /**
      * @brief Setup the simulation according to the configuration set by the
@@ -218,7 +228,7 @@ class NrRadioLinkFailureTestCase : public TestCase
     std::vector<Time>
         m_checkConnectedList;    ///< the time at which UEs should have an active RRC connection
     Vector m_ueJumpAwayPosition; ///< Position where the UE(s) would jump
-
+    TestFddTddSetupType m_setup;
     /// The current UE RRC state.
     NrUeRrc::State m_lastState;
 
