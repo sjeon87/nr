@@ -377,6 +377,18 @@ class NrPhy : public Object
     virtual const SfnSf& GetCurrentSfnSf() const = 0;
 
     /**
+     * @brief Get the current slot position inside the configured TDD pattern.
+     * @return current slot index in [0, pattern size - 1]
+     */
+    uint64_t GetCurrentSlotInPattern() const;
+
+    /**
+     * @brief Get the current slot type from the configured TDD pattern.
+     * @return current slot type (DL, UL, S, or F)
+     */
+    LteNrTddSlotType GetCurrentSlotType() const;
+
+    /**
      * @brief Get a string representation of a pattern
      * @param pattern the TDD pattern
      * @return a string representation of the pattern, such as "F|F|F|F|..."
