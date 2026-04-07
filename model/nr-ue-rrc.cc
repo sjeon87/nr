@@ -770,6 +770,9 @@ NrUeRrc::DoNotifyRandomAccessFailed()
         if (!m_leaveConnectedMode)
         {
             m_leaveConnectedMode = true;
+            NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Handover ongoing for IMSI: "
+                         << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
+                         << " in state: " << ToString(m_state) << ".");
             SwitchToState(CONNECTED_PHY_PROBLEM);
             m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
             // we should have called NotifyConnectionFailed
@@ -1123,7 +1126,13 @@ NrUeRrc::DoRecvRrcConnectionSetup(NrRrcSap::RrcConnectionSetup msg)
         msg2.rrcTransactionIdentifier = msg.rrcTransactionIdentifier;
         m_rrcSapUser->SendRrcConnectionSetupCompleted(msg2);
         m_asSapUser->NotifyConnectionSuccessful();
-        m_cmacSapProvider.at(GetPrimaryUlIndex())->NotifyConnectionSuccessful();
+        const auto primaryUlIndex = GetPrimaryUlIndex();
+        const auto primaryDlIndex = GetPrimaryDlIndex();
+        m_cmacSapProvider.at(primaryUlIndex)->NotifyConnectionSuccessful();
+        if (primaryDlIndex != primaryUlIndex)
+        {
+            m_cmacSapProvider.at(primaryDlIndex)->NotifyConnectionSuccessful();
+        }
         m_connectionEstablishedTrace(m_imsi, m_cellId, m_rnti);
         NS_ABORT_MSG_IF(m_noOfSyncIndications > 0,
                         "Sync indications should be zero "
@@ -1198,14 +1207,17 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
                                     m_lastSib1.servingCellConfigCommon.numerology,
                                     m_lastSib1.servingCellConfigCommon.tddPattern,
                                     m_lastSib1.servingCellConfigCommon.rbgSize);
-                ReconfigureFromSib1(ulBwp,
-                                    mci.targetPhysCellId,
-                                    m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
-                                    m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
-                                    m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
-                                    m_lastSib1.servingCellConfigCommon.numerology,
-                                    m_lastSib1.servingCellConfigCommon.tddPattern,
-                                    m_lastSib1.servingCellConfigCommon.rbgSize);
+                if (ulBwp != dlBwp)
+                {
+                    ReconfigureFromSib1(ulBwp,
+                                        mci.targetPhysCellId,
+                                        m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
+                                        m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
+                                        m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
+                                        m_lastSib1.servingCellConfigCommon.numerology,
+                                        "F",
+                                        m_lastSib1.servingCellConfigCommon.rbgSize);
+                }
                 SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
                 SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
             }
@@ -1347,6 +1359,10 @@ NrUeRrc::DoRecvRrcConnectionRelease(NrRrcSap::RrcConnectionRelease msg)
     if (!m_leaveConnectedMode)
     {
         m_leaveConnectedMode = true;
+        NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Received connection release message "
+                     "for IMSI: "
+                     << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
+                     << " in state: " << ToString(m_state) << ".");
         SwitchToState(CONNECTED_PHY_PROBLEM);
         m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
         m_asSapUser->NotifyConnectionReleased();
@@ -1474,16 +1490,26 @@ NrUeRrc::EvaluateCellForSelection()
         m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(cellId, m_initDlArfcn);
         m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(m_dlBandwidth);
         m_initialCellSelectionEndOkTrace(m_imsi, cellId);
+        auto dlBwpIndex = GetPrimaryDlIndex();
+        auto ulBwpIndex = GetPrimaryUlIndex();
+        ReconfigureFromSib1(dlBwpIndex,
+                            m_cellId,
+                            m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
+                            m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
+                            m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
+                            m_lastSib1.servingCellConfigCommon.numerology,
+                            m_lastSib1.servingCellConfigCommon.tddPattern,
+                            m_lastSib1.servingCellConfigCommon.rbgSize);
 
-        for (auto phyIndex : {GetPrimaryDlIndex(), GetPrimaryUlIndex()})
+        if (ulBwpIndex != dlBwpIndex)
         {
-            ReconfigureFromSib1(phyIndex,
+            ReconfigureFromSib1(ulBwpIndex,
                                 m_cellId,
                                 m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
                                 m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
                                 m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
                                 m_lastSib1.servingCellConfigCommon.numerology,
-                                m_lastSib1.servingCellConfigCommon.tddPattern,
+                                "F",
                                 m_lastSib1.servingCellConfigCommon.rbgSize);
         }
         // Once the UE is connected, m_connectionPending is
@@ -3408,6 +3434,9 @@ NrUeRrc::ConnectionTimeout()
     if (m_connEstFailCount >= m_connEstFailCountLimit)
     {
         m_connectionTimeoutTrace(m_imsi, m_cellId, m_rnti, m_connEstFailCount);
+        NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Connection timeout for IMSI: "
+                     << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
+                     << " in state: " << ToString(m_state) << ".");
         SwitchToState(CONNECTED_PHY_PROBLEM);
         // Assumption: The gNB connection request timer would expire
         // before the expiration of T300 at UE. Upon which, the gNB deletes
@@ -3513,6 +3542,9 @@ NrUeRrc::RadioLinkFailureDetected()
 {
     NS_LOG_FUNCTION(this << m_imsi << m_rnti);
     m_radioLinkFailureTrace(m_imsi, m_cellId, m_rnti);
+    NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Radio link failure detected for IMSI: "
+                 << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
+                 << " in state: " << ToString(m_state) << ".");
     SwitchToState(CONNECTED_PHY_PROBLEM);
     m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
     m_asSapUser->NotifyConnectionReleased();
@@ -3569,6 +3601,7 @@ NrUeRrc::ResetRlfParams()
     m_radioLinkFailureDetected.Cancel();
     m_noOfSyncIndications = 0;
     m_cphySapProvider.at(GetPrimaryDlIndex())->ResetRlfParams();
+    m_cphySapProvider.at(GetPrimaryUlIndex())->ResetRlfParams();
 }
 
 void
