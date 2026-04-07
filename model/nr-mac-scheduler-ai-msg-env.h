@@ -22,14 +22,14 @@ namespace ns3 {
  * through Boost.Interprocess shared memory instead of ZMQ sockets.
  *
  * Per-TTI data flow:
- *   1. C++ packs observations + reward into NrSchedEnvMsg (shared mem)
+ *   1. C++ packs observations + reward into NrSchedEnvMsg
  *   2. Semaphore signals Python
  *   3. Python reads observations, runs forward pass, writes NrSchedActMsg
  *   4. Semaphore signals C++
  *   5. C++ reads weights, applies them via UpdateAllUeWeightsFn
  *
  *
- * @see NrMacSchedulerAiNs3GymEnv  (the OpenGym counterpart)
+ * @see NrMacSchedulerAiNs3GymEnv
  * @see NrSchedEnvMsg
  * @see NrSchedActMsg
  */
@@ -72,9 +72,9 @@ public:
    * @param extraInfo    optional metadata string
    * @param updateAllUeWeightsFn callback to apply weights to the scheduler
    *
-   * This method is called once per TTI by CallNotifyDlFn / CallNotifyUlFn
+   * This method is called once per TTI by CallNotifyDlFn/CallNotifyUlFn
    * in NrMacSchedulerOfdmaAi or NrMacSchedulerTdmaAi.  It performs the
-   * full shared-memory send/receive cycle synchronously: observations are
+   * full shared memory send/receive cycle synchronously: observations are
    * written, Python is signalled, C++ blocks until Python writes back
    * the scheduling weights, and then the weights are applied.
    */
