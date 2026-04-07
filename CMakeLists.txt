@@ -47,7 +47,24 @@ if(opengym
       ${libopengym}
   )
 endif()
-
+set(ns3ai_sources)
+set(ns3ai_headers)
+set(ns3ai_libraries)
+if(ai
+   IN_LIST
+   contrib_libs_to_build
+)
+  set(ns3ai_sources
+      model/nr-mac-scheduler-ai-msg-env.cc
+  )
+  set(ns3ai_headers
+      model/nr-mac-scheduler-ai-msg-structs.h
+      model/nr-mac-scheduler-ai-msg-env.h
+  )
+  set(ns3ai_libraries
+      ${libai}
+  )
+endif()
 set(source_files
     ${eigen_sources}
     helper/beamforming-helper-base.cc
@@ -583,7 +600,9 @@ endif()
 build_lib(
   LIBNAME nr
   SOURCE_FILES ${source_files}
+              ${ns3ai_sources}
   HEADER_FILES ${header_files}
+              ${ns3ai_headers}
   LIBRARIES_TO_LINK
     ${libinternet-apps}
     ${libflow-monitor}
@@ -595,6 +614,7 @@ build_lib(
     ${libcsma}
     ${libconfig-store}
     ${opengym_libraries}
+    ${ns3ai_libraries}
   TEST_SOURCES ${test_sources}
 )
 
