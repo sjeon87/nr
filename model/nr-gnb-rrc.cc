@@ -2248,7 +2248,11 @@ NrGnbRrc::GetUeManager(uint16_t rnti)
     NS_LOG_FUNCTION(this << (uint32_t)rnti);
     NS_ASSERT(0 != rnti);
     auto it = m_ueMap.find(rnti);
-    NS_ASSERT_MSG(it != m_ueMap.end(), "UE manager for RNTI " << rnti << " not found");
+    if (it == m_ueMap.end())
+    {
+        NS_LOG_WARN("UE manager for RNTI " << rnti << " not found");
+        return nullptr;
+    }
     return it->second;
 }
 
