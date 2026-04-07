@@ -2671,6 +2671,13 @@ NrMacSchedulerNs3::DoSchedUlTriggerReq(
         // if there are feedbacks for expired process, remove them
         for (auto it = ulHarqFeedback.begin(); it != ulHarqFeedback.end(); /* no inc */)
         {
+            if (m_ueMap.find(it->m_rnti) == m_ueMap.end())
+            {
+                NS_LOG_WARN("UE was released, but HARQ feedback remained in a buffer. We dispose "
+                            "of it here.");
+                it = ulHarqFeedback.erase(it);
+                continue;
+            }
             auto& ueInfo = m_ueMap.find(it->m_rnti)->second;
             auto& process = ueInfo->m_ulHarq.Find(it->m_harqProcessId)->second;
             if (!process.m_active)
