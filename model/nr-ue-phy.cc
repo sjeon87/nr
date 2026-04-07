@@ -866,31 +866,59 @@ NrUePhy::PushCtrlAllocations(const SfnSf currentSfnSf)
     }
 
     uint64_t currentSlotN = currentSfnSf.Normalize() % m_tddPattern.size();
+    const auto overlapsRange = [this](uint8_t start, uint8_t numSym) {
+        const uint8_t end = start + numSym;
+        return std::any_of(m_currSlotAllocInfo.m_varTtiAllocInfo.begin(),
+                           m_currSlotAllocInfo.m_varTtiAllocInfo.end(),
+                           [start, end](const auto& alloc) {
+                               const uint8_t allocStart = alloc.m_dci->m_symStart;
+                               const uint8_t allocEnd = allocStart + alloc.m_dci->m_numSym;
+                               return allocStart < end && start < allocEnd;
+                           });
+    };
 
     if (m_tddPattern[currentSlotN] < LteNrTddSlotType::UL)
     {
-        NS_LOG_DEBUG("The current TDD pattern indicates that we are in a "
-                     << m_tddPattern[currentSlotN]
-                     << " slot, so insert DL CTRL at the beginning of the slot");
-        VarTtiAllocInfo dlCtrlSlot(std::make_shared<DciInfoElementTdma>(0,
-                                                                        m_dlCtrlSyms,
-                                                                        DciInfoElementTdma::DL,
-                                                                        DciInfoElementTdma::CTRL,
-                                                                        rbgBitmask));
-        m_currSlotAllocInfo.m_varTtiAllocInfo.push_front(dlCtrlSlot);
+        if (!overlapsRange(0, m_dlCtrlSyms))
+        {
+            NS_LOG_DEBUG("The current TDD pattern indicates that we are in a "
+                         << m_tddPattern[currentSlotN]
+                         << " slot, so insert DL CTRL at the beginning of the slot");
+            VarTtiAllocInfo dlCtrlSlot(
+                std::make_shared<DciInfoElementTdma>(0,
+                                                     m_dlCtrlSyms,
+                                                     DciInfoElementTdma::DL,
+                                                     DciInfoElementTdma::CTRL,
+                                                     rbgBitmask));
+            m_currSlotAllocInfo.m_varTtiAllocInfo.push_front(dlCtrlSlot);
+        }
+        else
+        {
+            NS_LOG_WARN("Skipping DL CTRL insertion because the reserved DL CTRL symbols are "
+                        "already occupied");
+        }
     }
     if (m_tddPattern[currentSlotN] > LteNrTddSlotType::DL)
     {
-        NS_LOG_DEBUG("The current TDD pattern indicates that we are in a "
-                     << m_tddPattern[currentSlotN]
-                     << " slot, so insert UL CTRL at the end of the slot");
-        VarTtiAllocInfo ulCtrlSlot(
-            std::make_shared<DciInfoElementTdma>(GetSymbolsPerSlot() - m_ulCtrlSyms,
-                                                 m_ulCtrlSyms,
-                                                 DciInfoElementTdma::UL,
-                                                 DciInfoElementTdma::CTRL,
-                                                 rbgBitmask));
-        m_currSlotAllocInfo.m_varTtiAllocInfo.push_back(ulCtrlSlot);
+        const uint8_t ulCtrlStart = GetSymbolsPerSlot() - m_ulCtrlSyms;
+        if (!overlapsRange(ulCtrlStart, m_ulCtrlSyms))
+        {
+            NS_LOG_DEBUG("The current TDD pattern indicates that we are in a "
+                         << m_tddPattern[currentSlotN]
+                         << " slot, so insert UL CTRL at the end of the slot");
+            VarTtiAllocInfo ulCtrlSlot(
+                std::make_shared<DciInfoElementTdma>(ulCtrlStart,
+                                                     m_ulCtrlSyms,
+                                                     DciInfoElementTdma::UL,
+                                                     DciInfoElementTdma::CTRL,
+                                                     rbgBitmask));
+            m_currSlotAllocInfo.m_varTtiAllocInfo.push_back(ulCtrlSlot);
+        }
+        else
+        {
+            NS_LOG_WARN("Skipping UL CTRL insertion because the reserved UL CTRL symbols are "
+                        "already occupied");
+        }
     }
 }
 
@@ -1280,11 +1308,16 @@ NrUePhy::EndVarTti(const std::shared_ptr<DciInfoElementTdma>& dci)
         m_currSlotAllocInfo.m_varTtiAllocInfo.pop_front();
 
         Time nextVarTtiStart = GetSymbolPeriod() * allocation.m_dci->m_symStart;
+        Time nextVarTtiTime = nextVarTtiStart + m_lastSlotStart;
+        Time delay = nextVarTtiTime - Simulator::Now();
 
-        Simulator::Schedule(nextVarTtiStart + m_lastSlotStart - Simulator::Now(),
-                            &NrUePhy::StartVarTti,
-                            this,
-                            allocation.m_dci);
+        NS_ASSERT_MSG(delay.IsStrictlyPositive() || delay.IsZero(),
+                      "Scheduling StartVarTti in the past. delay="
+                          << delay << " nextVarTtiTime=" << nextVarTtiTime
+                          << " now=" << Simulator::Now() << " lastSlotStart=" << m_lastSlotStart
+                          << " symStart=" << +allocation.m_dci->m_symStart);
+
+        Simulator::Schedule(delay, &NrUePhy::StartVarTti, this, allocation.m_dci);
     }
 
     m_receptionEnabled = false;
