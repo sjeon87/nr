@@ -963,7 +963,7 @@ NrMacSchedulerNs3::DoSchedUlCqiInfoReq(
     switch (params.m_ulCqi.m_type)
     {
     case UlCqiInfo::PUSCH: {
-        [[maybe_unused]] bool found = false;
+        bool found = false;
         uint8_t symStart = params.m_symStart;
         SfnSf ulSfnSf = params.m_sfnSf;
 
@@ -977,9 +977,11 @@ NrMacSchedulerNs3::DoSchedUlCqiInfoReq(
         if (itAlloc == m_ulAllocationMap.end() ||
             (itAlloc != m_ulAllocationMap.end() && itAlloc->second.m_ulAllocations.empty()))
         {
-            NS_LOG_INFO(
-                "We are stopping this early because there is nothing allocated to do. There could "
-                "have been something before, but it was likely released by a UE disconnection.");
+            NS_LOG_INFO("Dropping UL CQI for "
+                        << ulSfnSf << " symStart=" << +symStart
+                        << " because there is no pending UL allocation left for that slot. "
+                           "This can happen when the matching allocation was removed earlier, "
+                           "for example after UE release following RLF.");
             break; // early exit because there is nothing allocated to do
         }
         std::vector<AllocElem>& ulAllocations = itAlloc->second.m_ulAllocations;
@@ -1009,7 +1011,16 @@ NrMacSchedulerNs3::DoSchedUlCqiInfoReq(
                 ++it;
             }
         }
-        NS_ASSERT(found);
+        if (!found)
+        {
+            // A CQI may legitimately arrive after its UL allocation has already been removed
+            // from the pending map, e.g., after UE release due to RLF.
+            NS_LOG_INFO("Dropping unmatched UL CQI for "
+                        << ulSfnSf << " symStart=" << +symStart
+                        << " because no pending UL allocation in that slot matches it. "
+                           "This is expected when the UE was released before the CQI arrived.");
+            return;
+        }
 
         if (ulAllocations.empty())
         {
