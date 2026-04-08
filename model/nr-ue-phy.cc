@@ -1217,13 +1217,14 @@ NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma>& dci)
     {
         // put an error, as something is wrong. The UE should not be scheduled
         // if there is no data for him...
-        if (dci->m_type != DciInfoElementTdma::MSG3)
+        if (dci->m_type == DciInfoElementTdma::MSG3)
         {
-            NS_FATAL_ERROR("The UE " << dci->m_rnti << " has been scheduled without data");
+            NS_LOG_WARN("Not sending MSG3. Probably in RRC IDEAL mode.");
+            return varTtiDuration;
         }
         else
         {
-            NS_LOG_WARN("Not sending MSG3. Probably in RRC IDEAL mode.");
+            NS_LOG_WARN("UE " << dci->m_rnti << " was scheduled but has nothing to transmit");
             return varTtiDuration;
         }
     }
