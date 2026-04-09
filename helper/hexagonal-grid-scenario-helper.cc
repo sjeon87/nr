@@ -10,7 +10,9 @@
 #include "ns3/hexagonal-wraparound-model.h"
 #include "ns3/mobility-helper.h"
 
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace ns3
 {
@@ -412,6 +414,7 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
     MobilityHelper mobility;
     MobilityHelper ueMobility;
     Ptr<ListPositionAllocator> bsPosVector = CreateObject<ListPositionAllocator>();
+    Ptr<ListPositionAllocator> picoBsPosVector = CreateObject<ListPositionAllocator>();
     Ptr<ListPositionAllocator> bsCenterVector = CreateObject<ListPositionAllocator>();
     Ptr<ListPositionAllocator> sitePosVector = CreateObject<ListPositionAllocator>();
     Ptr<ListPositionAllocator> utPosVector = CreateObject<ListPositionAllocator>();
@@ -454,6 +457,63 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         bsCenterVector->Add(cellCenterPos);
 
         // What about the antenna orientation? It should be dealt with when installing the gNB
+    }
+
+    // Install mobility model of macro cells
+    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    mobility.SetPositionAllocator(bsPosVector);
+    mobility.Install(m_bs);
+
+    // Install mobility model of pico cells
+    if (m_installPicoCells)
+    {
+        std::vector<Vector3D> picoCellCoordinate;
+        for (std::size_t cellId = 0; cellId < m_numBs; cellId++)
+        {
+            uint16_t siteIndex = GetSiteIndex(cellId);
+            if (GetSectorIndex(cellId) != 0)
+            {
+                continue;
+            }
+            // Compute site position from hex grid definition
+            Vector sitePos(m_centralPos);
+            const double dist = siteDistances.at(siteIndex);
+            const double angleRad = siteAngles.at(siteIndex) * M_PI / 180.0;
+            sitePos.x += m_isd * dist * std::cos(angleRad);
+            sitePos.y += m_isd * dist * std::sin(angleRad);
+            sitePos.z = m_bsHeight;
+            // Six pico cells around the site, every 60 degrees
+            const double picoRadius = m_isd / 2;
+            const double eps = 1e-6; // only for exact-duplicate protection
+
+            for (uint8_t picoCellOffset = 0; picoCellOffset < 6; ++picoCellOffset)
+            {
+                const double ang = (30.0 + picoCellOffset * 60.0) * M_PI / 180.0;
+
+                Vector picoCellPos(sitePos);
+                picoCellPos.x += picoRadius * std::cos(ang);
+                picoCellPos.y += picoRadius * std::sin(ang);
+                picoCellPos.z = m_bsHeight;
+
+                // Optional: avoid exact duplicates due to floating point
+                auto it = std::find_if(picoCellCoordinate.begin(),
+                                       picoCellCoordinate.end(),
+                                       [eps, &picoCellPos](const Vector3D& a) {
+                                           return CalculateDistance(a, picoCellPos) < eps;
+                                       });
+
+                if (it == picoCellCoordinate.end())
+                {
+                    picoCellCoordinate.push_back(picoCellPos);
+                    picoBsPosVector->Add(picoCellPos);
+                }
+            }
+        }
+        m_picoBs.Create(picoCellCoordinate.size());
+
+        mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+        mobility.SetPositionAllocator(picoBsPosVector);
+        mobility.Install(m_picoBs);
     }
 
     // To allocate UEs, I need the center of the hexagonal cell.
@@ -539,10 +599,6 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         utPosVector->Add(utPos);
     }
 
-    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-    mobility.SetPositionAllocator(bsPosVector);
-    mobility.Install(m_bs);
-
     if (indoorUeSpeed.GetLength() || outdoorUeSpeed.GetLength())
     {
         if (mobilityModel == "ns3::ConstantVelocityMobilityModel")
@@ -618,4 +674,9 @@ HexagonalGridScenarioHelper::GetWraparoundModel() const
     return m_wraparound;
 }
 
+void
+HexagonalGridScenarioHelper::InstallPicoCells(bool installPicoCells)
+{
+    m_installPicoCells = installPicoCells;
+}
 } // namespace ns3
