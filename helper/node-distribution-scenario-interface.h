@@ -29,10 +29,15 @@ class NodeDistributionScenarioInterface : public ScenarioParameters
      */
     ~NodeDistributionScenarioInterface() override;
     /**
-     * @brief Get the list of gnb/base station nodes
+     * @brief Get the list of macro gnb/base station nodes
      * @return A NodeContainer with all the Gnb (or base stations)
      */
     const NodeContainer& GetBaseStations() const;
+    /**
+     * @brief Get the list of pico gnb/base station nodes
+     * @return A NodeContainer with all the Gnb (or base stations)
+     */
+    const NodeContainer& GetPicoBaseStations() const;
     /**
      * @brief Get the list of user nodes
      * @return A NodeContainer with all the users
@@ -131,6 +136,7 @@ class NodeDistributionScenarioInterface : public ScenarioParameters
     std::size_t m_numBs;    //!< Number of base stations to create
     std::size_t m_numUt;    //!< Number of user terminals to create
     NodeContainer m_bs;     //!< Base stations
+    NodeContainer m_picoBs; //!< Pico base stations
     NodeContainer m_ut;     //!< User Terminals
 };
 
