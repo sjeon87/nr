@@ -37,6 +37,7 @@ class NrTestMacSchedLcRr : public TestCase
      * an allocation map of logical channel groups (LCGs), transport block size (TBS),
      * and the expected assigned bytes for each logical channel group.
      *
+     * @param isDl True for downlink, false for uplink
      * @param description The description of the test case.
      * @param lcType The type identifier for the logical channel scheduler implementation tested.
      * @param lcgToAllocate A vector representing the LCGs and their associated byte allocations,
@@ -53,14 +54,16 @@ class NrTestMacSchedLcRr : public TestCase
      * using the provided allocation map.
      * - Updates the LCGs with their respective byte sizes for scheduling purposes.
      */
-    NrTestMacSchedLcRr(const std::string description,
+    NrTestMacSchedLcRr(bool isDl,
+                       const std::string description,
                        const std::string lcType,
                        std::vector<std::pair<uint8_t, uint32_t>> lcgToAllocate,
                        uint32_t tbs,
                        std::vector<std::pair<uint8_t, uint32_t>> assignedBytes)
         : TestCase(description),
           m_tbSize(tbs),
-          m_expectedAssignedBytes(assignedBytes)
+          m_expectedAssignedBytes(assignedBytes),
+          m_isDl(isDl)
     {
         // Set factory of LC scheduler to tested type
         m_lcFactory.SetTypeId(TypeId::LookupByName(lcType));
@@ -74,10 +77,10 @@ class NrTestMacSchedLcRr : public TestCase
             // Limit the test check to DATA logical channels only.
             // CTRL logical channels are handled by priority,
             // and the logical channel assignment logic does not apply to them.
-            lcEntry->m_id = 3;
+            lcEntry->m_id = lcgId;
             m_lcg.at(lcgId)->Insert(std::move(lcEntry));
             NrMacSchedSapProvider::SchedDlRlcBufferReqParameters params{};
-            params.m_logicalChannelIdentity = 3;
+            params.m_logicalChannelIdentity = lcgId;
             params.m_rlcTransmissionQueueSize = lcgBytes;
             m_lcg.at(lcgId)->UpdateInfo(params);
         }
@@ -89,55 +92,58 @@ class NrTestMacSchedLcRr : public TestCase
     LCG m_lcg;
     uint32_t m_tbSize;
     std::vector<std::pair<uint8_t, uint32_t>> m_expectedAssignedBytes;
+    bool m_isDl;
 };
 
 void
 NrTestMacSchedLcRr::DoRun()
 {
     auto schedLc = DynamicCast<NrMacSchedulerLcAlgorithm>(m_lcFactory.Create());
+
     // Call DL/UL assign bytes functions
-    auto assignedBytesDl = schedLc->AssignBytesToDlLC(m_lcg, m_tbSize, MilliSeconds(0));
-    auto assignedBytesUl = schedLc->AssignBytesToUlLC(m_lcg, m_tbSize);
-    // Check if both allocate the expected number of bytes per LCG
-    for (auto assignedBytes : {&assignedBytesDl, &assignedBytesUl})
+    std::vector<NrMacSchedulerLcAlgorithm::Assignation> assignedBytes;
+    if (m_isDl)
     {
-        uint32_t totalAssignedBytes = 0;
-        for (auto [lcgId, lcgBytes] : m_expectedAssignedBytes)
-        {
-            auto lcgAssigned =
-                std::find_if(assignedBytes->begin(),
-                             assignedBytes->end(),
-                             [lcg = lcgId](auto& entry) { return entry.m_lcg == lcg; });
-            if (lcgAssigned != assignedBytes->end())
-            {
-                NS_TEST_ASSERT_MSG_EQ(lcgAssigned->m_bytes,
-                                      lcgBytes,
-                                      "Expected " << lcgBytes << " bytes assigned for LCG "
-                                                  << +lcgId);
-                totalAssignedBytes += lcgAssigned->m_bytes;
-            }
-            else
-            {
-                if (m_expectedAssignedBytes.at(lcgId).second != 0)
-                {
-                    NS_TEST_ASSERT_MSG_EQ(false,
-                                          true,
-                                          "Expected LCG " << +lcgId << " to be assigned");
-                }
-            }
-        }
+        assignedBytes = schedLc->AssignBytesToDlLC(m_lcg, m_tbSize, MilliSeconds(0));
+    }
+    else
+    {
+        assignedBytes = schedLc->AssignBytesToUlLC(m_lcg, m_tbSize);
+    }
 
-        if (!m_expectedAssignedBytes.empty())
+    // Check if both allocate the expected number of bytes per LCG
+    uint32_t totalAssignedBytes = 0;
+    for (auto [lcgId, lcgBytes] : m_expectedAssignedBytes)
+    {
+        auto lcgAssigned = std::find_if(assignedBytes.begin(),
+                                        assignedBytes.end(),
+                                        [lcg = lcgId](auto& entry) { return entry.m_lcg == lcg; });
+        if (lcgAssigned != assignedBytes.end())
         {
-            NS_TEST_ASSERT_MSG_EQ(totalAssignedBytes,
-                                  m_tbSize,
-                                  "Expected all " << m_tbSize << " bytes to be assigned");
+            NS_TEST_ASSERT_MSG_EQ(lcgAssigned->m_bytes,
+                                  lcgBytes,
+                                  "Expected " << lcgBytes << " bytes assigned for LCG " << +lcgId);
+            totalAssignedBytes += lcgAssigned->m_bytes;
         }
+        else
+        {
+            if (m_expectedAssignedBytes.at(lcgId).second != 0)
+            {
+                NS_TEST_ASSERT_MSG_EQ(false, true, "Expected LCG " << +lcgId << " to be assigned");
+            }
+        }
+    }
 
-        if (m_tbSize == 0)
-        {
-            NS_TEST_ASSERT_MSG_EQ(totalAssignedBytes, 0, "Expected no LCGs to be assigned");
-        }
+    if (!m_expectedAssignedBytes.empty())
+    {
+        NS_TEST_ASSERT_MSG_EQ(totalAssignedBytes,
+                              m_tbSize,
+                              "Expected all " << m_tbSize << " bytes to be assigned");
+    }
+
+    if (m_tbSize == 0)
+    {
+        NS_TEST_ASSERT_MSG_EQ(totalAssignedBytes, 0, "Expected no LCGs to be assigned");
     }
 }
 
@@ -147,31 +153,56 @@ class NrTestSchedLcSuite : public TestSuite
     NrTestSchedLcSuite()
         : TestSuite("nr-test-sched-lc", Type::UNIT)
     {
+        bool isDl = true;
         // clang-format off
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (), tbs = 0",               "ns3::NrMacSchedulerLcRR",{},                    0, {}                   ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (), tbs = 1",               "ns3::NrMacSchedulerLcRR",{},                    1, {}                   ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:0B), tbs = 0",           "ns3::NrMacSchedulerLcRR",{{1,0}},               0, {}                   ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B), tbs = 0",           "ns3::NrMacSchedulerLcRR",{{1,1}},               0, {}                   ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B), tbs = 1",           "ns3::NrMacSchedulerLcRR",{{1,1}},               1, {{1,1}}              ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B), tbs = 2",           "ns3::NrMacSchedulerLcRR",{{1,1}},               2, {{1,2}}              ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:1B), tbs = 0",      "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},        0, {}                   ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:1B), tbs = 1",      "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},        1, {{1,1}}              ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:1B), tbs = 2",      "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},        2, {{1,1}, {2,1}}       ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:1B), tbs = 3",      "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},        3, {{1,2}, {2,1}}       ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:1B), tbs = 4",      "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},        4, {{1,2}, {2,2}}       ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 0", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 0, {}                   ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 1", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 1, {{1,1}}              ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 2", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 2, {{1,1}, {2,1}}       ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 3", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 3, {{1,1}, {2,1}, {3,1}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 4", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 4, {{1,1}, {2,2}, {3,1}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 5", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 5, {{1,1}, {2,2}, {3,2}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 6", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 6, {{1,1}, {2,2}, {3,3}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 7", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 7, {{1,2}, {2,2}, {3,3}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 8", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 8, {{1,2}, {2,3}, {3,3}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:3B), tbs = 9", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}}, 9, {{1,2}, {2,3}, {3,4}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:300B), tbs = 300", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 300, {{1,1}, {2,2}, {3,297}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:297B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,297}}, 309, {{1,4}, {2,5}, {3,300}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr("LcRR flows (1:1B,2:2B,3:300B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 309, {{1,3}, {2,4}, {3,302}}), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (), tbs = 0",                   "ns3::NrMacSchedulerLcRR",{},                        0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (), tbs = 1",                   "ns3::NrMacSchedulerLcRR",{},                        1, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:0B), tbs = 0",               "ns3::NrMacSchedulerLcRR",{{1,0}},                   0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B), tbs = 0",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B), tbs = 1",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   1, {{1,1}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B), tbs = 2",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   2, {{1,2}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 0",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 1",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            1, {{1,1}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 2",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            2, {{1,2}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 3",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            3, {{1,3}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 4",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            4, {{1,4}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 0",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 1",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     1, {{1,1}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 2",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     2, {{1,2}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 3",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     3, {{1,3}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 4",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     4, {{1,4}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 5",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     5, {{1,5}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 6",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     6, {{1,6}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 7",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     7, {{1,7}}  ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 8",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     8, {{1,8}}  ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 9",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     9, {{1,8}, {2,1}}  ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:300B), tbs = 300", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 300, {{1,8}, {2,7}, {3,285}}), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:297B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,297}}, 309, {{1,8}, {2,7}, {3,294}}), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:300B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 315, {{1,8}, {2,7}, {3,300}}), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (), tbs = 0",                   "ns3::NrMacSchedulerLcRR",{},                        0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (), tbs = 1",                   "ns3::NrMacSchedulerLcRR",{},                        1, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:0B), tbs = 0",               "ns3::NrMacSchedulerLcRR",{{1,0}},                   0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B), tbs = 0",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B), tbs = 1",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   1, {{1,1}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B), tbs = 2",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   2, {{1,2}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 0",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 1",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            1, {{1,1}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 2",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            2, {{1,2}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 3",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            3, {{1,3}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 4",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            4, {{1,4}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 0",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     0, {}                     ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 1",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     1, {{1,1}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 2",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     2, {{1,2}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 3",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     3, {{1,3}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 4",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     4, {{1,4}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 5",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     5, {{1,5}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 6",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     6, {{1,6}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 7",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     7, {{1,7}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 8",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     8, {{1,8}}                ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 9",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     9, {{1,8}, {2,1}}         ), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:300B), tbs = 300", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 300, {{1,8}, {2,7}, {3,285}}), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:297B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,297}}, 309, {{1,8}, {2,7}, {3,294}}), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:300B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 313, {{1,8}, {2,7}, {3,298}}), Duration::QUICK);
         // clang-format on
     }
 };

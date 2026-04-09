@@ -26,10 +26,20 @@ NrMacSchedulerLC::NrMacSchedulerLC(const nr::LogicalChannelConfigListElement_s& 
     m_eRabGuaranteedBitrateDl = conf.m_eRabGuaranteedBitrateDl;
 }
 
-auto
-AddMacSubHeader(auto value)
+NrMacSchedulerLC::NrMacSchedulerLC(const NrMacSchedulerLC& o)
 {
-    return value > 0 ? value + MAC_SUBHEADER_SIZE : 0;
+    m_id = o.m_id;
+    m_rlcTransmissionQueueSize = o.m_rlcTransmissionQueueSize;
+    m_rlcTransmissionQueueHolDelay = o.m_rlcTransmissionQueueHolDelay;
+    m_rlcRetransmissionHolDelay = o.m_rlcRetransmissionHolDelay;
+    m_rlcRetransmissionQueueSize = o.m_rlcRetransmissionQueueSize;
+    m_rlcStatusPduSize = o.m_rlcStatusPduSize;
+    m_delayBudget = o.m_delayBudget;
+    m_PER = o.m_PER;
+    m_resourceType = o.m_resourceType;
+    m_fiveQi = o.m_fiveQi;
+    m_priority = o.m_priority;
+    m_eRabGuaranteedBitrateDl = o.m_eRabGuaranteedBitrateDl;
 }
 
 void
@@ -38,23 +48,10 @@ NrMacSchedulerLC::Update(const NrMacSchedSapProvider::SchedDlRlcBufferReqParamet
     NS_LOG_FUNCTION(this);
     NS_ASSERT(params.m_logicalChannelIdentity == m_id);
 
-    // the logical channel 0 or 1 take into account the MAC sub header
-    // because the packets in these logical channel can be very small,
-    // so if the scheduler does not take this subheader into account during the scheduling,
-    // we may get a very small transmission opportunity
-    // See: nr-mac-scheduler-ns-3 and what is passed to AssignData in DoScheduleDlData
-    if (m_id == 0 || m_id == 1)
-    {
-        m_rlcTransmissionQueueSize = AddMacSubHeader(params.m_rlcTransmissionQueueSize);
-        m_rlcRetransmissionQueueSize = AddMacSubHeader(params.m_rlcRetransmissionQueueSize);
-        m_rlcStatusPduSize = AddMacSubHeader(params.m_rlcStatusPduSize);
-    }
-    else
-    {
-        m_rlcTransmissionQueueSize = params.m_rlcTransmissionQueueSize;
-        m_rlcRetransmissionQueueSize = params.m_rlcRetransmissionQueueSize;
-        m_rlcStatusPduSize = params.m_rlcStatusPduSize;
-    }
+    m_rlcTransmissionQueueSize = params.m_rlcTransmissionQueueSize;
+    m_rlcRetransmissionQueueSize = params.m_rlcRetransmissionQueueSize;
+    m_rlcStatusPduSize = params.m_rlcStatusPduSize;
+
     m_rlcRetransmissionHolDelay = params.m_rlcRetransmissionHolDelay;
     m_rlcTransmissionQueueHolDelay = params.m_rlcTransmissionQueueHolDelay;
 }
@@ -153,6 +150,24 @@ NrMacSchedulerLCG::GetTotalSizeOfLC(uint8_t lcId) const
     NS_LOG_FUNCTION(this);
     NS_ABORT_IF(m_lcMap.empty());
     return m_lcMap.at(lcId)->GetTotalSize();
+}
+
+uint32_t
+NrMacSchedulerLCG::GetTotalSizeOfLCPlusOverheads(uint8_t lcId, bool isDl) const
+{
+    NS_LOG_FUNCTION(this);
+    NS_ABORT_IF(m_lcMap.empty());
+    uint32_t lcIdSize = m_lcMap.at(lcId)->GetTotalSize();
+    uint32_t rlcOverhead = 2; // minimum RLC overhead due to header
+    if (lcId == 1)
+    {
+        // for SRB1 (using RLC AM) it's better to
+        // overestimate RLC overhead rather than
+        // underestimate it and risk unneeded
+        // segmentation which increases delay
+        rlcOverhead = 4;
+    }
+    return lcIdSize > 0 ? lcIdSize + rlcOverhead + MAC_SUBHEADER_SIZE : 0;
 }
 
 std::vector<uint8_t>
@@ -295,6 +310,15 @@ void
 NrMacSchedulerLCG::ReleaseLC(uint8_t lcId)
 {
     m_lcMap.erase(lcId);
+}
+
+NrMacSchedulerLCG::NrMacSchedulerLCG(const NrMacSchedulerLCG& other)
+{
+    m_id = other.m_id;
+    for (const auto& [key, val] : other.m_lcMap)
+    {
+        m_lcMap[key] = std::make_unique<NrMacSchedulerLC>(*val);
+    }
 }
 
 } // namespace ns3

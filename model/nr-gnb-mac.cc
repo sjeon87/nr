@@ -893,7 +893,11 @@ void
 NrGnbMac::DoReportSrToScheduler(uint16_t rnti)
 {
     NS_LOG_FUNCTION(this);
-    m_srRntiList.push_back(rnti);
+    auto it = std::find(m_srRntiList.begin(), m_srRntiList.end(), rnti);
+    if (it == m_srRntiList.end())
+    {
+        m_srRntiList.push_back(rnti);
+    }
     m_srCallback(GetBwpId(), rnti);
 }
 

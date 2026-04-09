@@ -35,6 +35,7 @@ class NrMacSchedulerLcRR : public NrMacSchedulerLcAlgorithm
      */
     ~NrMacSchedulerLcRR() override;
 
+  private:
     /**
      * @brief Method to decide how to distribute the assigned bytes to the different LCs
      *        for the DL direction. In the RR case the method to distribute the bytes will
@@ -43,9 +44,9 @@ class NrMacSchedulerLcRR : public NrMacSchedulerLcAlgorithm
      * @param tbs TBS to divide between the LCG/LC
      * @return A vector of Assignation
      */
-    std::vector<Assignation> AssignBytesToDlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                               uint32_t tbs,
-                                               Time slotPeriod) const override;
+    std::vector<Assignation> DoAssignBytesToDlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                                 uint32_t tbs,
+                                                 Time slotPeriod) const override;
 
     /**
      * @brief Method to decide how to distribute the assigned bytes to the different LCs
@@ -55,8 +56,8 @@ class NrMacSchedulerLcRR : public NrMacSchedulerLcAlgorithm
      * @param tbs TBS to divide between the LCG/LC
      * @return A vector of Assignation
      */
-    std::vector<Assignation> AssignBytesToUlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                               uint32_t tbs) const override;
+    std::vector<Assignation> DoAssignBytesToUlLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
+                                                 uint32_t tbs) const override;
 
     /**
      * @brief Method to decide how to distribute the assigned bytes to the different LCs
@@ -64,9 +65,9 @@ class NrMacSchedulerLcRR : public NrMacSchedulerLcAlgorithm
      * @param tbs TBS to divide between the LCG/LC
      * @return A vector of Assignation
      */
-  private:
     std::vector<Assignation> AssignBytesToLC(const std::unordered_map<uint8_t, LCGPtr>& ueLCG,
-                                             uint32_t tbs) const;
+                                             uint32_t tbs,
+                                             bool isDl) const;
 };
 } // namespace ns3
 
