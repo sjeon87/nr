@@ -772,6 +772,7 @@ Nr3gppCalibration(Parameters& params)
     // The essentials describing a laydown
     uint32_t gnbSites = 0;
     NodeContainer gnbNodes;
+    NodeContainer picoGnbNodes;
     NodeContainer ueNodes;
     double sector0AngleRad = 30;
     const uint32_t sectors = 3;
@@ -810,6 +811,7 @@ Nr3gppCalibration(Parameters& params)
         "ns3::FastFadingConstantPositionMobilityModel"); // move UEs along the x axis
 
     gnbNodes = gridScenario.GetBaseStations();
+    picoGnbNodes = gridScenario.GetPicoBaseStations();
     ueNodes = gridScenario.GetUserTerminals();
     scenario = &gridScenario;
     auto wraparoundModel = gridScenario.GetWraparoundModel();
@@ -1010,7 +1012,8 @@ Nr3gppCalibration(Parameters& params)
                                                   params.enableSubbandScheluder,
                                                   params.m_subbandCqiClamping,
                                                   params.m_mcsCsiSource,
-                                                  wraparoundModel);
+                                                  wraparoundModel,
+                                                  picoGnbNodes);
     }
 
     // Check we got one valid helper
