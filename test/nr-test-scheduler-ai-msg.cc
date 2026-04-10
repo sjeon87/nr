@@ -19,23 +19,13 @@
  * They test the C++ side of the bridge in isolation.
  */
 #include "ns3/beam-id.h"
-#include "ns3/callback.h"
 #include "ns3/log.h"
-#include "ns3/node.h"
-#include "ns3/nr-control-messages.h"
-#include "ns3/nr-gnb-mac.h"
-#include "ns3/nr-mac-sched-sap.h"
-#include "ns3/nr-mac-scheduler-ns3.h"
-#include "ns3/nr-mac-scheduler-ofdma-ai.h"
-#include "ns3/nr-mac-scheduler-tdma-ai.h"
+#include "ns3/nr-mac-scheduler-lcg.h"
 #include "ns3/nr-mac-scheduler-ue-info-ai.h"
-#include "ns3/nr-phy-sap.h"
-#include "ns3/nr-qos-flow.h"
-#include "ns3/object-factory.h"
+#include "ns3/nr-phy-mac-common.h"
+#include "ns3/nstime.h"
 #include "ns3/test.h"
-#include <algorithm>
 #include <cmath>
-#include <unordered_set>
 namespace ns3 {
 NS_LOG_COMPONENT_DEFINE("NrTestSchedulerAiMsg");
 /**
@@ -181,72 +171,13 @@ void NrTestLyapunovRewardCase::DoRun() {
   NS_TEST_ASSERT_MSG_EQ_TOL(noViolationReward, 0.0f, 0.01f,
                             "No-violation URLLC should have 0 reward");
 }
-/**
- * @brief Test case: verify callback signature compatibility.
- *
- * Ensures that NrMacSchedulerOfdmaAi and NrMacSchedulerTdmaAi can
- * accept a callback that uses the extended LcObservation struct
- * (with 9 fields) without breaking the existing interface.
- */
-class NrTestAiCallbackCompatCase : public TestCase {
-public:
-  NrTestAiCallbackCompatCase(const std::string &schedType)
-      : TestCase("NrTestAiCallbackCompatCase-" + schedType),
-        m_schedulerType(schedType) {}
-
-private:
-  void DoRun() override;
-  /**
-   * @brief Mock callback that verifies extended observations.
-   */
-  void MockNotify(const std::vector<NrMacSchedulerUeInfoAi::LcObservation> &obs,
-                  bool isGameOver, float reward, const std::string &extraInfo,
-                  const NrMacSchedulerUeInfoAi::UpdateAllUeWeightsFn &updateFn);
-  std::string m_schedulerType;
-  bool m_callbackInvoked{false};
-};
-void NrTestAiCallbackCompatCase::MockNotify(
-    const std::vector<NrMacSchedulerUeInfoAi::LcObservation> &obs,
-    bool isGameOver, float reward, const std::string &extraInfo,
-    const NrMacSchedulerUeInfoAi::UpdateAllUeWeightsFn &updateFn) {
-  m_callbackInvoked = true;
-  // Verify we receive observations with the new fields populated
-  for (const auto &o : obs) {
-    // CQI, BSR, avgTput, potentialTput should all be accessible
-    // (they may be zero if no CQI has been reported yet)
-    NS_TEST_ASSERT_MSG_EQ(o.rnti > 0, true, "RNTI should be positive");
-  }
-  // Apply uniform weights so the test doesn't assert
-  NrMacSchedulerUeInfoAi::UeWeightsMap weights;
-  for (const auto &o : obs) {
-    weights[o.rnti][o.lcId] = 1.0;
-  }
-  updateFn(weights);
-}
-void NrTestAiCallbackCompatCase::DoRun() {
-  NS_LOG_FUNCTION(this);
-  ObjectFactory factory;
-  factory.SetTypeId(m_schedulerType);
-  auto sched = DynamicCast<NrMacSchedulerNs3>(factory.Create());
-  NS_ABORT_MSG_IF(!sched, "Cannot create scheduler: " + m_schedulerType);
-  // Set up the callback
-  if (m_schedulerType.find("Ofdma") != std::string::npos) {
-    auto ai = DynamicCast<NrMacSchedulerOfdmaAi>(sched);
-    ai->SetNotifyCbDl(
-        MakeCallback(&NrTestAiCallbackCompatCase::MockNotify, this));
-  } else {
-    auto ai = DynamicCast<NrMacSchedulerTdmaAi>(sched);
-    ai->SetNotifyCbDl(
-        MakeCallback(&NrTestAiCallbackCompatCase::MockNotify, this));
-  }
-  // The actual scheduling cycle test is covered by the existing
-  // nr-test-scheduler-ai.cc.  Here we only verify that the
-  // callback signature is compatible with the extended struct.
-  NS_TEST_ASSERT_MSG_EQ(true, true, "Callback binding succeeded");
-}
 // Test Suite
 /**
  * @brief Test suite for ns-3-ai msg-interface AI scheduler.
+ *
+ * Tests the extended LcObservation struct and Lyapunov reward.
+ * Callback compatibility tests are in nr-test-scheduler-ai.cc
+ * (requires the opengym module for OfdmaAi/TdmaAi headers).
  */
 class NrTestSchedulerAiMsgSuite : public TestSuite {
 public:
@@ -256,11 +187,6 @@ public:
     AddTestCase(new NrTestExtendedObservationCase(), Duration::QUICK);
     // Lyapunov reward test
     AddTestCase(new NrTestLyapunovRewardCase(), Duration::QUICK);
-    // Callback compatibility tests
-    AddTestCase(new NrTestAiCallbackCompatCase("ns3::NrMacSchedulerOfdmaAi"),
-                Duration::QUICK);
-    AddTestCase(new NrTestAiCallbackCompatCase("ns3::NrMacSchedulerTdmaAi"),
-                Duration::QUICK);
   }
 };
 static NrTestSchedulerAiMsgSuite nrTestSchedulerAiMsgSuite;

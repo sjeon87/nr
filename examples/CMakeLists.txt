@@ -180,9 +180,11 @@ if(opengym
   )
 endif()
 
-if(ai
-   IN_LIST
-   contrib_libs_to_build
-)
-  add_subdirectory(nr-ai-sched)
-endif()
+# TODO: Enable when nr-ai-sched-msg.cc simulation example is implemented
+# and Python development libraries are available for pybind11.
+# if(ai
+#    IN_LIST
+#    contrib_libs_to_build
+# )
+#   add_subdirectory(nr-ai-sched)
+# endif()

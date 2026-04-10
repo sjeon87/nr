@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 #include "nr-mac-scheduler-ai-msg-env.h"
-// #ifdef HAVE_NS3_AI
+#ifdef HAVE_NS3_AI
 #include "ns3/log.h"
 #include <algorithm>
 namespace ns3 {

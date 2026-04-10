@@ -50,9 +50,9 @@ endif()
 set(ns3ai_sources)
 set(ns3ai_headers)
 set(ns3ai_libraries)
-if(ai
-   IN_LIST
-   contrib_libs_to_build
+set(ns3ai_tests)
+if((ai IN_LIST contrib_libs_to_build)
+   AND (opengym IN_LIST contrib_libs_to_build)
 )
   set(ns3ai_sources
       model/nr-mac-scheduler-ai-msg-env.cc
@@ -67,8 +67,6 @@ if(ai
   set(ns3ai_libraries
       ${libai}
   )
-else()
- set(ns3ai_tests)
 endif()
 set(source_files
     ${eigen_sources}
