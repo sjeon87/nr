@@ -2796,10 +2796,11 @@ NrMacSchedulerNs3::DoScheduleUlMsg3(PointInFTPlane* sPoint,
         ulMsg3Dci->m_rbgBitmask = rbgBitmask;
         symAvail -= allocSymbols;
 
-        NS_LOG_INFO(" UL grant allocated to RNTI "
-                    << ulMsg3Dci->m_rnti << " in slot: " << slotAlloc->m_sfnSf << " symStart "
-                    << +ulMsg3Dci->m_symStart << " symEnd " << +ulMsg3Dci->m_numSym
-                    << " number of PRB" << GetBandwidthInRbg() * GetNumRbPerRbg() << " MCS "
+        NS_LOG_INFO("MSG3 UL grant from cell ID "
+                    << GetCellId() << " allocated to RNTI " << ulMsg3Dci->m_rnti
+                    << " in slot: " << slotAlloc->m_sfnSf << " symStart " << +ulMsg3Dci->m_symStart
+                    << " symEnd " << +ulMsg3Dci->m_numSym << " number of PRB"
+                    << GetBandwidthInRbg() * GetNumRbPerRbg() << " MCS "
                     << (uint16_t)+ulMsg3Dci->m_mcs << " tbSize in bytes:" << +ulMsg3Dci->m_tbSize
                     << " BWP index: " << +ulMsg3Dci->m_bwpIndex
                     << " RBG bitmask:" << +ulMsg3Dci->m_rbgBitmask.size());
