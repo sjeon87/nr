@@ -61,9 +61,14 @@ if(ai
       model/nr-mac-scheduler-ai-msg-structs.h
       model/nr-mac-scheduler-ai-msg-env.h
   )
+  set(ns3ai_tests
+      test/nr-test-scheduler-ai-msg.cc
+  )
   set(ns3ai_libraries
       ${libai}
   )
+else()
+ set(ns3ai_tests)
 endif()
 set(source_files
     ${eigen_sources}
@@ -616,6 +621,7 @@ build_lib(
     ${opengym_libraries}
     ${ns3ai_libraries}
   TEST_SOURCES ${test_sources}
+               ${ns3ai_tests}
 )
 
 # Get path src/nr or contrib/nr
