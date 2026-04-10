@@ -692,7 +692,8 @@ NrUeRrc::DoReceivePdcpSdu(NrPdcpSapUser::ReceivePdcpSduParameters params)
 void
 NrUeRrc::DoSetTemporaryCellRnti(uint16_t rnti)
 {
-    NS_LOG_FUNCTION(this << rnti);
+    NS_LOG_FUNCTION(this << "RNTI " << rnti << ", primary UL " << GetPrimaryUlIndex()
+                         << ", primary DL " << GetPrimaryDlIndex());
     m_rnti = rnti;
     m_srb0->m_rlc->SetRnti(m_rnti);
     m_cphySapProvider.at(GetPrimaryUlIndex())->SetRnti(m_rnti);
@@ -704,7 +705,8 @@ NrUeRrc::DoSetTemporaryCellRnti(uint16_t rnti)
 void
 NrUeRrc::DoNotifyRandomAccessSuccessful()
 {
-    NS_LOG_FUNCTION(this << m_imsi << ToString(m_state));
+    NS_LOG_FUNCTION(this << m_imsi << ToString(m_state) << " cellId " << m_cellId << " rnti "
+                         << m_rnti);
     m_randomAccessSuccessfulTrace(m_imsi, m_cellId, m_rnti);
     ClearRachLock();
     switch (m_state)
@@ -749,7 +751,8 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
 void
 NrUeRrc::DoNotifyRandomAccessFailed()
 {
-    NS_LOG_FUNCTION(this << m_imsi << ToString(m_state));
+    NS_LOG_FUNCTION(this << m_imsi << ToString(m_state) << " cellId " << m_cellId << " rnti "
+                         << m_rnti);
     m_randomAccessErrorTrace(m_imsi, m_cellId, m_rnti);
     ClearRachLock();
     switch (m_state)
@@ -810,7 +813,7 @@ NrUeRrc::DoStartCellSelection(uint32_t arfcn)
 void
 NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 {
-    NS_LOG_FUNCTION(this << m_imsi << cellId << arfcn);
+    NS_LOG_FUNCTION(this << m_imsi << " ,cellId " << cellId << ",arfcn " << arfcn);
 
     switch (m_state)
     {
@@ -820,6 +823,11 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
         auto bwpId = GetArfcnBwpId(arfcn);
         SetPrimaryDlIndex(bwpId);
         m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
+        m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
+        if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
+        {
+            m_cmacSapProvider.at(GetPrimaryDlIndex())->RegisterToGnb(m_cellId);
+        }
         SwitchToState(IDLE_WAIT_MIB);
     }
     break;
@@ -857,7 +865,7 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 void
 NrUeRrc::DoConnect()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi);
 
     switch (m_state)
     {
@@ -950,7 +958,7 @@ NrUeRrc::DoRecvSystemInformationBlockType1(uint16_t cellId,
     {
         if (GetPrimaryDlIndex() != m_rachBwpId)
         {
-            NS_LOG_INFO("NrUeRrc: Discarding SIB1 — RACH in-flight on bwp="
+            NS_LOG_INFO("Discarding SIB1 — RACH in-flight on bwp="
                         << +m_rachBwpId << " deadline=" << m_rachDeadline.As(Time::MS)
                         << " ignored bwp=" << GetPrimaryDlIndex() << " cellId=" << cellId);
             return;
@@ -1050,7 +1058,8 @@ NrUeRrc::DoCompleteSetup(NrUeRrcSapProvider::CompleteSetupParameters params)
 void
 NrUeRrc::DoRecvSystemInformation(NrRrcSap::SystemInformation msg)
 {
-    NS_LOG_FUNCTION(this << " RNTI " << m_rnti);
+    NS_LOG_FUNCTION(this << " RNTI " << m_rnti << ", primary UL " << GetPrimaryUlIndex()
+                         << ", primary DL " << GetPrimaryDlIndex());
 
     if (msg.haveSib2)
     {
@@ -1113,7 +1122,8 @@ NrUeRrc::DoRecvSystemInformation(NrRrcSap::SystemInformation msg)
 void
 NrUeRrc::DoRecvRrcConnectionSetup(NrRrcSap::RrcConnectionSetup msg)
 {
-    NS_LOG_FUNCTION(this << " RNTI " << m_rnti);
+    NS_LOG_FUNCTION(this << " RNTI " << m_rnti << ", primary UL " << GetPrimaryUlIndex()
+                         << ", primary DL " << GetPrimaryDlIndex());
     switch (m_state)
     {
     case IDLE_CONNECTING: {
@@ -1150,7 +1160,7 @@ NrUeRrc::DoRecvRrcConnectionSetup(NrRrcSap::RrcConnectionSetup msg)
 void
 NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfiguration msg)
 {
-    NS_LOG_FUNCTION(this << " RNTI " << m_rnti);
+    NS_LOG_FUNCTION(this << " RNTI " << m_rnti << ", cellId " << m_cellId);
     NS_LOG_INFO("DoRecvRrcConnectionReconfiguration haveNonCriticalExtension:"
                 << msg.haveNonCriticalExtension);
     switch (m_state)
@@ -1307,7 +1317,7 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
 void
 NrUeRrc::DoRecvRrcConnectionReestablishment(NrRrcSap::RrcConnectionReestablishment msg)
 {
-    NS_LOG_FUNCTION(this << " RNTI " << m_rnti);
+    NS_LOG_FUNCTION(this << " RNTI " << m_rnti << ", cellId " << m_cellId);
     switch (m_state)
     {
     case CONNECTED_REESTABLISHING: {
@@ -1330,7 +1340,7 @@ NrUeRrc::DoRecvRrcConnectionReestablishment(NrRrcSap::RrcConnectionReestablishme
 void
 NrUeRrc::DoRecvRrcConnectionReestablishmentReject(NrRrcSap::RrcConnectionReestablishmentReject msg)
 {
-    NS_LOG_FUNCTION(this << " RNTI " << m_rnti);
+    NS_LOG_FUNCTION(this << " RNTI " << m_rnti << ", cellId " << m_cellId);
     switch (m_state)
     {
     case CONNECTED_REESTABLISHING: {
@@ -1351,7 +1361,7 @@ NrUeRrc::DoRecvRrcConnectionReestablishmentReject(NrRrcSap::RrcConnectionReestab
 void
 NrUeRrc::DoRecvRrcConnectionRelease(NrRrcSap::RrcConnectionRelease msg)
 {
-    NS_LOG_FUNCTION(this << " RNTI " << m_rnti);
+    NS_LOG_FUNCTION(this << " RNTI " << m_rnti << ", cellId " << m_cellId);
     /// @todo Currently not implemented, see Section 5.3.8 of 3GPP TS 36.331.
 
     m_lastRrcTransactionIdentifier = msg.rrcTransactionIdentifier;
@@ -1426,9 +1436,13 @@ NrUeRrc::SynchronizeToStrongestCell()
         NS_LOG_LOGIC(this << " cell " << maxRsrpCellId
                           << " is the strongest untried surrounding cell");
         m_cphySapProvider.at(GetPrimaryDlIndex())->SynchronizeWithGnb(maxRsrpCellId, m_initDlArfcn);
+        if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
+        {
+            m_cphySapProvider.at(GetPrimaryUlIndex())
+                ->SynchronizeWithGnb(maxRsrpCellId, m_initDlArfcn);
+        }
         SwitchToState(IDLE_WAIT_MIB_SIB1);
     }
-
 } // end of void NrUeRrc::SynchronizeToStrongestCell ()
 
 std::size_t
@@ -1447,7 +1461,8 @@ NrUeRrc::GetArfcnBwpId(uint32_t arfcn) const
 void
 NrUeRrc::EvaluateCellForSelection()
 {
-    NS_LOG_FUNCTION(this);
+    NS_LOG_FUNCTION(this << " primary UL " << GetPrimaryUlIndex() << ", primary DL "
+                         << GetPrimaryDlIndex());
     NS_ASSERT(m_state == IDLE_WAIT_SIB1);
     NS_ASSERT(m_hasReceivedMib);
     NS_ASSERT(m_hasReceivedSib1);
@@ -1511,6 +1526,11 @@ NrUeRrc::EvaluateCellForSelection()
                                 m_lastSib1.servingCellConfigCommon.numerology,
                                 "F",
                                 m_lastSib1.servingCellConfigCommon.rbgSize);
+        }
+        m_cmacSapProvider.at(ulBwpIndex)->RegisterToGnb(m_cellId);
+        if (ulBwpIndex != dlBwpIndex)
+        {
+            m_cmacSapProvider.at(dlBwpIndex)->RegisterToGnb(m_cellId);
         }
         // Once the UE is connected, m_connectionPending is
         // set to false. So, when RLF occurs and UE performs
@@ -1605,7 +1625,8 @@ NrUeRrc::ApplyRadioResourceConfigDedicatedSecondaryCarrier(
 void
 NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicated rrcd)
 {
-    NS_LOG_FUNCTION(this);
+    NS_LOG_FUNCTION(this << " primary UL " << GetPrimaryUlIndex() << ", primary DL "
+                         << GetPrimaryDlIndex());
     const NrRrcSap::PhysicalConfigDedicated& pcd = rrcd.physicalConfigDedicated;
 
     if (pcd.haveAntennaInfoDedicated)
@@ -1698,7 +1719,7 @@ NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicate
     {
         NS_LOG_INFO(this << " IMSI " << m_imsi << " adding/modifying DRBID "
                          << (uint32_t)dtamIt->drbIdentity << " LC "
-                         << (uint32_t)dtamIt->logicalChannelIdentity);
+                         << (uint32_t)dtamIt->logicalChannelIdentity << ", cellId " << m_cellId);
         NS_ASSERT_MSG(dtamIt->logicalChannelIdentity > 2,
                       "LCID value " << dtamIt->logicalChannelIdentity << " is reserved for SRBs");
 
@@ -3340,7 +3361,7 @@ NrUeRrc::SendMeasurementReport(uint8_t measId)
 void
 NrUeRrc::ClearRachLock()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << "IMSI" << m_imsi);
     m_rachInProgress = false;
     m_rachBwpId = UINT8_MAX;
     m_rachDeadline = Seconds(0);
@@ -3350,7 +3371,7 @@ NrUeRrc::ClearRachLock()
 void
 NrUeRrc::StartConnection()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << "IMSI" << m_imsi << ", cellId " << m_cellId);
     NS_ASSERT(m_hasReceivedMib);
     NS_ASSERT(m_hasReceivedSib2);
 
@@ -3386,7 +3407,8 @@ NrUeRrc::StartConnection()
 void
 NrUeRrc::LeaveConnectedMode()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << "IMSI" << m_imsi << ", cellId " << m_cellId << ", primary UL "
+                         << GetPrimaryUlIndex() << ", primary DL " << GetPrimaryDlIndex());
     m_leaveConnectedMode = true;
     m_storedMeasValues.clear();
     ResetRlfParams();
@@ -3424,12 +3446,16 @@ NrUeRrc::LeaveConnectedMode()
     m_cellId = 0;
     m_rnti = 0;
     m_srb0->m_rlc->SetRnti(m_rnti);
+    m_cphySapProvider.at(GetPrimaryUlIndex())->SetRnti(m_rnti);
+    m_cphySapProvider.at(GetPrimaryDlIndex())->SetRnti(m_rnti);
+    m_cmacSapProvider.at(GetPrimaryUlIndex())->SetRnti(m_rnti);
+    m_cmacSapProvider.at(GetPrimaryDlIndex())->SetRnti(m_rnti);
 }
 
 void
 NrUeRrc::ConnectionTimeout()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << ", cellId " << m_cellId);
     ++m_connEstFailCount;
     if (m_connEstFailCount >= m_connEstFailCountLimit)
     {
@@ -3489,7 +3515,7 @@ NrUeRrc::SwitchToState(State newState)
     State oldState = m_state;
     m_state = newState;
     NS_LOG_INFO(this << " IMSI " << m_imsi << " RNTI " << m_rnti << " UeRrc " << ToString(oldState)
-                     << " --> " << ToString(newState));
+                     << " --> " << ToString(newState) << ", cellId " << m_cellId);
     m_stateTransitionTrace(m_imsi, m_cellId, m_rnti, oldState, newState);
 
     switch (newState)
@@ -3540,7 +3566,7 @@ NrUeRrc::SwitchToState(State newState)
 void
 NrUeRrc::RadioLinkFailureDetected()
 {
-    NS_LOG_FUNCTION(this << m_imsi << m_rnti);
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << m_rnti << ", cellId " << m_cellId);
     m_radioLinkFailureTrace(m_imsi, m_cellId, m_rnti);
     NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Radio link failure detected for IMSI: "
                  << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
@@ -3553,7 +3579,7 @@ NrUeRrc::RadioLinkFailureDetected()
 void
 NrUeRrc::DoNotifyInSync()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << m_imsi << ", cellId " << m_cellId);
     m_noOfSyncIndications++;
     NS_LOG_INFO("noOfSyncIndications " << (uint16_t)m_noOfSyncIndications);
     m_phySyncDetectionTrace(m_imsi, m_rnti, m_cellId, "Notify in sync", m_noOfSyncIndications);
@@ -3566,7 +3592,7 @@ NrUeRrc::DoNotifyInSync()
 void
 NrUeRrc::DoNotifyOutOfSync()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << ", cellId " << m_cellId);
     m_noOfSyncIndications++;
     NS_LOG_INFO(this << " Total Number of Sync indications from PHY "
                      << (uint16_t)m_noOfSyncIndications << "N310 value : " << (uint16_t)m_n310);
@@ -3587,7 +3613,7 @@ NrUeRrc::DoNotifyOutOfSync()
 void
 NrUeRrc::DoResetSyncIndicationCounter()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << ", cellId " << m_cellId);
 
     NS_LOG_DEBUG("The number of sync indication received by RRC from PHY: "
                  << (uint16_t)m_noOfSyncIndications);
@@ -3597,7 +3623,8 @@ NrUeRrc::DoResetSyncIndicationCounter()
 void
 NrUeRrc::ResetRlfParams()
 {
-    NS_LOG_FUNCTION(this << m_imsi);
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << ", cellId " << m_cellId << ", primary UL "
+                         << GetPrimaryUlIndex() << ", primary DL " << GetPrimaryDlIndex());
     m_radioLinkFailureDetected.Cancel();
     m_noOfSyncIndications = 0;
     m_cphySapProvider.at(GetPrimaryDlIndex())->ResetRlfParams();
@@ -3614,6 +3641,8 @@ NrUeRrc::ReconfigureFromSib1(const uint8_t bwpId,
                              const std::string& tddPattern,
                              const uint8_t numRbsPerRbg)
 {
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << ", cellId " << m_cellId << ", primary UL "
+                         << GetPrimaryUlIndex() << ", primary DL " << GetPrimaryDlIndex());
     NrDeviceRegistry::SetUeTargetCell(cellId, m_imsi);
     m_cphySapProvider.at(bwpId)->SetDlCtrlSyms(dlCtrlSym);
     m_cphySapProvider.at(bwpId)->SetUlCtrlSyms(ulCtrlSym);
