@@ -1285,20 +1285,20 @@ NrUeMac::RandomlySelectAndSendRaPreamble()
 {
     NS_LOG_FUNCTION(this);
     // 3GPP 36.321 5.1.1
-    NS_ASSERT_MSG(m_rachConfigured, "RACH not configured");
+    NS_ASSERT_MSG(m_rachConfigured, "RACH not configured " << ", cellId " << GetCellId());
     // assume that there is no Random Access Preambles group B
     m_raPreambleId =
         m_raPreambleUniformVariable->GetInteger(0, m_rachConfig.numberOfRaPreambles - 1);
     NS_LOG_DEBUG(m_currentSlot << " Received System Information, send to PHY the "
                                   "RA preamble: "
-                               << +m_raPreambleId);
+                               << +m_raPreambleId << ", cellId " << GetCellId());
     SendRaPreamble(true);
 }
 
 void
 NrUeMac::SendRaPreamble(bool contention)
 {
-    NS_LOG_FUNCTION(this << (uint32_t)m_raPreambleId << contention);
+    NS_LOG_FUNCTION(this << (uint32_t)m_raPreambleId << contention << ", cellId " << GetCellId());
 
     if (contention)
     {
