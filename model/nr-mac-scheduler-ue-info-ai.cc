@@ -113,17 +113,16 @@ float NrMacSchedulerUeInfoAi::GetDlRewardLyapunov(float lambda) {
     for (const auto lcId : ueActiveLCs) {
       std::unique_ptr<NrMacSchedulerLC> &LCPtr = ueLcg.second->GetLC(lcId);
       if (LCPtr->m_fiveQi <= 4) {
-        // URLLC flow: squared delay penalty
-        // PDB comes from the 5QI
+        // URLLC flow: log-bounded delay penalty
+        // log1p(ratio^2) is monotonic but bounded: at 30x PDB → ~6.8
         float pdb = static_cast<float>(LCPtr->m_delayBudget.GetMilliSeconds());
         float delay = static_cast<float>(LCPtr->m_rlcTransmissionQueueHolDelay);
-        float violation = std::max(0.0f, delay - pdb);
-        reward -= lambda * violation * violation;
+        float ratio = delay / std::max(pdb, 1.0f);
+        reward -= lambda * static_cast<float>(std::log1p(ratio * ratio));
       } else {
-        // eMBB flow: log throughput for proportional fairness
-        if (m_avgTputDl > 1e-9) {
-          reward += std::log(m_avgTputDl);
-        }
+        // eMBB flow: log(1+avgTput) for proportional fairness
+        // Gradient = 1/(1+x), strongest at low throughput → fairness
+        reward += static_cast<float>(std::log1p(std::max(0.0, m_avgTputDl)));
       }
     }
   }
@@ -137,17 +136,18 @@ float NrMacSchedulerUeInfoAi::GetUlRewardLyapunov(float lambda) {
     for (const auto lcId : ueActiveLCs) {
       std::unique_ptr<NrMacSchedulerLC> &LCPtr = ueLcg.second->GetLC(lcId);
       if (LCPtr->m_fiveQi <= 4) {
+        // URLLC flow: log-bounded delay penalty
         float pdb = static_cast<float>(LCPtr->m_delayBudget.GetMilliSeconds());
         float delay = static_cast<float>(LCPtr->m_rlcTransmissionQueueHolDelay);
-        float violation = std::max(0.0f, delay - pdb);
-        reward -= lambda * violation * violation;
+        float ratio = delay / std::max(pdb, 1.0f);
+        reward -= lambda * static_cast<float>(std::log1p(ratio * ratio));
       } else {
-        if (m_avgTputUl > 1e-9) {
-          reward += std::log(m_avgTputUl);
-        }
+        // eMBB flow: log(1+avgTput) for proportional fairness
+        reward += static_cast<float>(std::log1p(std::max(0.0, m_avgTputUl)));
       }
     }
   }
   return reward;
 }
+
 } // namespace ns3

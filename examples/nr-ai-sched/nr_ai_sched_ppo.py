@@ -122,6 +122,9 @@ class ActorCritic(nn.Module):
         mean = self.softplus(self.actor_mean(h))  # Positive weights
         log_std = torch.clamp(self.actor_log_std(h), -2.0, 2.0)
         std = torch.exp(log_std)
+        # Guard: replace NaN/inf from numerical instability with safe defaults
+        mean = torch.nan_to_num(mean, nan=1.0, posinf=100.0, neginf=0.0)
+        std = torch.clamp(torch.nan_to_num(std, nan=1.0), min=1e-6, max=10.0)
         return mean.squeeze(-1), std.squeeze(-1)
     def forward_critic(self, state_flat):
         """
@@ -139,6 +142,7 @@ class ActorCritic(nn.Module):
     def act(self, state, mask):
         """
         Select actions for all flows given the current state.
+        Uses a single batched forward pass for all flows.
         Parameters
         ----------
         state : np.ndarray
@@ -154,27 +158,26 @@ class ActorCritic(nn.Module):
         value : torch.Tensor
             Critic's value estimate for this state.
         """
-        state_t = torch.from_numpy(state).float()
-        actions = []
-        log_probs = []
+        device = next(self.parameters()).device
+        state_t = torch.from_numpy(state).float().to(device)
         eps = 1e-6
-        for i in range(self.num_flows):
-            if i < len(mask) and mask[i]:
-                flow_obs = state_t[i].unsqueeze(0)  # (1, num_features)
-                mean, std = self.forward_actor(flow_obs)
-                dist = Normal(mean, std)
-                action = dist.sample()
-                action = torch.clamp(action, eps, 100.0)  # Reasonable range
-                actions.append(action.item())
-                log_probs.append(dist.log_prob(action))
-            else:
-                actions.append(0.0)
-                log_probs.append(torch.tensor(0.0))
+        # Batched forward pass for all flows at once
+        mean, std = self.forward_actor(state_t)  # (num_flows,), (num_flows,)
+        dist = Normal(mean, std)
+        sampled = dist.sample()
+        sampled = torch.clamp(sampled, eps, 100.0)
+        log_prob_all = dist.log_prob(sampled)
+        # Build mask tensor and zero out inactive flows
+        mask_t = torch.zeros(self.num_flows, device=device)
+        for i in range(min(len(mask), self.num_flows)):
+            if mask[i]:
+                mask_t[i] = 1.0
+        actions_t = sampled * mask_t
+        log_probs_t = (log_prob_all * mask_t).unsqueeze(-1)
         # Critic value
         state_flat = state_t.flatten().unsqueeze(0)  # (1, num_flows * num_features)
         value = self.forward_critic(state_flat)
-        log_probs_t = torch.stack(log_probs)
-        return np.array(actions), log_probs_t, value.squeeze()
+        return actions_t.cpu().numpy(), log_probs_t, value.squeeze()
     def evaluate(self, states, actions, masks):
         """
         Evaluate states and actions for PPO update.
@@ -196,28 +199,28 @@ class ActorCritic(nn.Module):
             Scalar mean entropy.
         """
         batch_size = states.shape[0]
-        all_log_probs = []
-        all_entropies = []
-        for i in range(self.num_flows):
-            flow_obs = states[:, i, :]  # (batch, num_features)
-            mean, std = self.forward_actor(flow_obs)
-            dist = Normal(mean, std)
-            log_prob = dist.log_prob(actions[:, i])
-            entropy = dist.entropy()
-            # Zero out inactive flows
-            flow_mask = torch.tensor(
-                [m[i] if i < len(m) else False for m in masks],
-                dtype=torch.float32,
-            )
-            log_prob = log_prob * flow_mask
-            entropy = entropy * flow_mask
-            all_log_probs.append(log_prob)
-            all_entropies.append(entropy)
-        log_probs = torch.stack(all_log_probs, dim=1)  # (batch, num_flows)
-        entropies = torch.stack(all_entropies, dim=1).mean()
+        # Reshape to (batch * num_flows, num_features) for a single batched forward pass
+        flat_obs = states.reshape(batch_size * self.num_flows, self.num_features)
+        mean, std = self.forward_actor(flat_obs)
+        # Reshape back to (batch, num_flows)
+        mean = mean.reshape(batch_size, self.num_flows)
+        std = std.reshape(batch_size, self.num_flows)
+        flat_actions = actions  # (batch, num_flows)
+        dist = Normal(mean, std)
+        log_probs = dist.log_prob(flat_actions)   # (batch, num_flows)
+        entropies = dist.entropy()                # (batch, num_flows)
+        # Build flow mask: (batch, num_flows)
+        mask_data = torch.zeros(batch_size, self.num_flows,
+                                dtype=torch.float32, device=states.device)
+        for b, m in enumerate(masks):
+            for i in range(min(len(m), self.num_flows)):
+                if m[i]:
+                    mask_data[b, i] = 1.0
+        log_probs = log_probs * mask_data
+        entropies = (entropies * mask_data).mean()
         # Critic values
         states_flat = states.view(batch_size, -1)  # (batch, num_flows * num_features)
-        values = self.forward_critic(states_flat)
+        values = self.forward_critic(states_flat).squeeze(-1)
         return log_probs, values, entropies
 # Rollout Buffer
 class RolloutBuffer:
@@ -296,6 +299,7 @@ class PPOAgent:
         k_epochs=4,
         entropy_coeff=0.01,
         value_coeff=0.5,
+        device="auto",
     ):
         self.num_flows = num_flows
         self.gamma = gamma
@@ -304,9 +308,16 @@ class PPOAgent:
         self.k_epochs = k_epochs
         self.entropy_coeff = entropy_coeff
         self.value_coeff = value_coeff
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
+        if device == "auto":
+            if torch.cuda.is_available():
+                device_str = "cuda"
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                device_str = "mps"
+            else:
+                device_str = "cpu"
+        else:
+            device_str = device
+        self.device = torch.device(device_str)
         print(f"Using device: {self.device}")
         self.policy = ActorCritic(num_flows, NUM_FEATURES, hidden_dim).to(
             self.device
@@ -446,6 +457,16 @@ class PPOAgent:
             )
             self.optimizer.step()
             total_loss += loss.item()
+
+            # Check for NaN in parameters (training divergence).
+            # If detected, restore from old policy and abort this epoch.
+            has_nan = any(
+                torch.isnan(p).any() for p in self.policy.parameters()
+            )
+            if has_nan:
+                self.policy.load_state_dict(self.policy_old.state_dict())
+                print("  WARNING: NaN detected in parameters, reverting update")
+                break
         # Sync old policy
         self.policy_old.load_state_dict(self.policy.state_dict())
         return total_loss / self.k_epochs
@@ -508,6 +529,19 @@ def read_observations(env_msg):
             o.potentialTput,
         ]
         mask[i] = True
+    # Sanitize: replace NaN/inf with 0 to prevent propagation through the network
+    np.nan_to_num(obs, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+    # Normalize features to [0, ~1] for stable neural network training
+    # Skip rnti (idx 0) and lcId (idx 1): used as identifiers in write_actions()
+    # idx: 0=rnti, 1=lcId, 2=fiveQi, 3=priority, 4=holDelay,
+    #      5=cqi, 6=bsr, 7=avgTput, 8=potentialTput
+    obs[:, 2] /= 9.0        # fiveQi: QoS class, 1-9
+    obs[:, 3] /= 20.0       # priority: QoS priority, 1-20
+    obs[:, 4] = np.log1p(obs[:, 4]) / 10.0  # holDelay: ms, log-scale
+    obs[:, 5] /= 15.0       # cqi: channel quality, 0-15
+    obs[:, 6] = np.log1p(obs[:, 6]) / 20.0  # bsr: bytes, log-scale
+    obs[:, 7] /= 10.0       # avgTput: bit/sym, ~0-10
+    obs[:, 8] /= 10.0       # potentialTput: bit/sym, ~0-10
     return obs, num_flows, reward, is_finished, mask
 def write_actions(act_msg, actions, num_flows, obs):
     """
@@ -580,6 +614,7 @@ def main(args):
         gae_lambda=args.gae_lambda,
         eps_clip=args.eps_clip,
         k_epochs=args.k_epochs,
+        device=args.device,
     )
     if args.load_model and os.path.exists(args.load_model):
         agent.load(args.load_model)
@@ -666,6 +701,21 @@ def main(args):
                 )
     except KeyboardInterrupt:
         print("\n\nTraining interrupted by user (Ctrl+C).")
+    except Exception as exc:
+        # CRITICAL: An unhandled exception here (NaN ValueError) will
+        # trigger Python finalization, which runs the pybind11 destructor.
+        # The destructor calls CppSetFinished() to CppSendBegin() spinlock,
+        # which deadlocks both processes because C++ is blocked on
+        # CppRecvBegin (different channel).  We MUST use os._exit() to
+        # skip finalization entirely.
+        print(f"\nFATAL agent error: {exc}", file=sys.stderr)
+        try:
+            csv_file.close()
+        except Exception:
+            pass
+        # os._exit skips __del__, atexit, and finalize , avoids the
+        # pybind11 destructor spinlock deadlock.
+        os._exit(1)
     finally:
         # Save final model
         final_path = log_dir / "ppo_final.pt"
@@ -703,7 +753,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--gamma",
         type=float,
-        default=0.99,
+        default=0.9,
         help="Discount factor",
     )
     parser.add_argument(
@@ -748,6 +798,13 @@ if __name__ == "__main__":
         type=str,
         default="",
         help="Path to a saved model checkpoint to resume training",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        choices=["auto", "cpu", "cuda", "mps"],
+        help="PyTorch device (cpu is fastest for small models)",
     )
     args = parser.parse_args()
     main(args)

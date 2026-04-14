@@ -13,10 +13,11 @@ build_lib_example(
         ${libai}
         ${libflow-monitor}
 )
-# Build the pybind11 module only if Python development libs are available.
-# On macOS/Linux without python3-dev, this is safely skipped.
-find_package(Python COMPONENTS Development.Module QUIET)
-if(Python_Development.Module_FOUND)
+# Build the pybind11 module only if both Python dev and pybind11 are available.
+# pybind11_add_module needs python3_add_library from FindPython.
+find_package(Python REQUIRED COMPONENTS Interpreter Development QUIET)
+find_package(pybind11 CONFIG QUIET)
+if(pybind11_FOUND AND Python_Development_FOUND)
     pybind11_add_module(ns3ai_nr_sched_py nr_ai_sched_msg_py.cc)
     set_target_properties(ns3ai_nr_sched_py PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/)
@@ -24,7 +25,6 @@ if(Python_Development.Module_FOUND)
     add_dependencies(nr-ai-sched-msg ns3ai_nr_sched_py)
 else()
     message(WARNING
-        "Python Development.Module not found — "
-        "ns3ai_nr_sched_py pybind11 module will NOT be built. "
-        "Install python3-dev to enable it.")
+        "pybind11 or Python Development not found — "
+        "ns3ai_nr_sched_py module will NOT be built.")
 endif()

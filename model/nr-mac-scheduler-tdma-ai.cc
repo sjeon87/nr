@@ -156,7 +156,7 @@ NrMacSchedulerTdmaAi::GetUeRewardsDl(
     for (const auto& ue : ueVector)
     {
         auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAi>(ue.first);
-        reward += uePtr->GetDlReward();
+        reward += uePtr->GetDlRewardLyapunov();
     }
     return reward;
 }
@@ -170,7 +170,7 @@ NrMacSchedulerTdmaAi::GetUeRewardsUl(
     for (const auto& ue : ueVector)
     {
         auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAi>(ue.first);
-        reward += uePtr->GetUlReward();
+        reward += uePtr->GetUlRewardLyapunov();
     }
     return reward;
 }
