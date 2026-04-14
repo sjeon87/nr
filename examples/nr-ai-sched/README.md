@@ -2,11 +2,17 @@
 This example demonstrates AI-driven MAC scheduling in 5G NR using the
 `ns-3-ai` msg-interface (Boost shared memory IPC).
 ## Architecture
-  ┌──────────────────────────┐       shared memory       ┌──────────────────────┐
-  │  nr-ai-sched-msg (C++)   │ ←─── NrSchedEnvMsg ────→  │  nr_ai_sched_ppo.py  │
-  │                          │ ←─── NrSchedActMsg ────→  │  (PyTorch PPO)       │
-  │  NrMacSchedulerAiMsgEnv  │       (boost::ipc)        │  ns3ai_nr_sched_py   │
-  └──────────────────────────┘                           └──────────────────────┘
+
+**[ ns-3 Environment ]** `nr-ai-sched-msg (C++)` -> `NrMacSchedulerAiMsgEnv`
+      ↓ ↑
+      ↓ ↑ *(boost::ipc shared memory)*
+      ↓ ↑
+      * `NrSchedEnvMsg` (Sends perflow observations and rewards)
+      * `NrSchedActMsg` (Receives scheduling weights)
+      ↓ ↑
+      ↓ ↑
+**[ Python RL Agent ]**
+`ns3ai_nr_sched_py` -> `nr_ai_sched_ppo.py (PyTorch PPO)`
 ## Prerequisites
 - ns-3 (3.42+) with `contrib/nr` and `contrib/ai`
 - Boost (for shared memory)
