@@ -504,6 +504,19 @@ NrPhy::HasUlSlot() const
     return NrPhy::HasUlSlot(m_tddPattern);
 }
 
+uint64_t
+NrPhy::GetCurrentSlotInPattern() const
+{
+    NS_ABORT_MSG_IF(m_tddPattern.empty(), "TDD pattern is empty");
+    return GetCurrentSfnSf().Normalize() % m_tddPattern.size();
+}
+
+LteNrTddSlotType
+NrPhy::GetCurrentSlotType() const
+{
+    return m_tddPattern.at(GetCurrentSlotInPattern());
+}
+
 bool
 NrPhy::HasDlSlot(const std::vector<LteNrTddSlotType>& pattern)
 {

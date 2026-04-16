@@ -69,6 +69,7 @@ class NrRadioLinkFailureTestCase : public TestCase
      * @param gnbPositionList Position of the gNBs
      * @param ueJumpAwayPosition Vector holding the UE jump away coordinates
      * @param checkConnectedList the time at which UEs should have an active RRC connection
+     * @param setup the duplexing/pattern setup used by the test
      * @param enableUplinkTraffic if true, UEs will generate uplink traffic
      */
     NrRadioLinkFailureTestCase(uint32_t numGnbs,
@@ -93,6 +94,7 @@ class NrRadioLinkFailureTestCase : public TestCase
      * @param numBackgroundUes the number of the UE nodes connected normally throughput the
      * simulation, now RLF
      * @param isIdealRrc True if the Ideal RRC protocol is used
+     * @param setup the duplexing/pattern setup used by the test
      * @param enableUplinkTraffic True if the uplink traffic is enabled along with the DL traffic
      * @returns the name string
      */
@@ -228,7 +230,8 @@ class NrRadioLinkFailureTestCase : public TestCase
     std::vector<Time>
         m_checkConnectedList;    ///< the time at which UEs should have an active RRC connection
     Vector m_ueJumpAwayPosition; ///< Position where the UE(s) would jump
-    TestFddTddSetupType m_setup;
+    TestFddTddSetupType m_setup; ///< duplexing/pattern setup used by the test
+
     /// The current UE RRC state.
     NrUeRrc::State m_lastState;
 

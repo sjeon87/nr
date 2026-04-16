@@ -711,6 +711,12 @@ NrGnbPhy::QueueSib()
     EnqueueCtrlMsgNow(msg);
 }
 
+bool
+NrGnbPhy::IsDlCapableSlot(LteNrTddSlotType slotType) const
+{
+    return slotType != LteNrTddSlotType::UL;
+}
+
 void
 NrGnbPhy::CallMacForSlotIndication(const SfnSf& currentSlot)
 {
@@ -778,25 +784,40 @@ NrGnbPhy::StartSlot(const SfnSf& startSlot)
     {
         if (m_currentSlot.GetSlot() == 0)
         {
-            bool mibOrSib = false;
             if (m_currentSlot.GetSubframe() == 0) // send MIB at the beginning of each frame
             {
-                QueueMib();
-                mibOrSib = true;
+                m_pendingMib = true;
             }
             else if (m_currentSlot.GetSubframe() == 5) // send SIB at beginning of second half-frame
             {
-                QueueSib();
-                mibOrSib = true;
+                m_pendingSib = true;
             }
-            if (mibOrSib && !m_currSlotAllocInfo.ContainsDlCtrlAllocation())
+
+            const bool hasPendingSystemInfo = m_pendingMib || m_pendingSib;
+            const bool canSendSystemInfo =
+                hasPendingSystemInfo && IsDlCapableSlot(GetCurrentSlotType());
+            if (canSendSystemInfo)
             {
-                VarTtiAllocInfo dlCtrlSlot(m_phySapUser->GetDlCtrlDci());
-                m_currSlotAllocInfo.m_varTtiAllocInfo.push_front(dlCtrlSlot);
-                m_currSlotAllocInfo.m_numSymAlloc += m_phySapUser->GetDlCtrlSymbols();
-                NS_ASSERT_MSG(m_currSlotAllocInfo.m_numSymAlloc <= 14,
-                              "Invalid number of symbols: " << m_currSlotAllocInfo.m_numSymAlloc
-                                                            << " symbols. ");
+                if (!m_currSlotAllocInfo.ContainsDlCtrlAllocation())
+                {
+                    VarTtiAllocInfo dlCtrlSlot(m_phySapUser->GetDlCtrlDci());
+                    m_currSlotAllocInfo.m_varTtiAllocInfo.push_front(dlCtrlSlot);
+                    m_currSlotAllocInfo.m_numSymAlloc += m_phySapUser->GetDlCtrlSymbols();
+                    NS_ASSERT_MSG(m_currSlotAllocInfo.m_numSymAlloc <= 14,
+                                  "Invalid number of symbols: " << m_currSlotAllocInfo.m_numSymAlloc
+                                                                << " symbols. ");
+                }
+
+                if (m_pendingMib)
+                {
+                    QueueMib();
+                    m_pendingMib = false;
+                }
+                if (m_pendingSib)
+                {
+                    QueueSib();
+                    m_pendingSib = false;
+                }
             }
         }
     }
