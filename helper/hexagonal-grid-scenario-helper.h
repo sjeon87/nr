@@ -134,6 +134,8 @@ class HexagonalGridScenarioHelper : public NodeDistributionScenarioInterface
      */
     Ptr<WraparoundModel> GetWraparoundModel() const;
 
+    void InstallPicoCells(bool installPicoCells);
+
   private:
     uint8_t m_numRings{0}; //!< Number of outer rings of sites around the central site
     Vector m_centralPos{Vector(0, 0, 0)}; //!< Central site position
@@ -153,6 +155,10 @@ class HexagonalGridScenarioHelper : public NodeDistributionScenarioInterface
 
     bool m_installWraparound{false};   //!< Whether to install wraparound model
     Ptr<WraparoundModel> m_wraparound; //!< Pointer to wraparound model, if set
+
+    //!< Whether to install pico-cells according to TR 36.839, used for large-scale handover
+    //!< evaluation
+    bool m_installPicoCells{false};
 };
 
 } // namespace ns3

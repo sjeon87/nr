@@ -217,7 +217,8 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
     bool enableSubbandScheluder,
     bool m_subbandCqiClamping,
     EnumValue<NrMacSchedulerUeInfo::McsCsiSource> m_mcsCsiSource,
-    Ptr<WraparoundModel> wraparoundModel)
+    Ptr<WraparoundModel> wraparoundModel,
+    NodeContainer& picoGnbNodes)
 {
     /*
      * Create the radio network related parameters
@@ -879,6 +880,86 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
     ueSector3NetDev = nrHelper->InstallUeDevice(ueSector3Container, sector3Bwps);
     ueNetDevs.Add(ueSector3NetDev);
 
+    NetDeviceContainer picoGnbNetDev;
+    if (picoGnbNodes.GetN() > 0)
+    {
+        // Reuse the same BWPs as the deployment you want to mimic.
+        // If pico cells belong to sector 1 band plan, sector1Bwps is a reasonable default.
+        // For overlapping deployments all sectors already use the same BWPs.
+        BandwidthPartInfoPtrVector picoBwps = sector1Bwps;
+
+        // Force pico behavior:
+        // - isotropic antenna element
+        // - omni beamforming
+        gnbEnable3gppElement = false;
+        bfMethod = "Omni";
+
+        // Re-apply the pico-specific antenna element on the helper
+        nrHelper->SetGnbAntennaAttribute("NumRows", UintegerValue(gnbNumRows));
+        nrHelper->SetGnbAntennaAttribute("NumColumns", UintegerValue(gnbNumColumns));
+        nrHelper->SetGnbAntennaAttribute("AntennaHorizontalSpacing", DoubleValue(gnbHSpacing));
+        nrHelper->SetGnbAntennaAttribute("AntennaVerticalSpacing", DoubleValue(gnbVSpacing));
+        nrHelper->SetGnbAntennaAttribute("DowntiltAngle",
+                                         DoubleValue(downtiltAngle * M_PI / 180.0));
+        nrHelper->SetGnbAntennaAttribute("IsDualPolarized", BooleanValue(dualPolarizedGnb));
+        nrHelper->SetGnbAntennaAttribute("PolSlantAngle",
+                                         DoubleValue(PolSlantAngleGnb * M_PI / 180.0));
+        nrHelper->SetGnbAntennaAttribute("NumVerticalPorts", UintegerValue(numVPortsGnb));
+        nrHelper->SetGnbAntennaAttribute("NumHorizontalPorts", UintegerValue(numHPortsGnb));
+        nrHelper->SetGnbAntennaAttribute("AntennaElement",
+                                         PointerValue(CreateObject<IsotropicAntennaModel>()));
+
+        // If fading/beamforming is enabled, force omni beamforming method for pico nodes
+        if (enableFading)
+        {
+            beamformingHelper->SetBeamformingMethod(QuasiOmniDirectPathBeamforming::GetTypeId());
+        }
+
+        // Install pico gNB devices with same general NR settings as macros
+        picoGnbNetDev = nrHelper->InstallGnbDevice(picoGnbNodes, picoBwps);
+
+        // Configure pico PHYs:
+        // use same numerology / tx power / pattern,
+        // but set horizontal bearing to 0 rad (or any pico azimuth you prefer)
+        for (uint32_t i = 0; i < picoGnbNetDev.GetN(); ++i)
+        {
+            Ptr<NetDevice> gnb = picoGnbNetDev.Get(i);
+            uint32_t numBwps = NrHelper::GetNumberBwp(gnb);
+
+            // Horizontal orientation = 0 rad for omni pico
+            double picoOrientation = 0.0;
+
+            ConfigurePhy(nrHelper,
+                         gnb,
+                         picoOrientation,
+                         numerology,
+                         txPowerBs,
+                         pattern,
+                         0,
+                         gnbFirstSubArray,
+                         gnbSecondSubArray,
+                         beamConfSector,
+                         beamConfElevation);
+
+            if (numBwps == 2)
+            {
+                ConfigurePhy(nrHelper,
+                             gnb,
+                             picoOrientation,
+                             numerology,
+                             txPowerBs,
+                             pattern,
+                             1,
+                             gnbFirstSubArray,
+                             gnbSecondSubArray,
+                             beamConfSector,
+                             beamConfElevation);
+
+                NrHelper::GetBwpManagerGnb(gnb)->SetOutputLink(1, 0);
+            }
+        }
+    }
+
     int64_t randomStream = 1;
     randomStream += nrHelper->AssignStreams(gnbSector1NetDev, randomStream);
     randomStream += nrHelper->AssignStreams(gnbSector2NetDev, randomStream);
@@ -886,6 +967,7 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
     randomStream += nrHelper->AssignStreams(ueSector1NetDev, randomStream);
     randomStream += nrHelper->AssignStreams(ueSector2NetDev, randomStream);
     randomStream += nrHelper->AssignStreams(ueSector3NetDev, randomStream);
+    randomStream += nrHelper->AssignStreams(picoGnbNetDev, randomStream);
 
     // Sectors (cells) of a site are pointing at different directions
     std::vector<double> sectorOrientationRad{

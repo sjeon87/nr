@@ -10,7 +10,9 @@
 #include "ns3/hexagonal-wraparound-model.h"
 #include "ns3/mobility-helper.h"
 
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace ns3
 {
@@ -384,113 +386,7 @@ HexagonalGridScenarioHelper::InstallWraparound(bool installWraparoundModel)
 void
 HexagonalGridScenarioHelper::CreateScenario()
 {
-    m_hexagonalRadius = m_isd / 3;
-
-    m_bs.Create(m_numBs);
-    m_ut.Create(m_numUt);
-
-    NS_ASSERT(m_isd > 0);
-    NS_ASSERT(m_numRings < 6);
-    NS_ASSERT(m_hexagonalRadius > 0);
-    NS_ASSERT(m_bsHeight >= 0.0);
-    NS_ASSERT(m_utHeight >= 0.0);
-    NS_ASSERT(m_bs.GetN() > 0);
-    NS_ASSERT(m_ut.GetN() > 0);
-
-    MobilityHelper mobility;
-    Ptr<ListPositionAllocator> bsPosVector = CreateObject<ListPositionAllocator>();
-    Ptr<ListPositionAllocator> bsCenterVector = CreateObject<ListPositionAllocator>();
-    Ptr<ListPositionAllocator> sitePosVector = CreateObject<ListPositionAllocator>();
-    Ptr<ListPositionAllocator> utPosVector = CreateObject<ListPositionAllocator>();
-
-    Ptr<HexagonalWraparoundModel> wraparound = nullptr;
-    if (m_installWraparound)
-    {
-        wraparound = CreateObject<HexagonalWraparoundModel>(m_isd, GetNumSites());
-    }
-
-    // BS position
-    for (std::size_t cellId = 0; cellId < m_numBs; cellId++)
-    {
-        uint16_t siteIndex = GetSiteIndex(cellId);
-        Vector sitePos(m_centralPos);
-        const double dist = siteDistances.at(siteIndex);
-        const double angleRad = siteAngles.at(siteIndex) * M_PI / 180;
-        sitePos.x += m_isd * dist * cos(angleRad);
-        sitePos.y += m_isd * dist * sin(angleRad);
-        sitePos.z = m_bsHeight;
-
-        if (GetSectorIndex(cellId) == 0)
-        {
-            sitePosVector->Add(sitePos);
-            if (wraparound)
-            {
-                wraparound->AddSitePosition(sitePos);
-            }
-        }
-
-        // FIXME: Until sites can have more than one antenna array, it is necessary to apply some
-        // distance offset from the site center (gNBs cannot have the same location)
-        Vector bsPos = GetAntennaPosition(sitePos, cellId);
-
-        bsPosVector->Add(bsPos);
-
-        // Store cell center position for plotting the deployment
-        Vector cellCenterPos = GetHexagonalCellCenter(bsPos, cellId);
-        bsCenterVector->Add(cellCenterPos);
-
-        // What about the antenna orientation? It should be dealt with when installing the gNB
-    }
-
-    // To allocate UEs, I need the center of the hexagonal cell.
-    // Allocate UE around the disk of radius isd/3, the diameter of a the
-    // hexagon representing the footprint of a single sector.
-    // Reduce this radius by the min BS-UT distance, to respect that standoff
-    // at the one corner of the sector hexagon where the sector antenna lies.
-    // This results in UTs uniformly distributed in a disc centered on
-    // the sector hexagon; there are no UTs near the vertices of the hexagon.
-    // Spread UEs inside the inner hexagonal radius
-    // Need to weight r to get uniform in the sector hexagon
-    // See https://stackoverflow.com/questions/5837572
-    // Set max = radius^2 here, then take sqrt below
-    const double outerR = (std::sqrt(3) / 2) * m_hexagonalRadius - m_minBsUtDistance;
-    m_r->SetAttribute("Min", DoubleValue(0));
-    m_r->SetAttribute("Max", DoubleValue(outerR * outerR));
-    m_theta->SetAttribute("Min", DoubleValue(-1.0 * M_PI));
-    m_theta->SetAttribute("Max", DoubleValue(M_PI));
-
-    // UT position
-
-    for (uint32_t utId = 0; utId < m_ut.GetN(); ++utId)
-    {
-        double d = std::sqrt(m_r->GetValue());
-        double t = m_theta->GetValue();
-
-        // Vector utPos (cellCenterPos);
-        Vector utPos(bsCenterVector->GetNext());
-        utPos.x += d * cos(t);
-        utPos.y += d * sin(t);
-        utPos.z = m_utHeight;
-
-        utPosVector->Add(utPos);
-    }
-
-    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-    mobility.SetPositionAllocator(bsPosVector);
-    mobility.Install(m_bs);
-
-    mobility.SetPositionAllocator(utPosVector);
-    mobility.Install(m_ut);
-    if (m_installWraparound)
-    {
-        m_wraparound = wraparound;
-    }
-    PlotHexagonalDeployment(sitePosVector,
-                            bsCenterVector,
-                            utPosVector,
-                            m_hexagonalRadius,
-                            m_resultsDir,
-                            m_simTag);
+    CreateScenarioWithMobility(Vector(0, 0, 0), Vector(0, 0, 0), 0);
 }
 
 void
@@ -518,6 +414,7 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
     MobilityHelper mobility;
     MobilityHelper ueMobility;
     Ptr<ListPositionAllocator> bsPosVector = CreateObject<ListPositionAllocator>();
+    Ptr<ListPositionAllocator> picoBsPosVector = CreateObject<ListPositionAllocator>();
     Ptr<ListPositionAllocator> bsCenterVector = CreateObject<ListPositionAllocator>();
     Ptr<ListPositionAllocator> sitePosVector = CreateObject<ListPositionAllocator>();
     Ptr<ListPositionAllocator> utPosVector = CreateObject<ListPositionAllocator>();
@@ -560,6 +457,63 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         bsCenterVector->Add(cellCenterPos);
 
         // What about the antenna orientation? It should be dealt with when installing the gNB
+    }
+
+    // Install mobility model of macro cells
+    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    mobility.SetPositionAllocator(bsPosVector);
+    mobility.Install(m_bs);
+
+    // Install mobility model of pico cells
+    if (m_installPicoCells)
+    {
+        std::vector<Vector3D> picoCellCoordinate;
+        for (std::size_t cellId = 0; cellId < m_numBs; cellId++)
+        {
+            uint16_t siteIndex = GetSiteIndex(cellId);
+            if (GetSectorIndex(cellId) != 0)
+            {
+                continue;
+            }
+            // Compute site position from hex grid definition
+            Vector sitePos(m_centralPos);
+            const double dist = siteDistances.at(siteIndex);
+            const double angleRad = siteAngles.at(siteIndex) * M_PI / 180.0;
+            sitePos.x += m_isd * dist * std::cos(angleRad);
+            sitePos.y += m_isd * dist * std::sin(angleRad);
+            sitePos.z = m_bsHeight;
+            // Six pico cells around the site, every 60 degrees
+            const double picoRadius = m_isd / 2;
+            const double eps = 1e-6; // only for exact-duplicate protection
+
+            for (uint8_t picoCellOffset = 0; picoCellOffset < 6; ++picoCellOffset)
+            {
+                const double ang = (30.0 + picoCellOffset * 60.0) * M_PI / 180.0;
+
+                Vector picoCellPos(sitePos);
+                picoCellPos.x += picoRadius * std::cos(ang);
+                picoCellPos.y += picoRadius * std::sin(ang);
+                picoCellPos.z = m_bsHeight;
+
+                // Optional: avoid exact duplicates due to floating point
+                auto it = std::find_if(picoCellCoordinate.begin(),
+                                       picoCellCoordinate.end(),
+                                       [eps, &picoCellPos](const Vector3D& a) {
+                                           return CalculateDistance(a, picoCellPos) < eps;
+                                       });
+
+                if (it == picoCellCoordinate.end())
+                {
+                    picoCellCoordinate.push_back(picoCellPos);
+                    picoBsPosVector->Add(picoCellPos);
+                }
+            }
+        }
+        m_picoBs.Create(picoCellCoordinate.size());
+
+        mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+        mobility.SetPositionAllocator(picoBsPosVector);
+        mobility.Install(m_picoBs);
     }
 
     // To allocate UEs, I need the center of the hexagonal cell.
@@ -645,10 +599,6 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         utPosVector->Add(utPos);
     }
 
-    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-    mobility.SetPositionAllocator(bsPosVector);
-    mobility.Install(m_bs);
-
     if (indoorUeSpeed.GetLength() || outdoorUeSpeed.GetLength())
     {
         if (mobilityModel == "ns3::ConstantVelocityMobilityModel")
@@ -724,4 +674,9 @@ HexagonalGridScenarioHelper::GetWraparoundModel() const
     return m_wraparound;
 }
 
+void
+HexagonalGridScenarioHelper::InstallPicoCells(bool installPicoCells)
+{
+    m_installPicoCells = installPicoCells;
+}
 } // namespace ns3

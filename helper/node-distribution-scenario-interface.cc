@@ -20,6 +20,12 @@ NodeDistributionScenarioInterface::GetBaseStations() const
 }
 
 const NodeContainer&
+NodeDistributionScenarioInterface::GetPicoBaseStations() const
+{
+    return m_picoBs;
+}
+
+const NodeContainer&
 NodeDistributionScenarioInterface::GetUserTerminals() const
 {
     return m_ut;

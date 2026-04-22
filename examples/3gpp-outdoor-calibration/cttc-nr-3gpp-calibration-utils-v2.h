@@ -103,7 +103,8 @@ class LenaV2Utils
         bool enableSubbandScheluder,
         bool m_subbandCqiClamping,
         EnumValue<NrMacSchedulerUeInfo::McsCsiSource> m_mcsCsiSource,
-        Ptr<WraparoundModel> wraparoundModel);
+        Ptr<WraparoundModel> wraparoundModel,
+        NodeContainer& picoGnbNodes);
 
     static void ReportSinrNr(SinrOutputStats* stats,
                              uint16_t cellId,
