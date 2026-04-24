@@ -336,6 +336,8 @@ NrRadioEnvironmentMapHelper::CopyAntenna(Ptr<UniformPlanarArray> antenna) const
         ok = copy->SetAttributeFailSafe(attrName, *attrValue);
         NS_ASSERT_MSG(ok, "Failed to copy an attribute " << attrName);
     }
+    copy->SetAntennaElement(
+        ConstCast<AntennaModel, const AntennaModel>(antenna->GetAntennaElement()));
     copy->SetBeamformingVector(antenna->GetBeamformingVector());
     return copy;
 }
@@ -1175,10 +1177,10 @@ NrRadioEnvironmentMapHelper::PrintProgressReport(uint32_t* remSizeNextReport)
     double minutesUpToNow = ((double)remElapsedSecondsUpToNow.count()) / 60;
     double minutesLeftEstimated =
         ((double)(minutesUpToNow) / *remSizeNextReport) * ((m_rem.size() - *remSizeNextReport));
-    std::cout << "\n REM done:" << ceil(((double)*remSizeNextReport / m_rem.size()) * 100) << " %."
+    std::cout << " REM done:" << ceil(((double)*remSizeNextReport / m_rem.size()) * 100) << " %."
               << " Minutes up to now: " << minutesUpToNow
               << ". Minutes left estimated:" << minutesLeftEstimated
-              << "."; // how many times will be called CalcRxPsdValues
+              << ".\n"; // how many times will be called CalcRxPsdValues
     // we want progress report for 1%, 10%, 20%, 30%, and so on
     if (*remSizeNextReport < m_rem.size() / 10)
     {
