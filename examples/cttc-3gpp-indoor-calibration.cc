@@ -928,7 +928,7 @@ main(int argc, char* argv[])
                  "of traces",
                  duration);
     cmd.AddValue("enableGnbIso", "Enable Isotropic antenna for the gNB", enableGnbIso);
-    cmd.AddValue("enableGnbIso", "Enable Isotropic antenna for the UE", enableUeIso);
+    cmd.AddValue("enableUeIso", "Enable Isotropic antenna for the UE", enableUeIso);
     cmd.AddValue("indoorScenario",
                  "The indoor scenario to be used can be: InH-OfficeMixed or InH-OfficeOpen",
                  indoorScenario);
