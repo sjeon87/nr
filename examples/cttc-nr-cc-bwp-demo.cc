@@ -130,11 +130,11 @@ main(int argc, char* argv[])
     cmd.AddValue("centralFrequencyCc0",
                  "The system frequency to be used in CC 0",
                  centralFrequencyCc0);
-    cmd.AddValue("bandwidthBand", "The system bandwidth to be used in CC 0", bandwidthCc0);
+    cmd.AddValue("bandwidthBand0", "The system bandwidth to be used in CC 0", bandwidthCc0);
     cmd.AddValue("centralFrequencyCc1",
                  "The system frequency to be used in CC 1",
                  centralFrequencyCc1);
-    cmd.AddValue("bandwidthBand", "The system bandwidth to be used in CC 1", bandwidthCc1);
+    cmd.AddValue("bandwidthBand1", "The system bandwidth to be used in CC 1", bandwidthCc1);
     cmd.AddValue("numerologyCc0Bwp0", "Numerlogy to be used in CC 0, BWP 0", numerologyCc0Bwp0);
     cmd.AddValue("numerologyCc0Bwp1", "Numerlogy to be used in CC 0, BWP 1", numerologyCc0Bwp1);
     cmd.AddValue("numerologyCc1Bwp0", "Numerlogy to be used in CC 1, BWP 0", numerologyCc1Bwp0);
