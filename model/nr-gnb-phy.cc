@@ -25,6 +25,7 @@
 #include "ns3/node.h"
 #include "ns3/object-vector.h"
 #include "ns3/pointer.h"
+#include "ns3/shuffle.h"
 #include "ns3/uinteger.h"
 
 #include <algorithm>
@@ -48,6 +49,7 @@ NrGnbPhy::NrGnbPhy()
     NS_LOG_FUNCTION(this);
     m_gnbCphySapProvider = new MemberNrGnbCphySapProvider<NrGnbPhy>(this);
     m_nrFhPhySapUser = new MemberNrFhPhySapUser<NrGnbPhy>(this);
+    m_fhRng = CreateObject<UniformRandomVariable>();
 }
 
 NrGnbPhy::~NrGnbPhy()
@@ -1127,8 +1129,7 @@ NrGnbPhy::HandleFhDropping()
     std::vector<size_t> shuffledIndexes(m_currSlotAllocInfo.m_varTtiAllocInfo.size());
     std::iota(shuffledIndexes.begin(), shuffledIndexes.end(), 0); // Fill with 0, 1, …, n-1
     // Shuffle the indexes to randomize the order of processing
-    auto rng = std::default_random_engine{};
-    std::shuffle(shuffledIndexes.begin(), shuffledIndexes.end(), rng);
+    Shuffle(shuffledIndexes.begin(), shuffledIndexes.end(), m_fhRng);
     // Example usage: Access elements using shuffled indexes
     for (size_t index : shuffledIndexes)
     {
@@ -2177,6 +2178,14 @@ NrGnbPhy::ChannelAccessLost()
     NS_LOG_FUNCTION(this);
     NS_LOG_INFO("Channel access lost");
     m_channelStatus = NONE;
+}
+
+int64_t
+NrGnbPhy::AssignStreams(int64_t stream)
+{
+    NS_LOG_FUNCTION(this << stream);
+    m_fhRng->SetStream(stream);
+    return 1 + GetSpectrumPhy()->AssignStreams(stream + 1);
 }
 
 } // namespace ns3
