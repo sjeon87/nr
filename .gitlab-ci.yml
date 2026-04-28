@@ -119,6 +119,8 @@ per-commit-gcc-default:
   variables:
     MODE: default
     COMPILER: g++
+  tags:
+    - CTTC
 
 per-commit-gcc-optimized-no-lte:
   extends: .base-per-commit-compile
