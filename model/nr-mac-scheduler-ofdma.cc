@@ -482,7 +482,7 @@ NrMacSchedulerOfdma::AssignDLRBG(uint32_t symAvail, const ActiveUeMap& activeDl)
             // remainingRbgSet.size()).
 
             // Now we need to check if there is a UE with less than the minimal TBS.
-            std::sort(ueVector.begin(), ueVector.end(), [](auto a, auto b) {
+            std::stable_sort(ueVector.begin(), ueVector.end(), [](auto a, auto b) {
                 GetFirst GetUe;
                 return GetUe(a)->m_dlTbSize > GetUe(b)->m_dlTbSize;
             });

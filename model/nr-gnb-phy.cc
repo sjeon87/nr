@@ -1170,7 +1170,7 @@ NrGnbPhy::HandleFhDropping()
     }
 
     // Sort indexesToDelete in ascending order
-    std::sort(indexesToDelete.begin(), indexesToDelete.end());
+    std::stable_sort(indexesToDelete.begin(), indexesToDelete.end());
 
     // Delete elements in reverse order to avoid invalidating indexes
     for (auto it = indexesToDelete.rbegin(); it != indexesToDelete.rend(); ++it)
