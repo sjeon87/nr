@@ -28,6 +28,7 @@ class NrChAccessManager;
 class BeamManager;
 class NrFhPhySapUser;
 class NrFhPhySapProvider;
+class UniformRandomVariable;
 
 /**
  *
@@ -815,6 +816,11 @@ class NR_EXPORT NrGnbPhy : public NrPhy
      */
     void FillTheEvent();
 
+    /**
+     * @brief Assign PHY and spectrumPhy random streams.
+     */
+    int64_t AssignStreams(int64_t stream);
+
   private:
     NrGnbPhySapUser* m_phySapUser{nullptr}; //!< MAC SAP user pointer, MAC is user of services of
                                             //!< PHY, implements e.g. ReceiveRachPreamble
@@ -936,6 +942,9 @@ class NR_EXPORT NrGnbPhy : public NrPhy
 
     //!< Flag meant for test if RACH preamble discarding during handover
     bool m_testDropRachPreambles{false};
+
+    mutable Ptr<UniformRandomVariable>
+        m_fhRng; //!< Random distribution for fronthaul management shuffling
 };
 
 } // namespace ns3

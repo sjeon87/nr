@@ -16,6 +16,7 @@
 namespace ns3
 {
 class NrSchedOfdmaSymbolPerBeamTestCase;
+class UniformRandomVariable;
 
 /**
  * @ingroup scheduler
@@ -116,6 +117,11 @@ class NR_EXPORT NrMacSchedulerOfdma : public NrMacSchedulerTdma
         ROUND_ROBIN, //!< Distributes all symbols to the first active beam in the m_rrBeams queue
         PROPORTIONAL_FAIR //!< Distributes symbols to beams proportionally to mean achievable rate
     };
+
+    /**
+     * @brief Assign OFDMA and parent random streams.
+     */
+    int64_t AssignStreams(int64_t stream) override;
 
   private:
     /**
@@ -254,6 +260,10 @@ class NR_EXPORT NrMacSchedulerOfdma : public NrMacSchedulerTdma
 
     SymPerBeamType m_symPerBeamType; //!< Holds the type of symbol scheduling done for each beam
     Ptr<NrMacSchedulerOfdmaSymbolPerBeam> m_symPerBeam; //!< Holds a symbol per beam allocator
+
+    mutable Ptr<UniformRandomVariable>
+        m_fhRng; //!< Random distribution for fronthaul management shuffling
+
     /// Make it friend of the test case, so that the test case can access m_symPerBeam
     friend class NrSchedOfdmaSymbolPerBeamTestCase;
     friend class NrSchedOfdmaMcsTestCase;

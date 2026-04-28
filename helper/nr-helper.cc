@@ -1465,7 +1465,7 @@ NrHelper::AssignStreams(NetDeviceContainer c, int64_t stream)
         {
             for (uint32_t bwp = 0; bwp < nrGnb->GetCcMapSize(); bwp++)
             {
-                currentStream += nrGnb->GetPhy(bwp)->GetSpectrumPhy()->AssignStreams(currentStream);
+                currentStream += nrGnb->GetPhy(bwp)->AssignStreams(currentStream);
                 currentStream += nrGnb->GetScheduler(bwp)->AssignStreams(currentStream);
                 currentStream +=
                     DoAssignStreamsToChannelObjects(nrGnb->GetPhy(bwp)->GetSpectrumPhy(),
