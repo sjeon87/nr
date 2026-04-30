@@ -13,12 +13,13 @@ namespace ns3
  * @ingroup scheduler
  * @brief UE representation for a AI-based scheduler
  *
- * The representation stores the weights of a UE, which are also referred to as actions in the RL
- * model, in response to sending the predefined observation. The observation is a vector of
- * LcObservation, each representing an observation of a flow. In addition to RL-related operations,
- * it updates the metrics in NrMacSchedulerUeInfoQos by inheriting from the NrMacSchedulerUeInfoQos
- * class. In resource allocation per symbol, we can design the reward function of a UE using the QoS
- * metrics.
+ * The representation stores the weights of a UE, which are also referred to as
+ * actions in the RL model, in response to sending the predefined observation.
+ * The observation is a vector of LcObservation, each representing an
+ * observation of a flow. In addition to RL-related operations, it updates the
+ * metrics in NrMacSchedulerUeInfoQos by inheriting from the
+ * NrMacSchedulerUeInfoQos class. In resource allocation per symbol, we can
+ * design the reward function of a UE using the QoS metrics.
  *
  * @see LcObservation
  * @see Weights
@@ -60,8 +61,8 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @struct LcObservation
      * @brief A struct for an observation of a flow
      *
-     * A struct for an observation of a flow that stores the RNTI, LCG ID, LC ID, 5QI, priority, and
-     * head-of-line delay of the flow.
+     * A struct for an observation of a flow that stores the RNTI, LCG ID, LC ID,
+     * 5QI, priority, and head-of-line delay of the flow.
      */
     struct LcObservation
     {
@@ -70,6 +71,10 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
         uint8_t fiveQi;
         uint8_t priority;
         uint16_t holDelay;
+        float cqi;           ///< Wideband CQI
+        float bsr;           ///< Buffer Status Report
+        float avgTput;       ///< Historical average throughput (bit/symbol)
+        float potentialTput; ///< Instantaneous achievable rate (bit/symbol)
     };
 
     /**
@@ -125,9 +130,10 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @param ue the UE
      * @return a vector of LcObservation with the current observation
      *
-     * Get the current observation for downlink by iterating over the active LCs of the UE.
-     * The observation is stored in a vector of LcObservation and each consists of the RNTI,
-     * LCG ID, LC ID, 5QI, priority, and head-of-line delay of the flow.
+     * Get the current observation for downlink by iterating over the active LCs
+     * of the UE. The observation is stored in a vector of LcObservation and each
+     * consists of the RNTI, LCG ID, LC ID, 5QI, priority, and head-of-line delay
+     * of the flow.
      */
     std::vector<LcObservation> GetDlObservation();
 
@@ -136,9 +142,10 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @param ue the UE
      * @return a vector of LcObservation with the current observation
      *
-     * Get the current observation for uplink by iterating over the active LCs of the UE.
-     * The observation is stored in a vector of LcObservation and each consists of the RNTI,
-     * LCG ID, LC ID, 5QI, priority, and head-of-line delay of the flow.
+     * Get the current observation for uplink by iterating over the active LCs of
+     * the UE. The observation is stored in a vector of LcObservation and each
+     * consists of the RNTI, LCG ID, LC ID, 5QI, priority, and head-of-line delay
+     * of the flow.
      */
     std::vector<LcObservation> GetUlObservation();
 
@@ -147,9 +154,9 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @param weights The weights assigned to a UE
      *
      * Update m_weights by copying the weights assigned to a UE.
-     * The weights consist of an unordered_map of (key, value) pairs where the lcId is the key,
-     * and the weight of the lcId is the value. The higher the weight, the
-     * higher the priority of the flow in scheduling.
+     * The weights consist of an unordered_map of (key, value) pairs where the
+     * lcId is the key, and the weight of the lcId is the value. The higher the
+     * weight, the higher the priority of the flow in scheduling.
      */
     void UpdateDlWeights(Weights& weights);
 
@@ -158,9 +165,10 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @param weights the weights assigned to a UE
      *
      * Update m_weights by copying the weights assigned to a UE.
-     * The weights consist of an unordered_map of (key, value) pairs where the combination of lcgId
-     * and lcId is the key, and the weight of the lcId is the value. The higher the weight, the
-     * higher the priority of the flow in scheduling.
+     * The weights consist of an unordered_map of (key, value) pairs where the
+     * combination of lcgId and lcId is the key, and the weight of the lcId is the
+     * value. The higher the weight, the higher the priority of the flow in
+     * scheduling.
      */
     void UpdateUlWeights(Weights& weights);
 
@@ -168,15 +176,16 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @brief Get the reward for downlink
      * @return The reward for the downlink
      *
-     * Calculate the reward for the downlink based on the latest observation and the given weights.
-     * The reward is calculated as the sum of the rewards of the active LCs.
-     * The reward for an LC \( i \) is calculated as
-     * \f$ \text{reward}_{i} = \frac{\text{std::pow}(\text{potentialTput}, \alpha)}{\max(1E-9,
-     * \text{avgTput})} \times P_{i} \times \text{HOL}_{i} \f$.
+     * Calculate the reward for the downlink based on the latest observation and
+     * the given weights. The reward is calculated as the sum of the rewards of
+     * the active LCs. The reward for an LC \( i \) is calculated as \f$
+     * \text{reward}_{i} = \frac{\text{std::pow}(\text{potentialTput},
+     * \alpha)}{\max(1E-9, \text{avgTput})} \times P_{i} \times \text{HOL}_{i}
+     * \f$.
      *
-     * @alpha is a fairness metric. \( P \) is the priority associated with the 5QI.
-     * HOL is the head-of-line delay of the LC.
-     * Please note that the throughput is calculated in bit/symbol.
+     * @alpha is a fairness metric. \( P \) is the priority associated with the
+     * 5QI. HOL is the head-of-line delay of the LC. Please note that the
+     * throughput is calculated in bit/symbol.
      */
     float GetDlReward();
 
@@ -184,22 +193,44 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @brief Get the reward for uplink
      * @return The reward for the uplink
      *
-     * Calculate the reward for the uplink based on the latest observation and the given weights.
-     * The reward is calculated as the sum of the rewards of the active LCs.
-     * The reward for an LC \( i \) is calculated as
-     * \f$ \text{reward}_{i} = \frac{\text{std::pow}(\text{potentialTput}, \alpha)}{\max(1E-9,
-     * \text{avgTput})} \times P_{i} \times \text{HOL}_{i} \f$.
+     * Calculate the reward for the uplink based on the latest observation and the
+     * given weights. The reward is calculated as the sum of the rewards of the
+     * active LCs. The reward for an LC \( i \) is calculated as \f$
+     * \text{reward}_{i} = \frac{\text{std::pow}(\text{potentialTput},
+     * \alpha)}{\max(1E-9, \text{avgTput})} \times P_{i} \times \text{HOL}_{i}
+     * \f$.
      *
-     * @alpha is a fairness metric. \( P \) is the priority associated with the 5QI.
-     * HOL is the head-of-line delay of the LC.
-     * Please note that the throughput is calculated in bit/symbol.
+     * @alpha is a fairness metric. \( P \) is the priority associated with the
+     * 5QI. HOL is the head-of-line delay of the LC. Please note that the
+     * throughput is calculated in bit/symbol.
      */
     float GetUlReward();
 
     /**
+     * @brief Get the Lyapunov based reward for downlink.
+     * @param lambda dynamic scaling factor for URLLC penalty
+     * @return the Lyapunov reward
+     *
+     * Implements the reward from [Constrained Risk Sensitive DRL, IEEE TWC 2024]
+     * \f$ R = \sum_{i \in eMBB} \log(\bar{R}_i)
+     *       - \lambda \sum_{j \in URLLC} \max(0, D_j - PDB_j)^2 \f$
+     *
+     * The log sum over eMBB throughput ensures proportional fairness.
+     * The squared delay penalty creates a strong gradient near deadlines.
+     */
+    float GetDlRewardLyapunov(float lambda = 1.0f);
+
+    /**
+     * @brief Get the Lyapunov based reward for uplink.
+     * @param lambda dynamic scaling factor for URLLC penalty
+     * @return the Lyapunov reward
+     */
+    float GetUlRewardLyapunov(float lambda = 1.0f);
+
+    /**
      * @brief comparison function object (i.e. an object that satisfies the
-     * requirements of Compare) which returns ​true if the first argument is less
-     * than (i.e. is ordered before) the second.
+     * requirements of Compare) which returns ​true if the first argument is
+     * less than (i.e. is ordered before) the second.
      * @param lue Left UE
      * @param rue Right UE
      * @return true if the AI metric of the left UE is higher than the right UE
@@ -220,9 +251,9 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @param ue the UE
      * @return the weight of the UE
      *
-     * Calculate the weight of a UE in the downlink by iterating over the active LCs of the UE.
-     * The weight is calculated as the sum of the weights of the active LCs.
-     * The weight of an LC is retrieved from the m_weightsDl map.
+     * Calculate the weight of a UE in the downlink by iterating over the active
+     * LCs of the UE. The weight is calculated as the sum of the weights of the
+     * active LCs. The weight of an LC is retrieved from the m_weightsDl map.
      */
     static double CalculateDlWeight(const NrMacSchedulerNs3::UePtrAndBufferReq& ue)
     {
@@ -246,8 +277,8 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
 
     /**
      * @brief comparison function object (i.e. an object that satisfies the
-     * requirements of Compare) which returns ​true if the first argument is less
-     * than (i.e. is ordered before) the second.
+     * requirements of Compare) which returns ​true if the first argument is
+     * less than (i.e. is ordered before) the second.
      * @param lue Left UE
      * @param rue Right UE
      * @return true if the AI metric of the left UE is higher than the right UE
@@ -268,9 +299,9 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * @param ue the UE
      * @return the weight of the UE
      *
-     * Calculate the weight of a UE in the uplink by iterating over the active LCs of the UE.
-     * The weight is calculated as the sum of the weights of the active LCs.
-     * The weight of an LC is retrieved from the m_weightsUl map.
+     * Calculate the weight of a UE in the uplink by iterating over the active LCs
+     * of the UE. The weight is calculated as the sum of the weights of the active
+     * LCs. The weight of an LC is retrieved from the m_weightsUl map.
      */
     static double CalculateUlWeight(const NrMacSchedulerNs3::UePtrAndBufferReq& ue)
     {

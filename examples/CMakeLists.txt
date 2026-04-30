@@ -179,3 +179,7 @@ if(opengym
                       ${libflow-monitor}
   )
 endif()
+
+if(ai IN_LIST contrib_libs_to_build)
+  add_subdirectory(nr-ai-sched)
+endif()
