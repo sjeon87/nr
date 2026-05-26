@@ -1427,6 +1427,7 @@ NrUeMac::DoReset()
     m_noRaResponseReceivedEvent.Cancel();
     m_rachConfigured = false;
     m_ulBsrReceived.clear();
+    m_srState = INACTIVE;
 }
 
 //////////////////////////////////////////////
