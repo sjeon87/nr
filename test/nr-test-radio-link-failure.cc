@@ -222,6 +222,10 @@ NrRadioLinkFailureTestCase::~NrRadioLinkFailureTestCase()
 void
 NrRadioLinkFailureTestCase::DoRun()
 {
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    RngSeedManager::ResetNextStreamIndex();
+
     // LogLevel logLevel = (LogLevel) (LOG_PREFIX_FUNC | LOG_PREFIX_TIME | LOG_LEVEL_ALL);
     // LogComponentEnable ("NrUeRrc", logLevel);
     // LogComponentEnable ("NrGnbRrc", logLevel);
@@ -341,9 +345,7 @@ NrRadioLinkFailureTestCase::DoRun()
     NetDeviceContainer gnbDevs;
     NetDeviceContainer ueDevs;
 
-    int64_t randomStream = 1;
     gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
-    randomStream += nrHelper->AssignStreams(gnbDevs, randomStream);
 
     for (uint32_t i = 0; i < gnbDevs.GetN(); i++)
     {
@@ -376,7 +378,6 @@ NrRadioLinkFailureTestCase::DoRun()
     allUeNodes.Add(backgroundUeNodes);
 
     ueDevs = nrHelper->InstallUeDevice(allUeNodes, bandwidthAndBWPPair.second);
-    randomStream += nrHelper->AssignStreams(ueDevs, randomStream);
 
     if (m_setup == FDD)
     {
@@ -483,6 +484,14 @@ NrRadioLinkFailureTestCase::DoRun()
                         &NrRadioLinkFailureTestCase::JumpAway,
                         this,
                         m_ueJumpAwayPosition);
+
+    nrEpcHelper->AssignStreams(0);
+    internet.AssignStreams(remoteHostContainer, 1000);
+    internet.AssignStreams(gnbNodes, 2000);
+    internet.AssignStreams(ueNodes, 3000);
+    internet.AssignStreams(remoteHostContainer, 4000);
+    nrHelper->AssignStreams(gnbDevs, 5000);
+    nrHelper->AssignStreams(ueDevs, 6000);
 
     // connect custom trace sinks
     Config::Connect(

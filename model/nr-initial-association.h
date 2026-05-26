@@ -10,6 +10,7 @@
 #include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/phased-array-model.h"
+#include "ns3/random-variable-stream.h"
 #include "ns3/spectrum-model.h"
 #include "ns3/spectrum-signal-parameters.h"
 #include "ns3/three-gpp-channel-model.h"
@@ -28,6 +29,8 @@ struct SpectrumSignalParameters;
 
 const uint16_t NR_NUM_BANDS_FOR_SSB = 20;      ///< Number of bands used for the SSB
 const double TRANSMIT_POWER_INIT_ASSOC = 30.0; ///< Transmit power in dBm
+
+const int64_t NR_INIT_ASSOC_STREAM_BASE = 0x10000000; ///< Reserved RNG stream base for init assoc
 
 /// Angle pair in degrees for the row and column angle of beam direction for uniform planar array
 struct NR_EXPORT NrAnglePair
@@ -187,6 +190,11 @@ class NR_EXPORT NrInitialAssociation : public Object
     /// @return gNB associated with the UE device
     Ptr<NetDevice> GetAssociatedGnb() const;
 
+    /// @brief Assign a fixed stream number to the tie-break random variable
+    /// @param stream the first stream index to use
+    /// @return the number of stream indices consumed (1)
+    int64_t AssignStreams(int64_t stream);
+
     /// @brief Get the gNBs which are main interferer with the UE
     /// @return A container having the set of main interfering gNBs
     NetDeviceContainer GetInterferingGnbs() const;
@@ -328,6 +336,9 @@ class NR_EXPORT NrInitialAssociation : public Object
                                          ///< vectors used in the initial access/association
 
     double m_primaryCarrierIndex{0}; ////< Primary carrier bandwidth part index
+
+    Ptr<UniformRandomVariable> m_assocRng{
+        CreateObject<UniformRandomVariable>()}; ///< RNG to break equal-RSRP ties
 };
 } // namespace ns3
 #endif // NR_INITIAL_ASSOC_H

@@ -641,12 +641,9 @@ NrCsiTestCase::DoRun()
      * modules classes. This configuration is extremely important for the
      * reproducibility of the results.
      */
-    int64_t randomStream = 1;
-    for (int i = 0; i < interferingNodes + 1; i++)
-    {
-        randomStream += nrHelper->AssignStreams(gnbNetDev.Get(i), randomStream);
-        randomStream += nrHelper->AssignStreams(ueNetDev.Get(i), randomStream);
-    }
+    nrEpcHelper->AssignStreams(0);
+    nrHelper->AssignStreams(gnbNetDev, 5000);
+    nrHelper->AssignStreams(ueNetDev, 6000);
 
     // Hookup transport block reception trace at measuring UE0
     Ptr<NrSpectrumPhy> ue0SpectrumPhy =
@@ -689,6 +686,7 @@ NrCsiTestCase::DoRun()
     InternetStackHelper internet;
     Ipv4InterfaceContainer ueIpIface;
     internet.Install(ueContainer);
+    internet.AssignStreams(ueContainer, 1000);
     ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
 
     for (int i = 0; i < interferingNodes + 1; i++)
@@ -776,6 +774,7 @@ NrCsiTestCase::DoRun()
         dlClient.Set("Remote",
                      AddressValue(InetSocketAddress(Ipv4Address::ConvertFrom(ueAddress), dlPort)));
         Ptr<OnOffApplication> app = dlClient.Create<OnOffApplication>();
+        app->AssignStreams(7000 + i * 10);
         app->TraceConnectWithoutContext(
             "OnOffState",
             MakeBoundCallback(&NrCsiTestCase::LogApplicationStateTrampoline, this, app));

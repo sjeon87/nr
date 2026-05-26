@@ -340,10 +340,6 @@ NrUplinkPowerControlTestCase::DoRun()
     Ptr<ThreeGppPropagationLossModel> propagationLossModel =
         DynamicCast<ThreeGppPropagationLossModel>(txSpectrumChannel->GetPropagationLossModel());
     NS_ASSERT(propagationLossModel != nullptr);
-    propagationLossModel->AssignStreams(1);
-    Ptr<ChannelConditionModel> channelConditionModel =
-        propagationLossModel->GetChannelConditionModel();
-    channelConditionModel->AssignStreams(1);
     Ptr<ThreeGppSpectrumPropagationLossModel> spectrumLossModel =
         DynamicCast<ThreeGppSpectrumPropagationLossModel>(
             txSpectrumChannel->GetPhasedArraySpectrumPropagationLossModel());
@@ -683,6 +679,12 @@ NrUplinkPowerControlTestCase::DoRun()
                                 23);
         }
     }
+
+    nrEpcHelper->AssignStreams(0);
+    internet.AssignStreams(remoteHostContainer, 1000);
+    internet.AssignStreams(ueNodes, 2000);
+    nrHelper->AssignStreams(gnbDevs, 5000);
+    nrHelper->AssignStreams(ueDevs, 6000);
 
     Simulator::Stop(simTime);
     Simulator::Run();

@@ -13,6 +13,7 @@
 #include "ns3/nr-module.h"
 #include "ns3/packet.h"
 #include "ns3/point-to-point-helper.h"
+#include "ns3/rng-seed-manager.h"
 
 #include <filesystem>
 #include <fstream>
@@ -525,6 +526,14 @@ UlSchedulingTest::DoRun()
                                      MakeCallback(&UlSchedulingTest::gNBRxCtrl, this));
 
     nrHelper->EnableTraces();
+
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrEpcHelper->AssignStreams(0);
+    internet.AssignStreams(remoteHostContainer, 1000);
+    internet.AssignStreams(ueNode, 2000);
+    nrHelper->AssignStreams(gnbDevices, 5000);
+    nrHelper->AssignStreams(ueDevices, 6000);
 
     Simulator::Stop(simTime);
     Simulator::Run();

@@ -11,6 +11,7 @@
 #include "ns3/nr-module.h"
 #include "ns3/nr-qos-flow-tag.h"
 #include "ns3/point-to-point-helper.h"
+#include "ns3/rng-seed-manager.h"
 
 #include <unordered_map>
 
@@ -889,9 +890,9 @@ NrTimingsTest::DoRun()
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gNbNode, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNode, allBwps);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
+    nrEpcHelper->AssignStreams(0);
+    nrHelper->AssignStreams(gnbNetDev, 5000);
+    nrHelper->AssignStreams(ueNetDev, 6000);
 
     GET_GNB_PHY(0, 0)->TraceConnectWithoutContext("GnbPhyTxedCtrlMsgsTrace",
                                                   MakeCallback(&NrTimingsTest::GnbPhyTx, this));
@@ -915,6 +916,7 @@ NrTimingsTest::DoRun()
 
     InternetStackHelper internet;
     internet.Install(ueNode);
+    internet.AssignStreams(ueNode, 1000);
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
 
