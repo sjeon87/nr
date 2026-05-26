@@ -794,7 +794,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
 
     std::string sched = "ns3::NrMacSchedulerTdmaPF";
     std::string ho = "ns3::NrA2A4RsrpHandoverAlgorithm";
-    for (auto useIdealRrc : {true, /*false*/})
+    for (auto useIdealRrc : {true, false})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, ho, admitHo, idealRrc
         AddTestCase(new NrX2HandoverMeasuresTestCase(2,
@@ -899,7 +899,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
     }
 
     sched = "ns3::NrMacSchedulerTdmaRR";
-    for (auto useIdealRrc : {true, /*false*/})
+    for (auto useIdealRrc : {true, false})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, admitHo, idealRrc
         AddTestCase(new NrX2HandoverMeasuresTestCase(2,
@@ -939,7 +939,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
 
     ho = "ns3::NrA3RsrpHandoverAlgorithm";
     sched = "ns3::NrMacSchedulerTdmaPF";
-    for (auto useIdealRrc : {true, /*false*/})
+    for (auto useIdealRrc : {true, false})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, admitHo, idealRrc
         AddTestCase(new NrX2HandoverMeasuresTestCase(2,
@@ -978,7 +978,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
     }
 
     sched = "ns3::NrMacSchedulerTdmaRR";
-    for (auto useIdealRrc : {true, /*false*/})
+    for (auto useIdealRrc : {true, false})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, admitHo, idealRrc
         AddTestCase(new NrX2HandoverMeasuresTestCase(2,
