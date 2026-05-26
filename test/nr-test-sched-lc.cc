@@ -141,17 +141,6 @@ NrTestMacSchedLcRr::DoRun()
                           "Expected " << expectedTotalAssignedBytes
                                       << " bytes to be assigned in total");
 
-// REBASE-OURS-BEGIN: 0ffcb2aa "fix tests" — overlap with upstream; review and dedupe
-#if 0
-            if (lcgBytes != 0)
-            {
-                NS_TEST_ASSERT_MSG_EQ(false, true, "Expected LCG " << +lcgId << " to be assigned");
-            }
-        }
-    }
-
-#endif
-    // REBASE-OURS-END
     if (m_tbSize == 0)
     {
         NS_TEST_ASSERT_MSG_EQ(totalAssignedBytes, 0, "Expected no LCGs to be assigned");
@@ -197,28 +186,6 @@ class NrTestSchedLcSuite : public TestSuite
         AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:300B), tbs = 300", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 300, {{1,8}, {2,10}, {3,282}}), Duration::QUICK);
         AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:297B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,297}}, 309, {{1,8}, {2,10}, {3,291}}), Duration::QUICK);
         AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:300B), tbs = 315", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 315, {{1,8}, {2,10}, {3,297}}), Duration::QUICK);
-// REBASE-OURS-BEGIN: 0ffcb2aa "fix tests" — duplicate of upstream UL test tweaks; review and dedupe
-#if 0
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B), tbs = 1",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   1, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B), tbs = 2",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   2, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 1",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            1, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 2",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            2, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 3",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            3, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:1B), tbs = 4",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            4, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 1",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     1, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 2",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     2, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 3",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     3, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 4",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     4, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 5",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     5, {{1,5}}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 6",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     6, {{1,6}}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 7",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     7, {{1,7}}  ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 8",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     8, {{1,8}}  ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:3B), tbs = 9",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     9, {{1,8}}  ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:300B), tbs = 300", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 300, {{1,8}, {2,7}, {3,285}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:297B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,297}}, 309, {{1,8}, {2,7}, {3,294}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr(!isDl, "LcRR UL flows (1:1B,2:2B,3:300B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 315, {{1,8}, {2,7}, {3,300}}), Duration::QUICK);
-#endif
-// REBASE-OURS-END
         AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (), tbs = 0",                   "ns3::NrMacSchedulerLcRR",{},                        0, {}                     ), Duration::QUICK);
         AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (), tbs = 1",                   "ns3::NrMacSchedulerLcRR",{},                        1, {}                     ), Duration::QUICK);
         AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:0B), tbs = 0",               "ns3::NrMacSchedulerLcRR",{{1,0}},                   0, {}                     ), Duration::QUICK);
@@ -243,26 +210,6 @@ class NrTestSchedLcSuite : public TestSuite
         AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:300B), tbs = 300", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 300, {{1,8}, {2,10}, {3,282}}), Duration::QUICK);
         AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:297B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,297}}, 309, {{1,8}, {2,10}, {3,291}}), Duration::QUICK);
         AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:300B), tbs = 313", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 313, {{1,8}, {2,10}, {3,295}}), Duration::QUICK);
-// REBASE-OURS-BEGIN: 0ffcb2aa "fix tests" — duplicate of upstream DL test tweaks; review and dedupe
-#if 0
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B), tbs = 1",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   1, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B), tbs = 2",               "ns3::NrMacSchedulerLcRR",{{1,1}},                   2, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 1",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            1, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 2",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            2, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 3",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            3, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:1B), tbs = 4",          "ns3::NrMacSchedulerLcRR",{{1,1}, {2,1}},            4, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 1",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     1, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 2",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     2, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 3",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     3, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 4",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     4, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 5",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     5, {}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 6",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     6, {{1,6}}                ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:3B), tbs = 9",     "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,3}},     9, {{1,8}}         ), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:300B), tbs = 300", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 300, {{1,8}, {2,7}, {3,285}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:297B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,297}}, 309, {{1,8}, {2,7}, {3,294}}), Duration::QUICK);
-        AddTestCase(new NrTestMacSchedLcRr( isDl, "LcRR DL flows (1:1B,2:2B,3:300B), tbs = 309", "ns3::NrMacSchedulerLcRR",{{1,1}, {2,2}, {3,300}}, 313, {{1,8}, {2,7}, {3,298}}), Duration::QUICK);
-#endif
-// REBASE-OURS-END
         // clang-format on
     }
 };

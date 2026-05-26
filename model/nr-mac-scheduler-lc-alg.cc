@@ -69,6 +69,14 @@ NrMacSchedulerLcAlgorithm::AssignControlBytes(const std::unordered_map<uint8_t, 
         return ret;
     }
 
+    // Minimum sub-PDU size that can carry a control LC: 3 bytes of MAC
+    // subheader plus the smallest RLC PDU header. SRB0 uses RLC TM (no RLC
+    // header) but SRB1 uses RLC AM, which rejects a TxOpportunity smaller
+    // than 4 bytes; allocating fewer bytes than that crashes the receiving
+    // RLC layer instead of harmlessly deferring the transmission. Use the
+    // RLC AM minimum here so the same code path is safe for both SRBs.
+    constexpr uint32_t kMinControlSubPduBytes = 3 /* MAC subheader */ + 4 /* RLC AM hdr */;
+
     for (auto& [lcId, lcData] : activeLc)
     {
         if ((lcId.second == 0 || lcId.second == 1) && (lcData.first > 0))
@@ -82,7 +90,7 @@ NrMacSchedulerLcAlgorithm::AssignControlBytes(const std::unordered_map<uint8_t, 
                 allocatedBytes = unallocatedBytes;
                 unallocatedBytes = 0;
             }
-            else
+            else if (tbs >= kMinControlSubPduBytes)
             {
                 ret.emplace_back(lcId.first, lcId.second, tbs);
                 allocatedBytes = tbs;
@@ -91,6 +99,16 @@ NrMacSchedulerLcAlgorithm::AssignControlBytes(const std::unordered_map<uint8_t, 
                 NS_LOG_WARN("TBS size " << tbs
                                         << " bytes is not sufficient for control channel LCID "
                                         << +lcId.second << " (" << unallocatedBytes << " bytes)");
+            }
+            else
+            {
+                // Remaining TBS is below the smallest sub-PDU that carries an
+                // RLC AM header. Leave the LC pending for the next slot so we
+                // don't hand RLC AM a stub it must assert on.
+                NS_LOG_WARN("Remaining TBS " << tbs << " bytes is below the minimum sub-PDU size ("
+                                             << kMinControlSubPduBytes << ") for control LCID "
+                                             << +lcId.second << "; deferring " << unallocatedBytes
+                                             << " bytes");
             }
         }
     }
