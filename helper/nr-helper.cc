@@ -1083,6 +1083,8 @@ NrHelper::AttachToMaxRsrpGnb(const Ptr<NetDevice>& ueDevice, const NetDeviceCont
     auto nrInitAssoc = m_initialAttachmentFactory.Create<NrInitialAssociation>();
     ueDevice->GetObject<NrUeNetDevice>()->SetInitAssoc(nrInitAssoc);
 
+    nrInitAssoc->AssignStreams(NR_INIT_ASSOC_STREAM_BASE + ueDevice->GetNode()->GetId());
+
     nrInitAssoc->SetUeDevice(ueDevice);
     nrInitAssoc->SetGnbDevices(gnbDevices);
     nrInitAssoc->SetColBeamAngles(m_initialParams.colAngles);

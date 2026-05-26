@@ -194,6 +194,13 @@ NrMultipanelTestCase::DoRun()
     // Perform initial attachment
     nrHelper->AttachToMaxRsrpGnb(ueNetDev, gnbNetDev);
 
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrEpcHelper->AssignStreams(0);
+    internet.AssignStreams(ueContainer, 1000);
+    nrHelper->AssignStreams(gnbNetDev, 5000);
+    nrHelper->AssignStreams(ueNetDev, 6000);
+
     Simulator::Stop(Seconds(1));
     std::cout << "Test if 4-panel UE, with " + std::to_string(m_uePorts) +
                      " ports each, correctly attaches with panel " + std::to_string(m_panel) +

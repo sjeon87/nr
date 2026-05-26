@@ -80,9 +80,9 @@ int64_t
 NrMacSchedulerOfdmaRandom::AssignStreams(int64_t stream)
 {
     NS_LOG_FUNCTION(this << stream);
-    NrMacSchedulerNs3::AssignStreams(stream);
-    m_uniformRvShuffle->SetStream(stream);
-    return 1;
+    int64_t assigned = NrMacSchedulerOfdma::AssignStreams(stream);
+    m_uniformRvShuffle->SetStream(stream + assigned);
+    return assigned + 1;
 }
 
 } // namespace ns3

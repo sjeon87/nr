@@ -11,7 +11,6 @@
 #include "ns3/nr-module.h"
 #include "ns3/nr-qos-flow-tag.h"
 #include "ns3/point-to-point-helper.h"
-#include "ns3/three-gpp-channel-model.h"
 // #include "ns3/component-carrier-gnb.h"
 // #include "ns3/component-carrier-nr-ue.h"
 using namespace ns3;
@@ -88,7 +87,7 @@ NrTestFdmOfNumerologiesCase1::DoRun()
     Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(999999999));
 
     RngSeedManager::SetSeed(1);
-    RngSeedManager::SetRun(1);
+    RngSeedManager::SetRun(2);
 
     // create base stations and mobile terminals
     NodeContainer gNbNodes;
@@ -185,58 +184,6 @@ NrTestFdmOfNumerologiesCase1::DoRun()
         ->SetAttribute("TxPower", DoubleValue(10 * log10((m_bw1 / totalBandwidth) * x)));
     NrHelper::GetUePhy(ueNetDev.Get(1), 1)
         ->SetAttribute("TxPower", DoubleValue(10 * log10((m_bw2 / totalBandwidth) * x)));
-
-    for (uint32_t j = 0; j < gNbNodes.GetN(); ++j)
-    {
-        // We test 2 BWP in this test
-        for (uint8_t bwpId = 0; bwpId < 2; bwpId++)
-        {
-            Ptr<const NrSpectrumPhy> txSpectrumPhy =
-                NrHelper::GetGnbPhy(gnbNetDev.Get(j), bwpId)->GetSpectrumPhy();
-            Ptr<SpectrumChannel> txSpectrumChannel = txSpectrumPhy->GetSpectrumChannel();
-            Ptr<ThreeGppPropagationLossModel> propagationLossModel =
-                DynamicCast<ThreeGppPropagationLossModel>(
-                    txSpectrumChannel->GetPropagationLossModel());
-            NS_ASSERT(propagationLossModel != nullptr);
-            propagationLossModel->AssignStreams(1);
-            Ptr<ChannelConditionModel> channelConditionModel =
-                propagationLossModel->GetChannelConditionModel();
-            channelConditionModel->AssignStreams(1);
-            Ptr<ThreeGppSpectrumPropagationLossModel> spectrumLossModel =
-                DynamicCast<ThreeGppSpectrumPropagationLossModel>(
-                    txSpectrumChannel->GetPhasedArraySpectrumPropagationLossModel());
-            NS_ASSERT(spectrumLossModel != nullptr);
-            Ptr<ThreeGppChannelModel> channel =
-                DynamicCast<ThreeGppChannelModel>(spectrumLossModel->GetChannelModel());
-            channel->AssignStreams(1);
-        }
-    }
-
-    for (uint32_t j = 0; j < ueNodes.GetN(); ++j)
-    {
-        // We test 2 BWP in this test
-        for (uint8_t bwpId = 0; bwpId < 2; bwpId++)
-        {
-            Ptr<const NrSpectrumPhy> txSpectrumPhy =
-                NrHelper::GetUePhy(ueNetDev.Get(j), bwpId)->GetSpectrumPhy();
-            Ptr<SpectrumChannel> txSpectrumChannel = txSpectrumPhy->GetSpectrumChannel();
-            Ptr<ThreeGppPropagationLossModel> propagationLossModel =
-                DynamicCast<ThreeGppPropagationLossModel>(
-                    txSpectrumChannel->GetPropagationLossModel());
-            NS_ASSERT(propagationLossModel != nullptr);
-            propagationLossModel->AssignStreams(1);
-            Ptr<ChannelConditionModel> channelConditionModel =
-                propagationLossModel->GetChannelConditionModel();
-            channelConditionModel->AssignStreams(1);
-            Ptr<ThreeGppSpectrumPropagationLossModel> spectrumLossModel =
-                DynamicCast<ThreeGppSpectrumPropagationLossModel>(
-                    txSpectrumChannel->GetPhasedArraySpectrumPropagationLossModel());
-            NS_ASSERT(spectrumLossModel != nullptr);
-            Ptr<ThreeGppChannelModel> channel =
-                DynamicCast<ThreeGppChannelModel>(spectrumLossModel->GetChannelModel());
-            channel->AssignStreams(1);
-        }
-    }
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost
@@ -370,6 +317,13 @@ NrTestFdmOfNumerologiesCase1::DoRun()
     }
 
     // nrHelper->EnableTraces();
+
+    nrEpcHelper->AssignStreams(0);
+    internet.AssignStreams(remoteHostContainer, 1000);
+    internet.AssignStreams(ueNodes, 2000);
+    nrHelper->AssignStreams(gnbNetDev, 5000);
+    nrHelper->AssignStreams(ueNetDev, 6000);
+
     Simulator::Stop(Seconds(simTime));
     Simulator::Run();
 

@@ -2184,8 +2184,9 @@ int64_t
 NrGnbPhy::AssignStreams(int64_t stream)
 {
     NS_LOG_FUNCTION(this << stream);
-    m_fhRng->SetStream(stream);
-    return 1 + GetSpectrumPhy()->AssignStreams(stream + 1);
+    int64_t assigned = GetSpectrumPhy()->AssignStreams(stream);
+    m_fhRng->SetStream(stream + assigned);
+    return assigned + 1;
 }
 
 } // namespace ns3
