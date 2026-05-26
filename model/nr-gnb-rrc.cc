@@ -855,6 +855,7 @@ NrUeManager::RecvHandoverRequestAck(NrEpcX2SapUser::HandoverRequestAckParams par
         {
             NrPdcp::Status status = drbIt->second->m_pdcp->GetStatus();
             NrEpcX2Sap::ErabsSubjectToStatusTransferItem i;
+            i.erabId = drbIt->second->m_qosFlowIdentity;
             i.dlPdcpSn = status.txSn;
             i.ulPdcpSn = status.rxSn;
             sst.erabsSubjectToStatusTransferList.push_back(i);
