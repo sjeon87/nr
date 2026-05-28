@@ -11,6 +11,7 @@
 #include "nr-rrc-sap.h"
 
 #include "ns3/ipv4-address.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/pointer.h"
 
@@ -24,7 +25,7 @@ class NrPdcp;
  * store information on active radio bearer instance
  *
  */
-class NrRadioBearerInfo : public Object
+class NR_EXPORT NrRadioBearerInfo : public Object
 {
   public:
     NrRadioBearerInfo();
@@ -43,7 +44,7 @@ class NrRadioBearerInfo : public Object
  * store information on active signaling radio bearer instance
  *
  */
-class NrSignalingRadioBearerInfo : public NrRadioBearerInfo
+class NR_EXPORT NrSignalingRadioBearerInfo : public NrRadioBearerInfo
 {
   public:
     /**
@@ -60,7 +61,7 @@ class NrSignalingRadioBearerInfo : public NrRadioBearerInfo
  * store information on active data radio bearer instance
  *
  */
-class NrDataRadioBearerInfo : public NrRadioBearerInfo
+class NR_EXPORT NrDataRadioBearerInfo : public NrRadioBearerInfo
 {
   public:
     /**

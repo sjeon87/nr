@@ -7,6 +7,8 @@
 
 #include "nr-mac-header-vs.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -28,7 +30,7 @@ namespace ns3
  * This header must be used to report some variable-sized CE to the GNB. At
  * the moment, we don't use it.
  */
-class NrMacHeaderVsUl : public NrMacHeaderVs
+class NR_EXPORT NrMacHeaderVsUl : public NrMacHeaderVs
 {
   public:
     /**

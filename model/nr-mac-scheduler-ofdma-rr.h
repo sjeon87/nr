@@ -6,6 +6,8 @@
 
 #include "nr-mac-scheduler-ofdma.h"
 
+#include "ns3/nr-export.h"
+
 #include <unordered_set>
 
 namespace ns3
@@ -28,7 +30,7 @@ namespace ns3
  *
  * @see NrMacSchedulerUeInfoRR
  */
-class NrMacSchedulerOfdmaRR : public NrMacSchedulerOfdma
+class NR_EXPORT NrMacSchedulerOfdmaRR : public NrMacSchedulerOfdma
 {
   public:
     /**

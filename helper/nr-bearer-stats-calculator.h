@@ -10,6 +10,7 @@
 
 #include "ns3/basic-data-calculators.h"
 #include "ns3/nr-common.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/uinteger.h"
 
@@ -55,7 +56,7 @@ typedef std::map<nr::ImsiLcidPair_t, nr::FlowId_t> FlowIdMap;
  *   - Average, min, max and standard deviation of PDU size
  */
 
-class NrBearerStatsCalculator : public NrBearerStatsBase
+class NR_EXPORT NrBearerStatsCalculator : public NrBearerStatsBase
 {
   public:
     /**

@@ -6,6 +6,8 @@
 
 #include "nr-mac-harq-process.h"
 
+#include "ns3/nr-export.h"
+
 #include <unordered_map>
 
 namespace ns3
@@ -26,7 +28,7 @@ namespace ns3
  *
  * @see HarqProcess
  */
-class NrMacHarqVector : private std::unordered_map<uint8_t, HarqProcess>
+class NR_EXPORT NrMacHarqVector : private std::unordered_map<uint8_t, HarqProcess>
 {
   public:
     friend std::ostream& operator<<(std::ostream& os, const NrMacHarqVector& item);
@@ -200,6 +202,6 @@ class NrMacHarqVector : private std::unordered_map<uint8_t, HarqProcess>
  * @param item Item to print
  * @return the Ostream for concatenation
  */
-std::ostream& operator<<(std::ostream& os, const HarqProcess& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const HarqProcess& item);
 
 } // namespace ns3

@@ -10,6 +10,8 @@
 #include "nr-qos-flow.h"
 #include "nr-rlc.h"
 
+#include "ns3/nr-export.h"
+
 #include <unordered_map>
 
 namespace ns3
@@ -23,7 +25,7 @@ class NrControlMessage;
  * @ingroup gnb-bwp
  * @brief Bandwidth part manager that coordinates traffic over different bandwidth parts.
  */
-class BwpManagerGnb : public NrRrComponentCarrierManager
+class NR_EXPORT BwpManagerGnb : public NrRrComponentCarrierManager
 {
   public:
     BwpManagerGnb();

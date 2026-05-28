@@ -7,6 +7,8 @@
 #include "nr-mac-scheduler-ns3.h"
 #include "nr-mac-scheduler-ue-info-rr.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -20,7 +22,7 @@ namespace ns3
  *
  * @see CompareUeWeightsDl
  */
-class NrMacSchedulerUeInfoMR : public NrMacSchedulerUeInfo
+class NR_EXPORT NrMacSchedulerUeInfoMR : public NrMacSchedulerUeInfo
 {
   public:
     /**

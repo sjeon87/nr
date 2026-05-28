@@ -5,6 +5,8 @@
 #pragma once
 #include "nr-mac-scheduler-ofdma-rr.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -18,7 +20,7 @@ namespace ns3
  * Details in the class NrMacSchedulerUeInfoQos.
  *
  */
-class NrMacSchedulerOfdmaQos : public NrMacSchedulerOfdmaRR
+class NR_EXPORT NrMacSchedulerOfdmaQos : public NrMacSchedulerOfdmaRR
 {
   public:
     /**

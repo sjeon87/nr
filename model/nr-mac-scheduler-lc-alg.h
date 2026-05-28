@@ -7,6 +7,7 @@
 
 #include "nr-mac-scheduler-lcg.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 #include <vector>
@@ -38,7 +39,7 @@ using AssignedBytes = uint32_t;
  * to be applied in the DL direction, while the UL can be kept simpler.
  *
  */
-class NrMacSchedulerLcAlgorithm : public Object
+class NR_EXPORT NrMacSchedulerLcAlgorithm : public Object
 {
   public:
     /**
@@ -60,7 +61,7 @@ class NrMacSchedulerLcAlgorithm : public Object
     /**
      * @brief Represent an assignation of bytes to a LCG/LC
      */
-    struct Assignation
+    struct NR_EXPORT Assignation
     {
         /**
          * @brief Assignation constructor (deleted)

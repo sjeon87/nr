@@ -29,6 +29,7 @@
 #include "nr-rrc-sap.h"
 
 #include "ns3/event-id.h"
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/traced-callback.h"
@@ -52,7 +53,7 @@ class Packet;
  * Manages all the radio bearer information possessed by the gNB RRC for a
  * single UE.
  */
-class NrUeManager : public Object
+class NR_EXPORT NrUeManager : public Object
 {
     /// allow NrPdcpSpecificNrPdcpSapUser<NrUeManager> class friend access
     friend class NrPdcpSpecificNrPdcpSapUser<NrUeManager>;
@@ -657,14 +658,14 @@ const std::string ToString(NrUeManager::State state);
  * @param state the enum value of the state
  * @return the output stream
  */
-std::ostream& operator<<(std::ostream& os, NrUeManager::State state);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, NrUeManager::State state);
 
 /**
  * @ingroup nr
  *
  * The NR Radio Resource Control entity at the gNB
  */
-class NrGnbRrc : public Object
+class NR_EXPORT NrGnbRrc : public Object
 {
     /// allow GnbRrcMemberNrGnbCmacSapUser class friend access
     friend class GnbRrcMemberNrGnbCmacSapUser;
@@ -1581,7 +1582,7 @@ class NrGnbRrc : public Object
     std::set<uint8_t> m_componentCarrierMeasIds;
 
     /// X2uTeidInfo structure
-    struct X2uTeidInfo
+    struct NR_EXPORT X2uTeidInfo
     {
         uint16_t rnti; ///< RNTI
         uint8_t drbid; ///< DRBID

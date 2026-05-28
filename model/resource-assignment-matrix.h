@@ -9,6 +9,8 @@
 #include "nr-mac-scheduler-ue-info.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 #include <bitset>
 #include <cstdint>
 #include <deque>
@@ -33,7 +35,7 @@ namespace ns3
  *
  * It can also plot the resource matrix, making it easier to visualize allocation.
  */
-class ResourceAssignmentMatrix
+class NR_EXPORT ResourceAssignmentMatrix
 {
   public:
     using Rnti = uint16_t;
@@ -160,7 +162,7 @@ class ResourceAssignmentMatrix
      */
     std::size_t GetNumAssignedResourcesToUe(Rnti rnti);
 
-    struct AssignedResourceElement
+    struct NR_EXPORT AssignedResourceElement
     {
         BeamId beamId;
         Rbg rbg;
@@ -206,7 +208,7 @@ class ResourceAssignmentMatrix
      * Contains the UE and type of resource usage for an RBG.
      * The index of the RBG is determined by its position in the SymbolResources.rbgs vector.
      */
-    struct ResourceMatrixEntry
+    struct NR_EXPORT ResourceMatrixEntry
     {
         Rnti allocatedUe;                   ///< RBG position and allocated UE
         ResourceType allocatedResourceType; ///< Type of allocated resource
@@ -221,7 +223,7 @@ class ResourceAssignmentMatrix
      * - rbgs: Vector containing ResourceMatrixEntry elements, each representing a different RBG
      * with scheduled UE and usage type
      */
-    struct SymbolResources
+    struct NR_EXPORT SymbolResources
     {
         BeamId beamId;                         ///< BeamId for current symbol
         std::vector<ResourceMatrixEntry> rbgs; ///< Resource for allocation

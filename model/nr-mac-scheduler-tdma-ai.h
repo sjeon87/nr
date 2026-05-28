@@ -8,6 +8,8 @@
 #include "nr-mac-scheduler-tdma-qos.h"
 #include "nr-mac-scheduler-ue-info-ai.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -31,7 +33,7 @@ namespace ns3
  *
  * Details in the class NrMacSchedulerUeInfoAI.
  */
-class NrMacSchedulerTdmaAi : public NrMacSchedulerTdmaQos
+class NR_EXPORT NrMacSchedulerTdmaAi : public NrMacSchedulerTdmaQos
 {
     friend class NrTestSchedulerAiCase;
 

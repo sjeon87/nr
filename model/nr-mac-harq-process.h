@@ -6,6 +6,8 @@
 
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 #include <memory>
 #include <vector>
 
@@ -26,7 +28,7 @@ namespace ns3
  * The HarqProcess will be stored inside the class NrMacHarqVector, which
  * is a unordered map that maps the HARQ ID with the HARQ content (this struct).
  */
-struct HarqProcess
+struct NR_EXPORT HarqProcess
 {
     /**
      * @brief Status of the process

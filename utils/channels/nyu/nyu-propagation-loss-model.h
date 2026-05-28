@@ -9,6 +9,7 @@
 
 #include "nyu-channel-condition-model.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/propagation-loss-model.h"
 #include "ns3/string.h"
 
@@ -21,7 +22,7 @@ namespace ns3
  * @brief Base class for the NYU propagation models
  */
 
-class NYUPropagationLossModel : public PropagationLossModel
+class NR_EXPORT NYUPropagationLossModel : public PropagationLossModel
 {
   public:
     /**
@@ -402,7 +403,7 @@ class NYUPropagationLossModel : public PropagationLossModel
     Ptr<NormalRandomVariable> m_normRandomVariable;     //!< normal random variable
 
     /** Define a struct for the m_shadowingMap entries */
-    struct ShadowingMapItem
+    struct NR_EXPORT ShadowingMapItem
     {
         double m_shadowing;                              //!< the shadowing loss in dB
         ChannelCondition::LosConditionValue m_condition; //!< the LOS/NLOS condition
@@ -420,7 +421,7 @@ class NYUPropagationLossModel : public PropagationLossModel
  * https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7999294 (equation 20 and equation 21) for
  * the RMa scenario.
  */
-class NYURmaPropagationLossModel : public NYUPropagationLossModel
+class NR_EXPORT NYURmaPropagationLossModel : public NYUPropagationLossModel
 {
   public:
     /**
@@ -485,7 +486,7 @@ class NYURmaPropagationLossModel : public NYUPropagationLossModel
  * @brief Implements the pathloss model defined in
  * https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7999294 (equation 2) for the UMa scenario.
  */
-class NYUUmaPropagationLossModel : public NYUPropagationLossModel
+class NR_EXPORT NYUUmaPropagationLossModel : public NYUPropagationLossModel
 {
   public:
     /**
@@ -550,7 +551,7 @@ class NYUUmaPropagationLossModel : public NYUPropagationLossModel
  * @brief Implements the pathloss model defined in
  * https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7999294 (equation 2) for the UMi Scenario.
  */
-class NYUUmiPropagationLossModel : public NYUPropagationLossModel
+class NR_EXPORT NYUUmiPropagationLossModel : public NYUPropagationLossModel
 {
   public:
     /**
@@ -615,7 +616,7 @@ class NYUUmiPropagationLossModel : public NYUPropagationLossModel
  * @brief Implements the pathloss model defined in
  * https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7999294 (equation 2) for the InH scenario.
  */
-class NYUInHPropagationLossModel : public NYUPropagationLossModel
+class NR_EXPORT NYUInHPropagationLossModel : public NYUPropagationLossModel
 {
   public:
     /**
@@ -680,7 +681,7 @@ class NYUInHPropagationLossModel : public NYUPropagationLossModel
  * @brief Implements the pathloss model defined in
  * https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7999294 (equation 2) for the InF scenario.
  */
-class NYUInFPropagationLossModel : public NYUPropagationLossModel
+class NR_EXPORT NYUInFPropagationLossModel : public NYUPropagationLossModel
 {
   public:
     /**

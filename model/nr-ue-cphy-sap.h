@@ -10,6 +10,8 @@
 
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
+
 #include <stdint.h>
 
 namespace ns3
@@ -23,7 +25,7 @@ class NrGnbNetDevice;
  * This is the PHY SAP Provider, i.e., the part of the SAP that contains
  * the PHY methods called by the MAC
  */
-class NrUeCphySapProvider
+class NR_EXPORT NrUeCphySapProvider
 {
   public:
     /**
@@ -207,7 +209,7 @@ class NrUeCphySapProvider
  * This is the CPHY SAP User, i.e., the part of the SAP that contains the RRC
  * methods called by the PHY
  */
-class NrUeCphySapUser
+class NR_EXPORT NrUeCphySapUser
 {
   public:
     /**
@@ -219,7 +221,7 @@ class NrUeCphySapUser
      * Parameters of the ReportUeMeasurements primitive: RSRP [dBm] and RSRQ [dB]
      * See section 5.1.1 and 5.1.3 of TS 36.214
      */
-    struct UeMeasurementsElement
+    struct NR_EXPORT UeMeasurementsElement
     {
         uint16_t m_cellId; ///< cell ID
         double m_rsrp;     ///< [dBm]
@@ -227,7 +229,7 @@ class NrUeCphySapUser
     };
 
     /// UeMeasurementsParameters structure
-    struct UeMeasurementsParameters
+    struct NR_EXPORT UeMeasurementsParameters
     {
         std::vector<UeMeasurementsElement> m_ueMeasurementsList; ///< UE measurement list
         uint8_t m_componentCarrierId;                            ///< component carrier ID

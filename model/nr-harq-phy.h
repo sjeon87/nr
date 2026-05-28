@@ -7,6 +7,8 @@
 
 #include "nr-error-model.h"
 
+#include "ns3/nr-export.h"
+
 #include <unordered_map>
 #include <vector>
 
@@ -21,7 +23,7 @@ namespace ns3
  * (i.e., decodification buffers for incremental redundancy management)
  *
  */
-class NrHarqPhy
+class NR_EXPORT NrHarqPhy
 {
   public:
     /**

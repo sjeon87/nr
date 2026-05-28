@@ -11,6 +11,8 @@
 #include "nr-handover-management-sap.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -23,7 +25,7 @@ namespace ns3
  * To enable automatic handover, please select another handover algorithm, i.e.,
  * another child class of NrHandoverAlgorithm.
  */
-class NrNoOpHandoverAlgorithm : public NrHandoverAlgorithm
+class NR_EXPORT NrNoOpHandoverAlgorithm : public NrHandoverAlgorithm
 {
   public:
     /// Creates a No-op handover algorithm instance.

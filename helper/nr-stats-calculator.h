@@ -5,6 +5,7 @@
 #ifndef NR_STATS_CALCULATOR_H_
 #define NR_STATS_CALCULATOR_H_
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/string.h"
 
@@ -21,7 +22,7 @@ namespace ns3
  * Also stores names of output files.
  */
 
-class NrStatsCalculator : public Object
+class NR_EXPORT NrStatsCalculator : public Object
 {
   public:
     /**

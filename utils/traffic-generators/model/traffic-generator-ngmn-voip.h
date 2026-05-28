@@ -8,6 +8,7 @@
 
 #include "traffic-generator.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 
 namespace ns3
@@ -40,7 +41,7 @@ class Socket;
  * model to obtain results which are comparable.
  */
 
-class TrafficGeneratorNgmnVoip : public TrafficGenerator
+class NR_EXPORT TrafficGeneratorNgmnVoip : public TrafficGenerator
 {
   public:
     /**

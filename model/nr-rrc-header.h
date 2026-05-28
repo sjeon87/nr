@@ -14,6 +14,7 @@
 #include "nr-rrc-sap.h"
 
 #include "ns3/header.h"
+#include "ns3/nr-export.h"
 
 #include <bitset>
 #include <string>
@@ -29,7 +30,7 @@ namespace ns3
  * This class extends NrAsn1Header functions, adding serialization/deserialization
  * of some Information elements defined in 3GPP TS 36.331
  */
-class NrRrcAsn1Header : public NrAsn1Header
+class NR_EXPORT NrRrcAsn1Header : public NrAsn1Header
 {
   public:
     NrRrcAsn1Header();
@@ -404,7 +405,7 @@ class NrRrcAsn1Header : public NrAsn1Header
  * This class only serves to discriminate which message type has been received
  * in uplink (ue to gNB) for channel DCCH
  */
-class NrRrcUlDcchMessage : public NrRrcAsn1Header
+class NR_EXPORT NrRrcUlDcchMessage : public NrRrcAsn1Header
 {
   public:
     NrRrcUlDcchMessage();
@@ -435,7 +436,7 @@ class NrRrcUlDcchMessage : public NrRrcAsn1Header
  * This class only serves to discriminate which message type has been received
  * in downlink (gNB to ue) for channel DCCH
  */
-class NrRrcDlDcchMessage : public NrRrcAsn1Header
+class NR_EXPORT NrRrcDlDcchMessage : public NrRrcAsn1Header
 {
   public:
     NrRrcDlDcchMessage();
@@ -466,7 +467,7 @@ class NrRrcDlDcchMessage : public NrRrcAsn1Header
  * This class only serves to discriminate which message type has been received
  * in uplink (ue to gNB) for channel CCCH
  */
-class NrRrcUlCcchMessage : public NrRrcAsn1Header
+class NR_EXPORT NrRrcUlCcchMessage : public NrRrcAsn1Header
 {
   public:
     NrRrcUlCcchMessage();
@@ -497,7 +498,7 @@ class NrRrcUlCcchMessage : public NrRrcAsn1Header
  * This class only serves to discriminate which message type has been received
  * in downlink (gNB to ue) for channel CCCH
  */
-class NrRrcDlCcchMessage : public NrRrcAsn1Header
+class NR_EXPORT NrRrcDlCcchMessage : public NrRrcAsn1Header
 {
   public:
     NrRrcDlCcchMessage();
@@ -527,7 +528,7 @@ class NrRrcDlCcchMessage : public NrRrcAsn1Header
 /**
  * This class manages the serialization/deserialization of RrcConnectionRequest IE
  */
-class NrRrcConnectionRequestHeader : public NrRrcUlCcchMessage
+class NR_EXPORT NrRrcConnectionRequestHeader : public NrRrcUlCcchMessage
 {
   public:
     NrRrcConnectionRequestHeader();
@@ -590,7 +591,7 @@ class NrRrcConnectionRequestHeader : public NrRrcUlCcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionSetup IE
  */
-class NrRrcConnectionSetupHeader : public NrRrcDlCcchMessage
+class NR_EXPORT NrRrcConnectionSetupHeader : public NrRrcDlCcchMessage
 {
   public:
     NrRrcConnectionSetupHeader();
@@ -664,7 +665,7 @@ class NrRrcConnectionSetupHeader : public NrRrcDlCcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionSetupComplete IE
  */
-class NrRrcConnectionSetupCompleteHeader : public NrRrcUlDcchMessage
+class NR_EXPORT NrRrcConnectionSetupCompleteHeader : public NrRrcUlDcchMessage
 {
   public:
     NrRrcConnectionSetupCompleteHeader();
@@ -700,7 +701,7 @@ class NrRrcConnectionSetupCompleteHeader : public NrRrcUlDcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionSetupComplete IE
  */
-class NrRrcConnectionReconfigurationCompleteHeader : public NrRrcUlDcchMessage
+class NR_EXPORT NrRrcConnectionReconfigurationCompleteHeader : public NrRrcUlDcchMessage
 {
   public:
     NrRrcConnectionReconfigurationCompleteHeader();
@@ -737,7 +738,7 @@ class NrRrcConnectionReconfigurationCompleteHeader : public NrRrcUlDcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionReconfiguration IE
  */
-class NrRrcConnectionReconfigurationHeader : public NrRrcDlDcchMessage
+class NR_EXPORT NrRrcConnectionReconfigurationHeader : public NrRrcDlDcchMessage
 {
   public:
     NrRrcConnectionReconfigurationHeader();
@@ -867,7 +868,7 @@ class NrRrcConnectionReconfigurationHeader : public NrRrcDlDcchMessage
 /**
  * This class manages the serialization/deserialization of HandoverPreparationInfo IE
  */
-class NrHandoverPreparationInfoHeader : public NrRrcAsn1Header
+class NR_EXPORT NrHandoverPreparationInfoHeader : public NrRrcAsn1Header
 {
   public:
     NrHandoverPreparationInfoHeader();
@@ -902,7 +903,7 @@ class NrHandoverPreparationInfoHeader : public NrRrcAsn1Header
 /**
  * This class manages the serialization/deserialization of RRCConnectionReestablishmentRequest IE
  */
-class NrRrcConnectionReestablishmentRequestHeader : public NrRrcUlCcchMessage
+class NR_EXPORT NrRrcConnectionReestablishmentRequestHeader : public NrRrcUlCcchMessage
 {
   public:
     NrRrcConnectionReestablishmentRequestHeader();
@@ -946,7 +947,7 @@ class NrRrcConnectionReestablishmentRequestHeader : public NrRrcUlCcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionReestablishment IE
  */
-class NrRrcConnectionReestablishmentHeader : public NrRrcDlCcchMessage
+class NR_EXPORT NrRrcConnectionReestablishmentHeader : public NrRrcDlCcchMessage
 {
   public:
     NrRrcConnectionReestablishmentHeader();
@@ -990,7 +991,7 @@ class NrRrcConnectionReestablishmentHeader : public NrRrcDlCcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionReestablishmentComplete IE
  */
-class NrRrcConnectionReestablishmentCompleteHeader : public NrRrcUlDcchMessage
+class NR_EXPORT NrRrcConnectionReestablishmentCompleteHeader : public NrRrcUlDcchMessage
 {
   public:
     NrRrcConnectionReestablishmentCompleteHeader();
@@ -1026,7 +1027,7 @@ class NrRrcConnectionReestablishmentCompleteHeader : public NrRrcUlDcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionReestablishmentReject IE
  */
-class NrRrcConnectionReestablishmentRejectHeader : public NrRrcDlCcchMessage
+class NR_EXPORT NrRrcConnectionReestablishmentRejectHeader : public NrRrcDlCcchMessage
 {
   public:
     NrRrcConnectionReestablishmentRejectHeader();
@@ -1058,7 +1059,7 @@ class NrRrcConnectionReestablishmentRejectHeader : public NrRrcDlCcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionRelease IE
  */
-class NrRrcConnectionReleaseHeader : public NrRrcDlDcchMessage
+class NR_EXPORT NrRrcConnectionReleaseHeader : public NrRrcDlDcchMessage
 {
   public:
     NrRrcConnectionReleaseHeader();
@@ -1088,7 +1089,7 @@ class NrRrcConnectionReleaseHeader : public NrRrcDlDcchMessage
 /**
  * This class manages the serialization/deserialization of RrcConnectionReject IE
  */
-class NrRrcConnectionRejectHeader : public NrRrcDlCcchMessage
+class NR_EXPORT NrRrcConnectionRejectHeader : public NrRrcDlCcchMessage
 {
   public:
     NrRrcConnectionRejectHeader();
@@ -1118,7 +1119,7 @@ class NrRrcConnectionRejectHeader : public NrRrcDlCcchMessage
 /**
  * This class manages the serialization/deserialization of MeasurementReport IE
  */
-class NrMeasurementReportHeader : public NrRrcUlDcchMessage
+class NR_EXPORT NrMeasurementReportHeader : public NrRrcUlDcchMessage
 {
   public:
     NrMeasurementReportHeader();

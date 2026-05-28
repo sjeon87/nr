@@ -7,6 +7,8 @@
 
 #include "nr-cb-type-one.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 /// @brief Implementation of the two-port codebook in 3GPP TS 38.214
@@ -15,7 +17,7 @@ namespace ns3
 /// Codebooks for 1-layer and 2-layer CSI reporting using antenna ports 3000 to 3001.
 /// There is a slight abuse of notation: For the "codebook index", the i2 index of other Type-I
 /// codebooks is used, and the i1 index remains unused.
-class NrCbTwoPort : public NrCbTypeOne
+class NR_EXPORT NrCbTwoPort : public NrCbTypeOne
 {
   public:
     /// @brief Get TypeId

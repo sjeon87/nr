@@ -9,6 +9,8 @@
 
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -20,7 +22,7 @@ namespace ns3
  * that contains the handover algorithm methods called by the gNB RRC
  * instance.
  */
-class NrHandoverManagementSapProvider
+class NR_EXPORT NrHandoverManagementSapProvider
 {
   public:
     virtual ~NrHandoverManagementSapProvider() = default;
@@ -47,7 +49,7 @@ class NrHandoverManagementSapProvider
  * This is the *Handover Management SAP User*, i.e., the part of the SAP that
  * contains the gNB RRC methods called by the handover algorithm instance.
  */
-class NrHandoverManagementSapUser
+class NR_EXPORT NrHandoverManagementSapUser
 {
   public:
     virtual ~NrHandoverManagementSapUser() = default;

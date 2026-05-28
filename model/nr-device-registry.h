@@ -8,10 +8,12 @@
 #include "nr-gnb-net-device.h"
 #include "nr-ue-net-device.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
-class NrDeviceRegistry
+class NR_EXPORT NrDeviceRegistry
 {
   public:
     /**

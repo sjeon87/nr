@@ -8,6 +8,7 @@
 #define NR_RLC_SEQUENCE_NUMBER_H
 
 #include "ns3/assert.h"
+#include "ns3/nr-export.h"
 
 #include <iostream>
 #include <limits>
@@ -18,7 +19,7 @@ namespace ns3
 namespace nr
 {
 /// SequenceNumber10 class
-class SequenceNumber10
+class NR_EXPORT SequenceNumber10
 {
   public:
     SequenceNumber10()
@@ -198,7 +199,7 @@ class SequenceNumber10
         return !this->operator>(other) && m_value != other.m_value;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const SequenceNumber10& val);
+    friend NR_EXPORT std::ostream& operator<<(std::ostream& os, const SequenceNumber10& val);
 
   private:
     uint16_t m_value;       ///< the value

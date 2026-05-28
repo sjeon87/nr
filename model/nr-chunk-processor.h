@@ -12,6 +12,7 @@
 #ifndef NR_CHUNK_PROCESSOR_H
 #define NR_CHUNK_PROCESSOR_H
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
@@ -29,7 +30,7 @@ typedef Callback<void, const SpectrumValue&> NrChunkProcessorCallback;
  * SINR/interference/power chunk of a received NR signal
  * which was calculated by the NrInterference object.
  */
-class NrChunkProcessor : public SimpleRefCount<NrChunkProcessor>
+class NR_EXPORT NrChunkProcessor : public SimpleRefCount<NrChunkProcessor>
 {
   public:
     NrChunkProcessor();
@@ -85,7 +86,7 @@ class NrChunkProcessor : public SimpleRefCount<NrChunkProcessor>
  * to save and later retrieve the latest reported value
  *
  */
-class NrSpectrumValueCatcher
+class NR_EXPORT NrSpectrumValueCatcher
 {
   public:
     /**

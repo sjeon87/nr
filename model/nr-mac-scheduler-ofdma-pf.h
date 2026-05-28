@@ -5,6 +5,8 @@
 #pragma once
 #include "nr-mac-scheduler-ofdma-rr.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -17,7 +19,7 @@ namespace ns3
  *
  * Details of the sorting function in the class NrMacSchedulerUeInfoPF.
  */
-class NrMacSchedulerOfdmaPF : public NrMacSchedulerOfdmaRR
+class NR_EXPORT NrMacSchedulerOfdmaPF : public NrMacSchedulerOfdmaRR
 {
   public:
     /**

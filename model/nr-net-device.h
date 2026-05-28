@@ -8,6 +8,7 @@
 #include "nr-phy.h"
 
 #include "ns3/net-device.h"
+#include "ns3/nr-export.h"
 #include "ns3/traced-callback.h"
 
 namespace ns3
@@ -24,7 +25,7 @@ class Packet;
  *
  * This is the base class for NrUeNetDevice and NrGnbNetDevice.
  */
-class NrNetDevice : public NetDevice
+class NR_EXPORT NrNetDevice : public NetDevice
 {
   public:
     /**

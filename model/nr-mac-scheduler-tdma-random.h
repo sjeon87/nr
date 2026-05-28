@@ -6,6 +6,7 @@
 
 #include "nr-mac-scheduler-tdma.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 
 namespace ns3
@@ -27,7 +28,7 @@ namespace ns3
  * - Overrides SortUeVector function from NrMacSchedulerTdma to allow random DL and UL TDMA
  * scheduling.
  */
-class NrMacSchedulerTdmaRandom : public NrMacSchedulerTdma
+class NR_EXPORT NrMacSchedulerTdmaRandom : public NrMacSchedulerTdma
 {
   public:
     /**

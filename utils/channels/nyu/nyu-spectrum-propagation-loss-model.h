@@ -7,6 +7,7 @@
 #define NYU_SPECTRUM_PROPAGATION_LOSS_H
 
 #include "ns3/matrix-based-channel-model.h"
+#include "ns3/nr-export.h"
 #include "ns3/phased-array-spectrum-propagation-loss-model.h"
 #include "ns3/random-variable-stream.h"
 
@@ -33,7 +34,7 @@ class NetDevice;
  * @see PhasedArrayModel
  * @see ChannelCondition
  */
-class NYUSpectrumPropagationLossModel : public PhasedArraySpectrumPropagationLossModel
+class NR_EXPORT NYUSpectrumPropagationLossModel : public PhasedArraySpectrumPropagationLossModel
 {
   public:
     /**
@@ -116,7 +117,7 @@ class NYUSpectrumPropagationLossModel : public PhasedArraySpectrumPropagationLos
     /**
      * Data structure that stores the long term component for a tx-rx pair
      */
-    struct LongTerm : public SimpleRefCount<LongTerm>
+    struct NR_EXPORT LongTerm : public SimpleRefCount<LongTerm>
     {
         PhasedArrayModel::ComplexVector
             m_longTerm; //!< vector containing the long term component for each cluster

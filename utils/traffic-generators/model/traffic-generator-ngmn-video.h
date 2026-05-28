@@ -8,6 +8,7 @@
 
 #include "traffic-generator.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 
 namespace ns3
@@ -30,7 +31,7 @@ class TrafficGeneratorNgmnVideoTestCase;
  * assume a source video rate of 64 kbps.
  */
 
-class TrafficGeneratorNgmnVideo : public TrafficGenerator
+class NR_EXPORT TrafficGeneratorNgmnVideo : public TrafficGenerator
 {
     friend TrafficGeneratorNgmnVideoTestCase;
 

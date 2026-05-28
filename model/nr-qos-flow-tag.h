@@ -8,6 +8,7 @@
 #ifndef NR_QOS_FLOW_TAG_H
 #define NR_QOS_FLOW_TAG_H
 
+#include "ns3/nr-export.h"
 #include "ns3/tag.h"
 
 namespace ns3
@@ -20,7 +21,7 @@ class Tag;
  * interchanged between the NrEpcGnbApplication and the NrGnbNetDevice
  */
 
-class NrQosFlowTag : public Tag
+class NR_EXPORT NrQosFlowTag : public Tag
 {
   public:
     /**

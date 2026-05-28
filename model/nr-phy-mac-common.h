@@ -12,6 +12,7 @@
 
 #include "ns3/log.h"
 #include "ns3/matrix-array.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/string.h"
 
@@ -25,7 +26,7 @@
 namespace ns3
 {
 
-struct GetFirst
+struct NR_EXPORT GetFirst
 {
     template <class First, class Second>
     First& operator()(std::pair<First, Second>& p)
@@ -52,7 +53,7 @@ struct GetFirst
     }
 };
 
-struct GetSecond
+struct NR_EXPORT GetSecond
 {
     template <class First, class Second>
     Second& operator()(std::pair<First, Second>& p)
@@ -106,7 +107,7 @@ enum CsiFeedbackFlag : uint8_t
  * @ingroup utils
  * @brief Scheduling information. Despite the name, it is not TDMA.
  */
-struct DciInfoElementTdma
+struct NR_EXPORT DciInfoElementTdma
 {
     /**
      * @brief Format of the DCI
@@ -295,7 +296,7 @@ struct DciInfoElementTdma
  * @ingroup utils
  * @brief The RlcPduInfo struct
  */
-struct RlcPduInfo
+struct NR_EXPORT RlcPduInfo
 {
     RlcPduInfo() = default;
     RlcPduInfo(const RlcPduInfo& o) = default;
@@ -311,7 +312,7 @@ struct RlcPduInfo
     uint32_t m_size{0};
 };
 
-struct VarTtiAllocInfo
+struct NR_EXPORT VarTtiAllocInfo
 {
     VarTtiAllocInfo(const VarTtiAllocInfo& o) = default;
 
@@ -331,7 +332,7 @@ struct VarTtiAllocInfo
     }
 };
 
-struct NrBuildRarListElement_s
+struct NR_EXPORT NrBuildRarListElement_s
 {
     std::shared_ptr<DciInfoElementTdma>
         ulMsg3Dci;             //!< UL MSG3 DCI that will be sent through RAR message
@@ -344,7 +345,7 @@ struct NrBuildRarListElement_s
  * @ingroup utils
  * @brief The SlotAllocInfo struct
  */
-struct SlotAllocInfo
+struct NR_EXPORT SlotAllocInfo
 {
     SlotAllocInfo(SfnSf sfn)
         : m_sfnSf(sfn)
@@ -421,7 +422,7 @@ struct SlotAllocInfo
  * @ingroup utils
  * @brief The DlCqiInfo struct
  */
-struct DlCqiInfo
+struct NR_EXPORT DlCqiInfo
 {
     uint16_t m_rnti{0}; //!< The RNTI
     // TODO: Rename to m_rank (m_ri is set directly to the rank).
@@ -447,7 +448,7 @@ struct DlCqiInfo
  * @brief The structure used for the CQI feedback message that contains the optimum CQI, RI, PMI,
  and full precoding matrix (dimensions: nGnbPorts * rank * nRbs).
  */
-struct PmCqiInfo
+struct NR_EXPORT PmCqiInfo
 {
     uint8_t m_mcs{0};              //!< Modulation and coding scheme supported by current channel
     uint8_t m_rank{0};             //!< Rank of the channel matrix (supported number of MIMO layers)
@@ -464,7 +465,7 @@ struct PmCqiInfo
  * @ingroup utils
  * @brief The UlCqiInfo struct
  */
-struct UlCqiInfo
+struct NR_EXPORT UlCqiInfo
 {
     // std::vector <uint16_t> m_sinr;
     std::vector<double> m_sinr;
@@ -483,7 +484,7 @@ struct UlCqiInfo
  * @ingroup utils
  * @brief The MacCeValue struct
  */
-struct MacCeValue
+struct NR_EXPORT MacCeValue
 {
     MacCeValue()
         : m_phr(0),
@@ -500,7 +501,7 @@ struct MacCeValue
  * @ingroup utils
  * @brief See section 4.3.14 macCEListElement
  */
-struct MacCeElement
+struct NR_EXPORT MacCeElement
 {
     MacCeElement()
         : m_rnti(0)
@@ -522,7 +523,7 @@ struct MacCeElement
  * @ingroup utils
  * @brief The RlcListElement struct
  */
-struct RlcListElement
+struct NR_EXPORT RlcListElement
 {
     std::vector<struct RlcPduInfo> m_rlcPduElements;
 };
@@ -531,7 +532,7 @@ struct RlcListElement
  * @ingroup utils
  * @brief The UePhyPacketCountParameter struct
  */
-struct UePhyPacketCountParameter
+struct NR_EXPORT UePhyPacketCountParameter
 {
     uint64_t m_imsi;
     uint32_t m_noBytes;
@@ -543,7 +544,7 @@ struct UePhyPacketCountParameter
  * @ingroup utils
  * @brief The GnbPhyPacketCountParameter struct
  */
-struct GnbPhyPacketCountParameter
+struct NR_EXPORT GnbPhyPacketCountParameter
 {
     uint64_t m_cellId;
     uint32_t m_noBytes;
@@ -557,7 +558,7 @@ struct GnbPhyPacketCountParameter
  *
  * Information passed by the PHY through a call to AddExpectedTb
  */
-struct ExpectedTb
+struct NR_EXPORT ExpectedTb
 {
     ExpectedTb(uint8_t ndi,
                uint32_t tbSize,
@@ -603,7 +604,7 @@ struct ExpectedTb
     SfnSf m_sfn;                 //!< SFN
 };
 
-struct TransportBlockInfo
+struct NR_EXPORT TransportBlockInfo
 {
     TransportBlockInfo(const ExpectedTb& expected)
         : m_expected(expected)
@@ -631,7 +632,7 @@ struct TransportBlockInfo
  * @ingroup utils
  * @brief The RxPacketTraceParams struct
  */
-struct RxPacketTraceParams
+struct NR_EXPORT RxPacketTraceParams
 {
     RxPacketTraceParams(TransportBlockInfo tbInfo,
                         bool errorModelEnabled,
@@ -684,7 +685,7 @@ struct RxPacketTraceParams
  * @see DlHarqInfo
  * @see UlHarqInfo
  */
-struct HarqInfo
+struct NR_EXPORT HarqInfo
 {
     virtual ~HarqInfo()
     {
@@ -708,7 +709,7 @@ struct HarqInfo
  * http://www.eurecom.fr/~kaltenbe/fapi-2.0/structDlInfoListElement__s.html
  * Note: This should really be called DlInfoListElement ...
  */
-struct DlHarqInfo : public HarqInfo
+struct NR_EXPORT DlHarqInfo : public HarqInfo
 {
     /**
      * @brief Status of the DL Harq: ACKed or NACKed
@@ -731,7 +732,7 @@ struct DlHarqInfo : public HarqInfo
  * @ingroup utils
  * @brief A struct that contains info for the UL HARQ
  */
-struct UlHarqInfo : public HarqInfo
+struct NR_EXPORT UlHarqInfo : public HarqInfo
 {
     std::vector<uint16_t> m_ulReception;
 
@@ -757,7 +758,7 @@ namespace nr
 /**
  * @brief Base class for storing the values of vendor specific parameters
  */
-struct VendorSpecificValue : public SimpleRefCount<VendorSpecificValue>
+struct NR_EXPORT VendorSpecificValue : public SimpleRefCount<VendorSpecificValue>
 {
     virtual ~VendorSpecificValue() {};
 };
@@ -766,7 +767,7 @@ struct VendorSpecificValue : public SimpleRefCount<VendorSpecificValue>
  * @brief See section 4.3.3 vendorSpecificListElement
  * @struct VendorSpecificListElement_s
  */
-struct VendorSpecificListElement_s
+struct NR_EXPORT VendorSpecificListElement_s
 {
     uint32_t m_type{UINT32_MAX};      ///< type
     uint32_t m_length{UINT32_MAX};    ///< length
@@ -777,7 +778,7 @@ struct VendorSpecificListElement_s
  * @brief See section 4.3.4 logicalChannelConfigListElement
  * @struct LogicalChannelConfigListElement_s
  */
-struct LogicalChannelConfigListElement_s
+struct NR_EXPORT LogicalChannelConfigListElement_s
 {
     uint8_t m_logicalChannelIdentity{UINT8_MAX}; ///< logical channel identity
     uint8_t m_logicalChannelGroup{UINT8_MAX};    ///< logical channel group
@@ -811,7 +812,7 @@ struct LogicalChannelConfigListElement_s
  * @brief See section 4.3.6 rachListElement
  * @struct RachListElement_s
  */
-struct RachListElement_s
+struct NR_EXPORT RachListElement_s
 {
     uint16_t m_rnti{UINT16_MAX};          ///< RNTI
     uint16_t m_estimatedSize{UINT16_MAX}; ///< estimated size
@@ -820,7 +821,7 @@ struct RachListElement_s
 /**
  * @brief See section 4.3.15 macCEValue
  */
-struct MacCeValue_u
+struct NR_EXPORT MacCeValue_u
 {
     uint8_t m_phr{UINT8_MAX};            ///< phr
     uint8_t m_crnti{UINT8_MAX};          ///< NRTI
@@ -830,7 +831,7 @@ struct MacCeValue_u
 /**
  * @brief See section 4.3.14 macCEListElement
  */
-struct MacCeListElement_s
+struct NR_EXPORT MacCeListElement_s
 {
     uint16_t m_rnti{UINT16_MAX}; ///< RNTI
 
@@ -865,17 +866,17 @@ uint8_t CountUsedSymbolsFromVarAllocTtiRange(uint8_t startSym,
 int NumRbsPerRbg(int numRbs);
 } // namespace nr
 
-std::ostream& operator<<(std::ostream& os, const DciInfoElementTdma& item);
-std::ostream& operator<<(std::ostream& os, const DciInfoElementTdma::DciFormat& item);
-std::ostream& operator<<(std::ostream& os, const DlHarqInfo& item);
-std::ostream& operator<<(std::ostream& os, const UlHarqInfo& item);
-std::ostream& operator<<(std::ostream& os, const SfnSf& item);
-std::ostream& operator<<(std::ostream& os, const SlotAllocInfo& item);
-std::ostream& operator<<(std::ostream& os, const SlotAllocInfo::AllocationType& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const DciInfoElementTdma& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const DciInfoElementTdma::DciFormat& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const DlHarqInfo& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const UlHarqInfo& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const SfnSf& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const SlotAllocInfo& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const SlotAllocInfo::AllocationType& item);
 } // namespace ns3
 
 /// NrSchedulingCallbackInfo structure
-struct NrSchedulingCallbackInfo
+struct NR_EXPORT NrSchedulingCallbackInfo
 {
     uint16_t m_frameNum{UINT16_MAX};  //!< frame number
     uint8_t m_subframeNum{UINT8_MAX}; //!< subframe number

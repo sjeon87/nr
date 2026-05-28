@@ -5,6 +5,8 @@
 #ifndef NS3_PARSE_STRING_TO_VECTOR_H
 #define NS3_PARSE_STRING_TO_VECTOR_H
 
+#include "ns3/nr-export.h"
+
 #include <string>
 #include <vector>
 
@@ -15,7 +17,7 @@ namespace ns3
  * @param verticalBarString String with values separated by vertical bar e.g. 0|10|20
  * @return vector with values casted to double
  */
-std::vector<double> ParseVBarSeparatedValuesStringToVector(std::string verticalBarString);
+NR_EXPORT std::vector<double> ParseVBarSeparatedValuesStringToVector(std::string verticalBarString);
 
 } // namespace ns3
 #endif // NS3_PARSE_STRING_TO_VECTOR_H

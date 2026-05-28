@@ -11,6 +11,7 @@
 #include "nr-rlc.h"
 
 #include "ns3/event-id.h"
+#include "ns3/nr-export.h"
 
 #include <map>
 
@@ -24,7 +25,7 @@ namespace ns3
  * measurements gathered from the trace source "RxPDU" of NrRlc are invalid
  * (they will be always 0)
  */
-class NrRlcTm : public NrRlc
+class NR_EXPORT NrRlcTm : public NrRlc
 {
   public:
     NrRlcTm();
@@ -65,7 +66,7 @@ class NrRlcTm : public NrRlc
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
      */
-    struct TxPdu
+    struct NR_EXPORT TxPdu
     {
         /**
          * @brief TxPdu default constructor

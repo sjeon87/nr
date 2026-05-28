@@ -7,6 +7,7 @@
 
 #include "ns3/mobility-model.h"
 #include "ns3/net-device-container.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/phased-array-model.h"
 #include "ns3/spectrum-model.h"
@@ -27,7 +28,7 @@ const uint16_t NR_NUM_BANDS_FOR_SSB = 20;      ///< Number of bands used for the
 const double TRANSMIT_POWER_INIT_ASSOC = 30.0; ///< Transmit power in dBm
 
 /// Angle pair in degrees for the row and column angle of beam direction for uniform planar array
-struct NrAnglePair
+struct NR_EXPORT NrAnglePair
 {
     double rowAng = 90; ///< degrees
     double colAng = 90; ///< degrees
@@ -42,7 +43,7 @@ struct NrAnglePair
 ///< Do FindAssociatedGnb() to get the associated gNB
 ///< Do InitializeInterSet to get major interferer
 
-class NrInitialAssociation : public Object
+class NR_EXPORT NrInitialAssociation : public Object
 {
   public:
     NrInitialAssociation() = default;
@@ -50,7 +51,7 @@ class NrInitialAssociation : public Object
     /// @brief ChannelParams struct
     ///< to set channel model, pathloss model, spectral model and spectrumprop model to extract from
     ///< Ue and pass to attachment process
-    struct ChannelParams
+    struct NR_EXPORT ChannelParams
     {
         Ptr<ThreeGppChannelModel> channelModel{nullptr};
         Ptr<ThreeGppPropagationLossModel> pathLossModel{nullptr};
@@ -60,7 +61,7 @@ class NrInitialAssociation : public Object
 
     /// @brief Mobilities struct
     ///< to keep mobility model of ue and gNB
-    struct Mobilities
+    struct NR_EXPORT Mobilities
     {
         Ptr<MobilityModel> ueMobility{nullptr};
         Ptr<MobilityModel> gnbMobility{nullptr};
@@ -68,7 +69,7 @@ class NrInitialAssociation : public Object
 
     /// @brief AntennaArrayModels struct
     ///< to store copy of antenna array of gNB and UE to do beamforming later.
-    struct AntennaArrayModels
+    struct NR_EXPORT AntennaArrayModels
     {
         Ptr<UniformPlanarArray> gnbArrayModel{
             nullptr}; ///< Copy of gNB antenna array model. Modified to reduce complexity
@@ -78,7 +79,7 @@ class NrInitialAssociation : public Object
 
     /// @brief LocalSearchParams struct
     ///< format to keep ChannelParams, Mobilities, and AntennaArrayModels of UE and gNB
-    struct LocalSearchParams
+    struct NR_EXPORT LocalSearchParams
     {
         ChannelParams chParams;
         Mobilities mobility;

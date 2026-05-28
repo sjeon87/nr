@@ -8,6 +8,7 @@
 #include "nr-net-device.h"
 
 #include "ns3/deprecated.h"
+#include "ns3/nr-export.h"
 
 namespace ns3
 {
@@ -33,7 +34,7 @@ class NrInitialAssociation;
  * point between the TCP/IP part (from internet and network modules) and the
  * NR part.
  */
-class NrUeNetDevice : public NrNetDevice
+class NR_EXPORT NrUeNetDevice : public NrNetDevice
 {
   public:
     /**

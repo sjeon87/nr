@@ -10,6 +10,7 @@
 #include "nr-epc-x2-sap.h"
 
 #include "ns3/callback.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
 #include "ns3/socket.h"
@@ -22,7 +23,7 @@ namespace ns3
 /**
  * NrX2IfaceInfo
  */
-class NrX2IfaceInfo : public SimpleRefCount<NrX2IfaceInfo>
+class NR_EXPORT NrX2IfaceInfo : public SimpleRefCount<NrX2IfaceInfo>
 {
   public:
     /**
@@ -53,7 +54,7 @@ class NrX2IfaceInfo : public SimpleRefCount<NrX2IfaceInfo>
 /**
  * NrX2CellInfo
  */
-class NrX2CellInfo : public SimpleRefCount<NrX2CellInfo>
+class NR_EXPORT NrX2CellInfo : public SimpleRefCount<NrX2CellInfo>
 {
   public:
     /**
@@ -82,7 +83,7 @@ class NrX2CellInfo : public SimpleRefCount<NrX2CellInfo>
  *
  * This entity is installed inside an gNB and provides the functionality for the X2 interface
  */
-class NrEpcX2 : public Object
+class NR_EXPORT NrEpcX2 : public Object
 {
     /// allow NrEpcX2SpecificEpcX2SapProvider<NrEpcX2> class friend access
     friend class NrEpcX2SpecificEpcX2SapProvider<NrEpcX2>;

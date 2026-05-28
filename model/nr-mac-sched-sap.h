@@ -8,6 +8,8 @@
 #include "nr-control-messages.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -17,7 +19,7 @@ class SpectrumModel;
  * @ingroup scheduler
  * @brief The SAP interface between MAC and scheduler
  */
-class NrMacSchedSapProvider
+class NR_EXPORT NrMacSchedSapProvider
 {
   public:
     /**
@@ -38,7 +40,7 @@ class NrMacSchedSapProvider
     /**
      * @brief RLC buffer status.
      */
-    struct SchedDlRlcBufferReqParameters
+    struct NR_EXPORT SchedDlRlcBufferReqParameters
     {
         uint16_t m_rnti;                  //!< The RNTI identifying the UE.
         uint8_t m_logicalChannelIdentity; //!< The logical channel ID, range: 0..10
@@ -54,7 +56,7 @@ class NrMacSchedSapProvider
     /**
      * @brief The SchedDlCqiInfoReqParameters struct
      */
-    struct SchedDlCqiInfoReqParameters
+    struct NR_EXPORT SchedDlCqiInfoReqParameters
     {
         SfnSf m_sfnsf;                           //!< SfnSf
         std::vector<struct DlCqiInfo> m_cqiList; //!< cqi list
@@ -63,7 +65,7 @@ class NrMacSchedSapProvider
     /**
      * @brief The SchedUlMacCtrlInfoReqParameters struct
      */
-    struct SchedUlMacCtrlInfoReqParameters
+    struct NR_EXPORT SchedUlMacCtrlInfoReqParameters
     {
         SfnSf m_sfnSf;                                //!< SfnSf
         std::vector<struct MacCeElement> m_macCeList; //!< MacCeElement list
@@ -72,7 +74,7 @@ class NrMacSchedSapProvider
     /**
      * @brief The SchedUlCqiInfoReqParameters struct
      */
-    struct SchedUlCqiInfoReqParameters
+    struct NR_EXPORT SchedUlCqiInfoReqParameters
     {
         SfnSf m_sfnSf;            //!< SfnSf
         uint8_t m_symStart;       //!< Sym start of the transmission to which this CQI refers to
@@ -82,7 +84,7 @@ class NrMacSchedSapProvider
     /**
      * @brief UL HARQ information to be used when scheduling UL data.
      */
-    struct SchedUlTriggerReqParameters
+    struct NR_EXPORT SchedUlTriggerReqParameters
     {
         SfnSf m_snfSf;                                   //!< SfnSf
         std::vector<struct UlHarqInfo> m_ulHarqInfoList; //!< UL HARQ info list
@@ -92,7 +94,7 @@ class NrMacSchedSapProvider
     /**
      * @brief DL HARQ information to be used when scheduling UL data.
      */
-    struct SchedDlTriggerReqParameters
+    struct NR_EXPORT SchedDlTriggerReqParameters
     {
         SfnSf m_snfSf;                                   //!< SfnSf
         std::vector<struct DlHarqInfo> m_dlHarqInfoList; //!< DL HARQ info list
@@ -106,7 +108,7 @@ class NrMacSchedSapProvider
      *
      * http://www.eurecom.fr/~kaltenbe/fapi-2.0/structSchedUlSrInfoReqParameters.html
      */
-    struct SchedUlSrInfoReqParameters
+    struct NR_EXPORT SchedUlSrInfoReqParameters
     {
         SfnSf m_snfSf;                  //!< SnfSf in which the sr where received
         std::vector<uint16_t> m_srList; //!< List of RNTI which asked for a SR
@@ -116,7 +118,7 @@ class NrMacSchedSapProvider
      * Parameters of the SCHED_DL_RACH_INFO_REQ primitive.
      * See section 4.2.5 for a detailed description of the parameters.
      */
-    struct SchedDlRachInfoReqParameters
+    struct NR_EXPORT SchedDlRachInfoReqParameters
     {
         uint16_t m_sfnSf;                                     //!< sfn SF
         std::vector<struct nr::RachListElement_s> m_rachList; //!< RACH list
@@ -183,7 +185,7 @@ class NrMacSchedSapProvider
  * @ingroup scheduler
  * @brief The Interface between Scheduler and MAC
  */
-class NrMacSchedSapUser
+class NR_EXPORT NrMacSchedSapUser
 {
   public:
     /**
@@ -194,7 +196,7 @@ class NrMacSchedSapUser
     /**
      * @brief The SchedConfigIndParameters struct
      */
-    struct SchedConfigIndParameters
+    struct NR_EXPORT SchedConfigIndParameters
     {
         /**
          * @brief SchedConfigIndParameters

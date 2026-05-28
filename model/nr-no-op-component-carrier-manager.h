@@ -14,6 +14,8 @@
 #include "nr-gnb-component-carrier-manager.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
+
 #include <map>
 
 namespace ns3
@@ -29,7 +31,7 @@ class NrCcmRrcSapProvider;
  * of NrGnbComponentCarrierManager of NrNoOpComponentCarrierManager.
  */
 
-class NrNoOpComponentCarrierManager : public NrGnbComponentCarrierManager
+class NR_EXPORT NrNoOpComponentCarrierManager : public NrGnbComponentCarrierManager
 {
     /// allow GnbMacMemberNrMacSapProvider<NrNoOpComponentCarrierManager> class friend access
     friend class GnbMacMemberNrMacSapProvider<NrNoOpComponentCarrierManager>;
@@ -156,7 +158,7 @@ class NrNoOpComponentCarrierManager : public NrGnbComponentCarrierManager
 /**
  * @brief Component carrier manager implementation that splits traffic equally among carriers.
  */
-class NrRrComponentCarrierManager : public NrNoOpComponentCarrierManager
+class NR_EXPORT NrRrComponentCarrierManager : public NrNoOpComponentCarrierManager
 {
   public:
     NrRrComponentCarrierManager();

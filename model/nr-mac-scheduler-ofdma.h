@@ -7,6 +7,7 @@
 #include "nr-mac-scheduler-ofdma-symbol-per-beam.h"
 #include "nr-mac-scheduler-tdma.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/traced-value.h"
 
 #include <set>
@@ -52,7 +53,7 @@ class NrSchedOfdmaSymbolPerBeamTestCase;
  * @see NrMacSchedulerOfdmaPF
  * @see NrMacSchedulerOfdmaMR
  */
-class NrMacSchedulerOfdma : public NrMacSchedulerTdma
+class NR_EXPORT NrMacSchedulerOfdma : public NrMacSchedulerTdma
 {
   public:
     /**

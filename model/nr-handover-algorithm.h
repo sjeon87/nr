@@ -9,6 +9,7 @@
 
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 namespace ns3
@@ -48,7 +49,7 @@ class NrHandoverManagementSapProvider;
  *
  * \sa NrHandoverManagementSapProvider, NrHandoverManagementSapUser
  */
-class NrHandoverAlgorithm : public Object
+class NR_EXPORT NrHandoverAlgorithm : public Object
 {
   public:
     NrHandoverAlgorithm();

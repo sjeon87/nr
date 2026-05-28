@@ -15,6 +15,7 @@
 #include "ns3/node-container.h"
 #include "ns3/nr-component-carrier.h"
 #include "ns3/nr-control-messages.h"
+#include "ns3/nr-export.h"
 #include "ns3/nr-qos-flow.h"
 #include "ns3/nr-spectrum-phy.h"
 #include "ns3/nr-ue-cphy-sap.h"
@@ -205,7 +206,7 @@ AttachToMaxRsrpGnb(),
  * scenario.
  *
  */
-class NrHelper : public Object
+class NR_EXPORT NrHelper : public Object
 {
   public:
     /**
@@ -850,7 +851,7 @@ class NrHelper : public Object
     int64_t AssignStreams(NetDeviceContainer c, int64_t stream);
 
     /// @brief parameters of the gNB or UE antenna arrays
-    struct AntennaParams
+    struct NR_EXPORT AntennaParams
     {
         std::string antennaElem{"ns3::IsotropicAntennaModel"}; ///< Antenna type
         size_t nAntCols{1};          ///< Number of antenna element columns (horizontal width)
@@ -864,7 +865,7 @@ class NrHelper : public Object
     };
 
     /// @brief parameters for the search of optimal rank and precoding matrix indicator (RI, PMI)
-    struct MimoPmiParams
+    struct NR_EXPORT MimoPmiParams
     {
         std::string pmSearchMethod{"ns3::NrPmSearchFull"}; ///< Precoding matrix search algorithm
         std::string fullSearchCb{"ns3::NrCbTwoPort"}; ///< Codebook when using full-search algorithm
@@ -878,7 +879,7 @@ class NrHelper : public Object
     };
 
     /// @brief Parameters for initial attachment association
-    struct InitialAssocParams
+    struct NR_EXPORT InitialAssocParams
     {
         std::vector<double> rowAngles{0, 90}; ///< vector of angles to set in initial assocc
         std::vector<double> colAngles{0, 90}; ///< vector of angles to set in initial assocc

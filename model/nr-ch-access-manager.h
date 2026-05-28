@@ -6,6 +6,7 @@
 #include "nr-spectrum-phy.h"
 
 #include "ns3/event-id.h"
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 
@@ -43,7 +44,7 @@ namespace ns3
  *
  * @see NrAlwaysOnAccessManager
  */
-class NrChAccessManager : public Object
+class NR_EXPORT NrChAccessManager : public Object
 {
   public:
     /**
@@ -166,7 +167,7 @@ class NrChAccessManager : public Object
  * has installed the UE or the GNB node.
  *
  */
-class NrAlwaysOnAccessManager : public NrChAccessManager
+class NR_EXPORT NrAlwaysOnAccessManager : public NrChAccessManager
 {
   public:
     /**

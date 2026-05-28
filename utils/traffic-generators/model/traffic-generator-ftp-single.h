@@ -9,6 +9,8 @@
 
 #include "traffic-generator.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -16,7 +18,7 @@ namespace ns3
  * File transfer application used to send a single file
  */
 
-class TrafficGeneratorFtpSingle : public TrafficGenerator
+class NR_EXPORT TrafficGeneratorFtpSingle : public TrafficGenerator
 {
   public:
     /**

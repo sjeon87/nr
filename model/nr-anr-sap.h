@@ -9,6 +9,8 @@
 
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -19,7 +21,7 @@ namespace ns3
  * This is the *ANR SAP Provider*, i.e., the part of the SAP that contains the
  * ANR (Automatic Neighbour Relation) methods called by the eNodeB RRC instance.
  */
-class NrAnrSapProvider
+class NR_EXPORT NrAnrSapProvider
 {
   public:
     virtual ~NrAnrSapProvider() = default;
@@ -77,7 +79,7 @@ class NrAnrSapProvider
  * This is the *ANR SAP User*, i.e., the part of the SAP that contains the
  * eNodeB RRC methods called by the ANR (Automatic Neighbour Relation) instance.
  */
-class NrAnrSapUser
+class NR_EXPORT NrAnrSapUser
 {
   public:
     virtual ~NrAnrSapUser() = default;

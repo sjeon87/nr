@@ -10,6 +10,7 @@
 #include "nr-qos-flow.h"
 
 #include "ns3/ipv4-address.h"
+#include "ns3/nr-export.h"
 
 #include <list>
 
@@ -22,7 +23,7 @@ namespace ns3
  * Provider part of the SAP, i.e., the methods exported by the
  * NrEpcGnbApplication and called by the NrGnbRrc.
  */
-class NrEpcGnbS1SapProvider
+class NR_EXPORT NrEpcGnbS1SapProvider
 {
   public:
     virtual ~NrEpcGnbS1SapProvider() = default;
@@ -44,14 +45,14 @@ class NrEpcGnbS1SapProvider
     virtual void DoSendReleaseIndication(uint64_t imsi, uint16_t rnti, uint8_t qfi) = 0;
 
     /// FlowToBeSwitched structure
-    struct FlowToBeSwitched
+    struct NR_EXPORT FlowToBeSwitched
     {
         uint8_t qfi;   ///< QoS flow ID
         uint32_t teid; ///< TEID
     };
 
     /// PathSwitchRequestParameters structure
-    struct PathSwitchRequestParameters
+    struct NR_EXPORT PathSwitchRequestParameters
     {
         uint16_t rnti;                                 ///< RNTI
         uint16_t cellId;                               ///< cell ID
@@ -82,7 +83,7 @@ class NrEpcGnbS1SapProvider
  * User part of the SAP, i.e., the methods exported by the NrGnbRrc
  * and called by the NrEpcGnbApplication.
  */
-class NrEpcGnbS1SapUser
+class NR_EXPORT NrEpcGnbS1SapUser
 {
   public:
     virtual ~NrEpcGnbS1SapUser() = default;
@@ -90,7 +91,7 @@ class NrEpcGnbS1SapUser
     /**
      * Parameters passed to InitialContextSetupRequest ()
      */
-    struct InitialContextSetupRequestParameters
+    struct NR_EXPORT InitialContextSetupRequestParameters
     {
         uint16_t rnti; /**< the RNTI identifying the UE */
     };
@@ -105,7 +106,7 @@ class NrEpcGnbS1SapUser
     /**
      * Parameters passed to DataRadioBearerSetupRequest ()
      */
-    struct DataRadioBearerSetupRequestParameters
+    struct NR_EXPORT DataRadioBearerSetupRequestParameters
     {
         uint16_t rnti;    /**< the RNTI identifying the UE for which the
                                DataRadioBearer is to be created */
@@ -123,7 +124,7 @@ class NrEpcGnbS1SapUser
     virtual void DataRadioBearerSetupRequest(DataRadioBearerSetupRequestParameters params) = 0;
 
     /// PathSwitchRequestAcknowledgeParameters structure
-    struct PathSwitchRequestAcknowledgeParameters
+    struct NR_EXPORT PathSwitchRequestAcknowledgeParameters
     {
         uint16_t rnti; ///< RNTI
     };

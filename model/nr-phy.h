@@ -8,6 +8,7 @@
 #include "nr-phy-mac-common.h"
 #include "nr-phy-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nr-spectrum-value-helper.h"
 
 namespace ns3
@@ -63,7 +64,7 @@ class UniformPlanarArray;
  * @section phy_antenna Antenna and BeamManager object installation
  *
  */
-class NrPhy : public Object
+class NR_EXPORT NrPhy : public Object
 {
   public:
     /**

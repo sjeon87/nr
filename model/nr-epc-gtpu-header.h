@@ -9,6 +9,7 @@
 
 #include "ns3/header.h"
 #include "ns3/ipv4-header.h"
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 
 namespace ns3
@@ -23,7 +24,7 @@ class Packet;
  * GTPv1-U Release 10 as per 3Gpp TS 29.281 document
  *
  */
-class NrGtpuHeader : public Header
+class NR_EXPORT NrGtpuHeader : public Header
 {
   public:
     /**

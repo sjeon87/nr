@@ -10,6 +10,7 @@
 
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 
 #include <stdint.h>
@@ -25,7 +26,7 @@ class NrGnbNetDevice;
  * This is the PHY SAP Provider, i.e., the part of the SAP that contains
  * the PHY methods called by the MAC
  */
-class NrGnbCphySapProvider
+class NR_EXPORT NrGnbCphySapProvider
 {
   public:
     /**
@@ -121,7 +122,7 @@ class NrGnbCphySapProvider
  * This is the CPHY SAP User, i.e., the part of the SAP that contains the RRC
  * methods called by the PHY
  */
-class NrGnbCphySapUser
+class NR_EXPORT NrGnbCphySapUser
 {
   public:
     /**

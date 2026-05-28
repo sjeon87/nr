@@ -11,6 +11,7 @@
 #include "nr-rlc.h"
 
 #include "ns3/event-id.h"
+#include "ns3/nr-export.h"
 
 #include <map>
 #include <vector>
@@ -21,7 +22,7 @@ namespace ns3
 /**
  * LTE RLC Acknowledged Mode (AM), see 3GPP TS 36.322
  */
-class NrRlcAm : public NrRlc
+class NR_EXPORT NrRlcAm : public NrRlc
 {
   public:
     NrRlcAm();
@@ -98,7 +99,7 @@ class NrRlcAm : public NrRlc
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
      */
-    struct TxPdu
+    struct NR_EXPORT TxPdu
     {
         /**
          * @brief TxPdu default constructor
@@ -120,7 +121,7 @@ class NrRlcAm : public NrRlc
     std::vector<TxPdu> m_txonBuffer; ///< Transmission buffer
 
     /// RetxPdu structure
-    struct RetxPdu
+    struct NR_EXPORT RetxPdu
     {
         Ptr<Packet> m_pdu;    ///< PDU
         uint16_t m_retxCount; ///< retransmit count
@@ -141,7 +142,7 @@ class NrRlcAm : public NrRlc
     uint32_t m_statusPduBufferSize; ///< status PDU buffer size
 
     /// PduBuffer structure
-    struct PduBuffer
+    struct NR_EXPORT PduBuffer
     {
         nr::SequenceNumber10 m_seqNumber;      ///< sequence number
         std::list<Ptr<Packet>> m_byteSegments; ///< byte segments

@@ -10,6 +10,7 @@
 #include "nr-rlc-sequence-number.h"
 
 #include "ns3/header.h"
+#include "ns3/nr-export.h"
 
 #include <list>
 
@@ -24,7 +25,7 @@ namespace ns3
  * methods for serialization to and deserialization from a byte buffer.
  * It follows 3GPP TS 36.322 Radio Link Control (RLC) protocol specification.
  */
-class NrRlcAmHeader : public Header
+class NR_EXPORT NrRlcAmHeader : public Header
 {
   public:
     /**

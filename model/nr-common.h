@@ -8,6 +8,7 @@
 #ifndef NR_COMMON_H
 #define NR_COMMON_H
 
+#include "ns3/nr-export.h"
 #include "ns3/uinteger.h"
 
 #include <cmath>
@@ -28,7 +29,7 @@ constexpr uint32_t MIN_NO_CC = 1;
 constexpr uint32_t MAX_NO_CC = 5;
 
 /// NrFlowId structure
-struct FlowId_t
+struct NR_EXPORT FlowId_t
 {
     uint16_t m_rnti; ///< RNTI
     uint8_t m_lcId;  ///< LCID
@@ -48,7 +49,7 @@ struct FlowId_t
 };
 
 /// ImsiLcidPair structure
-struct ImsiLcidPair_t
+struct NR_EXPORT ImsiLcidPair_t
 {
     uint64_t m_imsi; ///< IMSI
     uint8_t m_lcId;  ///< LCID
@@ -70,7 +71,7 @@ struct ImsiLcidPair_t
 /**
  * @brief Parameters for configuring the UE
  */
-struct NrUeConfig_t
+struct NR_EXPORT NrUeConfig_t
 {
     /**
      * RNTI
@@ -111,7 +112,7 @@ struct NrUeConfig_t
 };
 
 /// FfConverter class
-class FfConverter
+class NR_EXPORT FfConverter
 {
   public:
     /**
@@ -139,7 +140,7 @@ class FfConverter
 };
 
 /// BufferSizeLevelBsr class
-class BufferSizeLevelBsr
+class NR_EXPORT BufferSizeLevelBsr
 {
   public:
     /**
@@ -161,7 +162,7 @@ class BufferSizeLevelBsr
 };
 
 /// TransmissionModesLayers class
-class TransmissionModesLayers
+class NR_EXPORT TransmissionModesLayers
 {
   public:
     /**
@@ -173,7 +174,7 @@ class TransmissionModesLayers
 };
 
 /// PhyTransmissionStatParameters structure
-struct PhyTransmissionStatParameters
+struct NR_EXPORT PhyTransmissionStatParameters
 {
     int64_t m_timestamp; ///< in millisecond
     uint16_t m_cellId;   ///< Cell ID of the attached Gnb
@@ -197,7 +198,7 @@ struct PhyTransmissionStatParameters
 };
 
 /// PhyReceptionStatParameters structure
-struct PhyReceptionStatParameters
+struct NR_EXPORT PhyReceptionStatParameters
 {
     int64_t m_timestamp;   ///< in millisecond
     uint16_t m_cellId;     ///< Cell ID of the attached Gnb
@@ -222,7 +223,7 @@ struct PhyReceptionStatParameters
 };
 
 /// DlSchedulingCallbackInfo structure
-struct DlSchedulingCallbackInfo
+struct NR_EXPORT DlSchedulingCallbackInfo
 {
     uint32_t frameNo;           ///< frame number
     uint32_t subframeNo;        ///< subframe number
@@ -239,7 +240,7 @@ struct DlSchedulingCallbackInfo
  * 36.133 section 9.1 E-UTRAN measurements
  *
  */
-class EutranMeasurementMapping
+class NR_EXPORT EutranMeasurementMapping
 {
   public:
     /**

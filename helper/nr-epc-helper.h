@@ -14,6 +14,7 @@
 #include "ns3/ipv4-address-helper.h"
 #include "ns3/ipv6-address-helper.h"
 #include "ns3/node-container.h"
+#include "ns3/nr-export.h"
 #include "ns3/nr-qos-flow.h"
 #include "ns3/nr-qos-rule.h"
 #include "ns3/object.h"
@@ -37,7 +38,7 @@ class NrEpcX2;
  * allow to create EPC entities and the nodes and interfaces that host
  * and connect them.
  */
-class NrEpcHelper : public Object
+class NR_EXPORT NrEpcHelper : public Object
 {
   public:
     /**

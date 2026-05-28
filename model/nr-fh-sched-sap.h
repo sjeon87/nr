@@ -7,6 +7,8 @@
 
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 #include <unordered_map>
 
 namespace ns3
@@ -22,7 +24,7 @@ class NrMacSchedulerUeInfo;
  * contains the FhControl methods called by the MAC Scheduler instance.
  */
 
-class NrFhSchedSapProvider
+class NR_EXPORT NrFhSchedSapProvider
 {
   public:
     virtual ~NrFhSchedSapProvider();
@@ -57,7 +59,7 @@ class NrFhSchedSapProvider
  * gnb PHY methods called by the FhControl instance.
  */
 
-class NrFhSchedSapUser
+class NR_EXPORT NrFhSchedSapUser
 {
   public:
     virtual ~NrFhSchedSapUser();
