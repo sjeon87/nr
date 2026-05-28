@@ -6,6 +6,8 @@
 
 #include "nr-mac-scheduler-ns3.h"
 
+#include "ns3/nr-export.h"
+
 #include <functional>
 #include <memory>
 
@@ -59,7 +61,7 @@ namespace ns3
  * @see NrMacSchedulerTdmaPF
  * @see NrMacSchedulerTdmaMR
  */
-class NrMacSchedulerTdma : public NrMacSchedulerNs3
+class NR_EXPORT NrMacSchedulerTdma : public NrMacSchedulerNs3
 {
     friend class NrTestSchedulerAiCase;
 

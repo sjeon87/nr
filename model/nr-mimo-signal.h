@@ -8,13 +8,14 @@
 #include "nr-amc.h"
 #include "nr-mimo-chunk-processor.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/uinteger.h"
 
 namespace ns3
 {
 
 /// @brief Helper struct for processing and storing received signals for use in CSI feedback
-struct NrMimoSignal : public SimpleRefCount<NrMimoSignal>
+struct NR_EXPORT NrMimoSignal : public SimpleRefCount<NrMimoSignal>
 {
     NrMimoSignal() = default;
     /// @brief Constructor that consolidates the different signals in a vector of received chunks.

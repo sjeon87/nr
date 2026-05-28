@@ -7,6 +7,8 @@
 
 #include "nr-mac-scheduler-ue-info-qos.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 /**
@@ -24,7 +26,7 @@ namespace ns3
  * @see Weights
  * @see NrMacSchedulerUeInfoQos
  */
-class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
+class NR_EXPORT NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
 {
   public:
     /**
@@ -63,7 +65,7 @@ class NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * A struct for an observation of a flow that stores the RNTI, LCG ID, LC ID, 5QI, priority, and
      * head-of-line delay of the flow.
      */
-    struct LcObservation
+    struct NR_EXPORT LcObservation
     {
         uint16_t rnti;
         uint8_t lcId;

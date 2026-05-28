@@ -10,6 +10,8 @@
 
 #include "nr-epc-helper.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -30,7 +32,7 @@ class NrEpcMmeApplication;
  * Or you can use NrPointToPointEpcHelper or CsmaNrEpcHelper
  * (instead of this NrNoBackhaulEpcHelper) to use reference backhaul networks.
  */
-class NrNoBackhaulEpcHelper : public NrEpcHelper
+class NR_EXPORT NrNoBackhaulEpcHelper : public NrEpcHelper
 {
   public:
     /**

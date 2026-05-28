@@ -7,6 +7,7 @@
 
 #include "nr-stats-calculator.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nr-gnb-mac.h"
 #include "ns3/nstime.h"
 #include "ns3/uinteger.h"
@@ -32,7 +33,7 @@ namespace ns3
  *   - MCS
  *   - Size of transport block
  */
-class NrMacSchedulingStats : public NrStatsCalculator
+class NR_EXPORT NrMacSchedulingStats : public NrStatsCalculator
 {
   public:
     /**

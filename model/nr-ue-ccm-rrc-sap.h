@@ -10,6 +10,8 @@
 #include "nr-mac-sap.h"
 #include "nr-ue-cmac-sap.h"
 
+#include "ns3/nr-export.h"
+
 #include <map>
 
 namespace ns3
@@ -25,7 +27,7 @@ class NrMacSapUser;
  * that contains the component carrier manager methods called by the Ue RRC
  * instance.
  */
-class NrUeCcmRrcSapProvider
+class NR_EXPORT NrUeCcmRrcSapProvider
 {
     /// allow  NrMacSapUser class friend access
     friend class NrMacSapUser;
@@ -34,7 +36,7 @@ class NrUeCcmRrcSapProvider
     virtual ~NrUeCcmRrcSapProvider() = default;
 
     /// LcsConfig structure
-    struct LcsConfig
+    struct NR_EXPORT LcsConfig
     {
         uint8_t componentCarrierId;                         ///< component carrier ID
         NrUeCmacSapProvider::LogicalChannelConfig lcConfig; ///< logical channel config
@@ -170,7 +172,7 @@ MemberNrUeCcmRrcSapProvider<C>::ConfigureSignalBearer(
  * This is the *Component Carrier Management SAP User*, i.e., the part of the SAP
  * that contains the UE RRC methods called by the UE CCM instance.
  */
-class NrUeCcmRrcSapUser
+class NR_EXPORT NrUeCcmRrcSapUser
 {
   public:
     virtual ~NrUeCcmRrcSapUser() = default;

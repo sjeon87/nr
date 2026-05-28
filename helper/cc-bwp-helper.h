@@ -5,6 +5,7 @@
 #ifndef CC_BWP_HELPER_H
 #define CC_BWP_HELPER_H
 
+#include "ns3/nr-export.h"
 #include "ns3/propagation-loss-model.h"
 #include "ns3/ptr.h"
 #include "ns3/spectrum-channel.h"
@@ -42,7 +43,7 @@ static const uint8_t MAX_CC_INTER_BAND =
  * well as the entire bandwidth plus the modeling.
  *
  */
-struct BandwidthPartInfo
+struct NR_EXPORT BandwidthPartInfo
 {
     uint8_t m_bwpId{0};             //!< BWP id
     double m_centralFrequency{0.0}; //!< BWP central frequency
@@ -85,13 +86,13 @@ typedef std::unique_ptr<const BandwidthPartInfo> BandwidthPartInfoConstPtr;
  */
 typedef std::vector<std::reference_wrapper<BandwidthPartInfoPtr>> BandwidthPartInfoPtrVector;
 
-std::ostream& operator<<(std::ostream& os, const BandwidthPartInfo& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const BandwidthPartInfo& item);
 
 /**
  * @ingroup helper
  * @brief Component carrier configuration element
  */
-struct ComponentCarrierInfo
+struct NR_EXPORT ComponentCarrierInfo
 {
     uint8_t m_ccId{0};            //!< CC id
     double m_centralFrequency{0}; //!< BWP central frequency
@@ -115,7 +116,7 @@ struct ComponentCarrierInfo
  */
 typedef std::unique_ptr<ComponentCarrierInfo> ComponentCarrierInfoPtr;
 
-std::ostream& operator<<(std::ostream& os, const ComponentCarrierInfo& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const ComponentCarrierInfo& item);
 
 /**
  * @ingroup utils
@@ -124,7 +125,7 @@ std::ostream& operator<<(std::ostream& os, const ComponentCarrierInfo& item);
  * Defines the range of frequencies of an operation band and includes a list of
  * component carriers (CC) and their contiguousness
  */
-struct OperationBandInfo
+struct NR_EXPORT OperationBandInfo
 {
     uint8_t m_bandId{0};            //!< Operation band id
     double m_centralFrequency{0.0}; //!< Operation band central frequency
@@ -157,7 +158,7 @@ struct OperationBandInfo
     BandwidthPartInfoPtrVector GetBwps() const;
 };
 
-std::ostream& operator<<(std::ostream& os, const OperationBandInfo& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const OperationBandInfo& item);
 
 /**
  * @ingroup helper
@@ -168,7 +169,7 @@ std::ostream& operator<<(std::ostream& os, const OperationBandInfo& item);
  * specified by the struct SimpleOperationBandConf. Then, this configuration can
  * be passed to CreateOperationBandContiguousCc.
  */
-class CcBwpCreator
+class NR_EXPORT CcBwpCreator
 {
   public:
     /**
@@ -183,7 +184,7 @@ class CcBwpCreator
      * The possible values of the scenario are depicted in BandwidthPartInfo
      * documentation.
      */
-    struct SimpleOperationBandConf
+    struct NR_EXPORT SimpleOperationBandConf
     {
         /**
          * @brief Default constructor

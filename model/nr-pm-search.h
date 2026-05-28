@@ -9,6 +9,7 @@
 #include "nr-mimo-chunk-processor.h"
 #include "nr-mimo-signal.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/uinteger.h"
 
@@ -17,7 +18,7 @@ namespace ns3
 
 /// @brief Base class for searching optimal precoding matrices and creating full CQI/PMI feedback
 /// This is a mostly abstract base class that provides configuration for common parameters.
-class NrPmSearch : public Object
+class NR_EXPORT NrPmSearch : public Object
 {
   public:
     /// @brief Get TypeId
@@ -53,7 +54,7 @@ class NrPmSearch : public Object
     virtual void InitCodebooks() = 0;
 
     /// @brief Parameters that define if PMI should be updated or if previous PMI values are used.
-    struct PmiUpdate
+    struct NR_EXPORT PmiUpdate
     {
         PmiUpdate() = default;
 
@@ -119,7 +120,7 @@ class NrPmSearch : public Object
     };
 
   protected:
-    struct PrecMatParams : public SimpleRefCount<PrecMatParams>
+    struct NR_EXPORT PrecMatParams : public SimpleRefCount<PrecMatParams>
     {
         size_t wbPmi{};                 ///< Wideband PMI (i1, index of W1 matrix)
         std::vector<size_t> sbPmis{};   ///< Subband PMI values (i2, indices of W2 matrices)

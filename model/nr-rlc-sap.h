@@ -7,6 +7,7 @@
 #ifndef NR_RLC_SAP_H
 #define NR_RLC_SAP_H
 
+#include "ns3/nr-export.h"
 #include "ns3/packet.h"
 
 namespace ns3
@@ -19,7 +20,7 @@ namespace ns3
  * This is the RLC SAP Provider
  * (i.e. the part of the SAP that contains the RLC methods called by the PDCP)
  */
-class NrRlcSapProvider
+class NR_EXPORT NrRlcSapProvider
 {
   public:
     virtual ~NrRlcSapProvider() = default;
@@ -27,7 +28,7 @@ class NrRlcSapProvider
     /**
      * Parameters for NrRlcSapProvider::TransmitPdcpPdu
      */
-    struct TransmitPdcpPduParameters
+    struct NR_EXPORT TransmitPdcpPduParameters
     {
         Ptr<Packet> pdcpPdu; /**< the PDCP PDU */
         uint16_t rnti;       /**< the C-RNTI identifying the UE */
@@ -50,7 +51,7 @@ class NrRlcSapProvider
  * This is the RLC SAP User
  * (i.e. the part of the SAP that contains the PDCP methods called by the RLC)
  */
-class NrRlcSapUser
+class NR_EXPORT NrRlcSapUser
 {
   public:
     virtual ~NrRlcSapUser() = default;

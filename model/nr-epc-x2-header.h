@@ -10,12 +10,13 @@
 #include "nr-epc-x2-sap.h"
 
 #include "ns3/header.h"
+#include "ns3/nr-export.h"
 
 #include <vector>
 
 namespace ns3
 {
-class NrEpcX2Header : public Header
+class NR_EXPORT NrEpcX2Header : public Header
 {
   public:
     NrEpcX2Header();
@@ -95,7 +96,7 @@ class NrEpcX2Header : public Header
 /**
  * NrEpcX2HandoverRequestHeader
  */
-class NrEpcX2HandoverRequestHeader : public Header
+class NR_EXPORT NrEpcX2HandoverRequestHeader : public Header
 {
   public:
     NrEpcX2HandoverRequestHeader();
@@ -216,7 +217,7 @@ class NrEpcX2HandoverRequestHeader : public Header
 /**
  * NrEpcX2HandoverRequestAckHeader
  */
-class NrEpcX2HandoverRequestAckHeader : public Header
+class NR_EXPORT NrEpcX2HandoverRequestAckHeader : public Header
 {
   public:
     NrEpcX2HandoverRequestAckHeader();
@@ -302,7 +303,7 @@ class NrEpcX2HandoverRequestAckHeader : public Header
 /**
  * NrEpcX2HandoverPreparationFailureHeader
  */
-class NrEpcX2HandoverPreparationFailureHeader : public Header
+class NR_EXPORT NrEpcX2HandoverPreparationFailureHeader : public Header
 {
   public:
     NrEpcX2HandoverPreparationFailureHeader();
@@ -375,7 +376,7 @@ class NrEpcX2HandoverPreparationFailureHeader : public Header
 /**
  * NrEpcX2SnStatusTransferHeader
  */
-class NrEpcX2SnStatusTransferHeader : public Header
+class NR_EXPORT NrEpcX2SnStatusTransferHeader : public Header
 {
   public:
     NrEpcX2SnStatusTransferHeader();
@@ -451,7 +452,7 @@ class NrEpcX2SnStatusTransferHeader : public Header
 /**
  * NrEpcX2UeContextReleaseHeader
  */
-class NrEpcX2UeContextReleaseHeader : public Header
+class NR_EXPORT NrEpcX2UeContextReleaseHeader : public Header
 {
   public:
     NrEpcX2UeContextReleaseHeader();
@@ -512,7 +513,7 @@ class NrEpcX2UeContextReleaseHeader : public Header
 /**
  * NrEpcX2LoadInformationHeader
  */
-class NrEpcX2LoadInformationHeader : public Header
+class NR_EXPORT NrEpcX2LoadInformationHeader : public Header
 {
   public:
     NrEpcX2LoadInformationHeader();
@@ -561,7 +562,7 @@ class NrEpcX2LoadInformationHeader : public Header
 /**
  * NrEpcX2ResourceStatusUpdateHeader
  */
-class NrEpcX2ResourceStatusUpdateHeader : public Header
+class NR_EXPORT NrEpcX2ResourceStatusUpdateHeader : public Header
 {
   public:
     NrEpcX2ResourceStatusUpdateHeader();
@@ -636,7 +637,7 @@ class NrEpcX2ResourceStatusUpdateHeader : public Header
 /**
  * NrEpcX2HandoverCancelHeader
  */
-class NrEpcX2HandoverCancelHeader : public Header
+class NR_EXPORT NrEpcX2HandoverCancelHeader : public Header
 {
   public:
     NrEpcX2HandoverCancelHeader();

@@ -10,6 +10,8 @@
 #include "nr-mac-sap.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 /**
@@ -22,7 +24,7 @@ namespace ns3
  * that contains the MAC methods called by the gNB CCM
  * instance.
  */
-class NrCcmMacSapProvider
+class NR_EXPORT NrCcmMacSapProvider
 {
   public:
     virtual ~NrCcmMacSapProvider() = default;
@@ -55,7 +57,7 @@ class NrCcmMacSapProvider
  * that contains the component carrier manager methods called
  * by the gNB MAC instance.
  */
-class NrCcmMacSapUser : public NrMacSapUser
+class NR_EXPORT NrCcmMacSapUser : public NrMacSapUser
 {
   public:
     /**

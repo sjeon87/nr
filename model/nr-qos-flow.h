@@ -7,6 +7,7 @@
 #ifndef NR_QOS_FLOW
 #define NR_QOS_FLOW
 
+#include "ns3/nr-export.h"
 #include "ns3/object-base.h"
 #include "ns3/uinteger.h"
 
@@ -19,7 +20,7 @@ namespace ns3
  * 3GPP TS 38.413 9.3.1.10 GBR QoS Information
  *
  */
-struct NrGbrQosInformation
+struct NR_EXPORT NrGbrQosInformation
 {
     /**
      * Default constructor, initializes member variables to zero or equivalent
@@ -36,7 +37,7 @@ struct NrGbrQosInformation
  * 3GPP 23.203 Section 6.1.7.3 Allocation and Retention Priority characteristics
  *
  */
-struct NrAllocationRetentionPriority
+struct NR_EXPORT NrAllocationRetentionPriority
 {
     /**
      * Default constructor, initializes member variables to zero or equivalent
@@ -54,7 +55,7 @@ struct NrAllocationRetentionPriority
  * TS 23.501, Rel. 19, Table 5.7.4-1.
  *
  */
-class NrQosFlow : public ObjectBase
+class NR_EXPORT NrQosFlow : public ObjectBase
 {
   public:
     /**

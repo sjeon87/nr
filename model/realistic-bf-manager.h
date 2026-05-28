@@ -7,6 +7,7 @@
 
 #include "beam-manager.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 
@@ -26,7 +27,7 @@ class BeamformingHelperBase;
  * array. Additionally, in the case of gNB it saves the map of beamforming
  * vectors per device.
  */
-class RealisticBfManager : public BeamManager
+class NR_EXPORT RealisticBfManager : public BeamManager
 {
   public:
     enum TriggerEvent

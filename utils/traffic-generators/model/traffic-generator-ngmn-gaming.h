@@ -8,6 +8,7 @@
 
 #include "traffic-generator.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 
 namespace ns3
@@ -25,7 +26,7 @@ class Socket;
 
 class TrafficGeneratorNgmnGamingTestCase;
 
-class TrafficGeneratorNgmnGaming : public TrafficGenerator
+class NR_EXPORT TrafficGeneratorNgmnGaming : public TrafficGenerator
 {
     friend TrafficGeneratorNgmnGamingTestCase;
 

@@ -9,6 +9,7 @@
 #include "nr-cb-two-port.h"
 #include "nr-pm-search.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object-factory.h"
 
 namespace ns3
@@ -20,7 +21,7 @@ namespace ns3
 /// When a PMI update is requested, the optimal precoding matrices (PMI) are updated using
 /// exhaustive search over all possible precoding matrices specified in a codebook that is
 /// compatible to 3GPP TS 38.214 Type-I.
-class NrPmSearchFull : public NrPmSearch
+class NR_EXPORT NrPmSearchFull : public NrPmSearch
 {
   public:
     /// @brief Get TypeId
@@ -50,7 +51,7 @@ class NrPmSearchFull : public NrPmSearch
     void SetCodebookAttribute(const std::string& attrName, const AttributeValue& attrVal);
 
   protected:
-    struct RankParams
+    struct NR_EXPORT RankParams
     {
         Ptr<PrecMatParams> precParams; ///< The precoding parameters (WB/SB PMIs)
         Ptr<NrCbTypeOne> cb;           ///< The codebook

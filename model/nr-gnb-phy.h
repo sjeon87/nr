@@ -13,6 +13,8 @@
 #include "nr-phy-sap.h"
 #include "nr-phy.h"
 
+#include "ns3/nr-export.h"
+
 #include <functional>
 
 namespace ns3
@@ -86,7 +88,7 @@ class NrFhPhySapProvider;
  * @see NrPhy::StartEventLoop
  * @see NrPhy::StartSlot
  */
-class NrGnbPhy : public NrPhy
+class NR_EXPORT NrGnbPhy : public NrPhy
 {
     friend class MemberNrGnbCphySapProvider<NrGnbPhy>;
     friend class NrMemberPhySapProvider;

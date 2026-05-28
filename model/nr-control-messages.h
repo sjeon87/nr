@@ -8,6 +8,7 @@
 #include "nr-phy-mac-common.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/simple-ref-count.h"
 
 namespace ns3
@@ -25,7 +26,7 @@ enum LteNrTddSlotType : uint8_t
     UL = 3, //!< UL DATA + UL CTRL
 };
 
-std::ostream& operator<<(std::ostream& os, const LteNrTddSlotType& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const LteNrTddSlotType& item);
 
 /**
  * @ingroup utils
@@ -35,7 +36,7 @@ std::ostream& operator<<(std::ostream& os, const LteNrTddSlotType& item);
  * use is not usually involved in the message creation; however, you can read them
  * with the trace sources that are at your disposal in the MAC and PHY classes.
  */
-class NrControlMessage : public SimpleRefCount<NrControlMessage>
+class NR_EXPORT NrControlMessage : public SimpleRefCount<NrControlMessage>
 {
   public:
     /**
@@ -103,7 +104,7 @@ class NrControlMessage : public SimpleRefCount<NrControlMessage>
  * Message that represent a scheduling request, with the RNTI from
  * which this message is coming.
  */
-class NrSRMessage : public NrControlMessage
+class NR_EXPORT NrSRMessage : public NrControlMessage
 {
   public:
     /**
@@ -135,7 +136,7 @@ class NrSRMessage : public NrControlMessage
  * @brief The message that represents a DL DCI message
  * @ingroup utils
  */
-class NrDlDciMessage : public NrControlMessage
+class NR_EXPORT NrDlDciMessage : public NrControlMessage
 {
   public:
     /**
@@ -197,7 +198,7 @@ class NrDlDciMessage : public NrControlMessage
  * @brief The message that represents a UL DCI message
  * @ingroup utils
  */
-class NrUlDciMessage : public NrControlMessage
+class NR_EXPORT NrUlDciMessage : public NrControlMessage
 {
   public:
     /**
@@ -240,7 +241,7 @@ class NrUlDciMessage : public NrControlMessage
  * @brief The message that represents a DL CQI message
  * @ingroup utils
  */
-class NrDlCqiMessage : public NrControlMessage
+class NR_EXPORT NrDlCqiMessage : public NrControlMessage
 {
   public:
     /**
@@ -274,7 +275,7 @@ class NrDlCqiMessage : public NrControlMessage
  * The uplink BsrNrControlMessage defines the specific
  * extension of the CE element for reporting the buffer status report
  */
-class NrBsrMessage : public NrControlMessage
+class NR_EXPORT NrBsrMessage : public NrControlMessage
 {
   public:
     /**
@@ -310,7 +311,7 @@ class NrBsrMessage : public NrControlMessage
  *        within the control channel (BCCH).
  *
  */
-class NrMibMessage : public NrControlMessage
+class NR_EXPORT NrMibMessage : public NrControlMessage
 {
   public:
     /**
@@ -342,7 +343,7 @@ class NrMibMessage : public NrControlMessage
  *        (SIB1) within the control channel (BCCH).
  *
  */
-class NrSib1Message : public NrControlMessage
+class NR_EXPORT NrSib1Message : public NrControlMessage
 {
   public:
     /**
@@ -373,7 +374,7 @@ class NrSib1Message : public NrControlMessage
  *
  * @brief Abstract model for the Random Access Preamble
  */
-class NrRachPreambleMessage : public NrControlMessage
+class NR_EXPORT NrRachPreambleMessage : public NrControlMessage
 {
   public:
     /**
@@ -410,7 +411,7 @@ class NrRachPreambleMessage : public NrControlMessage
  *
  * @brief Abstract model for the MAC Random Access Response message
  */
-class NrRarMessage : public NrControlMessage
+class NR_EXPORT NrRarMessage : public NrControlMessage
 {
   public:
     /**
@@ -439,7 +440,7 @@ class NrRarMessage : public NrControlMessage
      * a MAC RAR and the corresponding RAPID subheader
      *
      */
-    struct Rar
+    struct NR_EXPORT Rar
     {
         uint8_t rapId;                      //!< RA ID
         NrBuildRarListElement_s rarPayload; //!< RA Payload
@@ -476,7 +477,7 @@ class NrRarMessage : public NrControlMessage
  * The downlink NrDlHarqFeedbackMessage defines the specific
  * messages for transmitting the DL HARQ feedback through PUCCH
  */
-class NrDlHarqFeedbackMessage : public NrControlMessage
+class NR_EXPORT NrDlHarqFeedbackMessage : public NrControlMessage
 {
   public:
     /**
@@ -509,7 +510,7 @@ class NrDlHarqFeedbackMessage : public NrControlMessage
  * @brief NrSrsMessage message
  *
  */
-class NrSrsMessage : public NrControlMessage
+class NR_EXPORT NrSrsMessage : public NrControlMessage
 {
   public:
     /**
@@ -522,8 +523,8 @@ class NrSrsMessage : public NrControlMessage
     ~NrSrsMessage() override = default;
 };
 
-std::ostream& operator<<(std::ostream& os, const LteNrTddSlotType& item);
-std::ostream& operator<<(std::ostream& os, const NrControlMessage::messageType& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const LteNrTddSlotType& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const NrControlMessage::messageType& item);
 
 } // namespace ns3
 

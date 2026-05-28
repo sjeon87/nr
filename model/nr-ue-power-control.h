@@ -5,6 +5,7 @@
 #ifndef NR_UE_POWER_CONTROL_H
 #define NR_UE_POWER_CONTROL_H
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
 #include "ns3/traced-callback.h"
@@ -46,7 +47,7 @@ namespace ns3
 
 class NrUePhy;
 
-class NrUePowerControl : public Object
+class NR_EXPORT NrUePowerControl : public Object
 {
   public:
     /**

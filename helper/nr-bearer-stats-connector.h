@@ -6,6 +6,7 @@
 #ifndef NR_BEARER_STATS_CONNECTOR_H
 #define NR_BEARER_STATS_CONNECTOR_H
 
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 #include "ns3/simple-ref-count.h"
 
@@ -28,7 +29,7 @@ class NrBearerStatsBase;
  * NrHelper::EnableRlcTraces().
  */
 
-class NrBearerStatsConnector
+class NR_EXPORT NrBearerStatsConnector
 {
   public:
     /// Constructor
@@ -302,7 +303,7 @@ class NrBearerStatsConnector
     /**
      * Struct used as key in m_ueManagerPathByCellIdRnti map
      */
-    struct CellIdRnti
+    struct NR_EXPORT CellIdRnti
     {
         uint16_t cellId; //!< cellId
         uint16_t rnti;   //!< rnti

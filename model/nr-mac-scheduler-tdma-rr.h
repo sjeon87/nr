@@ -6,6 +6,8 @@
 
 #include "nr-mac-scheduler-tdma.h"
 
+#include "ns3/nr-export.h"
+
 #include <unordered_set>
 
 namespace ns3
@@ -27,7 +29,7 @@ namespace ns3
  * - Updating resource allocation metrics for UEs after DL/UL assignments.
  * - Maintaining relevant data structures to track UEs in the scheduling queue.
  */
-class NrMacSchedulerTdmaRR : public NrMacSchedulerTdma
+class NR_EXPORT NrMacSchedulerTdmaRR : public NrMacSchedulerTdma
 {
   public:
     /**

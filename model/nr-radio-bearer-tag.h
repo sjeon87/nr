@@ -5,6 +5,7 @@
 #ifndef NR_RADIO_BEARER_TAG_H
 #define NR_RADIO_BEARER_TAG_H
 
+#include "ns3/nr-export.h"
 #include "ns3/tag.h"
 
 namespace ns3
@@ -17,7 +18,7 @@ class Tag;
  *
  * @brief Tag used to define the RNTI and LC id for each MAC packet transmitted
  */
-class NrRadioBearerTag : public Tag
+class NR_EXPORT NrRadioBearerTag : public Tag
 {
   public:
     /**

@@ -5,6 +5,7 @@
 #ifndef NR_MAC_HEADER_VS_H
 #define NR_MAC_HEADER_VS_H
 
+#include "ns3/nr-export.h"
 #include "ns3/packet.h"
 
 namespace ns3
@@ -54,7 +55,7 @@ namespace ns3
  * CE, you need to use one of the subclasses NrMacHeaderVsUl or NrMacHeaderVsDl,
  * respectively for UL (from UE to GNB) or DL (from GNB to UE).
  */
-class NrMacHeaderVs : public Header
+class NR_EXPORT NrMacHeaderVs : public Header
 {
   public:
     /**

@@ -7,6 +7,7 @@
 #include "nr-mac-sched-sap.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 
 #include <memory>
@@ -31,7 +32,7 @@ inline constexpr uint32_t MAC_SUBHEADER_SIZE{3};
  * @see Update
  * @see GetTotalSize
  */
-class NrMacSchedulerLC
+class NR_EXPORT NrMacSchedulerLC
 {
   public:
     /**
@@ -108,7 +109,7 @@ typedef std::unique_ptr<NrMacSchedulerLC> LCPtr;
  *
  * @see UpdateInfo
  */
-class NrMacSchedulerLCG
+class NR_EXPORT NrMacSchedulerLCG
 {
   public:
     /**

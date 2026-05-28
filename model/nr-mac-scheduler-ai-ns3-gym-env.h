@@ -10,6 +10,7 @@
 
 #include "nr-mac-scheduler-ue-info-ai.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/opengym-module.h"
 
@@ -36,7 +37,7 @@ namespace ns3
  * @see NotifyCurrentIteration
  * @see ExecuteActions
  */
-class NrMacSchedulerAiNs3GymEnv : public OpenGymEnv
+class NR_EXPORT NrMacSchedulerAiNs3GymEnv : public OpenGymEnv
 {
   public:
     /**

@@ -10,6 +10,7 @@
 #include "ns3/address.h"
 #include "ns3/application.h"
 #include "ns3/event-id.h"
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 #include "ns3/traced-callback.h"
 
@@ -35,7 +36,7 @@ class Socket;
  * UDP sockets can not be used.
  */
 
-class TrafficGenerator : public Application
+class NR_EXPORT TrafficGenerator : public Application
 {
   public:
     /**

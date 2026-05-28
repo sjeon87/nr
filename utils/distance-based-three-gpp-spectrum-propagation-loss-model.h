@@ -6,6 +6,7 @@
 #ifndef DISTANCE_BASED_THREE_GPP_SPECTRUM_PROPAGATION_LOSS_H
 #define DISTANCE_BASED_THREE_GPP_SPECTRUM_PROPAGATION_LOSS_H
 
+#include "ns3/nr-export.h"
 #include "ns3/three-gpp-spectrum-propagation-loss-model.h"
 
 namespace ns3
@@ -23,7 +24,7 @@ namespace ns3
  *
  * @see ThreeGppSpectrumPropagationLossModel
  */
-class DistanceBasedThreeGppSpectrumPropagationLossModel
+class NR_EXPORT DistanceBasedThreeGppSpectrumPropagationLossModel
     : public ThreeGppSpectrumPropagationLossModel
 {
   public:

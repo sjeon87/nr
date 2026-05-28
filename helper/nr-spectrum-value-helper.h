@@ -5,6 +5,7 @@
 #ifndef NR_SPECTRUM_VALUE_HELPER_H
 #define NR_SPECTRUM_VALUE_HELPER_H
 
+#include "ns3/nr-export.h"
 #include "ns3/spectrum-value.h"
 
 #include <vector>
@@ -17,7 +18,7 @@ namespace ns3
  *
  * @brief This class provides a set of useful functions when working with spectrum model for NR
  */
-class NrSpectrumValueHelper
+class NR_EXPORT NrSpectrumValueHelper
 {
   public:
     enum PowerAllocationType

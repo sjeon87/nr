@@ -6,6 +6,7 @@
 #define NR_WRAPAROUND_UTILS_H
 
 #include "ns3/mobility-model.h"
+#include "ns3/nr-export.h"
 #include "ns3/spectrum-channel.h"
 #include "ns3/wraparound-model.h"
 

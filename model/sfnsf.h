@@ -5,6 +5,7 @@
 #ifndef SFNSF_H
 #define SFNSF_H
 
+#include "ns3/nr-export.h"
 #include "ns3/simple-ref-count.h"
 
 namespace ns3
@@ -28,7 +29,7 @@ namespace ns3
  *
  * @see Normalize
  */
-class SfnSf : public SimpleRefCount<SfnSf>
+class NR_EXPORT SfnSf : public SimpleRefCount<SfnSf>
 {
   public:
     /**

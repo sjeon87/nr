@@ -10,6 +10,7 @@
 #include "nr-qos-flow.h"
 
 #include "ns3/ipv4-address.h"
+#include "ns3/nr-export.h"
 #include "ns3/packet.h"
 
 #include <bitset>
@@ -33,7 +34,7 @@ class Node;
 /**
  * @brief Common structures for NrEpcX2SapProvider and NrEpcX2SapUser
  */
-class NrEpcX2Sap
+class NR_EXPORT NrEpcX2Sap
 {
   public:
     virtual ~NrEpcX2Sap() = default;
@@ -43,7 +44,7 @@ class NrEpcX2Sap
      * it is used in the HANDOVER REQUEST message.
      * See section 9.1.1.1 for further info about the parameters
      */
-    struct ErabToBeSetupItem
+    struct NR_EXPORT ErabToBeSetupItem
     {
         uint16_t erabId;                   ///< E-RAB ID
         NrQosFlow erabLevelQosParameters;  ///< E-RAB level QOS parameters
@@ -62,7 +63,7 @@ class NrEpcX2Sap
      * it is used in the HANDOVER REQUEST ACKNOWLEDGE message.
      * See section 9.1.1.2 for further info about the parameters
      */
-    struct ErabAdmittedItem
+    struct NR_EXPORT ErabAdmittedItem
     {
         uint16_t erabId;    ///< E-RAB ID
         uint32_t ulGtpTeid; ///< uplink GTP TEID
@@ -74,7 +75,7 @@ class NrEpcX2Sap
      * it is used in the HANDOVER REQUEST ACKNOWLEDGE message.
      * See section 9.1.1.2 for further info about the parameters
      */
-    struct ErabNotAdmittedItem
+    struct NR_EXPORT ErabNotAdmittedItem
     {
         uint16_t erabId; ///< E-RAB ID
         uint16_t cause;  ///< cause
@@ -88,7 +89,7 @@ class NrEpcX2Sap
     static const uint16_t m_maxPdcpSn = 4096;
 
     /// ErabsSubjectToStatusTransferItem structure
-    struct ErabsSubjectToStatusTransferItem
+    struct NR_EXPORT ErabsSubjectToStatusTransferItem
     {
         uint16_t erabId;                                    ///< ERAB ID
         std::bitset<m_maxPdcpSn> receiveStatusOfUlPdcpSdus; ///< receive status of UL PDCP SDUs
@@ -115,7 +116,7 @@ class NrEpcX2Sap
      * it is used in the LOAD INFORMATION message.
      * See section 9.1.2.1 for further info about the parameters
      */
-    struct UlHighInterferenceInformationItem
+    struct NR_EXPORT UlHighInterferenceInformationItem
     {
         uint16_t targetCellId; ///< target cell ID
         std::vector<bool>
@@ -130,7 +131,7 @@ class NrEpcX2Sap
      * Note: You can use INT16_MIN value for -infinite value
      *       in the rntpThreshold field
      */
-    struct RelativeNarrowbandTxBand
+    struct NR_EXPORT RelativeNarrowbandTxBand
     {
         std::vector<bool> rntpPerPrbList;             ///< RNTP per prb list
         int16_t rntpThreshold{INT16_MIN};             ///< RNTP threshold
@@ -144,7 +145,7 @@ class NrEpcX2Sap
      * it is used in the LOAD INFORMATION message.
      * See section 9.1.2.1 for further info about the parameters
      */
-    struct CellInformationItem
+    struct NR_EXPORT CellInformationItem
     {
         uint16_t sourceCellId; ///< source cell ID
         std::vector<UlInterferenceOverloadIndicationItem>
@@ -172,7 +173,7 @@ class NrEpcX2Sap
      * it is used in the RESOURCE STATUS UPDATE message.
      * See section 9.2.45 for further info about the parameters
      */
-    struct CompositeAvailCapacity
+    struct NR_EXPORT CompositeAvailCapacity
     {
         uint16_t cellCapacityClassValue; ///< cell capacity class value
         uint16_t capacityValue;          ///< capacity value
@@ -183,7 +184,7 @@ class NrEpcX2Sap
      * it is used in the RESOURCE STATUS UPDATE message.
      * See section 9.1.2.14 for further info about the parameters
      */
-    struct CellMeasurementResultItem
+    struct NR_EXPORT CellMeasurementResultItem
     {
         uint16_t sourceCellId; ///< source cell id
 
@@ -216,7 +217,7 @@ class NrEpcX2Sap
      *
      * See section 9.1.1.1 for further info about the parameters
      */
-    struct HandoverRequestParams
+    struct NR_EXPORT HandoverRequestParams
     {
         uint16_t oldGnbUeX2apId;                ///< old gNB UE X2 AP ID
         uint16_t cause;                         ///< cause
@@ -234,7 +235,7 @@ class NrEpcX2Sap
      *
      * See section 9.1.1.2 for further info about the parameters
      */
-    struct HandoverRequestAckParams
+    struct NR_EXPORT HandoverRequestAckParams
     {
         uint16_t oldGnbUeX2apId;                             ///< old gNB UE X2 AP ID
         uint16_t newGnbUeX2apId;                             ///< new gNB UE X2 AP ID
@@ -250,7 +251,7 @@ class NrEpcX2Sap
      *
      * See section 9.1.1.3 for further info about the parameters
      */
-    struct HandoverPreparationFailureParams
+    struct NR_EXPORT HandoverPreparationFailureParams
     {
         uint16_t oldGnbUeX2apId;         ///< old gNB UE X2 AP ID
         uint16_t sourceCellId;           ///< source cell ID
@@ -264,7 +265,7 @@ class NrEpcX2Sap
      *
      * See section 9.1.1.4 for further info about the parameters
      */
-    struct SnStatusTransferParams
+    struct NR_EXPORT SnStatusTransferParams
     {
         uint16_t oldGnbUeX2apId; ///< old gNB UE X2 AP ID
         uint16_t newGnbUeX2apId; ///< new gNB UE X2 AP ID
@@ -279,7 +280,7 @@ class NrEpcX2Sap
      *
      * See section 9.1.1.5 for further info about the parameters
      */
-    struct UeContextReleaseParams
+    struct NR_EXPORT UeContextReleaseParams
     {
         uint16_t oldGnbUeX2apId; ///< old gNB UE X2 AP ID
         uint16_t newGnbUeX2apId; ///< new gNB UE X2 AP ID
@@ -292,7 +293,7 @@ class NrEpcX2Sap
      *
      * See section 9.1.2.1 for further info about the parameters
      */
-    struct LoadInformationParams
+    struct NR_EXPORT LoadInformationParams
     {
         uint16_t targetCellId{UINT16_MAX};                    ///< target cell ID
         std::vector<CellInformationItem> cellInformationList; ///< cell information list
@@ -303,7 +304,7 @@ class NrEpcX2Sap
      *
      * See section 9.1.2.14 for further info about the parameters
      */
-    struct ResourceStatusUpdateParams
+    struct NR_EXPORT ResourceStatusUpdateParams
     {
         uint16_t targetCellId;      ///< target cell ID
         uint16_t gnb1MeasurementId; ///< gNB1 measurement ID
@@ -318,7 +319,7 @@ class NrEpcX2Sap
      * Forward UE data during the handover procedure from source gNB (sourceCellId)
      * to target gNB (targetCellId) using a GTP-U tunnel (gtpTeid)
      */
-    struct UeDataParams
+    struct NR_EXPORT UeDataParams
     {
         uint16_t sourceCellId; ///< source cell ID
         uint16_t targetCellId; ///< target cell ID
@@ -331,7 +332,7 @@ class NrEpcX2Sap
      *
      * See section 9.1.1.6 for further info about the parameters
      */
-    struct HandoverCancelParams
+    struct NR_EXPORT HandoverCancelParams
     {
         uint16_t oldGnbUeX2apId; ///< old gNB UE X2 AP ID
         uint16_t newGnbUeX2apId; ///< new gNB UE X2 AP ID
@@ -345,7 +346,7 @@ class NrEpcX2Sap
  * These service primitives of this part of the X2 SAP
  * are provided by the X2 entity and issued by RRC entity
  */
-class NrEpcX2SapProvider : public NrEpcX2Sap
+class NR_EXPORT NrEpcX2SapProvider : public NrEpcX2Sap
 {
   public:
     //
@@ -411,7 +412,7 @@ class NrEpcX2SapProvider : public NrEpcX2Sap
  * These service primitives of this part of the X2 SAP
  * are provided by the RRC entity and issued by the X2 entity
  */
-class NrEpcX2SapUser : public NrEpcX2Sap
+class NR_EXPORT NrEpcX2SapUser : public NrEpcX2Sap
 {
   public:
     /*

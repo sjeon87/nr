@@ -10,6 +10,8 @@
 #include "nr-simple-ue-component-carrier-manager.h"
 #include "nr-ue-ccm-rrc-sap.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -20,7 +22,7 @@ class NrControlMessage;
  * @ingroup ue-bwp
  * @brief The BwpManagerUe class
  */
-class BwpManagerUe : public NrSimpleUeComponentCarrierManager
+class NR_EXPORT BwpManagerUe : public NrSimpleUeComponentCarrierManager
 {
   public:
     /**

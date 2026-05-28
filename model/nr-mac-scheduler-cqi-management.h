@@ -7,6 +7,8 @@
 #include "nr-mac-scheduler-ue-info.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 #include <memory>
 
 namespace ns3
@@ -26,7 +28,7 @@ class NrAmc;
  * @see UlSBCQIReported
  * @see DlCqiReported
  */
-class NrMacSchedulerCQIManagement
+class NR_EXPORT NrMacSchedulerCQIManagement
 {
   public:
     /**

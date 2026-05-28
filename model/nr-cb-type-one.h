@@ -6,6 +6,7 @@
 #define NR_CB_TYPE_ONE_H
 
 #include "ns3/matrix-array.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 namespace ns3
@@ -22,7 +23,7 @@ constexpr size_t NR_CB_TYPE_ONE_INIT_NPORTS = 1;
 
 /// @brief Wrapper class for implementations of Type-I precoding matrices in 3GPP TS 38.214.
 /// A separate object must be instantiated for each MIMO rank.
-class NrCbTypeOne : public Object
+class NR_EXPORT NrCbTypeOne : public Object
 {
   public:
     /// @brief Get TypeId

@@ -12,6 +12,7 @@
 #include "nr-qos-rule-classifier.h"
 
 #include "ns3/application.h"
+#include "ns3/nr-export.h"
 #include "ns3/socket.h"
 #include "ns3/virtual-net-device.h"
 
@@ -36,7 +37,7 @@ namespace ns3
  *
  * Others functions enumerated in section 4.4.3.3 of 3GPP TS 23.401 are not supported.
  */
-class NrEpcPgwApplication : public Application
+class NR_EXPORT NrEpcPgwApplication : public Application
 {
   public:
     /**
@@ -180,7 +181,7 @@ class NrEpcPgwApplication : public Application
     /**
      * store info for each UE connected to this PGW
      */
-    class NrUeInfo : public SimpleRefCount<NrUeInfo>
+    class NR_EXPORT NrUeInfo : public SimpleRefCount<NrUeInfo>
     {
       public:
         NrUeInfo();

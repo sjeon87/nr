@@ -9,6 +9,7 @@
 
 #include "ns3/event-id.h"
 #include "ns3/net-device.h"
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 
 #include <map>
@@ -29,7 +30,7 @@ class BeamformingHelperBase;
  * array. Additionally, in the case of gNB it saves the map of beamforming
  * vectors per device.
  */
-class BeamManager : public Object
+class NR_EXPORT BeamManager : public Object
 {
     friend BeamformingHelperBase;
 

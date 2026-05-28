@@ -8,6 +8,7 @@
 #include "scenario-parameters.h"
 
 #include "ns3/node-container.h"
+#include "ns3/nr-export.h"
 #include "ns3/vector.h"
 
 namespace ns3
@@ -21,7 +22,7 @@ namespace ns3
  *
  * Site sectorizaton must be set before setting the number of sites or base stations.
  */
-class NodeDistributionScenarioInterface : public ScenarioParameters
+class NR_EXPORT NodeDistributionScenarioInterface : public ScenarioParameters
 {
   public:
     /**

@@ -11,6 +11,7 @@
 #include "nr-handover-management-sap.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 
 namespace ns3
@@ -48,7 +49,7 @@ namespace ns3
  *       NrHelper::InstallGnbDevice does not have any effect to the devices
  *       that have already been installed.
  */
-class NrA3RsrpHandoverAlgorithm : public NrHandoverAlgorithm
+class NR_EXPORT NrA3RsrpHandoverAlgorithm : public NrHandoverAlgorithm
 {
   public:
     /// Creates a strongest cell handover algorithm instance.

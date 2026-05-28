@@ -7,6 +7,7 @@
 
 #include "node-distribution-scenario-interface.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/vector.h"
 #include "ns3/wraparound-model.h"
@@ -21,7 +22,7 @@ namespace ns3
  *
  * TODO: Documentation, tests
  */
-class HexagonalGridScenarioHelper : public NodeDistributionScenarioInterface
+class NR_EXPORT HexagonalGridScenarioHelper : public NodeDistributionScenarioInterface
 {
   public:
     /*

@@ -12,6 +12,7 @@
 #include "nr-rlc-sap.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
 
@@ -37,7 +38,7 @@ namespace nr
  * NR MAC scheduler.
  *
  */
-class UeRrcProtocolReal : public Object
+class NR_EXPORT UeRrcProtocolReal : public Object
 {
     /// allow MemberNrUeRrcSapUser<UeRrcProtocolReal> class friend access
     friend class MemberNrUeRrcSapUser<UeRrcProtocolReal>;

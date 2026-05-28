@@ -7,6 +7,7 @@
 #ifndef NR_AS_SAP_H
 #define NR_AS_SAP_H
 
+#include "ns3/nr-export.h"
 #include "ns3/packet.h"
 #include "ns3/ptr.h"
 
@@ -22,7 +23,7 @@ namespace ns3
  * Provider part of the SAP, i.e., the methods exported by the
  * NrUeRrc and called by the NrEpcUeNas.
  */
-class NrAsSapProvider
+class NR_EXPORT NrAsSapProvider
 {
   public:
     virtual ~NrAsSapProvider() = default;
@@ -81,7 +82,7 @@ class NrAsSapProvider
  * User part of the SAP, i.e., the methods exported by the
  * NrEpcUeNas and called by the NrUeRrc.
  */
-class NrAsSapUser
+class NR_EXPORT NrAsSapUser
 {
   public:
     virtual ~NrAsSapUser() = default;

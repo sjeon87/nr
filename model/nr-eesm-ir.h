@@ -7,6 +7,8 @@
 
 #include "nr-eesm-error-model.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -30,7 +32,7 @@ namespace ns3
  * depending on what table you want to use.
  *
  */
-class NrEesmIr : public NrEesmErrorModel
+class NR_EXPORT NrEesmIr : public NrEesmErrorModel
 {
   public:
     /**

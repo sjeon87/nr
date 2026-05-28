@@ -7,6 +7,8 @@
 
 #include "nr-pm-search-full.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -18,7 +20,7 @@ namespace ns3
 /// Inspired by "A Search-free Algorithm for Precoder Selection in FD-MIMO Systems
 /// with DFT-based Codebooks" by Federico Penna, Hongbing Cheng, and Jungwon Lee.
 
-class NrPmSearchMaleki : public NrPmSearchFull
+class NR_EXPORT NrPmSearchMaleki : public NrPmSearchFull
 {
   public:
     /// @brief Get TypeId

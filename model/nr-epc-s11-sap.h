@@ -11,6 +11,7 @@
 #include "nr-qos-rule.h"
 
 #include "ns3/address.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
 
@@ -22,7 +23,7 @@ namespace ns3
 /**
  * NrEpcS11Sap
  */
-class NrEpcS11Sap
+class NR_EXPORT NrEpcS11Sap
 {
   public:
     virtual ~NrEpcS11Sap() = default;
@@ -30,7 +31,7 @@ class NrEpcS11Sap
     /**
      * GTPC message
      */
-    struct GtpcMessage
+    struct NR_EXPORT GtpcMessage
     {
         uint32_t teid; ///< TEID
     };
@@ -38,7 +39,7 @@ class NrEpcS11Sap
     /**
      * Fully-qualified TEID, see 3GPP TS 29.274 section 8.22
      */
-    struct Fteid
+    struct NR_EXPORT Fteid
     {
         uint32_t teid;       ///< TEID
         Ipv4Address address; ///< IP address
@@ -47,7 +48,7 @@ class NrEpcS11Sap
     /**
      * TS 29.274 8.21  User Location Information (ULI)
      */
-    struct Uli
+    struct NR_EXPORT Uli
     {
         uint16_t gci; ///< GCI
     };
@@ -59,13 +60,13 @@ class NrEpcS11Sap
  * MME side of the S11 Service Access Point (SAP), provides the MME
  * methods to be called when an S11 message is received by the MME.
  */
-class NrEpcS11SapMme : public NrEpcS11Sap
+class NR_EXPORT NrEpcS11SapMme : public NrEpcS11Sap
 {
   public:
     /**
      * 3GPP TS 29.274 version 8.3.1 Release 8 section 8.28
      */
-    struct FlowContextCreated
+    struct NR_EXPORT FlowContextCreated
     {
         NrEpcS11Sap::Fteid sgwFteid; ///< EPC FTEID
         uint8_t qfi;                 ///< QoS flow ID
@@ -76,7 +77,7 @@ class NrEpcS11SapMme : public NrEpcS11Sap
     /**
      * Create Session Response message, see 3GPP TS 29.274 7.2.2
      */
-    struct CreateSessionResponseMessage : public GtpcMessage
+    struct NR_EXPORT CreateSessionResponseMessage : public GtpcMessage
     {
         std::list<FlowContextCreated> bearerContextsCreated; ///< bearer contexts created
     };
@@ -91,7 +92,7 @@ class NrEpcS11SapMme : public NrEpcS11Sap
     /**
      * Flow Context Removed structure
      */
-    struct FlowContextRemoved
+    struct NR_EXPORT FlowContextRemoved
     {
         uint8_t qosFlowId; ///< QoS Flow ID
     };
@@ -99,7 +100,7 @@ class NrEpcS11SapMme : public NrEpcS11Sap
     /**
      * Delete Flow Request message, see 3GPP TS 29.274 Release 9 V9.3.0 section 7.2.9.2
      */
-    struct DeleteFlowRequestMessage : public GtpcMessage
+    struct NR_EXPORT DeleteFlowRequestMessage : public GtpcMessage
     {
         std::list<FlowContextRemoved> bearerContextsRemoved; ///< list of bearer context removed
     };
@@ -114,7 +115,7 @@ class NrEpcS11SapMme : public NrEpcS11Sap
     /**
      * Modify Flow Response message, see 3GPP TS 29.274 7.2.7
      */
-    struct ModifyFlowResponseMessage : public GtpcMessage
+    struct NR_EXPORT ModifyFlowResponseMessage : public GtpcMessage
     {
         /// Cause enumeration
         enum Cause
@@ -142,11 +143,11 @@ class NrEpcS11SapMme : public NrEpcS11Sap
  * SGW side of the S11 Service Access Point (SAP), provides the SGW
  * methods to be called when an S11 message is received by the SGW.
  */
-class NrEpcS11SapSgw : public NrEpcS11Sap
+class NR_EXPORT NrEpcS11SapSgw : public NrEpcS11Sap
 {
   public:
     /// FlowContextToBeCreated structure
-    struct FlowContextToBeCreated
+    struct NR_EXPORT FlowContextToBeCreated
     {
         NrEpcS11Sap::Fteid sgwFteid; ///< FTEID
         uint8_t qfi;                 ///< QoS Flow ID
@@ -157,7 +158,7 @@ class NrEpcS11SapSgw : public NrEpcS11Sap
     /**
      * Create Session Request message, see 3GPP TS 29.274 7.2.1
      */
-    struct CreateSessionRequestMessage : public GtpcMessage
+    struct NR_EXPORT CreateSessionRequestMessage : public GtpcMessage
     {
         uint64_t imsi; ///< IMSI
         Uli uli;       ///< ULI
@@ -173,7 +174,7 @@ class NrEpcS11SapSgw : public NrEpcS11Sap
     virtual void CreateSessionRequest(CreateSessionRequestMessage msg) = 0;
 
     /// FlowContextToBeCreated structure
-    struct FlowContextToBeRemoved
+    struct NR_EXPORT FlowContextToBeRemoved
     {
         uint8_t qosFlowId; ///< QoS flow ID
     };
@@ -181,7 +182,7 @@ class NrEpcS11SapSgw : public NrEpcS11Sap
     /**
      * Delete Flow Command message, see 3GPP TS 29.274 Release 9 V9.3.0 section 7.2.17.1
      */
-    struct DeleteFlowCommandMessage : public GtpcMessage
+    struct NR_EXPORT DeleteFlowCommandMessage : public GtpcMessage
     {
         std::list<FlowContextToBeRemoved>
             bearerContextsToBeRemoved; ///< list of bearer contexts to be removed
@@ -195,7 +196,7 @@ class NrEpcS11SapSgw : public NrEpcS11Sap
     virtual void DeleteFlowCommand(DeleteFlowCommandMessage msg) = 0;
 
     /// FlowContextRemovedSgwPgw structure
-    struct FlowContextRemovedSgwPgw
+    struct NR_EXPORT FlowContextRemovedSgwPgw
     {
         uint8_t qosFlowId; ///< QoS flow ID
     };
@@ -203,7 +204,7 @@ class NrEpcS11SapSgw : public NrEpcS11Sap
     /**
      * Delete Flow Response message, see 3GPP TS 29.274 Release 9 V9.3.0 section 7.2.10.2
      */
-    struct DeleteFlowResponseMessage : public GtpcMessage
+    struct NR_EXPORT DeleteFlowResponseMessage : public GtpcMessage
     {
         std::list<FlowContextRemovedSgwPgw>
             bearerContextsRemoved; ///< list of bearer contexts removed
@@ -219,7 +220,7 @@ class NrEpcS11SapSgw : public NrEpcS11Sap
     /**
      * Modify Flow Request message, see 3GPP TS 29.274 7.2.7
      */
-    struct ModifyFlowRequestMessage : public GtpcMessage
+    struct NR_EXPORT ModifyFlowRequestMessage : public GtpcMessage
     {
         Uli uli; ///< ULI
     };

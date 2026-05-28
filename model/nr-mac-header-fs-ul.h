@@ -7,6 +7,8 @@
 
 #include "nr-mac-header-fs.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -28,7 +30,7 @@ namespace ns3
  * This header must be used to report some fixed-sized CE to the UE. An
  * example is NrMacShortBsrCe.
  */
-class NrMacHeaderFsUl : public NrMacHeaderFs
+class NR_EXPORT NrMacHeaderFsUl : public NrMacHeaderFs
 {
   public:
     /**

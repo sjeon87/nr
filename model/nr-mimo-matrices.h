@@ -6,6 +6,7 @@
 #define NR_MIMO_MATRICES_H
 
 #include "ns3/matrix-array.h"
+#include "ns3/nr-export.h"
 #include "ns3/spectrum-value.h"
 
 namespace ns3
@@ -18,7 +19,7 @@ class NrSinrMatrix;
 /// NrCovMat stores the interference-plus-noise covariance matrices of a MIMO signal, with one
 /// matrix page for each frequency bin. Operations for efficient computation, addition, and
 /// subtraction of covariance matrices of interfering MIMO signals are implemented.
-class NrCovMat : public ComplexMatrixArray
+class NR_EXPORT NrCovMat : public ComplexMatrixArray
 {
   public:
     NrCovMat() = default;
@@ -60,7 +61,7 @@ class NrCovMat : public ComplexMatrixArray
 /// where W_e is Gaussian with an identity covariance matrix.
 /// For SISO, H_intfNorm is equivalent to 1 / sqrt(interfPlusNoisePower) * H, and the SISO SINR is
 /// equal to |H_intfNorm|^2
-class NrIntfNormChanMat : public ComplexMatrixArray
+class NR_EXPORT NrIntfNormChanMat : public ComplexMatrixArray
 {
   public:
     NrIntfNormChanMat() = default;
@@ -118,7 +119,7 @@ class NrIntfNormChanMat : public ComplexMatrixArray
 };
 
 /// @brief NrSinrMatrix stores the MIMO SINR matrix, with dimension rank x nRbs
-class NrSinrMatrix : public DoubleMatrixArray
+class NR_EXPORT NrSinrMatrix : public DoubleMatrixArray
 {
   public:
     NrSinrMatrix() = default;

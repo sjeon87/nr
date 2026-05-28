@@ -7,6 +7,8 @@
 
 #include "nr-error-model.h"
 
+#include "ns3/nr-export.h"
+
 #include <map>
 
 namespace ns3
@@ -21,7 +23,7 @@ class NrL2smEesmTestCase;
  * Error model output returned by the class NrEesmErrorModel.
  * @see NrEesmErrorModel
  */
-struct NrEesmErrorModelOutput : public NrErrorModelOutput
+struct NR_EXPORT NrEesmErrorModelOutput : public NrErrorModelOutput
 {
     /**
      * @brief NrEesmErrorModelOutput constructor (deleted)
@@ -74,7 +76,7 @@ struct NrEesmErrorModelOutput : public NrErrorModelOutput
  * @see NrEesmCcT1
  * @see NrEesmCcT2
  */
-class NrEesmErrorModel : public NrErrorModel
+class NR_EXPORT NrEesmErrorModel : public NrErrorModel
 {
   public:
     friend NrL2smEesmTestCase;

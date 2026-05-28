@@ -596,7 +596,34 @@ build_lib(
     ${libconfig-store}
     ${opengym_libraries}
   TEST_SOURCES ${test_sources}
+  GENERATE_EXPORT_HEADER
 )
+
+# Symbol-visibility opt-in for the nr library only.
+#
+# Default MinGW/CMake behaviour exports *every* globally visible symbol into the
+# PE import library. With template-heavy code (Callback<>, std::function, Eigen,
+# the ns-3 attribute system) the count for the nr DLL has grown past the PE
+# 16-bit export-ordinal limit of 65535 entries, breaking the link with "export
+# ordinal too large: NNNNN".
+#
+# -fvisibility=hidden makes hidden the default for symbols that are not
+# annotated; -fvisibility-inlines-hidden additionally hides every inline
+# function (including template instantiations) regardless of annotation, which
+# is what trims the std::/Eigen::/Callback<> bulk out of the export table.
+if(WIN32)
+  set_target_properties(
+    nr
+    PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS
+               OFF
+  )
+  target_compile_options(
+    nr
+    PRIVATE -fvisibility=hidden
+            -fvisibility-inlines-hidden
+  )
+  target_compile_definitions(nr PRIVATE NS_MSVC)
+endif()
 
 # Get path src/nr or contrib/nr
 string(

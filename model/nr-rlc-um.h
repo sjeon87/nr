@@ -11,6 +11,7 @@
 #include "nr-rlc.h"
 
 #include "ns3/event-id.h"
+#include "ns3/nr-export.h"
 
 #include <deque>
 #include <map>
@@ -21,7 +22,7 @@ namespace ns3
 /**
  * LTE RLC Unacknowledged Mode (UM), see 3GPP TS 36.322
  */
-class NrRlcUm : public NrRlc
+class NR_EXPORT NrRlcUm : public NrRlc
 {
   public:
     NrRlcUm();
@@ -93,7 +94,7 @@ class NrRlcUm : public NrRlc
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
      */
-    struct TxPdu
+    struct NR_EXPORT TxPdu
     {
         /**
          * @brief TxPdu default constructor

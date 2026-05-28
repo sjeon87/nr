@@ -7,6 +7,7 @@
 #ifndef NR_COMPONENT_CARRIER_H
 #define NR_COMPONENT_CARRIER_H
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 namespace ns3
@@ -22,7 +23,7 @@ namespace ns3
  * parameters for a carrier. Does not contain pointers to
  * the MAC/PHY objects of the carrier.
  */
-class NrComponentCarrier : public Object
+class NR_EXPORT NrComponentCarrier : public Object
 {
   public:
     /**

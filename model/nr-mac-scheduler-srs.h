@@ -7,6 +7,8 @@
 
 #include "nr-mac-scheduler-ue-info.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -50,7 +52,7 @@ namespace ns3
  * If that's not the case, the API would have to be updated.
  *
  */
-class NrMacSchedulerSrs
+class NR_EXPORT NrMacSchedulerSrs
 {
   public:
     /**
@@ -64,7 +66,7 @@ class NrMacSchedulerSrs
      * The struct must be considerated invalid if the field `m_isValid` is set
      * to false.
      */
-    struct SrsPeriodicityAndOffset
+    struct NR_EXPORT SrsPeriodicityAndOffset
     {
         bool m_isValid{false};     //!< Indicates if the values are valid.
         uint32_t m_periodicity{0}; //!< The periodicity requested (in slot).

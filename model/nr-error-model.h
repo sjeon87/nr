@@ -7,6 +7,7 @@
 
 #include "nr-mimo-chunk-processor.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/spectrum-value.h"
 
@@ -20,7 +21,7 @@ namespace ns3
  * @brief Store the output of an NRErrorModel
  *
  */
-struct NrErrorModelOutput : public SimpleRefCount<NrErrorModelOutput>
+struct NR_EXPORT NrErrorModelOutput : public SimpleRefCount<NrErrorModelOutput>
 {
     /**
      * @brief NrErrorModelOutput default constructor (deleted)
@@ -68,7 +69,7 @@ struct NrErrorModelOutput : public SimpleRefCount<NrErrorModelOutput>
  * @see NrEesmCcT2
  * @see NrLteMiErrorModel
  */
-class NrErrorModel : public Object
+class NR_EXPORT NrErrorModel : public Object
 {
   public:
     /**

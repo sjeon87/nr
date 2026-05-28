@@ -18,6 +18,7 @@
 #include "nr-handover-management-sap.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 #include "ns3/simple-ref-count.h"
 
@@ -65,7 +66,7 @@ namespace ns3
  *       NrHelper::InstallGnbDevice does not have any effect to the devices
  *       that have already been installed.
  */
-class NrA2A4RsrpHandoverAlgorithm : public NrHandoverAlgorithm
+class NR_EXPORT NrA2A4RsrpHandoverAlgorithm : public NrHandoverAlgorithm
 {
   public:
     /// Creates an A2-A4-RSRP handover algorithm instance.
@@ -133,7 +134,7 @@ class NrA2A4RsrpHandoverAlgorithm : public NrHandoverAlgorithm
      * Measurements reported by a UE for a cell ID. The values are quantized
      * according 3GPP TS Table 10.1.6.1-1 of 3GPP TS 38.133.
      */
-    class UeMeasure : public SimpleRefCount<UeMeasure>
+    class NR_EXPORT UeMeasure : public SimpleRefCount<UeMeasure>
     {
       public:
         uint16_t m_cellId; ///< Cell ID.

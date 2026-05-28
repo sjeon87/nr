@@ -12,6 +12,8 @@
 #include "nr-qos-flow.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
+
 #include <map>
 
 namespace ns3
@@ -29,7 +31,7 @@ class NrRrcSap;
  * This is the *Component Carrier Manager SAP Provider*, i.e., the part of the SAP
  * that contains the CCM methods called by the eNodeB RRC instance.
  */
-class NrCcmRrcSapProvider
+class NR_EXPORT NrCcmRrcSapProvider
 {
     /// allow NrUeManager class friend access
     friend class NrUeManager;
@@ -40,7 +42,7 @@ class NrCcmRrcSapProvider
     virtual ~NrCcmRrcSapProvider() = default;
 
     /// LcsConfig structure
-    struct LcsConfig
+    struct NR_EXPORT LcsConfig
     {
         uint16_t componentCarrierId;     ///< component carrier ID
         NrGnbCmacSapProvider::LcInfo lc; ///< LC info
@@ -137,7 +139,7 @@ class NrCcmRrcSapProvider
  * This is the *Component Carrier Management SAP User*, i.e., the part of the SAP that
  * contains the eNodeB RRC methods called by the CCM.
  */
-class NrCcmRrcSapUser
+class NR_EXPORT NrCcmRrcSapUser
 {
     /// allow NrGnbRrc class friend access
     friend class NrGnbRrc;

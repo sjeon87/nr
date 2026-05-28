@@ -9,6 +9,7 @@
 #include "nr-phy-mac-common.h"
 #include "nr-ue-cmac-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/traced-callback.h"
 
 #include <unordered_map>
@@ -100,7 +101,7 @@ class NrUlDciMessage;
  * and the other is UeMacTxedCtrlMsgsTrace. For what regards the PHY, you will
  * find more information in the NrUePhy class documentation.
  */
-class NrUeMac : public Object
+class NR_EXPORT NrUeMac : public Object
 {
     friend class UeMemberNrUeCmacSapProvider;
     friend class UeMemberNrMacSapProvider;
@@ -475,7 +476,7 @@ class NrUeMac : public Object
     uint64_t m_imsi{0};        ///< IMSI
 
     // The HARQ part has to be reviewed
-    struct UlHarqProcessInfo
+    struct NR_EXPORT UlHarqProcessInfo
     {
         Ptr<PacketBurst> m_pktBurst;
         // maintain list of LCs contained in this TB
@@ -488,7 +489,7 @@ class NrUeMac : public Object
         m_miUlHarqProcessesPacket; //!< Packets under transmission of the UL HARQ processes
     std::vector<uint8_t> m_miUlHarqProcessesPacketTimer; //!< timer for packet life in the buffer
 
-    struct LcInfo
+    struct NR_EXPORT LcInfo
     {
         NrUeCmacSapProvider::LogicalChannelConfig lcConfig;
         NrMacSapUser* macSapUser;

@@ -7,6 +7,7 @@
 
 #include "nr-mimo-matrices.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
@@ -16,7 +17,7 @@ namespace ns3
 {
 
 /// @brief MIMO SINR used to compute the TBLER of a data transmission
-struct MimoSinrChunk
+struct NR_EXPORT MimoSinrChunk
 {
     NrSinrMatrix mimoSinr; ///< The MIMO SINR values, dimensions rank * nRBs
     uint16_t rnti{0};      ///< RNTI, required in OFDMA UL to filter received signals by UEs
@@ -24,7 +25,7 @@ struct MimoSinrChunk
 };
 
 /// @brief MIMO signal information used to compute CQI feedback including rank and precoding matrix
-struct MimoSignalChunk
+struct NR_EXPORT MimoSignalChunk
 {
     ComplexMatrixArray chanSpct; ///< Frequency-domain channel matrix
     NrCovMat interfNoiseCov;     ///< Interference-and-noise-covariance matrix
@@ -35,7 +36,7 @@ struct MimoSignalChunk
 using MimoSinrChunksCb = Callback<void, const std::vector<MimoSinrChunk>&>;
 using MimoSignalChunksCb = Callback<void, const std::vector<MimoSignalChunk>&>;
 
-class NrMimoChunkProcessor : public SimpleRefCount<NrMimoChunkProcessor>
+class NR_EXPORT NrMimoChunkProcessor : public SimpleRefCount<NrMimoChunkProcessor>
 {
   public:
     /// @brief Add a callback for processing received SINR values

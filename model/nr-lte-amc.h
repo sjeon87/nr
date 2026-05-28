@@ -9,6 +9,7 @@
 #ifndef NR_LTE_AMC_H
 #define NR_LTE_AMC_H
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
 
@@ -25,7 +26,7 @@ class SpectrumValue;
  * TSG-RAN WG1 [R1-081483 Conveying MCS and TB size via PDCCH]
  * (http://www.3gpp.org/ftp/tsg_ran/WG1_RL1/TSGR1_52b/Docs/R1-081483.zip).
  */
-class NrLteAmc : public Object
+class NR_EXPORT NrLteAmc : public Object
 {
   public:
     /**

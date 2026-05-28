@@ -5,6 +5,8 @@
 #pragma once
 #include "nr-mac-scheduler-tdma-rr.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -15,7 +17,7 @@ namespace ns3
  * Sort the UE by their current throughput. Details in the class
  * NrMacSchedulerUeInfoPF.
  */
-class NrMacSchedulerTdmaPF : public NrMacSchedulerTdmaRR
+class NR_EXPORT NrMacSchedulerTdmaPF : public NrMacSchedulerTdmaRR
 {
   public:
     /**

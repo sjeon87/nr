@@ -10,6 +10,7 @@
 
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
 #define SRS_CQI_RNTI_VSP 1
 
 namespace ns3
@@ -18,7 +19,7 @@ namespace ns3
 /**
  * @brief Define the RNTI that has generated the
  */
-class NrSrsCqiRntiVsp : public nr::VendorSpecificValue
+class NR_EXPORT NrSrsCqiRntiVsp : public nr::VendorSpecificValue
 {
   public:
     /**

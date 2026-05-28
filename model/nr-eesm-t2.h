@@ -7,6 +7,8 @@
 
 #include "nr-eesm-error-model.h"
 
+#include "ns3/nr-export.h"
+
 #include <vector>
 
 namespace ns3
@@ -29,7 +31,7 @@ namespace ns3
  * @see NrEesmIrT2
  * @see NrEesmCcT2
  */
-struct NrEesmT2
+struct NR_EXPORT NrEesmT2
 {
     /**
      * @brief NrEesmT2 constructor. Initialize the pointers

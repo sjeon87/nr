@@ -10,6 +10,7 @@
 
 #include "nr-qos-flow.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 #include "ns3/simulator.h"
 
@@ -40,7 +41,7 @@ class Packet;
  * detailed doxygen documentation is omitted, so please refer to
  * 36.331 for the meaning of these data structures / fields.
  */
-class NrRrcSap
+class NR_EXPORT NrRrcSap
 {
   public:
     virtual ~NrRrcSap() = default;
@@ -50,13 +51,13 @@ class NrRrcSap
 
     // Information Elements
     /// PlmnIdentityInfo structure
-    struct PlmnIdentityInfo
+    struct NR_EXPORT PlmnIdentityInfo
     {
         uint32_t plmnIdentity; ///< PLMN identity
     };
 
     /// CellAccessRelatedInfo structure
-    struct CellAccessRelatedInfo
+    struct NR_EXPORT CellAccessRelatedInfo
     {
         PlmnIdentityInfo plmnIdentityInfo; ///< PLMN identity info
         uint32_t cellIdentity;             ///< cell identity
@@ -65,21 +66,21 @@ class NrRrcSap
     };
 
     /// CellSelectionInfo structure
-    struct CellSelectionInfo
+    struct NR_EXPORT CellSelectionInfo
     {
         int8_t qRxLevMin; ///< INTEGER (-70..-22), actual value = IE value * 2 [dBm].
         int8_t qQualMin;  ///< INTEGER (-34..-3), actual value = IE value [dB].
     };
 
     /// FreqInfo structure
-    struct FreqInfo
+    struct NR_EXPORT FreqInfo
     {
         uint32_t ulCarrierFreq; ///< UL carrier frequency
         uint16_t ulBandwidth;   ///< UL bandwidth
     };
 
     /// RlcConfig structure
-    struct RlcConfig
+    struct NR_EXPORT RlcConfig
     {
         /// the direction choice
         enum Direction
@@ -94,7 +95,7 @@ class NrRrcSap
     };
 
     /// LogicalChannelConfig structure
-    struct LogicalChannelConfig
+    struct NR_EXPORT LogicalChannelConfig
     {
         uint8_t priority;                ///< priority
         NrQosFlow::FiveQi fiveQi;        ///< 5G QoS Identifier
@@ -104,7 +105,7 @@ class NrRrcSap
     };
 
     /// SoundingRsUlConfigCommon structure
-    struct SoundingRsUlConfigCommon
+    struct NR_EXPORT SoundingRsUlConfigCommon
     {
         /// the config action
         enum Action
@@ -120,7 +121,7 @@ class NrRrcSap
     };
 
     /// SoundingRsUlConfigDedicated structure
-    struct SoundingRsUlConfigDedicated
+    struct NR_EXPORT SoundingRsUlConfigDedicated
     {
         /// the config action
         enum Action
@@ -136,20 +137,20 @@ class NrRrcSap
     };
 
     /// AntennaInfoDedicated structure
-    struct AntennaInfoDedicated
+    struct NR_EXPORT AntennaInfoDedicated
     {
         uint8_t transmissionMode; ///< transmission mode
     };
 
     /// PdschConfigCommon structure
-    struct PdschConfigCommon
+    struct NR_EXPORT PdschConfigCommon
     {
         int8_t referenceSignalPower; ///< INTEGER (-60..50),
         int8_t pb;                   ///< INTEGER (0..3),
     };
 
     /// PdschConfigDedicated structure
-    struct PdschConfigDedicated
+    struct NR_EXPORT PdschConfigDedicated
     {
         /**
          * P_A values, TS 36.331 6.3.2 PDSCH-Config
@@ -212,7 +213,7 @@ class NrRrcSap
     }
 
     /// PhysicalConfigDedicated structure
-    struct PhysicalConfigDedicated
+    struct NR_EXPORT PhysicalConfigDedicated
     {
         bool haveSoundingRsUlConfigDedicated; ///< have sounding RS UL config dedicated?
         SoundingRsUlConfigDedicated
@@ -224,14 +225,14 @@ class NrRrcSap
     };
 
     /// SrbToAddMod structure
-    struct SrbToAddMod
+    struct NR_EXPORT SrbToAddMod
     {
         uint8_t srbIdentity;                       ///< SB identity
         LogicalChannelConfig logicalChannelConfig; ///< logical channel config
     };
 
     /// DrbToAddMod structure
-    struct DrbToAddMod
+    struct NR_EXPORT DrbToAddMod
     {
         uint8_t qosFlowIdentity;                   ///< QoS flow identity
         uint8_t drbIdentity;                       ///< DRB identity
@@ -241,27 +242,27 @@ class NrRrcSap
     };
 
     /// PreambleInfo structure
-    struct PreambleInfo
+    struct NR_EXPORT PreambleInfo
     {
         uint8_t numberOfRaPreambles; ///< number of RA preambles
     };
 
     /// RaSupervisionInfo structure
-    struct RaSupervisionInfo
+    struct NR_EXPORT RaSupervisionInfo
     {
         uint8_t preambleTransMax;     ///< preamble transmit maximum
         uint8_t raResponseWindowSize; ///< RA response window size
     };
 
     /// TxFailParams structure
-    struct TxFailParam
+    struct NR_EXPORT TxFailParam
     {
         uint8_t connEstFailCount{
             0}; ///< Number of times that the UE detects T300 expiry on the same cell
     };
 
     /// RachConfigCommon structure
-    struct RachConfigCommon
+    struct NR_EXPORT RachConfigCommon
     {
         PreambleInfo preambleInfo;           ///< preamble info
         RaSupervisionInfo raSupervisionInfo; ///< RA supervision info
@@ -269,20 +270,20 @@ class NrRrcSap
     };
 
     /// RadioResourceConfigCommon structure
-    struct RadioResourceConfigCommon
+    struct NR_EXPORT RadioResourceConfigCommon
     {
         RachConfigCommon rachConfigCommon; ///< RACH config common
     };
 
     /// RadioResourceConfigCommonSib structure
-    struct RadioResourceConfigCommonSib
+    struct NR_EXPORT RadioResourceConfigCommonSib
     {
         RachConfigCommon rachConfigCommon;   ///< RACH config common
         PdschConfigCommon pdschConfigCommon; ///< PDSCH config common
     };
 
     /// RadioResourceConfigDedicated structure
-    struct RadioResourceConfigDedicated
+    struct NR_EXPORT RadioResourceConfigDedicated
     {
         std::list<SrbToAddMod> srbToAddModList;          ///< SRB to add mod list
         std::list<DrbToAddMod> drbToAddModList;          ///< DRB to add mod list
@@ -292,14 +293,14 @@ class NrRrcSap
     };
 
     /// QuantityConfig structure
-    struct QuantityConfig
+    struct NR_EXPORT QuantityConfig
     {
         uint8_t filterCoefficientRSRP; ///< filter coefficient RSRP
         uint8_t filterCoefficientRSRQ; ///< filter coefficient RSRQ
     };
 
     /// CellsToAddMod structure
-    struct CellsToAddMod
+    struct NR_EXPORT CellsToAddMod
     {
         uint8_t cellIndex;           ///< cell index
         uint16_t physCellId;         ///< Phy cell ID
@@ -307,7 +308,7 @@ class NrRrcSap
     };
 
     /// PhysCellIdRange structure
-    struct PhysCellIdRange
+    struct NR_EXPORT PhysCellIdRange
     {
         uint16_t start; ///< starting cell ID
         bool haveRange; ///< has a range?
@@ -315,14 +316,14 @@ class NrRrcSap
     };
 
     /// BlackCellsToAddMod structure
-    struct BlackCellsToAddMod
+    struct NR_EXPORT BlackCellsToAddMod
     {
         uint8_t cellIndex;               ///< cell index
         PhysCellIdRange physCellIdRange; ///< Phy cell ID range
     };
 
     /// MeasObjectEutra structure
-    struct MeasObjectEutra
+    struct NR_EXPORT MeasObjectEutra
     {
         uint32_t carrierFreq;                                 ///< carrier frequency
         uint16_t allowedMeasBandwidth;                        ///< allowed measure bandwidth
@@ -346,7 +347,7 @@ class NrRrcSap
      *
      * \sa ns3::EutranMeasurementMapping
      */
-    struct ThresholdEutra
+    struct NR_EXPORT ThresholdEutra
     {
         /// Threshold enumeration
         enum
@@ -359,7 +360,7 @@ class NrRrcSap
     };
 
     /// Specifies criteria for triggering of an E-UTRA measurement reporting event.
-    struct ReportConfigEutra
+    struct NR_EXPORT ReportConfigEutra
     {
         /// Trigger enumeration
         enum
@@ -478,21 +479,21 @@ class NrRrcSap
     }; // end of struct ReportConfigEutra
 
     /// MeasObjectToAddMod structure
-    struct MeasObjectToAddMod
+    struct NR_EXPORT MeasObjectToAddMod
     {
         uint8_t measObjectId;            ///< measure object ID
         MeasObjectEutra measObjectEutra; ///< measure object eutra
     };
 
     /// ReportConfigToAddMod structure
-    struct ReportConfigToAddMod
+    struct NR_EXPORT ReportConfigToAddMod
     {
         uint8_t reportConfigId;              ///< report config ID
         ReportConfigEutra reportConfigEutra; ///< report config eutra
     };
 
     /// MeasIdToAddMod structure
-    struct MeasIdToAddMod
+    struct NR_EXPORT MeasIdToAddMod
     {
         uint8_t measId;         ///< measure ID
         uint8_t measObjectId;   ///< measure object ID
@@ -500,7 +501,7 @@ class NrRrcSap
     };
 
     /// MeasGapConfig structure
-    struct MeasGapConfig
+    struct NR_EXPORT MeasGapConfig
     {
         /// the action type
         enum Action
@@ -524,7 +525,7 @@ class NrRrcSap
     };
 
     /// MobilityStateParameters structure
-    struct MobilityStateParameters
+    struct NR_EXPORT MobilityStateParameters
     {
         uint8_t tEvaluation;       ///< evaluation
         uint8_t tHystNormal;       ///< hyst normal
@@ -533,7 +534,7 @@ class NrRrcSap
     };
 
     /// SpeedStateScaleFactors structure
-    struct SpeedStateScaleFactors
+    struct NR_EXPORT SpeedStateScaleFactors
     {
         // 25 = oDot25, 50 = oDot5, 75 = oDot75, 100 = lDot0
         uint8_t sfMedium; ///< scale factor medium
@@ -541,7 +542,7 @@ class NrRrcSap
     };
 
     /// SpeedStatePars structure
-    struct SpeedStatePars
+    struct NR_EXPORT SpeedStatePars
     {
         /// the action type
         enum Action
@@ -557,7 +558,7 @@ class NrRrcSap
     };
 
     /// MeasConfig structure
-    struct MeasConfig
+    struct NR_EXPORT MeasConfig
     {
         std::list<uint8_t> measObjectToRemoveList;            ///< measure object to remove list
         std::list<MeasObjectToAddMod> measObjectToAddModList; ///< measure object to add mod list
@@ -576,28 +577,28 @@ class NrRrcSap
     };
 
     /// CarrierFreqEutra structure
-    struct CarrierFreqEutra
+    struct NR_EXPORT CarrierFreqEutra
     {
         uint32_t dlCarrierFreq; ///< DL carrier frequency
         uint32_t ulCarrierFreq; ///< UL carrier frequency
     };
 
     /// CarrierBandwidthEutra structure
-    struct CarrierBandwidthEutra
+    struct NR_EXPORT CarrierBandwidthEutra
     {
         uint16_t dlBandwidth; ///< DL bandwidth
         uint16_t ulBandwidth; ///< UL bandwidth
     };
 
     /// RachConfigDedicated structure
-    struct RachConfigDedicated
+    struct NR_EXPORT RachConfigDedicated
     {
         uint8_t raPreambleIndex;  ///< RA preamble index
         uint8_t raPrachMaskIndex; ///< RA PRACH mask index
     };
 
     /// MobilityControlInfo structure
-    struct MobilityControlInfo
+    struct NR_EXPORT MobilityControlInfo
     {
         uint16_t targetPhysCellId;                           ///< target Phy cell ID
         bool haveCarrierFreq;                                ///< have carrier frequency?
@@ -611,7 +612,7 @@ class NrRrcSap
     };
 
     /// ReestabUeIdentity structure
-    struct ReestabUeIdentity
+    struct NR_EXPORT ReestabUeIdentity
     {
         uint16_t cRnti;      ///< RNTI
         uint16_t physCellId; ///< Phy cell ID
@@ -626,14 +627,14 @@ class NrRrcSap
     };
 
     /// MasterInformationBlock structure
-    struct MasterInformationBlock
+    struct NR_EXPORT MasterInformationBlock
     {
         int numerology;             ///< numerology
         uint16_t dlBandwidth;       ///< DL bandwidth
         uint16_t systemFrameNumber; ///< system frame number
     };
 
-    struct ServingCellConfigCommon
+    struct NR_EXPORT ServingCellConfigCommon
     {
         uint8_t numerology; // SubcarrierSpacing (0..5)
 
@@ -656,7 +657,7 @@ class NrRrcSap
     };
 
     /// SystemInformationBlockType1 structure
-    struct SystemInformationBlockType1
+    struct NR_EXPORT SystemInformationBlockType1
     {
         CellAccessRelatedInfo cellAccessRelatedInfo;     ///< cell access related info
         CellSelectionInfo cellSelectionInfo;             ///< cell selection info
@@ -664,21 +665,21 @@ class NrRrcSap
     };
 
     /// SystemInformationBlockType2 structure
-    struct SystemInformationBlockType2
+    struct NR_EXPORT SystemInformationBlockType2
     {
         RadioResourceConfigCommonSib radioResourceConfigCommon; ///< radio resource config common
         FreqInfo freqInfo;                                      ///< frequency info
     };
 
     /// SystemInformation structure
-    struct SystemInformation
+    struct NR_EXPORT SystemInformation
     {
         bool haveSib2;                    ///< have SIB2?
         SystemInformationBlockType2 sib2; ///< SIB2
     };
 
     /// AsConfig structure
-    struct AsConfig
+    struct NR_EXPORT AsConfig
     {
         MeasConfig sourceMeasConfig;                            ///< source measure config
         RadioResourceConfigDedicated sourceRadioResourceConfig; ///< source radio resource config
@@ -692,7 +693,7 @@ class NrRrcSap
     };
 
     /// CgiInfo structure
-    struct CgiInfo
+    struct NR_EXPORT CgiInfo
     {
         uint32_t plmnIdentity{0};               ///< PLMN identity
         uint32_t cellIdentity{0};               ///< cell identity
@@ -701,14 +702,14 @@ class NrRrcSap
     };
 
     /// MeasResultPCell structure
-    struct MeasResultPCell
+    struct NR_EXPORT MeasResultPCell
     {
         uint8_t rsrpResult; ///< the RSRP result
         uint8_t rsrqResult; ///< the RSRQ result
     };
 
     /// MeasResultEutra structure
-    struct MeasResultEutra
+    struct NR_EXPORT MeasResultEutra
     {
         uint16_t physCellId; ///< Phy cell ID
         bool haveCgiInfo;    ///< have CGI info?
@@ -720,14 +721,14 @@ class NrRrcSap
     };
 
     /// MeasResultSCell structure
-    struct MeasResultSCell
+    struct NR_EXPORT MeasResultSCell
     {
         uint8_t rsrpResult; ///< the RSRP result
         uint8_t rsrqResult; ///< the RSRQ result
     };
 
     /// MeasResultBestNeighCell structure
-    struct MeasResultBestNeighCell
+    struct NR_EXPORT MeasResultBestNeighCell
     {
         uint16_t physCellId; ///< physical cell ID
         uint8_t rsrpResult;  ///< the RSRP result
@@ -735,7 +736,7 @@ class NrRrcSap
     };
 
     /// MeasResultServFreq structure
-    struct MeasResultServFreq
+    struct NR_EXPORT MeasResultServFreq
     {
         uint16_t servFreqId;                             ///< serving cell index
         bool haveMeasResultSCell;                        ///< have measResultSCell?
@@ -745,7 +746,7 @@ class NrRrcSap
     };
 
     /// MeasResults structure
-    struct MeasResults
+    struct NR_EXPORT MeasResults
     {
         uint8_t measId;                                 ///< measure ID
         MeasResultPCell measResultPCell;                ///< measurement result primary cell
@@ -758,13 +759,13 @@ class NrRrcSap
     // Messages
 
     /// RrcConnectionRequest structure
-    struct RrcConnectionRequest
+    struct NR_EXPORT RrcConnectionRequest
     {
         uint64_t ueIdentity; ///< UE identity
     };
 
     /// RrcConnectionSetup structure
-    struct RrcConnectionSetup
+    struct NR_EXPORT RrcConnectionSetup
     {
         uint8_t rrcTransactionIdentifier; ///< RRC transaction identifier
         RadioResourceConfigDedicated
@@ -772,38 +773,38 @@ class NrRrcSap
     };
 
     /// RrcConnectionSetupCompleted structure
-    struct RrcConnectionSetupCompleted
+    struct NR_EXPORT RrcConnectionSetupCompleted
     {
         uint8_t rrcTransactionIdentifier; ///< RRC transaction identifier
     };
 
     /// CellIdentification structure
-    struct CellIdentification
+    struct NR_EXPORT CellIdentification
     {
         uint32_t physCellId;    ///< physical cell ID
         uint32_t dlCarrierFreq; ///< ARFCN - valueEUTRA
     };
 
     /// AntennaInfoCommon structure
-    struct AntennaInfoCommon
+    struct NR_EXPORT AntennaInfoCommon
     {
         uint16_t antennaPortsCount; ///< antenna ports count
     };
 
     /// UlPowerControlCommonSCell structure
-    struct UlPowerControlCommonSCell
+    struct NR_EXPORT UlPowerControlCommonSCell
     {
         uint16_t alpha; ///< alpha value
     };
 
     /// PrachConfigSCell structure
-    struct PrachConfigSCell
+    struct NR_EXPORT PrachConfigSCell
     {
         uint16_t index; ///< the index
     };
 
     /// NonUlConfiguration structure
-    struct NonUlConfiguration
+    struct NR_EXPORT NonUlConfiguration
     {
         // 3GPP TS 36.311 v.11.10 R11 pag.220
         /// 1: Cell characteristics
@@ -819,7 +820,7 @@ class NrRrcSap
     };
 
     /// UlConfiguration structure
-    struct UlConfiguration
+    struct NR_EXPORT UlConfiguration
     {
         FreqInfo ulFreqInfo;                                 ///< UL frequency info
         UlPowerControlCommonSCell ulPowerControlCommonSCell; ///< 3GPP TS 36.331 v.11.10 R11 pag.223
@@ -829,27 +830,27 @@ class NrRrcSap
     };
 
     /// AntennaInfoUl structure
-    struct AntennaInfoUl
+    struct NR_EXPORT AntennaInfoUl
     {
         uint8_t transmissionMode; ///< transmission mode
     };
 
     /// PuschConfigDedicatedSCell structure
-    struct PuschConfigDedicatedSCell
+    struct NR_EXPORT PuschConfigDedicatedSCell
     {
         /// 3GPP TS 36.331 v.11.10 R11 page 216
         uint16_t nPuschIdentity;
     };
 
     /// UlPowerControlDedicatedSCell structure
-    struct UlPowerControlDedicatedSCell
+    struct NR_EXPORT UlPowerControlDedicatedSCell
     {
         /// 3GPP TS 36.331 v.11.10 R11 page 234
         uint16_t pSrsOffset;
     };
 
     /// PhysicalConfigDedicatedSCell structure
-    struct PhysicalConfigDedicatedSCell
+    struct NR_EXPORT PhysicalConfigDedicatedSCell
     {
         // Non-Ul Configuration
         bool haveNonUlConfiguration;       ///< have non UL configuration?
@@ -874,7 +875,7 @@ class NrRrcSap
     };
 
     /// RadioResourceConfigCommonSCell
-    struct RadioResourceConfigCommonSCell
+    struct NR_EXPORT RadioResourceConfigCommonSCell
     {
         bool haveNonUlConfiguration;           ///< have non UL configuration?
         NonUlConfiguration nonUlConfiguration; ///< non UL configuration
@@ -883,14 +884,14 @@ class NrRrcSap
     };
 
     /// RadioResourceConfigDedicatedSCell structure
-    struct RadioResourceConfigDedicatedSCell
+    struct NR_EXPORT RadioResourceConfigDedicatedSCell
     {
         PhysicalConfigDedicatedSCell
             physicalConfigDedicatedSCell; ///< physical config dedicated SCell
     };
 
     /// SCellToAddMod structure
-    struct SCellToAddMod
+    struct NR_EXPORT SCellToAddMod
     {
         uint32_t sCellIndex;                   ///< SCell index
         CellIdentification cellIdentification; ///< cell identification
@@ -902,14 +903,14 @@ class NrRrcSap
     };
 
     /// NonCriticalExtensionConfiguration structure
-    struct NonCriticalExtensionConfiguration
+    struct NR_EXPORT NonCriticalExtensionConfiguration
     {
         std::list<SCellToAddMod> sCellToAddModList; ///< SCell to add mod list
         std::list<uint8_t> sCellToReleaseList;      ///< SCell to release list
     };
 
     /// RrcConnectionReconfiguration structure
-    struct RrcConnectionReconfiguration
+    struct NR_EXPORT RrcConnectionReconfiguration
     {
         uint8_t rrcTransactionIdentifier;        ///< RRC transaction identifier
         bool haveMeasConfig;                     ///< have measure config
@@ -926,20 +927,20 @@ class NrRrcSap
     };
 
     /// RrcConnectionReconfigurationCompleted structure
-    struct RrcConnectionReconfigurationCompleted
+    struct NR_EXPORT RrcConnectionReconfigurationCompleted
     {
         uint8_t rrcTransactionIdentifier; ///< RRC transaction identifier
     };
 
     /// RrcConnectionReestablishmentRequest structure
-    struct RrcConnectionReestablishmentRequest
+    struct NR_EXPORT RrcConnectionReestablishmentRequest
     {
         ReestabUeIdentity ueIdentity;              ///< UE identity
         ReestablishmentCause reestablishmentCause; ///< reestablishment cause
     };
 
     /// RrcConnectionReestablishment structure
-    struct RrcConnectionReestablishment
+    struct NR_EXPORT RrcConnectionReestablishment
     {
         uint8_t rrcTransactionIdentifier; ///< RRC transaction identifier
         RadioResourceConfigDedicated
@@ -947,36 +948,36 @@ class NrRrcSap
     };
 
     /// RrcConnectionReestablishmentComplete structure
-    struct RrcConnectionReestablishmentComplete
+    struct NR_EXPORT RrcConnectionReestablishmentComplete
     {
         uint8_t rrcTransactionIdentifier; ///< RRC transaction identifier
     };
 
     /// RrcConnectionReestablishmentReject structure
-    struct RrcConnectionReestablishmentReject
+    struct NR_EXPORT RrcConnectionReestablishmentReject
     {
     };
 
     /// RrcConnectionRelease structure
-    struct RrcConnectionRelease
+    struct NR_EXPORT RrcConnectionRelease
     {
         uint8_t rrcTransactionIdentifier; ///< RRC transaction identifier
     };
 
     /// RrcConnectionReject structure
-    struct RrcConnectionReject
+    struct NR_EXPORT RrcConnectionReject
     {
         uint8_t waitTime; ///< wait time
     };
 
     /// HandoverPreparationInfo structure
-    struct HandoverPreparationInfo
+    struct NR_EXPORT HandoverPreparationInfo
     {
         AsConfig asConfig; ///< AS config
     };
 
     /// MeasurementReport structure
-    struct MeasurementReport
+    struct NR_EXPORT MeasurementReport
     {
         MeasResults measResults; ///< measure results
     };
@@ -988,11 +989,11 @@ class NrRrcSap
  *        class corresponds to the transmission of a message that is defined in
  *        Section 6.2.2 of TS 36.331.
  */
-class NrUeRrcSapUser : public NrRrcSap
+class NR_EXPORT NrUeRrcSapUser : public NrRrcSap
 {
   public:
     /// SetupParameters structure
-    struct SetupParameters
+    struct NR_EXPORT SetupParameters
     {
         NrRlcSapProvider* srb0SapProvider;  ///< SRB0 SAP provider
         NrPdcpSapProvider* srb1SapProvider; ///< SRB1 SAP provider
@@ -1073,11 +1074,11 @@ class NrUeRrcSapUser : public NrRrcSap
  *        in this class corresponds to the reception of a message that is
  *        defined in Section 6.2.2 of TS 36.331.
  */
-class NrUeRrcSapProvider : public NrRrcSap
+class NR_EXPORT NrUeRrcSapProvider : public NrRrcSap
 {
   public:
     /// CompleteSetupParameters structure
-    struct CompleteSetupParameters
+    struct NR_EXPORT CompleteSetupParameters
     {
         NrRlcSapUser* srb0SapUser;  ///< SRB0 SAP user
         NrPdcpSapUser* srb1SapUser; ///< SRB1 SAP user
@@ -1152,11 +1153,11 @@ class NrUeRrcSapProvider : public NrRrcSap
  *        this class corresponds to the transmission of a message that is
  *        defined in Section 6.2.2 of TS 36.331.
  */
-class NrGnbRrcSapUser : public NrRrcSap
+class NR_EXPORT NrGnbRrcSapUser : public NrRrcSap
 {
   public:
     /// SetupUeParameters structure
-    struct SetupUeParameters
+    struct NR_EXPORT SetupUeParameters
     {
         NrRlcSapProvider* srb0SapProvider;  ///< SRB0 SAP provider
         NrPdcpSapProvider* srb1SapProvider; ///< SRB1 SAP provider
@@ -1272,11 +1273,11 @@ class NrGnbRrcSapUser : public NrRrcSap
  *        in this class corresponds to the reception of a message that is
  *        defined in Section 6.2.2 of TS 36.331.
  */
-class NrGnbRrcSapProvider : public NrRrcSap
+class NR_EXPORT NrGnbRrcSapProvider : public NrRrcSap
 {
   public:
     /// CompleteSetupUeParameters structure
-    struct CompleteSetupUeParameters
+    struct NR_EXPORT CompleteSetupUeParameters
     {
         NrRlcSapUser* srb0SapUser;  ///< SRB0 SAP user
         NrPdcpSapUser* srb1SapUser; ///< SRB1 SAP user

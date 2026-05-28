@@ -10,6 +10,7 @@
 #include "nr-mac-sched-sap.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/packet-burst.h"
 
 namespace ns3
@@ -32,7 +33,7 @@ class NrControlMessage;
  * As a general rule, no caching is allowed for the values returned by any
  * Get* method, because those values can change dynamically.
  */
-class NrPhySapProvider
+class NR_EXPORT NrPhySapProvider
 {
   public:
     /**
@@ -155,7 +156,7 @@ class NrPhySapProvider
  * As a general rule, no caching is allowed for the values returned by any
  * Get* method, because those values can change dynamically.
  */
-class NrGnbPhySapUser
+class NR_EXPORT NrGnbPhySapUser
 {
   public:
     /**
@@ -264,7 +265,7 @@ class NrGnbPhySapUser
  * This interface specify the interaction between the UE PHY (that will use
  * this interface) and the UE MAC, that will answer.
  */
-class NrUePhySapUser
+class NR_EXPORT NrUePhySapUser
 {
   public:
     /**

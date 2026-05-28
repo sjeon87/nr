@@ -10,6 +10,7 @@
 #include "nr-mac-sap.h"
 #include "nr-rlc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/packet.h"
@@ -32,7 +33,7 @@ namespace ns3
  * (NR_RLC) in LTE, see 3GPP TS 36.322
  *
  */
-class NrRlc : public Object // SimpleRefCount<NrRlc>
+class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
 {
     /// allow NrRlcSpecificNrMacSapUser class friend access
     friend class NrRlcSpecificNrMacSapUser;
@@ -184,7 +185,7 @@ class NrRlc : public Object // SimpleRefCount<NrRlc>
  * new NR_RLC PDU whenever the MAC notifies a transmission opportunity.
  *
  */
-class NrRlcSm : public NrRlc
+class NR_EXPORT NrRlcSm : public NrRlc
 {
   public:
     NrRlcSm();

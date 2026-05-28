@@ -8,6 +8,7 @@
 #ifndef NR_PDCP_TAG_H
 #define NR_PDCP_TAG_H
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/packet.h"
 
@@ -20,7 +21,7 @@ class Tag;
  * Tag to calculate the per-PDU delay from gNB PDCP to UE PDCP
  */
 
-class NrPdcpTag : public Tag
+class NR_EXPORT NrPdcpTag : public Tag
 {
   public:
     /**

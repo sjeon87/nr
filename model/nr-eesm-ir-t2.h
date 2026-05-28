@@ -8,6 +8,8 @@
 #include "nr-eesm-ir.h"
 #include "nr-eesm-t2.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -18,7 +20,7 @@ namespace ns3
  * Class that implements the IR-HARQ combining with Table 2. It can be used
  * directly in the code.
  */
-class NrEesmIrT2 : public NrEesmIr
+class NR_EXPORT NrEesmIrT2 : public NrEesmIr
 {
   public:
     /**

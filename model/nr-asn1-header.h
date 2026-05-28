@@ -8,6 +8,7 @@
 #define NR_ASN1_HEADER_H
 
 #include "ns3/header.h"
+#include "ns3/nr-export.h"
 
 #include <bitset>
 #include <string>
@@ -20,7 +21,7 @@ namespace ns3
  * to ASN.1 syntax, as defined in ITU-T  X-691.
  * IMPORTANT: The encoding is done following the UNALIGNED variant.
  */
-class NrAsn1Header : public Header
+class NR_EXPORT NrAsn1Header : public Header
 {
   public:
     NrAsn1Header();

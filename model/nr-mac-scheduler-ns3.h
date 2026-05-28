@@ -13,6 +13,7 @@
 #include "nr-mac-scheduler.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/traced-callback.h"
 
 #include <functional>
@@ -236,7 +237,7 @@ class NrFhSchedSapProvider;
  * @see NrMacSchedulerTdmaMR
  * @see NrMacSchedulerTdmaQos
  */
-class NrMacSchedulerNs3 : public NrMacScheduler
+class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
 {
     friend class NrTestSchedulerAiCase;
     friend class NrSchedOfdmaMcsTestCase;
@@ -307,7 +308,7 @@ class NrMacSchedulerNs3 : public NrMacScheduler
      * struct represents a point in the 2D time frequency space created by having frequencies on the
      * y and time on the x.
      */
-    struct PointInFTPlane
+    struct NR_EXPORT PointInFTPlane
     {
         /**
          * @brief PointInFTPlane constructor
@@ -742,7 +743,7 @@ class NrMacSchedulerNs3 : public NrMacScheduler
      * @brief Single UL allocation for calculating CQI and the number of reserved UL symbols in
      * slots.
      */
-    struct AllocElem
+    struct NR_EXPORT AllocElem
     {
         /**
          * @brief AllocElem empty constructor (deleted)
@@ -790,7 +791,7 @@ class NrMacSchedulerNs3 : public NrMacScheduler
     /**
      * @brief A vector of UL allocations to calculate CQI and symbols reserved.
      */
-    struct SlotElem
+    struct NR_EXPORT SlotElem
     {
         /**
          * @brief SlotElem default constructor (deleted)

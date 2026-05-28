@@ -7,6 +7,7 @@
 
 #include "ns3/mobility-helper.h"
 #include "ns3/net-device-container.h"
+#include "ns3/nr-export.h"
 #include "ns3/nr-gnb-phy.h"
 #include "ns3/nr-ue-phy.h"
 #include "ns3/object-factory.h"
@@ -87,7 +88,7 @@ $  gnuplot -p nr-rem-SimTag-gnbs.txt nr-rem-SimTag-ues.txt nr-rem-SimTag-buildin
 nr-rem-SimTag-plot-rem.gnuplot \endcode
  */
 
-class NrRadioEnvironmentMapHelper : public Object
+class NR_EXPORT NrRadioEnvironmentMapHelper : public Object
 {
   public:
     enum RemMode
@@ -273,7 +274,7 @@ class NrRadioEnvironmentMapHelper : public Object
      * @brief This struct includes the coordinates of each Rem Point
      * and the SNR/SINR/IPSD values as resulted from the calculations
      */
-    struct RemPoint
+    struct NR_EXPORT RemPoint
     {
         Vector pos{0, 0, 0};
         double avgSnrDb{0};
@@ -286,7 +287,7 @@ class NrRadioEnvironmentMapHelper : public Object
      * @brief This struct includes the configuration of all the devices of
      * the REM: Rem Transmitting Devices (RTDs) and Rem Receiving Device (RRD)
      */
-    struct RemDevice
+    struct NR_EXPORT RemDevice
     {
         Ptr<Node> node;
         Ptr<SimpleNetDevice> dev;
@@ -316,7 +317,7 @@ class NrRadioEnvironmentMapHelper : public Object
      * Loss Model and Spectrum Propagation Loss model (from the example used
      * to generate the REM map)
      */
-    struct PropagationModels
+    struct NR_EXPORT PropagationModels
     {
         Ptr<ThreeGppPropagationLossModel> remPropagationLossModelCopy;
         Ptr<ThreeGppSpectrumPropagationLossModel> remSpectrumLossModelCopy;

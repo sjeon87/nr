@@ -7,6 +7,8 @@
 
 #include "sfnsf.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -20,7 +22,7 @@ namespace ns3
  * FH Control ---> PHY
  */
 
-class NrFhPhySapProvider
+class NR_EXPORT NrFhPhySapProvider
 {
   public:
     virtual ~NrFhPhySapProvider();
@@ -48,7 +50,7 @@ class NrFhPhySapProvider
  * PHY --> FH Control
  */
 
-class NrFhPhySapUser
+class NR_EXPORT NrFhPhySapUser
 {
   public:
     virtual ~NrFhPhySapUser();

@@ -5,6 +5,8 @@
 #ifndef NR_MCS_TABLES_H
 #define NR_MCS_TABLES_H
 
+#include "ns3/nr-export.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -26,7 +28,7 @@ namespace ns3
  * - CQI Table 1: TS 38.214 Table 5.2.2.1-2
  * - CQI Table 2: TS 38.214 Table 5.2.2.1-3
  */
-class NrMcsTables
+class NR_EXPORT NrMcsTables
 {
   public:
     /**

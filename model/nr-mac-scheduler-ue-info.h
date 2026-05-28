@@ -11,6 +11,7 @@
 #include "nr-mac-scheduler-lcg.h"
 
 #include "ns3/matrix-array.h"
+#include "ns3/nr-export.h"
 
 #include <functional>
 #include <optional>
@@ -49,7 +50,7 @@ typedef std::shared_ptr<NrMacSchedulerUeInfo> UePtr;
  * @see NrMacSchedulerUeInfoPF
  * @see NrMacSchedulerUeInfoMR
  */
-class NrMacSchedulerUeInfo
+class NR_EXPORT NrMacSchedulerUeInfo
 {
   public:
     /**
@@ -288,7 +289,7 @@ class NrMacSchedulerUeInfo
     /**
      * @brief Received CQI information
      */
-    struct CqiInfo
+    struct NR_EXPORT CqiInfo
     {
         /**
          * @brief Type of CQI
@@ -328,7 +329,7 @@ class NrMacSchedulerUeInfo
         m_fhMaxMcsAssignable; //!< Maximum DL MCS assignable due to FH limitations
     uint8_t m_ulMcs{0};       //!< UL MCS
 
-    struct SbMcsInfo
+    struct NR_EXPORT SbMcsInfo
     {
         uint8_t cqi;
         uint8_t mcs;

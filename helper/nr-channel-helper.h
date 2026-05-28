@@ -9,6 +9,7 @@
 
 #include "cc-bwp-helper.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object-factory.h"
 #include "ns3/object.h"
 #include "ns3/spectrum-channel.h"
@@ -44,7 +45,7 @@ namespace ns3
  * The Default channel condition is defined by the selected scenario and can be mixed, LOS
  * or NLOS.
  */
-class NrChannelHelper : public Object
+class NR_EXPORT NrChannelHelper : public Object
 {
   public:
     /**

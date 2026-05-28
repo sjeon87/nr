@@ -12,6 +12,7 @@
 #include "nr-mac-sap.h"
 #include "nr-ue-ccm-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 #include <map>
@@ -31,7 +32,7 @@ class NrMacSapProvider;
   that operates using the component carrier manager SAP interface.
  *
  */
-class NrUeComponentCarrierManager : public Object
+class NR_EXPORT NrUeComponentCarrierManager : public Object
 {
   public:
     NrUeComponentCarrierManager();
