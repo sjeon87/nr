@@ -73,10 +73,19 @@ variables:
 # Defines the per-commit jobs. They are executed for any branch
 .base-per-commit-compile:
   extends: .base-build
-  except:
-    variables:
-      - $RELEASE == "weekly"
-      - $RELEASE == "daily"
+  rules:
+    # Skip per-commit builds on scheduled release pipelines; the dedicated
+    # weekly/daily jobs cover those configurations.
+    - if: '$RELEASE == "weekly" || $RELEASE == "daily"'
+      when: never
+    # Always build when a pipeline is started manually from the web UI.
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    # Otherwise only build when C++ or CMake sources change.
+    - changes:
+        - "**/*.cc"
+        - "**/*.h"
+        - "**/CMakeLists.txt"
+        - "**/*.cmake"
   image: archlinux
   before_script:
     # Extra fluf to handle CTTC's MITM firewall and self-hosted gitlab instance
@@ -131,6 +140,14 @@ per-commit-gcc-optimized-no-lte:
 
 per-commit-gcc-optimized-sanitizers:
   extends: .base-per-commit-compile
+  # Sanitizers only need to re-run on C++ source changes, not CMake changes.
+  rules:
+    - if: '$RELEASE == "weekly" || $RELEASE == "daily"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - changes:
+        - "**/*.cc"
+        - "**/*.h"
   variables:
     MODE: optimized
     COMPILER: g++
@@ -144,10 +161,15 @@ documentation:
     - apt-get update
     - DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
     - apt-get install -y ccache cmake g++ python3 doxygen graphviz make imagemagick dia texlive texlive-font-utils python3-sphinx python3-sphinx-rtd-theme latexmk texlive texlive-science texlive-formats-extra texlive-base python3-pip python3-jinja2 python3-pygments fonts-freefont-otf fonts-freefont-ttf git libeigen3-dev dvipng libjpeg-dev zlib1g-dev
-    - pip install seqdiag Pillow==9.5.0 --break-system-packages
-    - sed -i "s/EPS,PDF,//g" /etc/ImageMagick-6/policy.xml
-    - sed -i "s/none/read\ |\ write/g" /etc/ImageMagick-6/policy.xml
-  image: ubuntu
+    - pip install seqdiag Pillow --break-system-packages
+    # Relax ImageMagick's policy so the EPS/PDF coders work, independent of the
+    # installed major version (the policy path is ImageMagick-6 or -7).
+    - for policy in /etc/ImageMagick-*/policy.xml ; do
+      [ -f "$policy" ] || continue ;
+      sed -i "s/EPS,PDF,//g" "$policy" ;
+      sed -i "s/none/read\ |\ write/g" "$policy" ;
+      done
+  image: ubuntu:24.04
   script:
     # Setup ccache
     - mkdir -p $CCACHE_BASEDIR_VALUE
