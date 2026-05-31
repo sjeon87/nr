@@ -7,6 +7,7 @@
 #ifndef NR_RLC_TAG_H
 #define NR_RLC_TAG_H
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/packet.h"
 
@@ -19,7 +20,7 @@ class Tag;
  * Tag to calculate the per-PDU delay from gNB RLC to UE RLC
  */
 
-class NrRlcTag : public Tag
+class NR_EXPORT NrRlcTag : public Tag
 {
   public:
     /**

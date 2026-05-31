@@ -7,6 +7,8 @@
 
 #include "nr-mac-scheduler-lc-alg.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -17,7 +19,7 @@ namespace ns3
  * LCGs/LCs of a UE based on the resource type and the ERAB guaranteed bit rate
  *
  */
-class NrMacSchedulerLcQos : public NrMacSchedulerLcAlgorithm
+class NR_EXPORT NrMacSchedulerLcQos : public NrMacSchedulerLcAlgorithm
 {
   public:
     /**

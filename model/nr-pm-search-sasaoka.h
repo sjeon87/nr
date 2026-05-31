@@ -7,6 +7,8 @@
 
 #include "nr-pm-search-full.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -19,7 +21,7 @@ namespace ns3
 /// It then executes an exhaustive search to find the I1 and I2 combination that produces
 /// the highest mutual information.
 
-class NrPmSearchSasaoka : public NrPmSearchFull
+class NR_EXPORT NrPmSearchSasaoka : public NrPmSearchFull
 {
   public:
     /// @brief Get TypeId

@@ -15,6 +15,7 @@
 #include "ns3/address.h"
 #include "ns3/application.h"
 #include "ns3/callback.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
 #include "ns3/socket.h"
@@ -34,7 +35,7 @@ class NrEpcGnbS1SapProvider;
  * This application is installed inside gNBs and provides the bridge functionality for user data
  * plane packets between the radio interface and the S1-U interface.
  */
-class NrEpcGnbApplication : public Application
+class NR_EXPORT NrEpcGnbApplication : public Application
 {
     /// allow NrMemberEpcGnbS1SapProvider<NrEpcGnbApplication> class friend access
     friend class NrMemberEpcGnbS1SapProvider<NrEpcGnbApplication>;
@@ -134,7 +135,7 @@ class NrEpcGnbApplication : public Application
     /**
      * EPS flow ID structure
      */
-    struct EpsFlowId_t
+    struct NR_EXPORT EpsFlowId_t
     {
         uint16_t m_rnti; ///< RNTI
         uint8_t m_qfi;   ///< QFI, the QoS flow identifier

@@ -8,6 +8,7 @@
 
 #include "traffic-generator.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 
 namespace ns3
@@ -18,7 +19,7 @@ namespace ns3
  *  3GPP TR 38.838 V17.0.0 (2021-12) document, sec 5.2.
  */
 
-class TrafficGenerator3gppPoseControl : public TrafficGenerator
+class NR_EXPORT TrafficGenerator3gppPoseControl : public TrafficGenerator
 {
   public:
     /**

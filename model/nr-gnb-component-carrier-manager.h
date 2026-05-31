@@ -14,6 +14,7 @@
 #include "nr-mac-sap.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 #include <map>
@@ -62,7 +63,7 @@ class NrCcmMacSapProvider;
  * \sa NrCcmRrcSapUser, NrCcmRrcSapProvider, NrCcmMacSapUser, NrCcmMacSapProvider
  */
 
-class NrGnbComponentCarrierManager : public Object
+class NR_EXPORT NrGnbComponentCarrierManager : public Object
 {
   public:
     NrGnbComponentCarrierManager();
@@ -152,7 +153,7 @@ class NrGnbComponentCarrierManager : public Object
     /**
      * @brief Structure to represent UE info
      */
-    struct NrUeInfo
+    struct NR_EXPORT NrUeInfo
     {
         std::map<uint8_t, NrMacSapUser*>
             m_ueAttached; //!< Map from LCID to SAP of the RLC instance.

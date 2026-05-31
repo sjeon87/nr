@@ -6,6 +6,7 @@
 #define FAST_FADING_CONSTANT_POSITION_MOBILITY_MODEL_H
 
 #include "ns3/constant-position-mobility-model.h"
+#include "ns3/nr-export.h"
 
 namespace ns3
 {
@@ -20,7 +21,7 @@ namespace ns3
  *
  * @see See for example cttc-3gpp-indoor-calibration.cc example.
  */
-class FastFadingConstantPositionMobilityModel : public ConstantPositionMobilityModel
+class NR_EXPORT FastFadingConstantPositionMobilityModel : public ConstantPositionMobilityModel
 {
   public:
     static TypeId GetTypeId();

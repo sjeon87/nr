@@ -7,6 +7,7 @@
 
 #include "nr-qos-flow.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 namespace ns3
@@ -34,7 +35,7 @@ namespace ns3
  * @see GetBwpForQosFlow
  * @see BwpManagerAlgorithmStatic
  */
-class BwpManagerAlgorithm : public Object
+class NR_EXPORT BwpManagerAlgorithm : public Object
 {
   public:
     /**
@@ -75,7 +76,7 @@ class BwpManagerAlgorithm : public Object
  *
  * A static manager: it gets the association through a series of Attributes.
  */
-class BwpManagerAlgorithmStatic : public BwpManagerAlgorithm
+class NR_EXPORT BwpManagerAlgorithmStatic : public BwpManagerAlgorithm
 {
   public:
     /**

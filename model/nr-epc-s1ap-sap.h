@@ -11,6 +11,7 @@
 
 #include "ns3/address.h"
 #include "ns3/ipv4-address.h"
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
 
@@ -24,7 +25,7 @@ namespace ns3
  *
  * Base class that defines EPC S1-AP Service Access Point (SAP) interface.
  */
-class NrEpcS1apSap
+class NR_EXPORT NrEpcS1apSap
 {
   public:
     virtual ~NrEpcS1apSap() = default;
@@ -36,7 +37,7 @@ class NrEpcS1apSap
  * MME side of the S1-AP Service Access Point (SAP), provides the MME
  * methods to be called when an S1-AP message is received by the MME.
  */
-class NrEpcS1apSapMme : public NrEpcS1apSap
+class NR_EXPORT NrEpcS1apSapMme : public NrEpcS1apSap
 {
   public:
     /**
@@ -55,7 +56,7 @@ class NrEpcS1apSapMme : public NrEpcS1apSap
     /**
      *  E-RAB Release Indication Item IEs, 3GPP TS 36.413 version 9.8.0 section 9.1.3.7
      */
-    struct ErabToBeReleasedIndication
+    struct NR_EXPORT ErabToBeReleasedIndication
     {
         uint8_t erabId; ///< E-RAB ID
     };
@@ -77,7 +78,7 @@ class NrEpcS1apSapMme : public NrEpcS1apSap
     /**
      *  E-RAB Setup Item IEs, see 3GPP TS 36.413 9.1.4.2
      */
-    struct ErabSetupItem
+    struct NR_EXPORT ErabSetupItem
     {
         uint16_t erabId;                      ///< E-RAB ID
         Ipv4Address gnbTransportLayerAddress; ///< transport layer address
@@ -99,7 +100,7 @@ class NrEpcS1apSapMme : public NrEpcS1apSap
     /**
      * E-RABs Switched in Downlink Item IE, see 3GPP TS 36.413 9.1.5.8
      */
-    struct ErabSwitchedInDownlinkItem
+    struct NR_EXPORT ErabSwitchedInDownlinkItem
     {
         uint16_t erabId;                      ///< ERAB ID
         Ipv4Address gnbTransportLayerAddress; ///< address
@@ -127,11 +128,11 @@ class NrEpcS1apSapMme : public NrEpcS1apSap
  * gNB side of the S1-AP Service Access Point (SAP), provides the gNB
  * methods to be called when an S1-AP message is received by the gNB.
  */
-class NrEpcS1apSapGnb : public NrEpcS1apSap
+class NR_EXPORT NrEpcS1apSapGnb : public NrEpcS1apSap
 {
   public:
     /// ErabToBeSetupItem structure
-    struct ErabToBeSetupItem
+    struct NR_EXPORT ErabToBeSetupItem
     {
         uint8_t erabId;                    ///< ERAB iD
         NrQosFlow erabLevelQosParameters;  ///< Level QOS parameters
@@ -153,7 +154,7 @@ class NrEpcS1apSapGnb : public NrEpcS1apSap
     /**
      * E-RABs Switched in Uplink Item IE, see 3GPP TS 36.413 9.1.5.9
      */
-    struct ErabSwitchedInUplinkItem
+    struct NR_EXPORT ErabSwitchedInUplinkItem
     {
         uint8_t erabId;                    ///< E_RAB ID
         Ipv4Address transportLayerAddress; ///< transport layer address

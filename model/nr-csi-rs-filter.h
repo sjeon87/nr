@@ -5,12 +5,13 @@
 #ifndef NR_CSI_RS_FILTER_H
 #define NR_CSI_RS_FILTER_H
 
+#include "ns3/nr-export.h"
 #include "ns3/spectrum-transmit-filter.h"
 
 namespace ns3
 {
 
-class NrCsiRsFilter : public SpectrumTransmitFilter
+class NR_EXPORT NrCsiRsFilter : public SpectrumTransmitFilter
 {
   public:
     NrCsiRsFilter();

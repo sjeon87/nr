@@ -11,6 +11,7 @@
 #include "nr-qos-flow.h"
 #include "nr-qos-rule-classifier.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/traced-callback.h"
 
@@ -20,7 +21,7 @@ namespace ns3
 class NrEpcHelper;
 class NetDevice;
 
-class NrEpcUeNas : public Object
+class NR_EXPORT NrEpcUeNas : public Object
 {
     /// allow MemberNrAsSapUser<NrEpcUeNas> class friend access
     friend class MemberNrAsSapUser<NrEpcUeNas>;
@@ -227,7 +228,7 @@ class NrEpcUeNas : public Object
     Callback<void, Ptr<Packet>> m_forwardUpCallback; ///< upward callback
 
     /// QosFlowToBeActivated structure
-    struct QosFlowToBeActivated
+    struct NR_EXPORT QosFlowToBeActivated
     {
         NrQosFlow flow;      ///< QoS flow
         Ptr<NrQosRule> rule; ///< QoS rule

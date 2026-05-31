@@ -7,6 +7,7 @@
 #ifndef NR_RLC_SDU_STATUS_TAG_H
 #define NR_RLC_SDU_STATUS_TAG_H
 
+#include "ns3/nr-export.h"
 #include "ns3/tag.h"
 
 namespace ns3
@@ -17,7 +18,7 @@ namespace ns3
  * for the fragmentation process
  * Status of RLC SDU
  */
-class NrRlcSduStatusTag : public Tag
+class NR_EXPORT NrRlcSduStatusTag : public Tag
 {
   public:
     NrRlcSduStatusTag();

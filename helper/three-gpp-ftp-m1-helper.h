@@ -9,6 +9,7 @@
 #include "ns3/internet-module.h"
 #include "ns3/network-module.h"
 #include "ns3/node.h"
+#include "ns3/nr-export.h"
 #include "ns3/traffic-generator-helper.h"
 
 namespace ns3
@@ -49,7 +50,7 @@ namespace ns3
  * ...
  *
  */
-class ThreeGppFtpM1Helper : public Object
+class NR_EXPORT ThreeGppFtpM1Helper : public Object
 {
   public:
     /**

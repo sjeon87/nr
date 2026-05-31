@@ -13,6 +13,8 @@
 
 #include "nr-no-backhaul-epc-helper.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -23,7 +25,7 @@ namespace ns3
  * This Helper extends NrNoBackhaulEpcHelper creating PointToPoint links in the
  * backhaul network (i.e. in the S1-U and S1-MME interfaces)
  */
-class NrPointToPointEpcHelperBase : public NrNoBackhaulEpcHelper
+class NR_EXPORT NrPointToPointEpcHelperBase : public NrNoBackhaulEpcHelper
 {
   public:
     /**

@@ -11,6 +11,7 @@
 
 #include "ns3/ipv4-address.h"
 #include "ns3/ipv6-address.h"
+#include "ns3/nr-export.h"
 #include "ns3/simple-ref-count.h"
 
 #include <compare>
@@ -26,7 +27,7 @@ namespace ns3
  * 1-255) and a QoS Flow Identifier (QFI) ranging from
  * 1-64.
  */
-class NrQosRule : public SimpleRefCount<NrQosRule>
+class NR_EXPORT NrQosRule : public SimpleRefCount<NrQosRule>
 {
   public:
     /**
@@ -59,7 +60,7 @@ class NrQosRule : public SimpleRefCount<NrQosRule>
      * the following features are NOT supported:
      *  - IPSec filtering
      */
-    struct PacketFilter
+    struct NR_EXPORT PacketFilter
     {
         PacketFilter();
 
@@ -229,7 +230,7 @@ class NrQosRule : public SimpleRefCount<NrQosRule>
     uint8_t m_qfi;                     ///< QFI of the QoS rule
 };
 
-std::ostream& operator<<(std::ostream& os, const NrQosRule::Direction& d);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const NrQosRule::Direction& d);
 
 } // namespace ns3
 

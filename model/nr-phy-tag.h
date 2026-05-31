@@ -8,6 +8,7 @@
 #ifndef NR_PHY_TAG_H
 #define NR_PHY_TAG_H
 
+#include "ns3/nr-export.h"
 #include "ns3/tag.h"
 
 namespace ns3
@@ -16,7 +17,7 @@ namespace ns3
 /**
  * Tag used to define PHY parameters
  */
-class NrPhyTag : public Tag
+class NR_EXPORT NrPhyTag : public Tag
 {
   public:
     /**

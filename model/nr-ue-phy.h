@@ -12,6 +12,7 @@
 #include "nr-pm-search.h"
 #include "nr-ue-cphy-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/traced-callback.h"
 
 namespace ns3
@@ -56,7 +57,7 @@ class NrUePowerControl;
  * @see NrPhy::SetSpectrumPhy()
  * @see NrPhy::StartEventLoop()
  */
-class NrUePhy : public NrPhy
+class NR_EXPORT NrUePhy : public NrPhy
 {
     friend class UeMemberNrUePhySapProvider;
     friend class MemberNrUeCphySapProvider<NrUePhy>;
@@ -993,7 +994,7 @@ class NrUePhy : public NrPhy
     double m_rsrp{0}; //!< The latest measured RSRP value
 
     /// Summary results of measuring a specific cell. Used for layer-1 filtering.
-    struct UeMeasurementsElement
+    struct NR_EXPORT UeMeasurementsElement
     {
         double rsrpSum;  //!< Sum of RSRP sample values in linear unit.
         uint8_t rsrpNum; //!< Number of RSRP samples.

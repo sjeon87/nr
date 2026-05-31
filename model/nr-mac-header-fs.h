@@ -5,6 +5,7 @@
 #ifndef NR_MAC_HEADER_FS_H
 #define NR_MAC_HEADER_FS_H
 
+#include "ns3/nr-export.h"
 #include "ns3/packet.h"
 
 namespace ns3
@@ -45,7 +46,7 @@ namespace ns3
  *
  * The header should be prefixed to some fixed-size data, such as short-bsr.
  */
-class NrMacHeaderFs : public Header
+class NR_EXPORT NrMacHeaderFs : public Header
 {
   public:
     /**

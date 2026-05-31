@@ -7,6 +7,7 @@
 
 #include "nr-mac-header-fs-ul.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/packet.h"
 
 namespace ns3
@@ -54,7 +55,7 @@ namespace ns3
  *
  * Please refer to TS 38.321 section 6.1.2 for more information.
  */
-class NrMacShortBsrCe : public Header
+class NR_EXPORT NrMacShortBsrCe : public Header
 {
   public:
     /**

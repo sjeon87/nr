@@ -10,6 +10,7 @@
 #include "nr-pdcp-sap.h"
 #include "nr-rlc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/trace-source-accessor.h"
 #include "ns3/traced-value.h"
@@ -20,7 +21,7 @@ namespace ns3
 /**
  * LTE PDCP entity, see 3GPP TS 36.323
  */
-class NrPdcp : public Object // SimpleRefCount<NrPdcp>
+class NR_EXPORT NrPdcp : public Object // SimpleRefCount<NrPdcp>
 {
     /// allow NrPdcpSpecificNrRlcSapUser class friend access
     friend class NrPdcpSpecificNrRlcSapUser;
@@ -85,7 +86,7 @@ class NrPdcp : public Object // SimpleRefCount<NrPdcp>
     /**
      * Status variables of the PDCP
      */
-    struct Status
+    struct NR_EXPORT Status
     {
         uint16_t txSn; ///< TX sequence number
         uint16_t rxSn; ///< RX sequence number

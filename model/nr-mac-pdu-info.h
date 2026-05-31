@@ -7,6 +7,8 @@
 
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -17,7 +19,7 @@ namespace ns3
  * that generated it
  *
  */
-struct NrMacPduInfo
+struct NR_EXPORT NrMacPduInfo
 {
     /**
      * @brief Construct a NrMacPduInfo

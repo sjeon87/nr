@@ -7,6 +7,8 @@
 
 #include "nr-cb-type-one.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 class NrPmSearchMaleki; ///< Forward-declaration for friendship
@@ -16,7 +18,7 @@ class NrPmSearchMaleki; ///< Forward-declaration for friendship
 /// Codebook mode 1 means the per-subband i2 beam index is used only for the phase shift of the
 /// second polarization, while codebook mode 2 would use i2 also for beam refinement.
 /// Plain references like 5.2.2.2.1-x refer to 3GPP TS 38.214, Rel. 15, Table 5.2.2.2.1-x
-class NrCbTypeOneSp : public NrCbTypeOne
+class NR_EXPORT NrCbTypeOneSp : public NrCbTypeOne
 {
   public:
     /// @brief Get ns-3 TypeId

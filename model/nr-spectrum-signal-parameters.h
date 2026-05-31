@@ -5,6 +5,7 @@
 #ifndef NR_SPECTRUM_SIGNAL_PARAMETERS_H
 #define NR_SPECTRUM_SIGNAL_PARAMETERS_H
 
+#include "ns3/nr-export.h"
 #include "ns3/spectrum-signal-parameters.h"
 
 #include <list>
@@ -23,7 +24,7 @@ class NrControlMessage;
  * This struct provides the generic signal representation to be used by the module
  * for what regards the data part.
  */
-struct NrSpectrumSignalParametersDataFrame : public SpectrumSignalParameters
+struct NR_EXPORT NrSpectrumSignalParametersDataFrame : public SpectrumSignalParameters
 {
     // inherited from SpectrumSignalParameters
     Ptr<SpectrumSignalParameters> Copy() const override;
@@ -54,7 +55,7 @@ struct NrSpectrumSignalParametersDataFrame : public SpectrumSignalParameters
  * This struct provides the generic signal representation to be used by the module
  * for what regards the downlink control part.
  */
-struct NrSpectrumSignalParametersDlCtrlFrame : public SpectrumSignalParameters
+struct NR_EXPORT NrSpectrumSignalParametersDlCtrlFrame : public SpectrumSignalParameters
 {
     // inherited from SpectrumSignalParameters
     Ptr<SpectrumSignalParameters> Copy() const override;
@@ -84,7 +85,7 @@ struct NrSpectrumSignalParametersDlCtrlFrame : public SpectrumSignalParameters
  * This struct provides the generic signal representation to be used by the module
  * for what regards the UL CTRL part.
  */
-struct NrSpectrumSignalParametersUlCtrlFrame : public SpectrumSignalParameters
+struct NR_EXPORT NrSpectrumSignalParametersUlCtrlFrame : public SpectrumSignalParameters
 {
     // inherited from SpectrumSignalParameters
     Ptr<SpectrumSignalParameters> Copy() const override;
@@ -112,7 +113,7 @@ struct NrSpectrumSignalParametersUlCtrlFrame : public SpectrumSignalParameters
  *
  * This struct provides the CSI-RS signal representation.
  */
-struct NrSpectrumSignalParametersCsiRs : public SpectrumSignalParameters
+struct NR_EXPORT NrSpectrumSignalParametersCsiRs : public SpectrumSignalParameters
 {
     // inherited from SpectrumSignalParameters
     Ptr<SpectrumSignalParameters> Copy() const override;

@@ -5,6 +5,7 @@
 #ifndef SCENARIO_PARAMETERS_H
 #define SCENARIO_PARAMETERS_H
 
+#include "ns3/nr-export.h"
 #include "ns3/vector.h"
 
 namespace ns3
@@ -13,7 +14,7 @@ namespace ns3
 /**
  * @brief Basic simulation scenario parameters.
  */
-class ScenarioParameters
+class NR_EXPORT ScenarioParameters
 {
   public:
     /**

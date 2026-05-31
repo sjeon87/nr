@@ -7,6 +7,8 @@
 
 #include "nr-error-model.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -16,7 +18,7 @@ namespace ns3
  * Error model output returned by the class NrLteMiErrorModel
  * @see NrLteMiErrorModel
  */
-struct NrLteMiErrorModelOutput : public NrErrorModelOutput
+struct NR_EXPORT NrLteMiErrorModelOutput : public NrErrorModelOutput
 {
     /**
      * @brief NrLteMiErrorModelOutput default constructor (deleted)
@@ -55,7 +57,7 @@ struct NrLteMiErrorModelOutput : public NrErrorModelOutput
  * Incremental Redundancy, so that both the ECR and the MI are updated based on
  * IEEE 802.16m-08/004r2.
  */
-class NrLteMiErrorModel : public NrErrorModel
+class NR_EXPORT NrLteMiErrorModel : public NrErrorModel
 {
   public:
     /**

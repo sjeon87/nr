@@ -8,6 +8,7 @@
 #include "beam-id.h"
 #include "beamforming-vector.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 namespace ns3
@@ -29,7 +30,7 @@ class NrSpectrumPhy;
  * Algorithms that inherit this class assume a perfect knowledge of the channel,
  * because of which this group of algorithms is called "ideal".
  */
-class IdealBeamformingAlgorithm : public Object
+class NR_EXPORT IdealBeamformingAlgorithm : public Object
 {
   public:
     /**
@@ -52,7 +53,7 @@ class IdealBeamformingAlgorithm : public Object
  * @ingroup gnb-phy
  * @brief The CellScanBeamforming class
  */
-class CellScanBeamforming : public IdealBeamformingAlgorithm
+class NR_EXPORT CellScanBeamforming : public IdealBeamformingAlgorithm
 {
   public:
     /**
@@ -90,7 +91,7 @@ class CellScanBeamforming : public IdealBeamformingAlgorithm
  * @ingroup gnb-phy
  * @brief The CellScanQuasiOmniBeamforming class
  */
-class CellScanQuasiOmniBeamforming : public IdealBeamformingAlgorithm
+class NR_EXPORT CellScanQuasiOmniBeamforming : public IdealBeamformingAlgorithm
 {
   public:
     /**
@@ -137,7 +138,7 @@ class CellScanQuasiOmniBeamforming : public IdealBeamformingAlgorithm
  * @ingroup gnb-phy
  * @brief The DirectPathBeamforming class
  */
-class DirectPathBeamforming : public IdealBeamformingAlgorithm
+class NR_EXPORT DirectPathBeamforming : public IdealBeamformingAlgorithm
 {
   public:
     /**
@@ -162,7 +163,7 @@ class DirectPathBeamforming : public IdealBeamformingAlgorithm
  * @ingroup gnb-phy
  * @brief The QuasiOmniDirectPathBeamforming class
  */
-class QuasiOmniDirectPathBeamforming : public DirectPathBeamforming
+class NR_EXPORT QuasiOmniDirectPathBeamforming : public DirectPathBeamforming
 {
   public:
     /**
@@ -188,7 +189,7 @@ class QuasiOmniDirectPathBeamforming : public DirectPathBeamforming
  * @ingroup gnb-phy
  * @brief The QuasiOmniDirectPathBeamforming class
  */
-class DirectPathQuasiOmniBeamforming : public DirectPathBeamforming
+class NR_EXPORT DirectPathQuasiOmniBeamforming : public DirectPathBeamforming
 {
   public:
     /**
@@ -218,7 +219,7 @@ class DirectPathQuasiOmniBeamforming : public DirectPathBeamforming
  * were implemented in NYU/University of Padova mmwave module.
  * Method is based on a long term covariation matrix.
  */
-class OptimalCovMatrixBeamforming : public IdealBeamformingAlgorithm
+class NR_EXPORT OptimalCovMatrixBeamforming : public IdealBeamformingAlgorithm
 {
   public:
     /**
@@ -244,7 +245,7 @@ class OptimalCovMatrixBeamforming : public IdealBeamformingAlgorithm
  * @ingroup gnb-phy
  * @brief The KroneckerBeamforming class
  */
-class KroneckerBeamforming : public IdealBeamformingAlgorithm
+class NR_EXPORT KroneckerBeamforming : public IdealBeamformingAlgorithm
 {
   public:
     /**
@@ -345,7 +346,7 @@ class KroneckerBeamforming : public IdealBeamformingAlgorithm
  * @ingroup gnb-phy
  * @brief The KronQuasiBeamforming class
  */
-class KroneckerQuasiOmniBeamforming : public IdealBeamformingAlgorithm
+class NR_EXPORT KroneckerQuasiOmniBeamforming : public IdealBeamformingAlgorithm
 {
   public:
     /**

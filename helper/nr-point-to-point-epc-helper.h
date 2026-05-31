@@ -13,6 +13,8 @@
 
 #include "nr-no-backhaul-epc-helper.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -109,7 +111,7 @@ namespace ns3
  *
  * @see PointToPointEpcHelper
  */
-class NrPointToPointEpcHelper : public NrNoBackhaulEpcHelper
+class NR_EXPORT NrPointToPointEpcHelper : public NrNoBackhaulEpcHelper
 {
   public:
     /**

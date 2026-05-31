@@ -8,6 +8,8 @@
 #include "nr-mac-scheduler-ue-info.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 #include <unordered_set>
 
 namespace ns3
@@ -22,7 +24,7 @@ namespace ns3
  * has the same signature of the methods in NrMacSchedulerNs3. For the
  * details about the HARQ scheduling, please refer to the method documentation.
  */
-class NrMacSchedulerHarqRr : public Object
+class NR_EXPORT NrMacSchedulerHarqRr : public Object
 {
   public:
     using Ns3Sched = NrMacSchedulerNs3;

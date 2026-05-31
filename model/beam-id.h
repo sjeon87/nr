@@ -5,6 +5,8 @@
 #ifndef SRC_NR_MODEL_BEAM_ID_H_
 #define SRC_NR_MODEL_BEAM_ID_H_
 
+#include "ns3/nr-export.h"
+
 #include <complex>
 #include <stdint.h>
 
@@ -22,7 +24,7 @@ namespace ns3
  * @see GetSector
  * @see GetElevation
  */
-class BeamId
+class NR_EXPORT BeamId
 {
   public:
     /**
@@ -98,7 +100,7 @@ extern const BeamId PREDEFINED_BEAM_ID;
  * @brief Calculate the hash of a BeamId
  * @ingroup utils
  */
-struct BeamIdHash
+struct NR_EXPORT BeamIdHash
 {
     /**
      * @brief operator ()
@@ -108,7 +110,7 @@ struct BeamIdHash
     size_t operator()(const BeamId& x) const;
 };
 
-std::ostream& operator<<(std::ostream& os, const BeamId& item);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const BeamId& item);
 
 } /* namespace ns3 */
 

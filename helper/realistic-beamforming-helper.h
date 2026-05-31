@@ -6,9 +6,9 @@
 
 #include "ns3/beamforming-vector.h"
 #include "ns3/node.h"
+#include "ns3/nr-export.h"
 #include "ns3/object-factory.h"
 #include "ns3/realistic-beamforming-algorithm.h"
-
 #ifndef SRC_NR_HELPER_REALISTIC_BEAMFORMING_HELPER_H_
 #define SRC_NR_HELPER_REALISTIC_BEAMFORMING_HELPER_H_
 
@@ -55,7 +55,7 @@ Cantor(uint32_t x1, uint32_t x2)
     return (((x1 + x2) * (x1 + x2 + 1)) / 2) + x2;
 }
 
-class RealisticBeamformingHelper : public BeamformingHelperBase
+class NR_EXPORT RealisticBeamformingHelper : public BeamformingHelperBase
 {
   public:
     /**

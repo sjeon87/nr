@@ -7,6 +7,8 @@
 
 #include "nr-lte-mi-error-model.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -37,7 +39,7 @@ namespace ns3
  * Please note that we assume 1 symbol for CTRL. If you use more than one,
  * then the calculation will be wrong.
  */
-class LenaErrorModel : public NrLteMiErrorModel
+class NR_EXPORT LenaErrorModel : public NrLteMiErrorModel
 {
   public:
     /**

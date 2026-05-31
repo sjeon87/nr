@@ -10,6 +10,7 @@
 #include "nr-mac-scheduler-ns3.h"
 
 #include "ns3/log.h"
+#include "ns3/nr-export.h"
 #include "ns3/type-id.h"
 
 #include <unordered_set>
@@ -34,7 +35,7 @@ namespace ns3
  * @see NrMacSchedulerOfdmaSymbolPerBeamRR
  * @see NrMacSchedulerOfdmaSymbolPerBeamPF
  */
-class NrMacSchedulerOfdmaSymbolPerBeam : public Object
+class NR_EXPORT NrMacSchedulerOfdmaSymbolPerBeam : public Object
 {
   public:
     NrMacSchedulerOfdmaSymbolPerBeam() = default;
@@ -44,7 +45,7 @@ class NrMacSchedulerOfdmaSymbolPerBeam : public Object
         const NrMacSchedulerNs3::ActiveUeMap& activeDl) const = 0;
 };
 
-class NrMacSchedulerOfdmaSymbolPerBeamLB : public NrMacSchedulerOfdmaSymbolPerBeam
+class NR_EXPORT NrMacSchedulerOfdmaSymbolPerBeamLB : public NrMacSchedulerOfdmaSymbolPerBeam
 {
   public:
     NrMacSchedulerOfdmaSymbolPerBeamLB() = default;
@@ -67,7 +68,7 @@ class NrMacSchedulerOfdmaSymbolPerBeamLB : public NrMacSchedulerOfdmaSymbolPerBe
         const NrMacSchedulerNs3::ActiveUeMap& activeDl) const override;
 };
 
-class NrMacSchedulerOfdmaSymbolPerBeamRR : public NrMacSchedulerOfdmaSymbolPerBeam
+class NR_EXPORT NrMacSchedulerOfdmaSymbolPerBeamRR : public NrMacSchedulerOfdmaSymbolPerBeam
 {
   public:
     NrMacSchedulerOfdmaSymbolPerBeamRR() = default;
@@ -88,7 +89,7 @@ class NrMacSchedulerOfdmaSymbolPerBeamRR : public NrMacSchedulerOfdmaSymbolPerBe
     mutable std::unordered_set<BeamId, BeamIdHash> m_rrBeamsSet; //!< Set of known beams
 };
 
-class NrMacSchedulerOfdmaSymbolPerBeamPF : public NrMacSchedulerOfdmaSymbolPerBeam
+class NR_EXPORT NrMacSchedulerOfdmaSymbolPerBeamPF : public NrMacSchedulerOfdmaSymbolPerBeam
 {
   public:
     using GetBwInRbgFromSchedFunc = std::function<uint16_t(void)>;

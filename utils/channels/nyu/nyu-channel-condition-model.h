@@ -8,6 +8,7 @@
 #define NYU_CHANNEL_CONDITION_MODEL_H
 
 #include "ns3/channel-condition-model.h"
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/random-variable-stream.h"
@@ -24,7 +25,7 @@ namespace ns3
  * @brief Base class for the NYU channel condition models
  *
  */
-class NYUChannelConditionModel : public ChannelConditionModel
+class NR_EXPORT NYUChannelConditionModel : public ChannelConditionModel
 {
   public:
     /**
@@ -113,7 +114,7 @@ class NYUChannelConditionModel : public ChannelConditionModel
     /**
      * Struct to store the channel condition in the m_channelConditionMap
      */
-    struct Item
+    struct NR_EXPORT Item
     {
         Ptr<ChannelCondition> m_condition; //!< the channel condition
         Time m_generatedTime;              //!< the time when the condition was generated
@@ -132,7 +133,7 @@ class NYUChannelConditionModel : public ChannelConditionModel
  * Computes the channel condition following the specifications for the RMa
  * scenario reported in Table 7.4.2-1 of 3GPP TR 38.901
  */
-class NYURmaChannelConditionModel : public NYUChannelConditionModel
+class NR_EXPORT NYURmaChannelConditionModel : public NYUChannelConditionModel
 {
   public:
     /**
@@ -172,7 +173,7 @@ class NYURmaChannelConditionModel : public NYUChannelConditionModel
  * as specified in https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7999294&tag=1
  * table II - NYU (squared) Model
  */
-class NYUUmaChannelConditionModel : public NYUChannelConditionModel
+class NR_EXPORT NYUUmaChannelConditionModel : public NYUChannelConditionModel
 {
   public:
     /**
@@ -212,7 +213,7 @@ class NYUUmaChannelConditionModel : public NYUChannelConditionModel
  * as specified in https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7999294&tag=1
  * table I - NYU (squared) Model
  */
-class NYUUmiChannelConditionModel : public NYUChannelConditionModel
+class NR_EXPORT NYUUmiChannelConditionModel : public NYUChannelConditionModel
 {
   public:
     /**
@@ -250,7 +251,7 @@ class NYUUmiChannelConditionModel : public NYUChannelConditionModel
  * Computes the channel condition(LOS/NLOS) for InH in NYU Channel Model
  * as specified in https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7999294 (table III, row 2)
  */
-class NYUInHChannelConditionModel : public NYUChannelConditionModel
+class NR_EXPORT NYUInHChannelConditionModel : public NYUChannelConditionModel
 {
   public:
     /**
@@ -289,7 +290,7 @@ class NYUInHChannelConditionModel : public NYUChannelConditionModel
  * Computes the channel condition(LOS/NLOS) for InF in NYU Channel Model
  * by generating a random value between 0 and 1.
  */
-class NYUInFChannelConditionModel : public NYUChannelConditionModel
+class NR_EXPORT NYUInFChannelConditionModel : public NYUChannelConditionModel
 {
   public:
     /**

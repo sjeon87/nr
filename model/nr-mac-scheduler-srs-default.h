@@ -7,6 +7,7 @@
 
 #include "nr-mac-scheduler-srs.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/random-variable-stream.h"
 
@@ -22,7 +23,7 @@ namespace ns3
  * The returned values will never be the same; instead, when this must happen,
  * an invalid value is returned and (hopefully) an increase of periodicity is invoked.
  */
-class NrMacSchedulerSrsDefault : public NrMacSchedulerSrs, public Object
+class NR_EXPORT NrMacSchedulerSrsDefault : public NrMacSchedulerSrs, public Object
 {
   public:
     /**

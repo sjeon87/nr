@@ -6,8 +6,8 @@
 
 #include "ns3/beamforming-vector.h"
 #include "ns3/event-id.h"
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
-
 #ifndef SRC_NR_HELPER_IDEAL_BEAMFORMING_HELPER_H_
 #define SRC_NR_HELPER_IDEAL_BEAMFORMING_HELPER_H_
 
@@ -22,7 +22,7 @@ class IdealBeamformingAlgorithm;
  * @ingroup helper
  * @brief The IdealBeamformingHelper class
  */
-class IdealBeamformingHelper : public BeamformingHelperBase
+class NR_EXPORT IdealBeamformingHelper : public BeamformingHelperBase
 {
   public:
     /**

@@ -12,6 +12,7 @@
 #include "nr-qos-flow.h"
 
 #include "ns3/application.h"
+#include "ns3/nr-export.h"
 #include "ns3/socket.h"
 
 #include <map>
@@ -35,7 +36,7 @@ namespace ns3
  *
  * Others functions enumerated in section 4.4.2 of 3GPP TS 23.401 are not supported.
  */
-class NrEpcMmeApplication : public Application
+class NR_EXPORT NrEpcMmeApplication : public Application
 {
     /// allow NrMemberEpcS1apSapMme<EpcMme> class friend access
     friend class NrMemberEpcS1apSapMme<NrEpcMmeApplication>;
@@ -176,7 +177,7 @@ class NrEpcMmeApplication : public Application
     /**
      * Hold info on an QoS flow to be activated
      */
-    struct FlowInfo
+    struct NR_EXPORT FlowInfo
     {
         Ptr<NrQosRule> rule; ///< QoS rule
         NrQosFlow flow;      ///< QoS flow (QOS characteristics)
@@ -186,7 +187,7 @@ class NrEpcMmeApplication : public Application
     /**
      * Hold info on a UE
      */
-    struct NrUeInfo : public SimpleRefCount<NrUeInfo>
+    struct NR_EXPORT NrUeInfo : public SimpleRefCount<NrUeInfo>
     {
         uint64_t imsi;                          ///< UE identifier
         uint64_t mmeUeS1Id;                     ///< mmeUeS1Id
@@ -211,7 +212,7 @@ class NrEpcMmeApplication : public Application
     /**
      * Hold info on an gNB
      */
-    struct GnbInfo : public SimpleRefCount<GnbInfo>
+    struct NR_EXPORT GnbInfo : public SimpleRefCount<GnbInfo>
     {
         uint16_t gci;                ///< GCI
         Ipv4Address s1uAddr;         ///< IP address of the S1-U interface

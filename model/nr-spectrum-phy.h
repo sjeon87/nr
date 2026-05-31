@@ -15,6 +15,7 @@
 
 #include "ns3/matrix-based-channel-model.h"
 #include "ns3/net-device.h"
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/spectrum-channel.h"
 #include "ns3/traced-callback.h"
@@ -68,7 +69,7 @@ class UniformPlanarArray;
  * you want to configure, or by directly calling `SetAttribute` on the pointer.
  * The list of  attributes is reported below, in the Attributes section.
  */
-class NrSpectrumPhy : public SpectrumPhy
+class NR_EXPORT NrSpectrumPhy : public SpectrumPhy
 {
   public:
     /**

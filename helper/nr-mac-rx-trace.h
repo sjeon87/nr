@@ -6,6 +6,7 @@
 #define SRC_NR_HELPER_NR_MAC_RX_TRACE_H_
 
 #include "ns3/nr-control-messages.h"
+#include "ns3/nr-export.h"
 #include "ns3/nr-phy-mac-common.h"
 #include "ns3/object.h"
 #include "ns3/spectrum-value.h"
@@ -15,7 +16,7 @@
 namespace ns3
 {
 
-class NrMacRxTrace : public Object
+class NR_EXPORT NrMacRxTrace : public Object
 {
   public:
     NrMacRxTrace();

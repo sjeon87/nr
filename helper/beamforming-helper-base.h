@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include "ns3/beamforming-vector.h"
+#include "ns3/nr-export.h"
 #include "ns3/object-factory.h"
 #include "ns3/object.h"
 #include "ns3/vector.h"
-
 #ifndef SRC_NR_HELPER_BEAMFORMING_HELPER_BASE_H_
 #define SRC_NR_HELPER_BEAMFORMING_HELPER_BASE_H_
 
@@ -25,7 +25,7 @@ class NrUeNetDevice;
  * `IdealBeamformingHelper` and `RealisticBeamformingHelper`
  * that inherit this base beamforming helper class
  */
-class BeamformingHelperBase : public Object
+class NR_EXPORT BeamformingHelperBase : public Object
 {
   public:
     /**

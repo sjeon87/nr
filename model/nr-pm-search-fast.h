@@ -7,6 +7,8 @@
 
 #include "nr-pm-search-full.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -16,7 +18,7 @@ namespace ns3
 /// It finally creates a CQI/PMI/RI feedback message by looping over every subband,
 /// finding an i2 for each of them that results in the largest achievable TB size.
 
-class NrPmSearchFast : public NrPmSearchFull
+class NR_EXPORT NrPmSearchFast : public NrPmSearchFull
 {
   public:
     /// @brief Get TypeId

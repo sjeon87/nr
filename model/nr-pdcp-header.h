@@ -8,6 +8,7 @@
 #define NR_PDCP_HEADER_H
 
 #include "ns3/header.h"
+#include "ns3/nr-export.h"
 
 #include <list>
 
@@ -22,7 +23,7 @@ namespace ns3
  * methods for serialization to and deserialization from a byte buffer.
  * It follows 3GPP TS 36.323 Packet Data Convergence Protocol (PDCP) specification.
  */
-class NrPdcpHeader : public Header
+class NR_EXPORT NrPdcpHeader : public Header
 {
   public:
     /**

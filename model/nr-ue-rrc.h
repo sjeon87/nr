@@ -20,6 +20,7 @@
 #include "nr-ue-cmac-sap.h"
 #include "nr-ue-cphy-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/packet.h"
 #include "ns3/traced-callback.h"
@@ -47,7 +48,7 @@ namespace ns3
  *  - time-to-trigger check is always performed before the reporting, so there
  *    would still be chance for it to cancel the reporting if necessary.
  */
-extern const Time NR_UE_MEASUREMENT_REPORT_DELAY;
+extern NR_EXPORT const Time NR_UE_MEASUREMENT_REPORT_DELAY;
 
 class NrRlc;
 class NrMacSapProvider;
@@ -60,7 +61,7 @@ class NrSignalingRadioBearerInfo;
  *
  *
  */
-class NrUeRrc : public Object
+class NR_EXPORT NrUeRrc : public Object
 {
     /// allow UeMemberNrUeCmacSapUser class friend access
     friend class UeMemberNrUeCmacSapUser;
@@ -996,7 +997,7 @@ class NrUeRrc : public Object
      * Based on 3GPP TS 36.331 section 7.1. Also note that some optional variables
      * in the specification are omitted.
      */
-    struct VarMeasConfig
+    struct NR_EXPORT VarMeasConfig
     {
         std::map<uint8_t, NrRrcSap::MeasIdToAddMod> measIdList;             ///< measure ID list
         std::map<uint8_t, NrRrcSap::MeasObjectToAddMod> measObjectList;     ///< measure object list
@@ -1021,7 +1022,7 @@ class NrUeRrc : public Object
      *
      * Based on 3GPP TS 36.331 section 7.1.
      */
-    struct VarMeasReport
+    struct NR_EXPORT VarMeasReport
     {
         uint8_t measId;                        ///< measure ID
         std::set<uint16_t> cellsTriggeredList; ///< note: only E-UTRA is supported.
@@ -1096,7 +1097,7 @@ class NrUeRrc : public Object
     /**
      * @brief Represents a measurement result from a certain cell.
      */
-    struct MeasValues
+    struct NR_EXPORT MeasValues
     {
         double rsrp;          ///< Measured RSRP in dBm.
         double rsrq;          ///< Measured RSRQ in dB.
@@ -1146,7 +1147,7 @@ class NrUeRrc : public Object
      *        which reporting criteria have been fulfilled, but delayed by
      *        time-to-trigger.
      */
-    struct PendingTrigger_t
+    struct NR_EXPORT PendingTrigger_t
     {
         uint8_t measId;                  ///< The measurement identity which raised the trigger.
         ConcernedCells_t concernedCells; ///< The list of cells responsible for this trigger.
@@ -1420,7 +1421,7 @@ const std::string ToString(NrUeRrc::State state);
  * @param state the enum value of the state
  * @return the output stream
  */
-std::ostream& operator<<(std::ostream& os, NrUeRrc::State state);
+NR_EXPORT std::ostream& operator<<(std::ostream& os, NrUeRrc::State state);
 
 } // namespace ns3
 

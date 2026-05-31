@@ -9,6 +9,7 @@
 
 #include "nr-qos-rule.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 #include "ns3/simple-ref-count.h"
 
@@ -38,7 +39,7 @@ class Packet;
  * When we cannot cache the port info, the QoS rule of the default bearer is used. This may happen
  * if there is reordering or losses of IP packets.
  */
-class NrQosRuleClassifier : public SimpleRefCount<NrQosRuleClassifier>
+class NR_EXPORT NrQosRuleClassifier : public SimpleRefCount<NrQosRuleClassifier>
 {
   public:
     NrQosRuleClassifier();

@@ -8,6 +8,7 @@
 #include "beam-id.h"
 
 #include "ns3/mobility-model.h"
+#include "ns3/nr-export.h"
 #include "ns3/uniform-planar-array.h"
 
 namespace ns3
@@ -116,7 +117,7 @@ PhasedArrayModel::ComplexVector CreateKroneckerBfv(const Ptr<const UniformPlanar
  * simulation scripts can configure the desired convention without
  * modifying the underlying beamforming code.
  */
-class PhasedArrayAngleConvention : public Object
+class NR_EXPORT PhasedArrayAngleConvention : public Object
 {
   public:
     /**

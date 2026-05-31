@@ -17,6 +17,7 @@
 #include "nr-anr-sap.h"
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 #include <map>
@@ -65,7 +66,7 @@ class NrNeighbourRelation;
  *
  * \sa SetNrAnrSapProvider, SetNrAnrSapUser
  */
-class NrAnr : public Object
+class NR_EXPORT NrAnr : public Object
 {
   public:
     /**
@@ -193,7 +194,7 @@ class NrAnr : public Object
      * @brief Neighbour Relation between two gNBs (serving eNodeB and neighbour
      *        eNodeB).
      */
-    struct NeighbourRelation_t
+    struct NR_EXPORT NeighbourRelation_t
     {
         bool noRemove;            ///< no remove
         bool noHo;                ///< no HO

@@ -10,6 +10,7 @@
 #include "nr-net-device.h"
 
 #include "ns3/deprecated.h"
+#include "ns3/nr-export.h"
 #include "ns3/traced-callback.h"
 
 namespace ns3
@@ -32,7 +33,7 @@ class NrMacScheduler;
  *
  * This class represent the GNB NetDevice.
  */
-class NrGnbNetDevice : public NrNetDevice
+class NR_EXPORT NrGnbNetDevice : public NrNetDevice
 {
   public:
     static TypeId GetTypeId();

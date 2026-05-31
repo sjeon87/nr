@@ -7,6 +7,7 @@
 
 #include "node-distribution-scenario-interface.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/vector.h"
 
@@ -18,7 +19,7 @@ namespace ns3
  *
  * TODO: Documentation, tests
  */
-class GridScenarioHelper : public NodeDistributionScenarioInterface
+class NR_EXPORT GridScenarioHelper : public NodeDistributionScenarioInterface
 {
   public:
     /**

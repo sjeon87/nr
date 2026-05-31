@@ -13,6 +13,8 @@
 #include "nr-ue-ccm-rrc-sap.h"
 #include "nr-ue-component-carrier-manager.h"
 
+#include "ns3/nr-export.h"
+
 #include <map>
 
 namespace ns3
@@ -26,7 +28,7 @@ class NrUeCcmRrcSapProvider;
  * triggering of component carrier selection. This is the default choice.
  *
  */
-class NrSimpleUeComponentCarrierManager : public NrUeComponentCarrierManager
+class NR_EXPORT NrSimpleUeComponentCarrierManager : public NrUeComponentCarrierManager
 {
   public:
     /// Creates a No-op CCS algorithm instance.

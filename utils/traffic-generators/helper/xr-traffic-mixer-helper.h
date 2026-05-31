@@ -13,6 +13,7 @@
 #include "ns3/application.h"
 #include "ns3/node-container.h"
 #include "ns3/node.h"
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 #include "ns3/traffic-generator-3gpp-audio-data.h"
 #include "ns3/traffic-generator-3gpp-generic-video.h"
@@ -73,7 +74,7 @@ operator<<(std::ostream& os, const NrXrConfig& item)
     return os;
 }
 
-extern const std::map<NrXrConfig, std::list<TypeId>> XrPreconfig;
+extern NR_EXPORT const std::map<NrXrConfig, std::list<TypeId>> XrPreconfig;
 
 /**
  * @ingroup applications
@@ -81,7 +82,7 @@ extern const std::map<NrXrConfig, std::list<TypeId>> XrPreconfig;
  *
  * This traffic mixer can mix various types of traffics.
  */
-class XrTrafficMixerHelper : public Object
+class NR_EXPORT XrTrafficMixerHelper : public Object
 {
   public:
     /**

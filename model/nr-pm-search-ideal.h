@@ -7,12 +7,14 @@
 
 #include "nr-pm-search-full.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
 /// @brief An implementation of NrPmSearch that find the ideal precoding matrix.
 
-class NrPmSearchIdeal : public NrPmSearchFull
+class NR_EXPORT NrPmSearchIdeal : public NrPmSearchFull
 {
   public:
     /// @brief Get TypeId

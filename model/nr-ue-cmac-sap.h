@@ -9,6 +9,8 @@
 
 #include "nr-qos-flow.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 class NrMacSapUser;
@@ -19,13 +21,13 @@ class NrMacSapUser;
  * This is the MAC SAP Provider, i.e., the part of the SAP that contains the MAC methods called
  * by the RRC
  */
-class NrUeCmacSapProvider
+class NR_EXPORT NrUeCmacSapProvider
 {
   public:
     virtual ~NrUeCmacSapProvider() = default;
 
     /// RachConfig structure
-    struct RachConfig
+    struct NR_EXPORT RachConfig
     {
         uint8_t numberOfRaPreambles;  ///< number of RA preambles
         uint8_t preambleTransMax;     ///< preamble transmit maximum
@@ -60,7 +62,7 @@ class NrUeCmacSapProvider
                                                               uint8_t prachMask) = 0;
 
     /// LogicalChannelConfig structure
-    struct LogicalChannelConfig
+    struct NR_EXPORT LogicalChannelConfig
     {
         uint8_t priority;                ///< priority
         NrQosFlow::FiveQi fiveQi;        ///< 5G QoS Identifier
@@ -118,7 +120,7 @@ class NrUeCmacSapProvider
  * This is the MAC SAP User, i.e., the part of the SAP that contains the RRC methods called by
  * the MAC
  */
-class NrUeCmacSapUser
+class NR_EXPORT NrUeCmacSapUser
 {
   public:
     virtual ~NrUeCmacSapUser() = default;

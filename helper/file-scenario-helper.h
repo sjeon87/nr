@@ -7,6 +7,7 @@
 
 #include "node-distribution-scenario-interface.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/ptr.h"
 #include "ns3/vector.h"
 
@@ -25,7 +26,7 @@ class ListPositionAllocator;
  *
  * @todo Documentation, tests
  */
-class FileScenarioHelper : public NodeDistributionScenarioInterface
+class NR_EXPORT FileScenarioHelper : public NodeDistributionScenarioInterface
 {
   public:
     /**

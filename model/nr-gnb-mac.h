@@ -14,6 +14,7 @@
 #include "nr-phy-mac-common.h"
 #include "nr-phy-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/traced-callback.h"
 
 namespace ns3
@@ -44,7 +45,7 @@ class BeamId;
  * and the other is GnbMacTxedCtrlMsgsTrace. For what regards the UE, you will
  * find more information in the NrUePhy class documentation.
  */
-class NrGnbMac : public Object
+class NR_EXPORT NrGnbMac : public Object
 {
     friend class NrGnbMacMemberGnbCmacSapProvider;
     friend class NrMacGnbMemberPhySapUser;
@@ -333,7 +334,7 @@ class NrGnbMac : public Object
   private:
     bool HasMsg3Allocations(const SlotAllocInfo& slotInfo);
 
-    struct NrDlHarqProcessInfo
+    struct NR_EXPORT NrDlHarqProcessInfo
     {
         Ptr<PacketBurst> m_pktBurst;
         // maintain list of LCs contained in this TB
@@ -380,7 +381,7 @@ class NrGnbMac : public Object
      * info associated with a preamble allocated for non-contention based RA
      *
      */
-    struct NcRaPreambleInfo
+    struct NR_EXPORT NcRaPreambleInfo
     {
         uint16_t rnti;   ///< rnti previously allocated for this non-contention based RA procedure
         Time expiryTime; ///< value the expiration time of this allocation (so that stale preambles

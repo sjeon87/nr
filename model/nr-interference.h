@@ -8,6 +8,7 @@
 #include "nr-chunk-processor.h"
 #include "nr-interference-base.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/spectrum-signal-parameters.h"
@@ -36,7 +37,7 @@ class NrMimoChunkProcessor;
  * energy detection functionality.
  *
  */
-class NrInterference : public NrInterferenceBase
+class NR_EXPORT NrInterference : public NrInterferenceBase
 {
   public:
     /**
@@ -166,7 +167,7 @@ class NrInterference : public NrInterferenceBase
     /**
      * Noise and Interference (thus Ni) event.
      */
-    class NiChange
+    class NR_EXPORT NiChange
     {
       public:
         /**

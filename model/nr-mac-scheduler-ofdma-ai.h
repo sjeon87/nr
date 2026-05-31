@@ -8,6 +8,7 @@
 #include "nr-mac-scheduler-ofdma-qos.h"
 #include "nr-mac-scheduler-ue-info-ai.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/traced-value.h"
 
 namespace ns3
@@ -33,7 +34,7 @@ namespace ns3
  *
  * Details in the class NrMacSchedulerUeInfoAI.
  */
-class NrMacSchedulerOfdmaAi : public NrMacSchedulerOfdmaQos
+class NR_EXPORT NrMacSchedulerOfdmaAi : public NrMacSchedulerOfdmaQos
 {
     friend class NrTestSchedulerAiCase;
 

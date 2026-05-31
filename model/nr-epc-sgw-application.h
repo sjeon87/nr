@@ -11,6 +11,7 @@
 
 #include "ns3/address.h"
 #include "ns3/application.h"
+#include "ns3/nr-export.h"
 #include "ns3/socket.h"
 
 #include <map>
@@ -35,7 +36,7 @@ namespace ns3
  *
  * Others functions enumerated in section 4.4.3.2 of 3GPP TS 23.401 are not supported.
  */
-class NrEpcSgwApplication : public Application
+class NR_EXPORT NrEpcSgwApplication : public Application
 {
   public:
     /**
@@ -235,7 +236,7 @@ class NrEpcSgwApplication : public Application
     uint32_t m_teidCount;
 
     /// GnbInfo structure
-    struct GnbInfo
+    struct NR_EXPORT GnbInfo
     {
         Ipv4Address gnbAddr; ///< gNB address
         Ipv4Address sgwAddr; ///< SGW address

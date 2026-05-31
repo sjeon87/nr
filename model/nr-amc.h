@@ -8,6 +8,8 @@
 #include "nr-error-model.h"
 #include "nr-phy-mac-common.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -33,7 +35,7 @@ namespace ns3
  * @todo Pass NrAmc parameters through RRC, and don't pass pointers to AMC
  * between GNB and UE
  */
-class NrAmc : public Object
+class NR_EXPORT NrAmc : public Object
 {
   public:
     /**
@@ -217,7 +219,7 @@ class NrAmc : public Object
     static constexpr size_t NR_AMC_NUM_SYMBOLS_DEFAULT = 12; ///< Num OFDM syms for TB size
 
     /// @brief Parameters related to MCS selection
-    struct McsParams
+    struct NR_EXPORT McsParams
     {
         uint8_t mcs{};                 ///< MCS value
         uint8_t wbCqi{};               ///< Wideband CQI

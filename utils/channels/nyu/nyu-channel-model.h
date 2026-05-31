@@ -12,6 +12,7 @@
 #include "ns3/angles.h"
 #include "ns3/boolean.h"
 #include "ns3/matrix-based-channel-model.h"
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/random-variable-stream.h"
@@ -32,7 +33,7 @@ class MobilityModel;
  *
  * @see GetChannel
  */
-class NYUChannelModel : public MatrixBasedChannelModel
+class NR_EXPORT NYUChannelModel : public MatrixBasedChannelModel
 {
   public:
     /**
@@ -458,7 +459,7 @@ class NYUChannelModel : public MatrixBasedChannelModel
     double DynamicRange(double distance2D) const;
 
   protected:
-    struct NYUChannelParams : public MatrixBasedChannelModel::ChannelParams
+    struct NR_EXPORT NYUChannelParams : public MatrixBasedChannelModel::ChannelParams
     {
         ChannelCondition::LosConditionValue m_losCondition;
         ChannelCondition::O2iConditionValue m_o2iCondition;
@@ -505,7 +506,7 @@ class NYUChannelModel : public MatrixBasedChannelModel
             xpd; //!< value containing the XPD (Cross Polarization Discriminator) in dB for each Ray
     };
 
-    struct ParamsTable : public SimpleRefCount<ParamsTable>
+    struct NR_EXPORT ParamsTable : public SimpleRefCount<ParamsTable>
     {
         /******** NYU Channel Parameters ************/
         // common parameters for UMi,UMa,RMa,InH and InF

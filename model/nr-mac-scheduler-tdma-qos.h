@@ -6,6 +6,8 @@
 
 #include "nr-mac-scheduler-tdma-rr.h"
 
+#include "ns3/nr-export.h"
+
 namespace ns3
 {
 
@@ -18,7 +20,7 @@ namespace ns3
  *
  * Details in the class NrMacSchedulerUeInfoQos.
  */
-class NrMacSchedulerTdmaQos : public NrMacSchedulerTdmaRR
+class NR_EXPORT NrMacSchedulerTdmaQos : public NrMacSchedulerTdmaRR
 {
   public:
     /**

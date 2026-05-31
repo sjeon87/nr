@@ -7,6 +7,7 @@
 
 #include "nr-rrc-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/ptr.h"
 
@@ -31,7 +32,7 @@ class NrUeRrc;
  * resources.
  *
  */
-class NrUeRrcProtocolIdeal : public Object
+class NR_EXPORT NrUeRrcProtocolIdeal : public Object
 {
     friend class MemberNrUeRrcSapUser<NrUeRrcProtocolIdeal>;
 
@@ -108,7 +109,7 @@ class NrUeRrcProtocolIdeal : public Object
  * resources.
  *
  */
-class NrGnbRrcProtocolIdeal : public Object
+class NR_EXPORT NrGnbRrcProtocolIdeal : public Object
 {
     friend class MemberNrGnbRrcSapUser<NrGnbRrcProtocolIdeal>;
 

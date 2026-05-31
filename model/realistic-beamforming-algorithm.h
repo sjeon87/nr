@@ -11,6 +11,7 @@
 #include "nr-ue-net-device.h"
 #include "realistic-bf-manager.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/three-gpp-channel-model.h"
 
@@ -45,7 +46,7 @@ class NrRealisticBeamformingTestCase;
  * path, and so, the proposed method is not valid for it. Currently, it is
  * only compatible with the beam search method."
  */
-class RealisticBeamformingAlgorithm : public Object
+class NR_EXPORT RealisticBeamformingAlgorithm : public Object
 {
     friend RealisticBeamformingHelper;
     friend NrRealisticBeamformingTestCase;
@@ -55,7 +56,7 @@ class RealisticBeamformingAlgorithm : public Object
      * @brief The structure that contains the information about the update time,
      * srsSinr and the channel matrix.
      */
-    struct DelayedUpdateInfo
+    struct NR_EXPORT DelayedUpdateInfo
     {
         Time updateTime; //!< time that will be used to check if the event is using the correct SRS
                          //!< measurement and channel
@@ -69,7 +70,7 @@ class RealisticBeamformingAlgorithm : public Object
      * @brief The structure that contains the information about what is the trigger
      * of the realistic beamforming algorithm, and the periodicity or the delay.
      */
-    struct TriggerEventConf
+    struct NR_EXPORT TriggerEventConf
     {
         RealisticBfManager::TriggerEvent event;
         uint16_t updatePeriodicity;

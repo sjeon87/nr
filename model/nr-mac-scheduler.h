@@ -7,6 +7,7 @@
 #include "nr-mac-csched-sap.h"
 #include "nr-mac-sched-sap.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 
 namespace ns3
@@ -23,7 +24,7 @@ class NrFhSchedSapUser;
  *
  * @see NrMacSchedulerNs3
  */
-class NrMacScheduler : public Object
+class NR_EXPORT NrMacScheduler : public Object
 {
   public:
     /**

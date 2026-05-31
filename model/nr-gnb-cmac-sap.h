@@ -8,6 +8,7 @@
 #ifndef NR_GNB_CMAC_SAP_H
 #define NR_GNB_CMAC_SAP_H
 
+#include "ns3/nr-export.h"
 #include "ns3/packet.h"
 
 namespace ns3
@@ -22,7 +23,7 @@ class NrMacSapUser;
  * This is the MAC SAP Provider, i.e., the part of the SAP that contains the MAC methods called by
  * the RRC
  */
-class NrGnbCmacSapProvider
+class NR_EXPORT NrGnbCmacSapProvider
 {
   public:
     virtual ~NrGnbCmacSapProvider() = default;
@@ -52,7 +53,7 @@ class NrGnbCmacSapProvider
      * Logical Channel information to be passed to CmacSapProvider::ConfigureLc
      *
      */
-    struct LcInfo
+    struct NR_EXPORT LcInfo
     {
         uint16_t rnti;        /**< C-RNTI identifying the UE */
         uint8_t lcId;         /**< logical channel identifier */
@@ -92,7 +93,7 @@ class NrGnbCmacSapProvider
     /**
      * @brief Parameters for [re]configuring the UE
      */
-    struct UeConfig
+    struct NR_EXPORT UeConfig
     {
         /**
          * UE id within this cell
@@ -115,7 +116,7 @@ class NrGnbCmacSapProvider
      * struct defining the RACH configuration of the MAC
      *
      */
-    struct RachConfig
+    struct NR_EXPORT RachConfig
     {
         uint8_t numberOfRaPreambles;  ///< number of RA preambles
         uint8_t preambleTransMax;     ///< preamble transmit maximum
@@ -133,7 +134,7 @@ class NrGnbCmacSapProvider
      * @brief AllocateNcRaPreambleReturnValue structure
      *
      */
-    struct AllocateNcRaPreambleReturnValue
+    struct NR_EXPORT AllocateNcRaPreambleReturnValue
     {
         bool valid;               ///< true if a valid RA config was allocated, false otherwise
         uint8_t raPreambleId;     ///< random access preamble id
@@ -164,7 +165,7 @@ class NrGnbCmacSapProvider
  * This is the MAC SAP User, i.e., the part of the SAP that contains the RRC methods called by the
  * MAC
  */
-class NrGnbCmacSapUser
+class NR_EXPORT NrGnbCmacSapUser
 {
   public:
     virtual ~NrGnbCmacSapUser() = default;
@@ -188,7 +189,7 @@ class NrGnbCmacSapUser
     /**
      * @brief Parameters for [re]configuring the UE
      */
-    struct UeConfig
+    struct NR_EXPORT UeConfig
     {
         /**
          * UE id within this cell

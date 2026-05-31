@@ -8,6 +8,7 @@
 #include "nr-component-carrier.h"
 #include "nr-ue-phy.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 
@@ -21,7 +22,7 @@ class NrUeMac;
  * @brief Bandwidth part representation for a UE
  *
  */
-class BandwidthPartUe : public NrComponentCarrier
+class NR_EXPORT BandwidthPartUe : public NrComponentCarrier
 {
   public:
     /**

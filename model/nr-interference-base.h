@@ -7,6 +7,7 @@
 #ifndef NR_INTERFERENCE_BASE_H
 #define NR_INTERFERENCE_BASE_H
 
+#include "ns3/nr-export.h"
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/packet.h"
@@ -24,7 +25,7 @@ class NrChunkProcessor;
  * incoming signals are added to the total interference.
  *
  */
-class NrInterferenceBase : public Object
+class NR_EXPORT NrInterferenceBase : public Object
 {
   public:
     NrInterferenceBase();

@@ -11,6 +11,7 @@
 #include "nr-qos-rule.h"
 
 #include "ns3/header.h"
+#include "ns3/nr-export.h"
 
 namespace ns3
 {
@@ -28,7 +29,7 @@ namespace ns3
  * However, this may eventually be removed from 5G NR module in favor of newer
  * standards in the TS 29.500 series that use HTTP/2 protocol rather than GTP-C.
  */
-class NrGtpcHeader : public Header
+class NR_EXPORT NrGtpcHeader : public Header
 {
   public:
     NrGtpcHeader();
@@ -117,7 +118,7 @@ class NrGtpcHeader : public Header
     };
 
     /// FTEID structure
-    struct Fteid_t
+    struct NR_EXPORT Fteid_t
     {
         InterfaceType_t interfaceType{}; //!< Interface type
         Ipv4Address addr;                //!< IPv4 address
@@ -183,7 +184,7 @@ class NrGtpcHeader : public Header
  * @ingroup nr
  * GTP-C Information Elements
  */
-class NrGtpcIes
+class NR_EXPORT NrGtpcIes
 {
   public:
     /**
@@ -347,7 +348,7 @@ class NrGtpcIes
  * @ingroup nr
  * GTP-C Create Session Request Message
  */
-class NrGtpcCreateSessionRequestMessage : public NrGtpcHeader, public NrGtpcIes
+class NR_EXPORT NrGtpcCreateSessionRequestMessage : public NrGtpcHeader, public NrGtpcIes
 {
   public:
     NrGtpcCreateSessionRequestMessage();
@@ -400,7 +401,7 @@ class NrGtpcCreateSessionRequestMessage : public NrGtpcHeader, public NrGtpcIes
     /**
      * Flow Context structure
      */
-    struct FlowContextToBeCreated
+    struct NR_EXPORT FlowContextToBeCreated
     {
         NrGtpcHeader::Fteid_t sgwS5uFteid; ///< FTEID
         uint8_t qfi;                       ///< QoS Flow ID
@@ -432,7 +433,7 @@ class NrGtpcCreateSessionRequestMessage : public NrGtpcHeader, public NrGtpcIes
  * @ingroup nr
  * GTP-C Create Session Response Message
  */
-class NrGtpcCreateSessionResponseMessage : public NrGtpcHeader, public NrGtpcIes
+class NR_EXPORT NrGtpcCreateSessionResponseMessage : public NrGtpcHeader, public NrGtpcIes
 {
   public:
     NrGtpcCreateSessionResponseMessage();
@@ -474,7 +475,7 @@ class NrGtpcCreateSessionResponseMessage : public NrGtpcHeader, public NrGtpcIes
     /**
      * Flow Context structure
      */
-    struct FlowContextCreated
+    struct NR_EXPORT FlowContextCreated
     {
         uint8_t qfi;                 ///< QoS Flow ID
         uint8_t cause;               ///< Cause
@@ -505,7 +506,7 @@ class NrGtpcCreateSessionResponseMessage : public NrGtpcHeader, public NrGtpcIes
  * @ingroup nr
  * GTP-C Modify Flow Request Message
  */
-class NrGtpcModifyFlowRequestMessage : public NrGtpcHeader, public NrGtpcIes
+class NR_EXPORT NrGtpcModifyFlowRequestMessage : public NrGtpcHeader, public NrGtpcIes
 {
   public:
     NrGtpcModifyFlowRequestMessage();
@@ -547,7 +548,7 @@ class NrGtpcModifyFlowRequestMessage : public NrGtpcHeader, public NrGtpcIes
     /**
      * Flow Context structure
      */
-    struct FlowContextToBeModified
+    struct NR_EXPORT FlowContextToBeModified
     {
         uint8_t qfi;                 ///< QoS flow ID
         NrGtpcHeader::Fteid_t fteid; ///< FTEID
@@ -576,7 +577,7 @@ class NrGtpcModifyFlowRequestMessage : public NrGtpcHeader, public NrGtpcIes
  * @ingroup nr
  * GTP-C Modify Flow Response Message
  */
-class NrGtpcModifyFlowResponseMessage : public NrGtpcHeader, public NrGtpcIes
+class NR_EXPORT NrGtpcModifyFlowResponseMessage : public NrGtpcHeader, public NrGtpcIes
 {
   public:
     NrGtpcModifyFlowResponseMessage();
@@ -612,7 +613,7 @@ class NrGtpcModifyFlowResponseMessage : public NrGtpcHeader, public NrGtpcIes
  * @ingroup nr
  * GTP-C Delete Flow Command Message
  */
-class NrGtpcDeleteFlowCommandMessage : public NrGtpcHeader, public NrGtpcIes
+class NR_EXPORT NrGtpcDeleteFlowCommandMessage : public NrGtpcHeader, public NrGtpcIes
 {
   public:
     NrGtpcDeleteFlowCommandMessage();
@@ -630,7 +631,7 @@ class NrGtpcDeleteFlowCommandMessage : public NrGtpcHeader, public NrGtpcIes
     uint32_t GetMessageSize() const override;
 
     /// Flow context
-    struct FlowContext
+    struct NR_EXPORT FlowContext
     {
         uint8_t m_qfi; ///< QoS flow ID
     };
@@ -654,7 +655,7 @@ class NrGtpcDeleteFlowCommandMessage : public NrGtpcHeader, public NrGtpcIes
  * @ingroup nr
  * GTP-C Delete Flow Request Message
  */
-class NrGtpcDeleteFlowRequestMessage : public NrGtpcHeader, public NrGtpcIes
+class NR_EXPORT NrGtpcDeleteFlowRequestMessage : public NrGtpcHeader, public NrGtpcIes
 {
   public:
     NrGtpcDeleteFlowRequestMessage();
@@ -690,7 +691,7 @@ class NrGtpcDeleteFlowRequestMessage : public NrGtpcHeader, public NrGtpcIes
  * @ingroup nr
  * GTP-C Delete Flow Response Message
  */
-class NrGtpcDeleteFlowResponseMessage : public NrGtpcHeader, public NrGtpcIes
+class NR_EXPORT NrGtpcDeleteFlowResponseMessage : public NrGtpcHeader, public NrGtpcIes
 {
   public:
     NrGtpcDeleteFlowResponseMessage();

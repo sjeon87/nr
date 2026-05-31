@@ -12,6 +12,7 @@
 #include "nr-phy-mac-common.h"
 #include "sfnsf.h"
 
+#include "ns3/nr-export.h"
 #include "ns3/object.h"
 #include "ns3/traced-callback.h"
 
@@ -55,7 +56,7 @@ class NrFhSchedSapProvider;
  *
  */
 
-class NrFhControl : public Object
+class NR_EXPORT NrFhControl : public Object
 {
   public:
     /**

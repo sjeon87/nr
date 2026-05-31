@@ -7,6 +7,7 @@
 #ifndef NR_MAC_SAP_H
 #define NR_MAC_SAP_H
 
+#include "ns3/nr-export.h"
 #include "ns3/packet.h"
 
 namespace ns3
@@ -19,7 +20,7 @@ namespace ns3
  * This is the MAC SAP Provider, i.e., the part of the SAP that contains the MAC methods called by
  * the RLC
  */
-class NrMacSapProvider
+class NR_EXPORT NrMacSapProvider
 {
   public:
     virtual ~NrMacSapProvider() = default;
@@ -28,7 +29,7 @@ class NrMacSapProvider
      * Parameters for NrMacSapProvider::TransmitPdu
      *
      */
-    struct TransmitPduParameters
+    struct NR_EXPORT TransmitPduParameters
     {
         Ptr<Packet> pdu; /**< the RLC PDU */
         uint16_t rnti;   /**< the C-RNTI identifying the UE */
@@ -52,7 +53,7 @@ class NrMacSapProvider
     /**
      * Parameters for NrMacSapProvider::BufferStatusReport
      */
-    struct BufferStatusReportParameters
+    struct NR_EXPORT BufferStatusReportParameters
     {
         uint16_t rnti; /**< the C-RNTI identifying the UE */
         uint8_t lcid;  /**< the logical channel id corresponding to the sending RLC instance */
@@ -80,7 +81,7 @@ class NrMacSapProvider
  * This is the MAC SAP User, i.e., the part of the SAP that contains the RLC methods called by the
  * MAC
  */
-class NrMacSapUser
+class NR_EXPORT NrMacSapUser
 {
   public:
     virtual ~NrMacSapUser() = default;
@@ -89,7 +90,7 @@ class NrMacSapUser
      * Parameters for NrMacSapUser::NotifyTxOpportunity
      *
      */
-    struct TxOpportunityParameters
+    struct NR_EXPORT TxOpportunityParameters
     {
         /**
          * @brief TxOpportunityParameters constructor
@@ -150,7 +151,7 @@ class NrMacSapUser
      * Parameters for NrMacSapUser::ReceivePdu
      *
      */
-    struct ReceivePduParameters
+    struct NR_EXPORT ReceivePduParameters
     {
         /**
          * @brief ReceivePduParameters default constructor (DEPRECATED)
