@@ -26,19 +26,21 @@ class NR_EXPORT NrMacRxTrace : public Object
     /**
      *  Trace sink for Gnb Mac Received Control Messages.
      *
+     * @param [in] imsi
      * @param [in] frame Frame number.
      * @param [in] subframe Subframe number.
      * @param [in] slot number.
      * @param [in] VarTti
-     * @param [in] nodeId
+     * @param [in] cellId
      * @param [in] rnti
      * @param [in] bwpId
      * @param [in] pointer to msg to get the msg type
      */
     static void RxedGnbMacCtrlMsgsCallback(Ptr<NrMacRxTrace> macStats,
                                            std::string path,
+                                           uint64_t imsi,
                                            SfnSf sfn,
-                                           uint16_t nodeId,
+                                           uint16_t cellId,
                                            uint16_t rnti,
                                            uint8_t bwpId,
                                            Ptr<const NrControlMessage> msg);
@@ -46,19 +48,21 @@ class NR_EXPORT NrMacRxTrace : public Object
     /**
      *  Trace sink for Gnb Mac Transmitted Control Messages.
      *
+     * @param [in] imsi
      * @param [in] frame Frame number.
      * @param [in] subframe Subframe number.
      * @param [in] slot number.
      * @param [in] VarTti
-     * @param [in] nodeId
+     * @param [in] cellId
      * @param [in] rnti
      * @param [in] bwpId
      * @param [in] pointer to msg to get the msg type
      */
     static void TxedGnbMacCtrlMsgsCallback(Ptr<NrMacRxTrace> macStats,
                                            std::string path,
+                                           uint64_t imsi,
                                            SfnSf sfn,
-                                           uint16_t nodeId,
+                                           uint16_t cellId,
                                            uint16_t rnti,
                                            uint8_t bwpId,
                                            Ptr<const NrControlMessage> msg);
@@ -66,19 +70,21 @@ class NR_EXPORT NrMacRxTrace : public Object
     /**
      *  Trace sink for Ue Mac Received Control Messages.
      *
+     * @param [in] imsi
      * @param [in] frame Frame number.
      * @param [in] subframe Subframe number.
      * @param [in] slot number.
      * @param [in] VarTti
-     * @param [in] nodeId
+     * @param [in] cellId
      * @param [in] rnti
      * @param [in] bwpId
      * @param [in] pointer to msg to get the msg type
      */
     static void RxedUeMacCtrlMsgsCallback(Ptr<NrMacRxTrace> macStats,
                                           std::string path,
+                                          uint64_t imsi,
                                           SfnSf sfn,
-                                          uint16_t nodeId,
+                                          uint16_t cellId,
                                           uint16_t rnti,
                                           uint8_t bwpId,
                                           Ptr<const NrControlMessage> msg);
@@ -86,19 +92,21 @@ class NR_EXPORT NrMacRxTrace : public Object
     /**
      *  Trace sink for Ue Mac Transmitted Control Messages.
      *
+     * @param [in] imsi
      * @param [in] frame Frame number.
      * @param [in] subframe Subframe number.
      * @param [in] slot number.
      * @param [in] VarTti
-     * @param [in] nodeId
+     * @param [in] cellId
      * @param [in] rnti
      * @param [in] bwpId
      * @param [in] pointer to msg to get the msg type
      */
     static void TxedUeMacCtrlMsgsCallback(Ptr<NrMacRxTrace> macStats,
                                           std::string path,
+                                          uint64_t imsi,
                                           SfnSf sfn,
-                                          uint16_t nodeId,
+                                          uint16_t cellId,
                                           uint16_t rnti,
                                           uint8_t bwpId,
                                           Ptr<const NrControlMessage> msg);

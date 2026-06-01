@@ -729,7 +729,7 @@ NrRrcAsn1Header::SerializeMeasResults(NrRrcSap::MeasResults measResults) const
     SerializeSequence(std::bitset<0>(0), false);
 
     // Serialize rsrpResult
-    SerializeInteger(measResults.measResultPCell.rsrpResult, 0, 97);
+    SerializeInteger(measResults.measResultPCell.rsrpResult, 0, 127);
 
     // Serialize rsrqResult
     SerializeInteger(measResults.measResultPCell.rsrqResult, 0, 34);
@@ -786,7 +786,7 @@ NrRrcAsn1Header::SerializeMeasResults(NrRrcSap::MeasResults measResults) const
 
             if (it->haveRsrpResult)
             {
-                SerializeInteger(it->rsrpResult, 0, 97);
+                SerializeInteger(it->rsrpResult, 0, 127);
             }
 
             if (it->haveRsrqResult)
@@ -816,7 +816,7 @@ NrRrcAsn1Header::SerializeMeasResults(NrRrcSap::MeasResults measResults) const
             if (it.haveMeasResultSCell)
             {
                 // Serialize rsrpResultSCell-r10
-                SerializeInteger(it.measResultSCell.rsrpResult, 0, 97);
+                SerializeInteger(it.measResultSCell.rsrpResult, 0, 127);
 
                 // Serialize rsrqResultSCell-r10
                 SerializeInteger(it.measResultSCell.rsrqResult, 0, 34);
@@ -828,7 +828,7 @@ NrRrcAsn1Header::SerializeMeasResults(NrRrcSap::MeasResults measResults) const
                 SerializeInteger(it.measResultBestNeighCell.physCellId, 0, 503);
 
                 // Serialize rsrpResultNCell-r10
-                SerializeInteger(it.measResultBestNeighCell.rsrpResult, 0, 97);
+                SerializeInteger(it.measResultBestNeighCell.rsrpResult, 0, 127);
 
                 // Serialize rsrqResultNCell-r10
                 SerializeInteger(it.measResultBestNeighCell.rsrqResult, 0, 34);
@@ -1133,7 +1133,7 @@ NrRrcAsn1Header::SerializeThresholdEutra(NrRrcSap::ThresholdEutra thresholdEutra
     {
     case NrRrcSap::ThresholdEutra::THRESHOLD_RSRP:
         SerializeChoice(2, 0, false);
-        SerializeInteger(thresholdEutra.range, 0, 97);
+        SerializeInteger(thresholdEutra.range, 0, 127);
         break;
     case NrRrcSap::ThresholdEutra::THRESHOLD_RSRQ:
     default:
@@ -2125,7 +2125,7 @@ NrRrcAsn1Header::DeserializeThresholdEutra(NrRrcSap::ThresholdEutra* thresholdEu
     {
     case 0:
         thresholdEutra->choice = NrRrcSap::ThresholdEutra::THRESHOLD_RSRP;
-        bIterator = DeserializeInteger(&range, 0, 97, bIterator);
+        bIterator = DeserializeInteger(&range, 0, 127, bIterator);
         thresholdEutra->range = range;
         break;
     case 1:
@@ -3767,7 +3767,7 @@ NrRrcAsn1Header::DeserializeMeasResults(NrRrcSap::MeasResults* measResults,
     bIterator = DeserializeSequence(&b0, false, bIterator);
 
     // Deserialize rsrpResult
-    bIterator = DeserializeInteger(&n, 0, 97, bIterator);
+    bIterator = DeserializeInteger(&n, 0, 127, bIterator);
     measResults->measResultPCell.rsrpResult = n;
 
     // Deserialize rsrqResult
@@ -3846,7 +3846,7 @@ NrRrcAsn1Header::DeserializeMeasResults(NrRrcSap::MeasResults* measResults,
                 if (measResultOpts[1])
                 {
                     // Deserialize rsrpResult
-                    bIterator = DeserializeInteger(&n, 0, 97, bIterator);
+                    bIterator = DeserializeInteger(&n, 0, 127, bIterator);
                     measResultEutra.rsrpResult = n;
                 }
 
@@ -3901,7 +3901,7 @@ NrRrcAsn1Header::DeserializeMeasResults(NrRrcSap::MeasResults* measResults,
             if (measResultServFreq.haveMeasResultSCell)
             {
                 // Deserialize rsrpResult
-                bIterator = DeserializeInteger(&n, 0, 97, bIterator);
+                bIterator = DeserializeInteger(&n, 0, 127, bIterator);
                 measResultServFreq.measResultSCell.rsrpResult = n;
 
                 // Deserialize rsrqResult
@@ -3916,7 +3916,7 @@ NrRrcAsn1Header::DeserializeMeasResults(NrRrcSap::MeasResults* measResults,
                 measResultServFreq.measResultBestNeighCell.physCellId = n;
 
                 // Deserialize rsrpResultNCell-r10
-                bIterator = DeserializeInteger(&n, 0, 97, bIterator);
+                bIterator = DeserializeInteger(&n, 0, 127, bIterator);
                 measResultServFreq.measResultBestNeighCell.rsrpResult = n;
 
                 // Deserialize rsrqResultNCell-r10

@@ -151,8 +151,9 @@ UlSchedulingTest::CreateAndStoreFileForResults(
 
 void
 UlSchedulingTest::UeMacStateMachine(
+    uint64_t imsi,
     SfnSf sfn,
-    [[maybe_unused]] uint16_t nodeId,
+    [[maybe_unused]] uint16_t cellId,
     uint16_t rnti,
     [[maybe_unused]] uint8_t ccId,
     NrUeMac::SrBsrMachine srState,
@@ -293,8 +294,9 @@ UlSchedulingTest::gNBUlToSch(NrSchedulingCallbackInfo data)
 }
 
 void
-UlSchedulingTest::gNBRxCtrl(SfnSf sfn,
-                            [[maybe_unused]] uint16_t nodeId,
+UlSchedulingTest::gNBRxCtrl(uint64_t imsi,
+                            SfnSf sfn,
+                            [[maybe_unused]] uint16_t cellId,
                             uint16_t rnti,
                             [[maybe_unused]] uint8_t ccId,
                             Ptr<const NrControlMessage> msg)

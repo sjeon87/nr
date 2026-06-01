@@ -17,6 +17,8 @@
 #include "ns3/three-gpp-spectrum-propagation-loss-model.h"
 #include "ns3/uniform-planar-array.h"
 
+#include <map>
+
 namespace ns3
 {
 
@@ -230,6 +232,16 @@ class NR_EXPORT NrInitialAssociation : public Object
     /// @brief Get the primary BWP or carrier
     double GetPrimaryCarrier() const;
 
+    /// @brief Recompute per-cell RSRP using the best Kronecker beam from the
+    /// configured row/col angle grid for each known gNB, without mutating
+    /// UE active panel or stored best-beam vectors.
+    /// @return Map of NR cell id to RSRP value in dB (same convention as
+    /// the values stored in m_maxRsrps by PopulateRsrps).
+    /// @note Intended as a "genie" override for NrUePhy neighbor-cell
+    /// measurements via NrUePhy::SetGenieRsrpCallback, to isolate the
+    /// handover-decision pipeline from beam-management limitations.
+    std::map<uint16_t, double> GetCellRsrps();
+
   private:
     /// @brief Extract information from ueDevice
     /// @return ChannelParamLocal
@@ -248,6 +260,14 @@ class NR_EXPORT NrInitialAssociation : public Object
     /// @param lsps structure with parameters
     /// @return RSRP value
     double ComputeMaxRsrp(const Ptr<NetDevice>& gnbDevice, LocalSearchParams& lsps);
+
+    /// @brief Side-effect-free variant of ComputeMaxRsrp for genie RSRP queries.
+    /// Resets lsps.maxPsdFound per call, does not push to m_bestBfVectors,
+    /// and does not call SetUeActivePanel.
+    /// @param gnbDevice gNB device
+    /// @param lsps structure with parameters (maxPsdFound is reset internally)
+    /// @return RSRP value (linear units, matching ComputeMaxRsrp)
+    double ComputeMaxRsrpClean(const Ptr<NetDevice>& gnbDevice, LocalSearchParams& lsps) const;
 
     /// @brief Compute sum of received power of UE antenna ports
     /// @param spectrumSigParam spectral signal parameters

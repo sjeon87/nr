@@ -503,10 +503,10 @@ class NR_EXPORT NrUeMac : public Object
 
     /**
      * Trace information regarding Ue MAC Received Control Messages
-     * Frame number, Subframe number, slot, VarTtti, nodeId, rnti, bwpId,
+     * imsi, Frame number, Subframe number, slot, VarTtti, cellId, rnti, bwpId,
      * pointer to message in order to get the msg type
      */
-    TracedCallback<SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
+    TracedCallback<uint64_t, SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
         m_macRxedCtrlMsgsTrace;
 
     /**
@@ -514,7 +514,7 @@ class NR_EXPORT NrUeMac : public Object
      * Frame number, Subframe number, slot, VarTtti, nodeId, rnti, bwpId,
      * pointer to message in order to get the msg type
      */
-    TracedCallback<SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
+    TracedCallback<uint64_t, SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
         m_macTxedCtrlMsgsTrace;
 
     /**
@@ -526,10 +526,11 @@ class NR_EXPORT NrUeMac : public Object
 
     /**
      * Trace information regarding Ue MAC Received Control Messages
-     * Frame number, Subframe number, slot, VarTtti, nodeId, rnti, bwpId, UE current state,
+     * IMSI, Frame number, Subframe number, slot, VarTtti, cellId, rnti, bwpId, UE current state,
      * BSR data, retransmission, name of the function
      */
-    TracedCallback<SfnSf,
+    TracedCallback<uint64_t,
+                   SfnSf,
                    uint16_t,
                    uint16_t,
                    uint8_t,

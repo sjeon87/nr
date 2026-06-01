@@ -570,7 +570,7 @@ NrGnbMac::ReceiveRachPreamble(uint32_t raId)
     Ptr<NrRachPreambleMessage> rachMsg = Create<NrRachPreambleMessage>();
     rachMsg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     rachMsg->SetRapId(raId);
-    m_macRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), raId, GetBwpId(), rachMsg);
+    m_macRxedCtrlMsgsTrace(0, m_currentSlot, GetCellId(), raId, GetBwpId(), rachMsg);
 
     ++m_receivedRachPreambleCount[raId];
 }
@@ -644,7 +644,7 @@ NrGnbMac::DoSlotDlIndication(const SfnSf& sfnSf, LteNrTddSlotType type)
         {
             Ptr<NrDlCqiMessage> msg = Create<NrDlCqiMessage>();
             msg->SetDlCqi(v);
-            m_macRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), v.m_rnti, GetBwpId(), msg);
+            m_macRxedCtrlMsgsTrace(0, m_currentSlot, GetCellId(), v.m_rnti, GetBwpId(), msg);
         }
     }
 
@@ -664,7 +664,7 @@ NrGnbMac::DoSlotDlIndication(const SfnSf& sfnSf, LteNrTddSlotType type)
         {
             Ptr<NrDlHarqFeedbackMessage> msg = Create<NrDlHarqFeedbackMessage>();
             msg->SetDlHarqFeedback(v);
-            m_macRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), v.m_rnti, GetBwpId(), msg);
+            m_macRxedCtrlMsgsTrace(0, m_currentSlot, GetCellId(), v.m_rnti, GetBwpId(), msg);
         }
     }
 
@@ -772,7 +772,7 @@ NrGnbMac::DoSlotUlIndication(const SfnSf& sfnSf, LteNrTddSlotType type)
         {
             Ptr<NrSRMessage> msg = Create<NrSRMessage>();
             msg->SetRNTI(v);
-            m_macRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), v, GetBwpId(), msg);
+            m_macRxedCtrlMsgsTrace(0, m_currentSlot, GetCellId(), v, GetBwpId(), msg);
         }
     }
 
@@ -791,7 +791,7 @@ NrGnbMac::DoSlotUlIndication(const SfnSf& sfnSf, LteNrTddSlotType type)
         {
             Ptr<NrBsrMessage> msg = Create<NrBsrMessage>();
             msg->SetBsr(v);
-            m_macRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), v.m_rnti, GetBwpId(), msg);
+            m_macRxedCtrlMsgsTrace(0, m_currentSlot, GetCellId(), v.m_rnti, GetBwpId(), msg);
         }
     }
 
@@ -1500,6 +1500,7 @@ NrGnbMac::DoRemoveUe(uint16_t rnti)
     m_macCschedSapProvider->CschedUeReleaseReq(params);
     m_miDlHarqProcessesPackets.erase(rnti);
     m_rlcAttached.erase(rnti);
+    std::erase(m_srRntiList, rnti);
     std::erase_if(m_ulCeReceived,
                   [rnti](auto& macCeElement) { return macCeElement.m_rnti == rnti; });
 
@@ -1592,6 +1593,14 @@ NrGnbMac::UeUpdateConfigurationReq(NrGnbCmacSapProvider::UeConfig params)
     req.m_beamId = m_phySapProvider->GetBeamId(params.m_rnti);
     req.m_reconfigureFlag = true;
     m_macCschedSapProvider->CschedUeConfigReq(req);
+
+    // Register the UE with the gNB MAC if not already registered.
+    // This is essential for the gNB MAC to be able to deliver Msg3
+    // (RRC Connection Request) to the correct RLC instance.
+    if (m_rlcAttached.find(params.m_rnti) == m_rlcAttached.end())
+    {
+        DoAddUe(params.m_rnti);
+    }
 }
 
 NrGnbCmacSapProvider::RachConfig

@@ -84,8 +84,9 @@ class UlSchedulingTest : public TestCase
             m_ulBsrReceived);
 
     void UeMacStateMachine(
+        uint64_t imsi,
         SfnSf sfn,
-        uint16_t nodeId,
+        uint16_t cellId,
         uint16_t rnti,
         uint8_t ccId,
         NrUeMac::SrBsrMachine m_srState,
@@ -94,8 +95,9 @@ class UlSchedulingTest : public TestCase
         std::string funcName);
 
     std::ofstream OpenResultFile(uint16_t testNumber, uint16_t rnti);
-    void gNBRxCtrl(SfnSf sfn,
-                   uint16_t nodeId,
+    void gNBRxCtrl(uint64_t imsi,
+                   SfnSf sfn,
+                   uint16_t cellId,
                    uint16_t rnti,
                    uint8_t bwpId,
                    Ptr<const NrControlMessage> msg);

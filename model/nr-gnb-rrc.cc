@@ -1135,6 +1135,23 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
     NS_LOG_FUNCTION(this);
     switch (m_state)
     {
+    case CONNECTED_NORMALLY: {
+        // UE context exists but UE attempts new connection (e.g., after RLF or
+        // handover failure). Reset context and treat as fresh connection.
+        NS_LOG_INFO("Resetting UE context from CONNECTED_NORMALLY for new RRC Connection Request");
+        m_state = NrUeManager::INITIAL_RANDOM_ACCESS;
+        // Fall through to handle as fresh connection
+    }
+    case HANDOVER_LEAVING: {
+        // Handover is in progress but UE attempts to reconnect to the source gNB.
+        // This can happen if the handover to the target gNB fails. Clean up the
+        // stale context and treat as a fresh connection.
+        NS_LOG_INFO("Cleaning up stale UE context in HANDOVER_LEAVING state for RNTI "
+                    << m_rnti << " — treating as fresh connection");
+        m_handoverLeavingTimeout.Cancel();
+        m_state = NrUeManager::INITIAL_RANDOM_ACCESS;
+        // Fall through to handle as fresh connection
+    }
     case INITIAL_RANDOM_ACCESS: {
         m_connectionRequestTimeout.Cancel();
 
@@ -1334,11 +1351,21 @@ NrUeManager::RecvRrcConnectionReestablishmentRequest(
         break;
     }
 
-    NrRrcSap::RrcConnectionReestablishment msg2;
-    msg2.rrcTransactionIdentifier = GetNewRrcTransactionIdentifier();
-    msg2.radioResourceConfigDedicated = BuildRadioResourceConfigDedicated();
-    m_rrc->m_rrcSapUser->SendRrcConnectionReestablishment(m_rnti, msg2);
-    SwitchToState(CONNECTION_REESTABLISHMENT);
+    if (m_rrc->m_useRrcReestablishment)
+    {
+        NS_LOG_INFO("Accepting RRC connection reestablishment request for RNTI " << m_rnti);
+        NrRrcSap::RrcConnectionReestablishment msg2;
+        msg2.rrcTransactionIdentifier = GetNewRrcTransactionIdentifier();
+        msg2.radioResourceConfigDedicated = BuildRadioResourceConfigDedicated();
+        m_rrc->m_rrcSapUser->SendRrcConnectionReestablishment(m_rnti, msg2);
+        SwitchToState(CONNECTION_REESTABLISHMENT);
+    }
+    else
+    {
+        NS_LOG_INFO("RRC reestablishment disabled. Rejecting reestablishment request for RNTI "
+                    << m_rnti);
+        m_rrc->DoRecvIdealUeContextRemoveRequest(m_rnti);
+    }
 }
 
 void
@@ -1466,6 +1493,12 @@ NrUeManager::GetSrsConfigurationIndex() const
     return m_physicalConfigDedicated.soundingRsUlConfigDedicated.srsConfigIndex;
 }
 
+Ptr<NrSignalingRadioBearerInfo>
+NrUeManager::GetSrb0() const
+{
+    return m_srb0;
+}
+
 void
 NrUeManager::SetSrsConfigurationIndex(uint16_t srsConfIndex)
 {
@@ -1492,6 +1525,12 @@ NrUeManager::State
 NrUeManager::GetState() const
 {
     return m_state;
+}
+
+ns3::TracedCallback<uint64_t, uint16_t, uint16_t, NrUeManager::State, NrUeManager::State>
+NrUeManager::GetStateTransitionTrace() const
+{
+    return m_stateTransitionTrace;
 }
 
 void
@@ -1820,7 +1859,9 @@ NrGnbRrc::NrGnbRrc()
       m_lastAllocatedConfigurationIndex(0),
       m_reconfigureUes(false),
       m_numberOfComponentCarriers(0),
-      m_carriersConfigured(false)
+      m_carriersConfigured(false),
+      m_handoverDecisionDelay(Seconds(0)),
+      m_handoverTriggeringDelay(Seconds(0))
 {
     NS_LOG_FUNCTION(this);
     m_cmacSapUser.push_back(new GnbRrcMemberNrGnbCmacSapUser(this, 0));
@@ -1888,6 +1929,12 @@ NrGnbRrc::GetTypeId()
             .SetParent<Object>()
             .SetGroupName("Nr")
             .AddConstructor<NrGnbRrc>()
+            .AddTraceSource(
+                "RxRrcConnectionReconfigurationCompleted",
+                "Trace fired when the gNB RRC receives an RRC Connection "
+                "Reconfiguration Complete message for the given UE.",
+                MakeTraceSourceAccessor(&NrGnbRrc::m_rxRrcConnectionReconfigurationCompletedTrace),
+                "uint16_t")
             .AddAttribute("UeMap",
                           "List of NrUeManager by C-RNTI.",
                           ObjectMapValue(),
@@ -1926,7 +1973,7 @@ NrGnbRrc::GetTypeId()
                           "timer should not be greater than T300 timer at UE RRC",
                           TimeValue(MilliSeconds(15)),
                           MakeTimeAccessor(&NrGnbRrc::m_connectionRequestTimeoutDuration),
-                          MakeTimeChecker(MilliSeconds(1), MilliSeconds(15)))
+                          MakeTimeChecker(MilliSeconds(1), MilliSeconds(100)))
             .AddAttribute("ConnectionSetupTimeoutDuration",
                           "After accepting connection request, if no RRC CONNECTION "
                           "SETUP COMPLETE is received before this time, the UE "
@@ -1990,6 +2037,25 @@ NrGnbRrc::GetTypeId()
                           BooleanValue(true),
                           MakeBooleanAccessor(&NrGnbRrc::m_admitRrcConnectionRequest),
                           MakeBooleanChecker())
+            .AddAttribute(
+                "UseRrcReestablishment",
+                "Whether to accept RRC connection reestablishment requests from UEs. "
+                "When disabled, the gNB rejects reestablishment requests and clears UE context.",
+                BooleanValue(true),
+                MakeBooleanAccessor(&NrGnbRrc::m_useRrcReestablishment),
+                MakeBooleanChecker())
+            .AddAttribute("HandoverDecisionDelay",
+                          "Time delay between receiving a measurement report and "
+                          "forwarding it to the handover algorithm for decision making.",
+                          TimeValue(MilliSeconds(0)), // 50 ms in TR 36.839
+                          MakeTimeAccessor(&NrGnbRrc::m_handoverDecisionDelay),
+                          MakeTimeChecker())
+            .AddAttribute("HandoverTriggeringDelay",
+                          "Time delay between the handover algorithm deciding to handover "
+                          "and the gNB RRC actually triggering the handover procedure.",
+                          TimeValue(MilliSeconds(0)), // 40 ms in TR 36.839
+                          MakeTimeAccessor(&NrGnbRrc::m_handoverTriggeringDelay),
+                          MakeTimeChecker())
 
             // UE measurements related attributes
             .AddAttribute("RsrpFilterCoefficient",
@@ -2172,6 +2238,20 @@ NrGnbRrc::GetNrGnbRrcSapProvider()
     return m_rrcSapProvider;
 }
 
+NrGnbRrcSapUser*
+NrGnbRrc::GetNrGnbRrcSapUser()
+{
+    NS_LOG_FUNCTION(this);
+    return m_rrcSapUser;
+}
+
+ns3::TracedCallback<uint16_t>
+NrGnbRrc::GetRxRrcConnectionReconfigurationCompletedTrace() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_rxRrcConnectionReconfigurationCompletedTrace;
+}
+
 void
 NrGnbRrc::SetNrMacSapProvider(NrMacSapProvider* s)
 {
@@ -2254,6 +2334,13 @@ NrGnbRrc::GetUeManager(uint16_t rnti)
         return nullptr;
     }
     return it->second;
+}
+
+std::map<uint16_t, Ptr<NrUeManager>>
+NrGnbRrc::GetUeMap() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_ueMap;
 }
 
 std::vector<uint8_t>
@@ -2697,6 +2784,7 @@ NrGnbRrc::DoRecvRrcConnectionReconfigurationCompleted(
                     << rnti << " not found, likely post-HandoverJoiningTimeout race. Dropping.");
         return;
     }
+    m_rxRrcConnectionReconfigurationCompletedTrace(rnti);
     GetUeManager(rnti)->RecvRrcConnectionReconfigurationCompleted(msg);
 }
 
@@ -2722,6 +2810,15 @@ void
 NrGnbRrc::DoRecvMeasurementReport(uint16_t rnti, NrRrcSap::MeasurementReport msg)
 {
     NS_LOG_FUNCTION(this << rnti);
+    if (m_handoverDecisionDelay.GetSeconds() > 0)
+    {
+        Simulator::Schedule(m_handoverDecisionDelay,
+                            &NrGnbRrc::DoRecvMeasurementReport,
+                            this,
+                            rnti,
+                            msg);
+        return;
+    }
     GetUeManager(rnti)->RecvMeasurementReport(msg);
 }
 
@@ -3017,7 +3114,11 @@ NrGnbRrc::DoRecvUeData(NrEpcX2SapUser::UeDataParams params)
     }
     else
     {
-        NS_FATAL_ERROR("X2-U data received but no X2uTeidInfo found");
+        // X2uTeidInfo not found — handover may have completed or the
+        // X2-U forwarding packet arrived after the context was cleaned up.
+        // Log a warning and discard rather than crashing.
+        NS_LOG_WARN("X2-U data received but no X2uTeidInfo found for TEID "
+                    << params.gtpTeid << " from cell " << params.sourceCellId);
     }
 }
 
@@ -3098,6 +3199,26 @@ void
 NrGnbRrc::DoTriggerHandover(uint16_t rnti, uint16_t targetCellId)
 {
     NS_LOG_FUNCTION(this << rnti << targetCellId);
+
+    if (m_handoverTriggeringDelay.GetSeconds() > 0)
+    {
+        NS_LOG_INFO("Scheduling handover for RNTI " << rnti << " to cell " << targetCellId
+                                                    << " with delay " << m_handoverTriggeringDelay);
+        Ptr<NrUeManager> ueManager = GetUeManager(rnti);
+        Simulator::Schedule(m_handoverTriggeringDelay,
+                            &NrGnbRrc::DoTriggerHandover,
+                            this,
+                            rnti,
+                            targetCellId);
+        // Verify UE is still connected after scheduling
+        if (HasUeManager(rnti) && ueManager->GetState() == NrUeManager::CONNECTED_NORMALLY)
+        {
+            return;
+        }
+        NS_LOG_WARN("UE " << rnti << " no longer in CONNECTED_NORMALLY state when scheduling "
+                          << "handover; canceling");
+        return;
+    }
 
     bool isHandoverAllowed = true;
 
@@ -3183,6 +3304,7 @@ NrGnbRrc::AddUe(NrUeManager::State state, uint8_t componentCarrierId)
     m_ccmRrcSapProvider->AddUe(rnti, (uint8_t)state);
     m_ueMap.insert(std::pair<uint16_t, Ptr<NrUeManager>>(rnti, ueManager));
     ueManager->Configure();
+
     const uint16_t cellId = ComponentCarrierToCellId(componentCarrierId);
     NS_LOG_DEBUG(this << " New UE RNTI " << rnti << " cellId " << cellId << " srs CI "
                       << ueManager->GetSrsConfigurationIndex());

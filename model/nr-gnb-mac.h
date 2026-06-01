@@ -211,17 +211,19 @@ class NR_EXPORT NrGnbMac : public Object
     /**
      *  TracedCallback signature for Gnb Mac Received Control Messages.
      *
+     * @param [in] imsi
      * @param [in] frame Frame number.
      * @param [in] subframe Subframe number.
      * @param [in] slot number.
      * @param [in] VarTti
-     * @param [in] nodeId
+     * @param [in] cellId
      * @param [in] rnti
      * @param [in] bwpId
      * @param [in] pointer to msg to get the msg type
      */
-    typedef void (*RxedGnbMacCtrlMsgsTracedCallback)(const SfnSf sfn,
-                                                     const uint16_t nodeId,
+    typedef void (*RxedGnbMacCtrlMsgsTracedCallback)(const uint64_t imsi,
+                                                     const SfnSf sfn,
+                                                     const uint16_t cellId,
                                                      const uint16_t rnti,
                                                      const uint8_t bwpId,
                                                      Ptr<NrControlMessage>);
@@ -229,17 +231,19 @@ class NR_EXPORT NrGnbMac : public Object
     /**
      *  TracedCallback signature for Gnb Mac Transmitted Control Messages.
      *
+     * @param [in] imsi
      * @param [in] frame Frame number.
      * @param [in] subframe Subframe number.
      * @param [in] slot number.
      * @param [in] VarTti
-     * @param [in] nodeId
+     * @param [in] cellId
      * @param [in] rnti
      * @param [in] bwpId
      * @param [in] pointer to msg to get the msg type
      */
-    typedef void (*TxedGnbMacCtrlMsgsTracedCallback)(const SfnSf sfn,
-                                                     const uint16_t nodeId,
+    typedef void (*TxedGnbMacCtrlMsgsTracedCallback)(const uint64_t imsi,
+                                                     const SfnSf sfn,
+                                                     const uint16_t cellId,
                                                      const uint16_t rnti,
                                                      const uint8_t bwpId,
                                                      Ptr<NrControlMessage>);
@@ -422,15 +426,15 @@ class NR_EXPORT NrGnbMac : public Object
      * Frame number, Subframe number, slot, VarTtti, nodeId, rnti,
      * bwpId, pointer to message in order to get the msg type
      */
-    TracedCallback<SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
+    TracedCallback<uint64_t, SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
         m_macRxedCtrlMsgsTrace;
 
     /**
      * Trace information regarding gNB MAC Transmitted Control Messages
-     * Frame number, Subframe number, slot, VarTtti, nodeId, rnti,
+     * IMSI, Frame number, Subframe number, slot, VarTtti, nodeId, rnti,
      * bwpId, pointer to message in order to get the msg type
      */
-    TracedCallback<SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
+    TracedCallback<uint64_t, SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
         m_macTxedCtrlMsgsTrace;
 
     /**
