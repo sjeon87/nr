@@ -521,12 +521,15 @@ set(test_sources
     test/nr-test-hexagonal-grid-scenario-helper.cc
     test/nr-test-ue-measurements.cc
     test/nr-test-radio-link-failure.cc
+    test/nr-test-rrc-reestablishment.cc
+    test/nr-test-rrc-state-transition.cc
     test/nr-test-cell-selection.cc
     test/nr-test-x2-handover.cc
     test/nr-test-x2-handover-measures.cc
     test/nr-test-handover-delay.cc
     test/nr-test-handover-failure.cc
     test/nr-test-handover-target.cc
+    test/nr-test-handover-scenarios.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover
@@ -622,7 +625,10 @@ if(WIN32)
     PRIVATE -fvisibility=hidden
             -fvisibility-inlines-hidden
   )
-  target_compile_definitions(nr PRIVATE NS_MSVC)
+  target_compile_definitions(
+    nr
+    PRIVATE NS_MSVC
+  )
 endif()
 
 # Get path src/nr or contrib/nr

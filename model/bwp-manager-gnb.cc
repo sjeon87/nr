@@ -230,4 +230,16 @@ BwpManagerGnb::DoUlReceiveSr(uint16_t rnti, uint8_t componentCarrierId)
     m_ccmMacSapProviderMap.find(componentCarrierId)->second->ReportSrToScheduler(rnti);
 }
 
+void
+BwpManagerGnb::DoRegisterSignalBearer(uint16_t rnti, uint8_t lcid, NrMacSapUser* rlcMacSapUser)
+{
+    NS_LOG_FUNCTION(this << rnti << +lcid);
+    // Register the signal bearer (e.g., SRB0) with the gNB MAC.
+    // This is called when a UE is created during random access.
+    // The UE needs to be registered with the gNB MAC so that it can
+    // deliver the RRC Connection Request (Msg3) to the correct RLC instance.
+    // Note: This method is kept as a no-op since the gNB RRC handles
+    // the registration via UeUpdateConfigurationReq in its AddUe method.
+}
+
 } // end of namespace ns3

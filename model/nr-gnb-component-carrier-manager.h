@@ -151,6 +151,16 @@ class NR_EXPORT NrGnbComponentCarrierManager : public Object
     virtual void DoReportUeMeas(uint16_t rnti, NrRrcSap::MeasResults measResults) = 0;
 
     /**
+     * @brief Implementation of RegisterSignalBearer.
+     * @param rnti Radio Network Temporary Identity
+     * @param lcid Logical Channel Id
+     * @param rlcMacSapUser the MAC SAP user of the RLC instance
+     */
+    virtual void DoRegisterSignalBearer(uint16_t rnti,
+                                        uint8_t lcid,
+                                        NrMacSapUser* rlcMacSapUser) = 0;
+
+    /**
      * @brief Structure to represent UE info
      */
     struct NR_EXPORT NrUeInfo

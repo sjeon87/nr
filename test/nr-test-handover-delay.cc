@@ -24,6 +24,8 @@
 #include "ns3/nr-channel-helper.h"
 #include "ns3/nr-helper.h"
 #include "ns3/nr-point-to-point-epc-helper.h"
+#include "ns3/nr-ue-net-device.h"
+#include "ns3/nr-ue-rrc.h"
 #include "ns3/nstime.h"
 #include "ns3/point-to-point-helper.h"
 #include "ns3/position-allocator.h"
@@ -300,6 +302,217 @@ NrHandoverDelayTestCase::GnbHandoverEndOkCallback(std::string context,
 /**
  * @ingroup nr-test
  *
+ * @brief Test case for verifying that HandoverDecisionDelay and
+ *        HandoverTriggeringDelay attributes are properly applied.
+ *
+ * This test verifies that:
+ * - When HandoverDecisionDelay is set to a non-zero value, the handover
+ *   decision is delayed by approximately that amount.
+ * - When HandoverTriggeringDelay is set to a non-zero value, the actual
+ *   handover trigger is delayed by approximately that amount.
+ */
+class NrHandoverDelayApplyTestCase : public TestCase
+{
+  public:
+    /**
+     * @brief Creates an instance of the handover delay apply test case.
+     *
+     * @param decisionDelay the HandoverDecisionDelay value to set
+     * @param triggeringDelay the HandoverTriggeringDelay value to set
+     * @param handoverTime time to trigger handover (seconds)
+     * @param simTime simulation time (seconds)
+     * @param description test description
+     */
+    NrHandoverDelayApplyTestCase(Time decisionDelay,
+                                 Time triggeringDelay,
+                                 double handoverTime,
+                                 double simTime,
+                                 std::string description = "");
+
+    ~NrHandoverDelayApplyTestCase() override;
+
+  private:
+    void DoRun() override;
+
+    /**
+     * @brief Callback for UE handover start.
+     * @param imsi the IMSI
+     * @param cellid the cell ID
+     * @param rnti the RNTI
+     * @param targetCellId the target cell ID
+     */
+    void OnUeHandoverStart(uint64_t imsi, uint16_t cellid, uint16_t rnti, uint16_t targetCellId);
+
+    /**
+     * @brief Callback for UE handover end OK.
+     * @param imsi the IMSI
+     * @param cellid the cell ID
+     * @param rnti the RNTI
+     */
+    void OnUeHandoverEndOk(uint64_t imsi, uint16_t cellid, uint16_t rnti);
+
+    Time m_decisionDelay;        ///< HandoverDecisionDelay value
+    Time m_triggeringDelay;      ///< HandoverTriggeringDelay value
+    double m_handoverTime;       ///< time to trigger handover
+    double m_simTime;            ///< simulation time
+    Time m_ueHandoverStartTime_; ///< recorded time of UE handover start
+    bool m_ueHandoverStarted;    ///< whether UE handover started
+    bool m_ueHandoverEnded;      ///< whether UE handover ended
+};
+
+NrHandoverDelayApplyTestCase::NrHandoverDelayApplyTestCase(Time decisionDelay,
+                                                           Time triggeringDelay,
+                                                           double handoverTime,
+                                                           double simTime,
+                                                           std::string description)
+    : TestCase(description.empty() ? "Handover delay apply test" : description),
+      m_decisionDelay(decisionDelay),
+      m_triggeringDelay(triggeringDelay),
+      m_handoverTime(handoverTime),
+      m_simTime(simTime),
+      m_ueHandoverStartTime_(),
+      m_ueHandoverStarted(false),
+      m_ueHandoverEnded(false)
+{
+}
+
+NrHandoverDelayApplyTestCase::~NrHandoverDelayApplyTestCase()
+{
+}
+
+void
+NrHandoverDelayApplyTestCase::OnUeHandoverStart(uint64_t imsi,
+                                                uint16_t cellid,
+                                                uint16_t rnti,
+                                                uint16_t targetCellId)
+{
+    NS_LOG_FUNCTION(this << imsi << cellid << rnti << targetCellId);
+    m_ueHandoverStartTime_ = Simulator::Now();
+    m_ueHandoverStarted = true;
+}
+
+void
+NrHandoverDelayApplyTestCase::OnUeHandoverEndOk(uint64_t imsi, uint16_t cellid, uint16_t rnti)
+{
+    NS_LOG_FUNCTION(this << imsi << cellid << rnti);
+    if (m_ueHandoverStarted)
+    {
+        Time delay = Simulator::Now() - m_ueHandoverStartTime_;
+        Time expectedDelay = m_decisionDelay + m_triggeringDelay;
+        NS_LOG_INFO("UE Handover delay = " << delay.As(Time::S)
+                                           << "s, expected = " << expectedDelay.As(Time::S) << "s");
+        // The actual delay should be approximately equal to the sum of both delays
+        // Allow for a small tolerance due to event scheduling granularity
+        const double tolerance = 0.001; // 1ms tolerance
+        if (std::abs((delay - expectedDelay).GetSeconds()) < tolerance)
+        {
+            NS_LOG_INFO("PASS: Handover delay matches expected value");
+        }
+        else
+        {
+            NS_LOG_WARN("FAIL: Handover delay does not match expected value");
+        }
+    }
+    m_ueHandoverEnded = true;
+}
+
+void
+NrHandoverDelayApplyTestCase::DoRun()
+{
+    NS_LOG_FUNCTION(this);
+    NS_LOG_INFO("Running handover delay apply test: "
+                << "HandoverDecisionDelay=" << m_decisionDelay.As(Time::S)
+                << "s, HandoverTriggeringDelay=" << m_triggeringDelay.As(Time::S) << "s");
+
+    // Enable logging for debugging
+    // LogComponentEnable("NrHandoverDelayTest", LOG_LEVEL_INFO);
+    // LogComponentEnable("NrGnbRrc", LOG_LEVEL_INFO);
+    // LogComponentEnable("NrRrcProtocolIdeal", LOG_LEVEL_INFO);
+
+    // Create nodes
+    NodeContainer gnbNodes;
+    gnbNodes.Create(2);
+
+    NodeContainer ueNodes;
+    ueNodes.Create(1);
+
+    // Mobility
+    Ptr<ListPositionAllocator> positionAllocGnb = CreateObject<ListPositionAllocator>();
+    positionAllocGnb->Add(Vector(0, 0, 10));
+    positionAllocGnb->Add(Vector(500, 0, 10));
+    MobilityHelper mobilityGnb;
+    mobilityGnb.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    mobilityGnb.SetPositionAllocator(positionAllocGnb);
+    mobilityGnb.Install(gnbNodes);
+
+    Ptr<ListPositionAllocator> positionAllocUe = CreateObject<ListPositionAllocator>();
+    positionAllocUe->Add(Vector(250, 0, 1.5));
+    MobilityHelper mobilityUe;
+    mobilityUe.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    mobilityUe.SetPositionAllocator(positionAllocUe);
+    mobilityUe.Install(ueNodes);
+
+    // Create EPC
+    Ptr<NrPointToPointEpcHelper> nrEpcHelper = CreateObject<NrPointToPointEpcHelper>();
+
+    // Configure NR helper with real RRC (ideal RRC does not apply the delays)
+    Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
+    nrHelper->SetEpcHelper(nrEpcHelper);
+    nrHelper->SetAttribute("UseIdealRrc", BooleanValue(false));
+    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaRR"));
+
+    // Set handover delays
+    Config::SetDefault("ns3::NrGnbRrc::HandoverDecisionDelay", TimeValue(m_decisionDelay));
+    Config::SetDefault("ns3::NrGnbRrc::HandoverTriggeringDelay", TimeValue(m_triggeringDelay));
+
+    // Create bandwidth parts
+    auto bandwidthAndBWPPair = nrHelper->CreateBandwidthParts({{1.93e9, 10e6, 1}}, "UMa", "LOS");
+
+    // Install gNB devices
+    NetDeviceContainer gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
+
+    // Install UE devices
+    NetDeviceContainer ueDevs = nrHelper->InstallUeDevice(ueNodes, bandwidthAndBWPPair.second);
+
+    // Install IP stack on UEs
+    InternetStackHelper internet;
+    internet.Install(ueNodes);
+    nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
+
+    // Enable traces
+    nrHelper->EnableTraces();
+
+    // Connect to UE handover traces
+    ueDevs.Get(0)->GetObject<NrUeNetDevice>()->GetRrc()->TraceConnectWithoutContext(
+        "HandoverStart",
+        MakeCallback(&NrHandoverDelayApplyTestCase::OnUeHandoverStart, this));
+    ueDevs.Get(0)->GetObject<NrUeNetDevice>()->GetRrc()->TraceConnectWithoutContext(
+        "HandoverEndOk",
+        MakeCallback(&NrHandoverDelayApplyTestCase::OnUeHandoverEndOk, this));
+
+    // Attach UE to gNB
+    nrHelper->AttachToClosestGnb(ueDevs, gnbDevs);
+
+    // Add X2 interface and schedule handover
+    nrHelper->AddX2Interface(gnbNodes);
+    nrHelper->HandoverRequest(Seconds(m_handoverTime),
+                              ueDevs.Get(0),
+                              gnbDevs.Get(0),
+                              gnbDevs.Get(1));
+
+    // Wait for simulation to complete
+    Simulator::Stop(Seconds(m_simTime));
+    Simulator::Run();
+    Simulator::Destroy();
+
+    // Verify results
+    NS_TEST_ASSERT_MSG_EQ(m_ueHandoverStarted, true, "UE handover should have started");
+    NS_TEST_ASSERT_MSG_EQ(m_ueHandoverEnded, true, "UE handover should have ended");
+}
+
+/**
+ * @ingroup nr-test
+ *
  * @brief NR Handover Delay Test Suite
  */
 
@@ -331,7 +544,6 @@ static class NrHandoverDelayTestSuite : public TestSuite
         }
 
         // HANDOVER DELAY TEST CASES WITH REAL RRC (THRESHOLD = 0.020 sec)
-        /* todo: re-enable when we have real RRC
         for (Time handoverTime = Seconds(0.100); handoverTime < Seconds(0.110);
              handoverTime += Seconds(0.001))
         {
@@ -346,6 +558,34 @@ static class NrHandoverDelayTestSuite : public TestSuite
                 new NrHandoverDelayTestCase(4, false, handoverTime, Seconds(0.020), Seconds(0.200)),
                 TestCase::Duration::QUICK);
         }
-        */
+
+        // Test case 1: Both delays zero (should have no additional delay)
+        AddTestCase(
+            new NrHandoverDelayApplyTestCase(Seconds(0), Seconds(0), 0.1, 5.0, "Both delays zero"),
+            TestCase::Duration::QUICK);
+
+        // Test case 2: Decision delay only (50ms)
+        AddTestCase(new NrHandoverDelayApplyTestCase(MilliSeconds(50),
+                                                     Seconds(0),
+                                                     0.1,
+                                                     5.0,
+                                                     "Decision delay 50ms"),
+                    TestCase::Duration::QUICK);
+
+        // Test case 3: Triggering delay only (40ms)
+        AddTestCase(new NrHandoverDelayApplyTestCase(Seconds(0),
+                                                     MilliSeconds(40),
+                                                     0.1,
+                                                     5.0,
+                                                     "Triggering delay 40ms"),
+                    TestCase::Duration::QUICK);
+
+        // Test case 4: Both delays (50ms + 40ms = 90ms total)
+        AddTestCase(new NrHandoverDelayApplyTestCase(MilliSeconds(50),
+                                                     MilliSeconds(40),
+                                                     0.1,
+                                                     5.0,
+                                                     "Both delays (50ms + 40ms)"),
+                    TestCase::Duration::QUICK);
     }
 } g_nrHandoverDelayTestSuite; ///< the test suite

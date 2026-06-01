@@ -439,7 +439,8 @@ NrUeMac::DoTransmitBufferStatusReport(NrMacSapProvider::BufferStatusReportParame
         if (m_srState == INACTIVE)
         {
             NS_LOG_INFO("m_srState = INACTIVE -> TO_SEND, bufSize " << GetTotalBufSize());
-            m_macUeStateMachine(m_currentSlot,
+            m_macUeStateMachine(m_imsi,
+                                m_currentSlot,
                                 GetCellId(),
                                 m_rnti,
                                 GetBwpId(),
@@ -452,7 +453,8 @@ NrUeMac::DoTransmitBufferStatusReport(NrMacSapProvider::BufferStatusReportParame
         {
             NS_LOG_INFO("m_srState = ACTIVE (BSR Timer expired) -> TO_SEND, bufSize "
                         << GetTotalBufSize());
-            m_macUeStateMachine(m_currentSlot,
+            m_macUeStateMachine(m_imsi,
+                                m_currentSlot,
                                 GetCellId(),
                                 m_rnti,
                                 GetBwpId(),
@@ -537,7 +539,7 @@ NrUeMac::SendBufferStatusReport(const SfnSf& dataSfn, uint8_t symStart)
     msg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     msg->SetBsr(bsr);
 
-    m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), bsr.m_rnti, GetBwpId(), msg);
+    m_macTxedCtrlMsgsTrace(m_imsi, m_currentSlot, GetCellId(), bsr.m_rnti, GetBwpId(), msg);
 
     // Here we send the real SHORT_BSR, as a subpdu.
     Ptr<Packet> p = Create<Packet>();
@@ -562,7 +564,8 @@ NrUeMac::SendBufferStatusReport(const SfnSf& dataSfn, uint8_t symStart)
 
     m_phySapProvider->SendMacPdu(p, dataSfn, symStart, m_ulDci->m_rnti);
 
-    m_macUeStateMachine(m_currentSlot,
+    m_macUeStateMachine(m_imsi,
+                        m_currentSlot,
                         GetCellId(),
                         m_rnti,
                         GetBwpId(),
@@ -624,7 +627,8 @@ NrUeMac::DoSlotIndication(const SfnSf& sfn)
         SendSR();
         m_srState = ACTIVE;
         NS_LOG_INFO("m_srState = TO_SEND -> ACTIVE");
-        m_macUeStateMachine(m_currentSlot,
+        m_macUeStateMachine(m_imsi,
+                            m_currentSlot,
                             GetCellId(),
                             m_rnti,
                             GetBwpId(),
@@ -653,7 +657,7 @@ NrUeMac::SendSR() const
     msg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
     msg->SetRNTI(m_rnti);
 
-    m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
+    m_macTxedCtrlMsgsTrace(m_imsi, m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
     m_phySapProvider->SendControlMessage(msg);
 }
 
@@ -766,7 +770,7 @@ NrUeMac::ProcessUlDci(const Ptr<NrUlDciMessage>& dciMsg)
     m_ulDciTotalUsed = 0;
     m_ulDci = dciMsg->GetDciInfoElement();
 
-    m_macRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), dciMsg);
+    m_macRxedCtrlMsgsTrace(m_imsi, m_currentSlot, GetCellId(), m_rnti, GetBwpId(), dciMsg);
 
     NS_LOG_INFO("UL DCI received, transmit data in slot "
                 << dataSfn << " Harq Process " << +m_ulDci->m_harqProcess << " TBS "
@@ -776,7 +780,8 @@ NrUeMac::ProcessUlDci(const Ptr<NrUlDciMessage>& dciMsg)
     {
         // This method will retransmit the data saved in the harq buffer
         TransmitRetx();
-        m_macUeStateMachine(m_currentSlot,
+        m_macUeStateMachine(m_imsi,
+                            m_currentSlot,
                             GetCellId(),
                             m_rnti,
                             GetBwpId(),
@@ -791,7 +796,8 @@ NrUeMac::ProcessUlDci(const Ptr<NrUlDciMessage>& dciMsg)
     else if (m_ulDci->m_ndi == 1)
     {
         SendNewData();
-        m_macUeStateMachine(m_currentSlot,
+        m_macUeStateMachine(m_imsi,
+                            m_currentSlot,
                             GetCellId(),
                             m_rnti,
                             GetBwpId(),
@@ -1198,7 +1204,7 @@ NrUeMac::DoReceiveControlMessage(Ptr<NrControlMessage> msg)
     case (NrControlMessage::RAR): {
         NS_LOG_INFO("Received RAR in slot " << m_currentSlot);
 
-        m_macRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
+        m_macRxedCtrlMsgsTrace(m_imsi, m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
 
         if (m_waitingForRaResponse)
         {
@@ -1324,7 +1330,7 @@ NrUeMac::SendRaPreamble(bool contention)
     // Tracing purposes
     Ptr<NrRachPreambleMessage> rachMsg = Create<NrRachPreambleMessage>();
     rachMsg->SetSourceBwpArfcn(m_phySapProvider->GetArfcn());
-    m_macTxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), rachMsg);
+    m_macTxedCtrlMsgsTrace(m_imsi, m_currentSlot, GetCellId(), m_rnti, GetBwpId(), rachMsg);
 }
 
 void

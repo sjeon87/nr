@@ -130,6 +130,13 @@ class NR_EXPORT NrNoOpComponentCarrierManager : public NrGnbComponentCarrierMana
     virtual NrMacSapUser* DoConfigureSignalBearer(NrGnbCmacSapProvider::LcInfo lcinfo,
                                                   NrMacSapUser* msu);
     /**
+     * @brief Register a signal bearer (e.g., SRB0) with the MAC.
+     * @param rnti the RNTI
+     * @param lcid the LCID
+     * @param rlcMacSapUser the MAC SAP user of the RLC instance
+     */
+    void DoRegisterSignalBearer(uint16_t rnti, uint8_t lcid, NrMacSapUser* rlcMacSapUser) override;
+    /**
      * @brief Forwards uplink BSR to CCM, called by MAC through CCM SAP interface.
      * @param bsr the BSR
      * @param componentCarrierId the component carrier ID

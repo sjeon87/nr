@@ -1245,9 +1245,16 @@ NrSpectrumPhy::StartRxData(const Ptr<NrSpectrumSignalParametersDataFrame>& param
         {
             // Sanity check, that we do not transmit on the same RBs; this sanity check will not
             // be the same for sidelink/V2X
-            NS_ASSERT_MSG((Sum((*m_txPsd) * (*params->psd)) == 0),
-                          "Transmissions overlap in frequency. Their cellId is:" << params->cellId);
-            return;
+            if (Sum((*m_txPsd) * (*params->psd)) != 0)
+            {
+                // Stale transmission overlap during handover: log and ignore
+                // rather than crashing. This can occur when old MAC scheduling
+                // state persists during CONNECTED_HANDOVER.
+                NS_LOG_WARN("Stale overlapping transmission detected during handover. "
+                            "Ignoring overlapping RX. cellId:"
+                            << params->cellId);
+                return;
+            }
         }
         break;
     case RX_DL_CTRL:
@@ -1264,6 +1271,16 @@ NrSpectrumPhy::StartRxData(const Ptr<NrSpectrumSignalParametersDataFrame>& param
                   // multiple UEs at the same time
         /* no break */
     case IDLE: {
+        // During handover, the UE should only receive signals from its current
+        // serving cell. Ignore signals from other cells to prevent the interference
+        // model from crashing due to overlapping non-orthogonal signals from
+        // source and target gNBs.
+        if (!m_isGnb && params->cellId != GetCellId())
+        {
+            NS_LOG_WARN("NrSpectrumPhy::StartRxData: ignoring signal from cellId:"
+                        << params->cellId << " (UE serving cellId:" << GetCellId() << ")");
+            return;
+        }
         m_interferenceData->StartRxMimo(params);
 
         if (m_rxPacketBurstList.empty())

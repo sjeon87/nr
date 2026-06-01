@@ -131,6 +131,14 @@ class NR_EXPORT BwpManagerGnb : public NrRrComponentCarrierManager
                                                                        uint8_t lcGroup,
                                                                        NrMacSapUser* msu) override;
 
+    /**
+     * @brief Register a signal bearer (e.g., SRB0) with the MAC for a given RNTI.
+     * @param rnti Radio Network Temporary Identity
+     * @param lcid Logical Channel Id
+     * @param rlcMacSapUser the MAC SAP user of the RLC instance
+     */
+    void DoRegisterSignalBearer(uint16_t rnti, uint8_t lcid, NrMacSapUser* rlcMacSapUser) override;
+
   private:
     /**
      * @brief Get the resource type of the flow.

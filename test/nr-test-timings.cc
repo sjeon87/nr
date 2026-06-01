@@ -66,13 +66,15 @@ class NrTimingsTest : public TestCase
                   uint8_t ccId,
                   Ptr<const NrControlMessage> msg);
 
-    void GnbMacTx(SfnSf sfn,
-                  uint16_t nodeId,
+    void GnbMacTx(uint64_t imsi,
+                  SfnSf sfn,
+                  uint16_t cellId,
                   uint16_t rnti,
                   uint8_t ccId,
                   Ptr<const NrControlMessage> msg);
-    void GnbMacRx(SfnSf sfn,
-                  uint16_t nodeId,
+    void GnbMacRx(uint64_t imsi,
+                  SfnSf sfn,
+                  uint16_t cellId,
                   uint16_t rnti,
                   uint8_t ccId,
                   Ptr<const NrControlMessage> msg);
@@ -88,13 +90,15 @@ class NrTimingsTest : public TestCase
                  uint8_t ccId,
                  Ptr<const NrControlMessage> msg);
 
-    void UeMacTx(SfnSf sfn,
-                 uint16_t nodeId,
+    void UeMacTx(uint64_t imsi,
+                 SfnSf sfn,
+                 uint16_t cellId,
                  uint16_t rnti,
                  uint8_t ccId,
                  Ptr<const NrControlMessage> msg);
-    void UeMacRx(SfnSf sfn,
-                 uint16_t nodeId,
+    void UeMacRx(uint64_t imsi,
+                 SfnSf sfn,
+                 uint16_t cellId,
                  uint16_t rnti,
                  uint8_t ccId,
                  Ptr<const NrControlMessage> msg);
@@ -317,8 +321,9 @@ NrTimingsTest::GnbPhyRx(SfnSf sfn,
 }
 
 void
-NrTimingsTest::GnbMacTx(SfnSf sfn,
-                        [[maybe_unused]] uint16_t nodeId,
+NrTimingsTest::GnbMacTx(uint64_t imsi,
+                        SfnSf sfn,
+                        [[maybe_unused]] uint16_t cellId,
                         [[maybe_unused]] uint16_t rnti,
                         [[maybe_unused]] uint8_t ccId,
                         Ptr<const NrControlMessage> msg)
@@ -379,8 +384,9 @@ NrTimingsTest::GnbMacTx(SfnSf sfn,
 }
 
 void
-NrTimingsTest::GnbMacRx(SfnSf sfn,
-                        [[maybe_unused]] uint16_t nodeId,
+NrTimingsTest::GnbMacRx(uint64_t imsi,
+                        SfnSf sfn,
+                        [[maybe_unused]] uint16_t cellId,
                         [[maybe_unused]] uint16_t rnti,
                         [[maybe_unused]] uint8_t ccId,
                         Ptr<const NrControlMessage> msg)
@@ -642,8 +648,9 @@ NrTimingsTest::UePhyRx(SfnSf sfn,
 }
 
 void
-NrTimingsTest::UeMacTx(SfnSf sfn,
-                       [[maybe_unused]] uint16_t nodeId,
+NrTimingsTest::UeMacTx(uint64_t imsi,
+                       SfnSf sfn,
+                       [[maybe_unused]] uint16_t cellId,
                        [[maybe_unused]] uint16_t rnti,
                        [[maybe_unused]] uint8_t ccId,
                        Ptr<const NrControlMessage> msg)
@@ -724,8 +731,9 @@ NrTimingsTest::UeMacTx(SfnSf sfn,
 }
 
 void
-NrTimingsTest::UeMacRx(SfnSf sfn,
-                       [[maybe_unused]] uint16_t nodeId,
+NrTimingsTest::UeMacRx(uint64_t imsi,
+                       SfnSf sfn,
+                       [[maybe_unused]] uint16_t cellId,
                        [[maybe_unused]] uint16_t rnti,
                        [[maybe_unused]] uint8_t ccId,
                        Ptr<const NrControlMessage> msg)

@@ -356,13 +356,24 @@ NrInterference::StartRxMimo(Ptr<const SpectrumSignalParameters> params)
         // This must be the first receive signal, clear any lingering previous signals
         m_rxSignalsMimo.clear();
     }
-    m_rxSignalsMimo.push_back(params);
     for (auto& cp : m_mimoChunkProcessors)
     {
         // Clear the list of stored chunks
         cp->Start();
     }
-    NrInterferenceBase::StartRx(rxPsd);
+    if (NrInterferenceBase::StartRx(rxPsd))
+    {
+        m_rxSignalsMimo.push_back(params);
+    }
+    else
+    {
+        // Rejected overlapping signal: keep it out of the receive-signal list
+        // so it has no SINR chunk of its own (its TB fails decoding against an
+        // all-zero SINR) and, since it remains in m_allSignalsMimo, it is
+        // added to the out-of-cell interference covariance for the signals
+        // that are being received.
+        NS_LOG_WARN("Overlapping signal accounted as interference");
+    }
 }
 
 void

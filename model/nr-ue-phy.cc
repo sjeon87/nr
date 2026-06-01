@@ -1585,9 +1585,64 @@ NrUePhy::ReceivePss(uint16_t cellId, const Ptr<SpectrumValue>& p)
 }
 
 void
+NrUePhy::SetGenieRsrpCallback(Callback<std::map<uint16_t, double>> cb)
+{
+    NS_LOG_FUNCTION(this);
+    m_genieRsrpCallback = cb;
+}
+
+void
 NrUePhy::ReportUeMeasurements()
 {
     NS_LOG_FUNCTION(this);
+
+    if (!m_genieRsrpCallback.IsNull())
+    {
+        // Keep the PSS-measured serving cell entry intact (it reflects the
+        // locked-beam signal that drives SINR / RLF), and replace neighbor
+        // entries with genie best-beam estimates. The genie values are in
+        // a different absolute reference than PSS-derived dBm (see
+        // NrInitialAssociation::ComputeMaxRsrpClean), so anchor the scale
+        // by computing an offset between PSS-serving and genie-serving and
+        // shifting all reported neighbors by that offset. This preserves
+        // the genie-computed relative deltas between cells while keeping
+        // A3's serving anchor consistent with the real signal magnitude.
+        const uint16_t servingCellId = GetCellId();
+        auto genie = m_genieRsrpCallback();
+        auto servingIt = m_ueMeasurementsMap.find(servingCellId);
+        auto genieServingIt = genie.find(servingCellId);
+        if (servingIt != m_ueMeasurementsMap.end() && genieServingIt != genie.end() &&
+            servingIt->second.rsrpNum > 0)
+        {
+            const double pssServingRsrp =
+                servingIt->second.rsrpSum / static_cast<double>(servingIt->second.rsrpNum);
+            const double offset = pssServingRsrp - genieServingIt->second;
+            for (auto it = m_ueMeasurementsMap.begin(); it != m_ueMeasurementsMap.end();)
+            {
+                if (it->first != servingCellId)
+                {
+                    it = m_ueMeasurementsMap.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+            for (const auto& kv : genie)
+            {
+                if (kv.first == servingCellId)
+                {
+                    continue;
+                }
+                UeMeasurementsElement el;
+                el.rsrpSum = kv.second + offset;
+                el.rsrpNum = 1;
+                el.rsrqSum = 0;
+                el.rsrqNum = 0;
+                m_ueMeasurementsMap[kv.first] = el;
+            }
+        }
+    }
 
     NrUeCphySapUser::UeMeasurementsParameters ret{};
 

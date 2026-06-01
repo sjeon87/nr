@@ -382,6 +382,12 @@ class NR_EXPORT NrUeManager : public Object
     uint16_t GetSrsConfigurationIndex() const;
 
     /**
+     *
+     * @return the SRB0 signaling radio bearer info
+     */
+    Ptr<NrSignalingRadioBearerInfo> GetSrb0() const;
+
+    /**
      * Set the SRS configuration index and do the necessary reconfiguration
      *
      * @param srsConfIndex
@@ -393,6 +399,13 @@ class NR_EXPORT NrUeManager : public Object
      * @return the current state
      */
     State GetState() const;
+
+    /**
+     * Get the state transition trace source.
+     *
+     * @return the trace source
+     */
+    ns3::TracedCallback<uint64_t, uint16_t, uint16_t, State, State> GetStateTransitionTrace() const;
 
     /**
      * Configure PdschConfigDedicated (i.e. P_A value) for UE and start RrcConnectionReconfiguration
@@ -650,7 +663,7 @@ class NR_EXPORT NrUeManager : public Object
  * @param state enum value of the state
  * @return string value of the state
  */
-const std::string ToString(NrUeManager::State state);
+NR_EXPORT const std::string ToString(NrUeManager::State state);
 
 /**
  * Prints to the output stream the NrUeManager::State
@@ -797,6 +810,20 @@ class NR_EXPORT NrGnbRrc : public Object
     void SetNrGnbRrcSapUser(NrGnbRrcSapUser* s);
 
     /**
+     * Get the RRC SAP user interface offered by this RRC.
+     *
+     * @return s the RRC SAP User interface offered by this RRC
+     */
+    NrGnbRrcSapUser* GetNrGnbRrcSapUser();
+
+    /**
+     * @brief Get the RxRrcConnectionReconfigurationCompleted trace source.
+     *
+     * @return the trace source
+     */
+    ns3::TracedCallback<uint16_t> GetRxRrcConnectionReconfigurationCompletedTrace() const;
+
+    /**
      *
      *
      * @return s the RRC SAP Provider interface offered to the MAC by this RRC
@@ -872,6 +899,13 @@ class NR_EXPORT NrGnbRrc : public Object
      * @return the corresponding NrUeManager instance
      */
     Ptr<NrUeManager> GetUeManager(uint16_t rnti);
+
+    /**
+     * Get all UE managers managed by this RRC.
+     *
+     * @return map of RNTI to NrUeManager instances
+     */
+    std::map<uint16_t, Ptr<NrUeManager>> GetUeMap() const;
 
     /**
      * @brief Add a new UE measurement reporting configuration
@@ -1538,6 +1572,9 @@ class NR_EXPORT NrGnbRrc : public Object
     /// Interface to receive messages from UE over the RRC protocol.
     NrGnbRrcSapProvider* m_rrcSapProvider;
 
+    /// Trace fired when the gNB RRC receives an RRC Connection Reconfiguration Complete.
+    ns3::TracedCallback<uint16_t> m_rxRrcConnectionReconfigurationCompletedTrace;
+
     /// Interface to the eNodeB MAC instance, to be used by RLC instances.
     NrMacSapProvider* m_macSapProvider;
 
@@ -1628,6 +1665,11 @@ class NR_EXPORT NrGnbRrc : public Object
      * request from a UE.
      */
     bool m_admitRrcConnectionRequest;
+    /**
+     * The `UseRrcReestablishment` attribute. Whether to accept RRC connection
+     * reestablishment requests from UEs.
+     */
+    bool m_useRrcReestablishment;
     /**
      * The `RsrpFilterCoefficient` attribute. Determines the strength of
      * smoothing effect induced by layer 3 filtering of RSRP in all attached UE.
@@ -1747,6 +1789,18 @@ class NR_EXPORT NrGnbRrc : public Object
     uint16_t m_numberOfComponentCarriers; ///< number of component carriers
 
     bool m_carriersConfigured; ///< are carriers configured
+
+    /**
+     * The `HandoverDecisionDelay` attribute. Time delay between receiving a measurement
+     * report and forwarding it to the handover algorithm for decision making.
+     */
+    Time m_handoverDecisionDelay;
+    /**
+     * The `HandoverTriggeringDelay` attribute. Time delay between the handover
+     * algorithm deciding to handover and the gNB RRC actually triggering the
+     * handover procedure.
+     */
+    Time m_handoverTriggeringDelay;
 
     std::map<uint8_t, Ptr<BandwidthPartGnb>>
         m_componentCarrierPhyConf; ///< component carrier phy configuration

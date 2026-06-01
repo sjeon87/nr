@@ -69,8 +69,13 @@ class NR_EXPORT NrInterferenceBase : public Object
      * @brief Notify that the PHY is starting a RX attempt
      *
      * @param rxPsd the power spectral density of the signal being RX
+     * @return true if the signal was accepted as (part of) the desired
+     *         signal, false if it was rejected because it overlaps in
+     *         frequency with the signal already being received; a rejected
+     *         signal remains in the all-signals set and is therefore
+     *         accounted as interference
      */
-    virtual void StartRx(Ptr<const SpectrumValue> rxPsd);
+    virtual bool StartRx(Ptr<const SpectrumValue> rxPsd);
 
     /**
      * notify that the RX attempt has ended. The receiving PHY must call

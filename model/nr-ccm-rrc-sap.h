@@ -130,6 +130,17 @@ class NR_EXPORT NrCcmRrcSapProvider
     virtual NrMacSapUser* ConfigureSignalBearer(NrGnbCmacSapProvider::LcInfo lcInfo,
                                                 NrMacSapUser* rlcMacSapUser) = 0;
 
+    /**
+     * @brief Register a signal bearer (e.g., SRB0) with the MAC for a given RNTI.
+     * @param rnti Radio Network Temporary Identity
+     * @param lcid Logical Channel Id
+     * @param rlcMacSapUser the MAC SAP user of the RLC instance
+     *
+     * This is used to register SRB0 with the MAC when a UE is created during
+     * random access. The gNB MAC needs this to deliver Msg3 to the correct RLC.
+     */
+    virtual void RegisterSignalBearer(uint16_t rnti, uint8_t lcid, NrMacSapUser* rlcMacSapUser) = 0;
+
 }; // end of class NrCcmRrcSapProvider
 
 /**
@@ -240,6 +251,7 @@ class MemberNrCcmRrcSapProvider : public NrCcmRrcSapProvider
     std::vector<uint8_t> ReleaseDataRadioBearer(uint16_t rnti, uint8_t lcid) override;
     NrMacSapUser* ConfigureSignalBearer(NrGnbCmacSapProvider::LcInfo lcInfo,
                                         NrMacSapUser* rlcMacSapUser) override;
+    void RegisterSignalBearer(uint16_t rnti, uint8_t lcid, NrMacSapUser* rlcMacSapUser) override;
 
   private:
     C* m_owner; ///< the owner class
@@ -304,6 +316,15 @@ MemberNrCcmRrcSapProvider<C>::ConfigureSignalBearer(NrGnbCmacSapProvider::LcInfo
                                                     NrMacSapUser* rlcMacSapUser)
 {
     return m_owner->DoConfigureSignalBearer(lcInfo, rlcMacSapUser);
+}
+
+template <class C>
+void
+MemberNrCcmRrcSapProvider<C>::RegisterSignalBearer(uint16_t rnti,
+                                                   uint8_t lcid,
+                                                   NrMacSapUser* rlcMacSapUser)
+{
+    m_owner->DoRegisterSignalBearer(rnti, lcid, rlcMacSapUser);
 }
 
 /// MemberNrCcmRrcSapUser class
