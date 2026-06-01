@@ -636,6 +636,7 @@ NrMacSchedulerNs3::DoCschedUeReleaseReq(
 
     m_schedulerSrs->RemoveUe(itUe->second->m_srsOffset);
     m_ueMap.erase(itUe);
+    std::erase(m_srList, params.m_rnti);
 
     // We clean m_ulAllocationMap in two steps, first we remove vector entries from map items
     // Later we remove map items with empty vectors
@@ -1710,6 +1711,14 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
                 continue;
             }
 
+            auto distributedBytes = m_schedLc->AssignBytesToUlLC(ue.first->m_ulLCG, dci->m_tbSize);
+            if (distributedBytes.empty())
+            {
+                NS_LOG_DEBUG("Not enough bytes assigned to UL LCs. Skipping UE.");
+                ue.first->ResetUlMetric();
+                continue;
+            }
+
             assigned = true;
 
             if (symbStartDci.insert(dci->m_symStart).second)
@@ -1741,7 +1750,6 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
                                << " harqId " << static_cast<uint32_t>(id) << " rv "
                                << static_cast<uint32_t>(dci->m_rv));
 
-            auto distributedBytes = m_schedLc->AssignBytesToUlLC(ue.first->m_ulLCG, dci->m_tbSize);
             bool assignedToLC = false;
             for (const auto& byteDistribution : distributedBytes)
             {
@@ -1799,6 +1807,12 @@ NrMacSchedulerNs3::DoScheduleUlSr(PointInFTPlane* spoint, const std::list<uint16
 
     for (const auto& v : rntiList)
     {
+        const auto itUe = m_ueMap.find(v);
+        if (itUe == m_ueMap.end())
+        {
+            NS_LOG_WARN("Unknown RNTI was scheduled for SR " << v);
+            continue;
+        }
         for (auto& ulLcg : NrMacSchedulerUeInfo::GetUlLCG(m_ueMap.at(v)))
         {
             NS_LOG_DEBUG("Assigning 12 bytes to UE " << v << " because of a SR");

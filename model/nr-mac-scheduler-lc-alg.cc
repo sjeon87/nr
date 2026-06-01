@@ -4,8 +4,11 @@
 
 #include "nr-mac-scheduler-lc-alg.h"
 
+#include "nr-phy-mac-common.h"
+
 #include "ns3/log.h"
 
+#include <algorithm>
 #include <numeric>
 
 namespace ns3
@@ -133,9 +136,26 @@ NrMacSchedulerLcAlgorithm::AssignBytesToLC(const std::unordered_map<uint8_t, LCG
     {
         for (auto& assignment : retData)
         {
-            ret.emplace_back(assignment.m_lcg, assignment.m_lcId, assignment.m_bytes);
+            if (assignment.m_bytes != 0)
+            {
+                ret.emplace_back(assignment.m_lcg, assignment.m_lcId, assignment.m_bytes);
+            }
         }
     }
+
+    // Safety net: remove any entries with fewer than MAC_SUBHEADER_SIZE bytes
+    // (Use manual filtering since Assignation is not copyable)
+    std::vector<Assignation> filteredRet;
+    filteredRet.reserve(ret.size());
+    for (auto& a : ret)
+    {
+        if (a.m_bytes >= MAC_SUBHEADER_SIZE)
+        {
+            filteredRet.push_back(std::move(a));
+        }
+    }
+    ret = std::move(filteredRet);
+
     return ret;
 }
 
