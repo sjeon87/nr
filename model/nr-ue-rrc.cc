@@ -1618,6 +1618,76 @@ NrUeRrc::GetCellBwpId(uint16_t cellId, std::size_t& bwpId) const
     return false;
 }
 
+bool
+NrUeRrc::SwitchPrimaryBwpSameCell(std::size_t targetBwpId)
+{
+    NS_LOG_FUNCTION(this << targetBwpId << m_cellId << +GetPrimaryDlIndex());
+
+    if (targetBwpId >= m_cphySapProvider.size())
+    {
+        NS_LOG_WARN("SwitchPrimaryBwpSameCell: target bwp=" << targetBwpId << " out of range");
+        return false;
+    }
+    if (targetBwpId == GetPrimaryDlIndex())
+    {
+        // Already the active primary; nothing to do.
+        return true;
+    }
+
+    // Same-cell guard. Only ever move the serving BWP between BWPs that belong
+    // to the CURRENT serving cell. Moving to a BWP tuned to a different cell
+    // would be a handover (and, if both were kept active, dual connectivity),
+    // which is explicitly out of scope here.
+    std::size_t servingBwp = 0;
+    if (!GetCellBwpId(m_cellId, servingBwp))
+    {
+        NS_LOG_WARN("SwitchPrimaryBwpSameCell: serving cell="
+                    << m_cellId << " carrier unknown; refusing to switch");
+        return false;
+    }
+    // The target BWP must be tuned to (i.e. carry the same cell as) the serving
+    // cell. With the current single-carrier-per-cell model a cell maps to one
+    // BWP; this check makes the same-cell intent explicit and future-proofs the
+    // mechanism for when a single cell legitimately spans several BWPs.
+    if (m_cphySapProvider.at(targetBwpId)->GetArfcn() !=
+        m_cphySapProvider.at(servingBwp)->GetArfcn())
+    {
+        NS_LOG_WARN("SwitchPrimaryBwpSameCell: target bwp="
+                    << targetBwpId << " is not tuned to serving cell=" << m_cellId
+                    << "; refusing (would be handover/DC)");
+        return false;
+    }
+
+    NS_LOG_INFO("Switching primary serving BWP " << +GetPrimaryDlIndex() << " -> " << targetBwpId
+                                                 << " on serving cell=" << m_cellId);
+
+    // Re-point the primary DL (and UL when they coincide) and re-bind the RNTI
+    // on the new PHY/MAC so the data plane follows the new primary BWP.
+    const bool ulFollowsDl = (GetPrimaryUlIndex() == GetPrimaryDlIndex());
+    SetPrimaryDlIndex(targetBwpId);
+    if (ulFollowsDl)
+    {
+        SetPrimaryUlIndex(targetBwpId);
+    }
+    if (m_rnti != 0)
+    {
+        m_cphySapProvider.at(GetPrimaryDlIndex())->SetRnti(m_rnti);
+        m_cmacSapProvider.at(GetPrimaryDlIndex())->SetRnti(m_rnti);
+        if (ulFollowsDl)
+        {
+            m_cphySapProvider.at(GetPrimaryUlIndex())->SetRnti(m_rnti);
+            m_cmacSapProvider.at(GetPrimaryUlIndex())->SetRnti(m_rnti);
+        }
+    }
+
+    // TODO: this is the MECHANISM only. A same-cell BWP-switching POLICY (e.g.
+    // RSRP/load-driven selection of which same-cell BWP to make primary, plus
+    // re-application of the dedicated RadioResourceConfigDedicated / bearer
+    // mapping to the new BWP and any required RRC signalling) is NOT implemented
+    // and must be added before this is driven automatically.
+    return true;
+}
+
 void
 NrUeRrc::EvaluateCellForSelection()
 {
