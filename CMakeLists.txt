@@ -491,6 +491,7 @@ set(test_sources
     test/nr-test-qos-rule-classifier.cc
     test/nr-test-fdm-of-numerologies.cc
     test/nr-test-harq.cc
+    test/nr-x2-forwarding-drop-test.cc
     test/nr-test-ipv6-routing.cc
     test/nr-test-l2sm-eesm.cc
     test/nr-test-notching.cc

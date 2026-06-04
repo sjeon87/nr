@@ -1934,16 +1934,15 @@ void
 NrGnbRrc::DoDispose()
 {
     NS_LOG_FUNCTION(this);
-    for (uint16_t i = 0; i < m_numberOfComponentCarriers; i++)
+    for (auto cphySapUser : m_cphySapUser)
     {
-        delete m_cphySapUser[i];
-        delete m_cmacSapUser[i];
+        delete cphySapUser;
     }
-    // delete m_cphySapUser;
-    m_cphySapUser.erase(m_cphySapUser.begin(), m_cphySapUser.end());
     m_cphySapUser.clear();
-    // delete m_cmacSapUser;
-    m_cmacSapUser.erase(m_cmacSapUser.begin(), m_cmacSapUser.end());
+    for (auto cmacSapUser : m_cmacSapUser)
+    {
+        delete cmacSapUser;
+    }
     m_cmacSapUser.clear();
     m_ueMap.clear();
     delete m_handoverManagementSapUser;
@@ -2161,7 +2160,14 @@ NrGnbRrc::GetTypeId()
                 "HandoverFailureJoining",
                 "trace fired upon handover failure due to handover joining timeout at target eNB",
                 MakeTraceSourceAccessor(&NrGnbRrc::m_handoverFailureJoiningTrace),
-                "ns3::NrGnbRrc::HandoverFailureTracedCallback");
+                "ns3::NrGnbRrc::HandoverFailureTracedCallback")
+            .AddTraceSource(
+                "X2DataForwardingDrop",
+                "trace fired when a UE-data packet forwarded over X2-U is dropped because no "
+                "matching X2-U TEID mapping exists (the packet arrived outside the handover "
+                "data-forwarding window)",
+                MakeTraceSourceAccessor(&NrGnbRrc::m_x2DataForwardingDropTrace),
+                "ns3::NrGnbRrc::X2DataForwardingDropTracedCallback");
     return tid;
 }
 
@@ -3266,11 +3272,23 @@ NrGnbRrc::DoRecvUeData(NrEpcX2SapUser::UeDataParams params)
     }
     else
     {
-        // X2uTeidInfo not found — handover may have completed or the
-        // X2-U forwarding packet arrived after the context was cleaned up.
-        // Log a warning and discard rather than crashing.
-        NS_LOG_WARN("X2-U data received but no X2uTeidInfo found for TEID "
-                    << params.gtpTeid << " from cell " << params.sourceCellId);
+        // The X2-U TEID mapping is registered on the target gNB while the UE
+        // manager is in HANDOVER_JOINING state (SetupDataRadioBearer), and is
+        // removed once the bearer is released after the path switch. Packets
+        // forwarded over X2-U can race against either edge of that window:
+        // they may arrive before the target bearer is set up, or after it has
+        // been torn down at handover completion. Such a packet has no valid
+        // target bearer, so drop it (the lost user-plane packet is recovered by
+        // higher-layer retransmission) instead of aborting the simulation.
+        NS_LOG_WARN("X2-U data received for unknown TEID "
+                    << params.gtpTeid << " (no X2uTeidInfo): forwarded packet arrived outside the "
+                    << "handover data-forwarding window; dropping it");
+        // Notify interested observers (e.g. tests, flow monitors) so this drop
+        // can be detected without parsing logs.
+        m_x2DataForwardingDropTrace(params.sourceCellId,
+                                    params.targetCellId,
+                                    params.gtpTeid,
+                                    params.ueData);
     }
 }
 
