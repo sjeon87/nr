@@ -1214,6 +1214,19 @@ class NR_EXPORT NrGnbRrc : public Object
                                                   const uint16_t rnti,
                                                   const uint16_t cellId);
 
+    /**
+     * TracedCallback signature for X2-U forwarded data drop events.
+     *
+     * @param [in] sourceCellId the cell that forwarded the packet over X2-U
+     * @param [in] targetCellId the cell that received and dropped the packet
+     * @param [in] gtpTeid the GTP TEID of the forwarded packet with no local mapping
+     * @param [in] packet the dropped forwarded packet
+     */
+    typedef void (*X2DataForwardingDropTracedCallback)(uint16_t sourceCellId,
+                                                       uint16_t targetCellId,
+                                                       uint32_t gtpTeid,
+                                                       Ptr<const Packet> packet);
+
   private:
     // RRC SAP methods
 
@@ -1871,6 +1884,13 @@ class NR_EXPORT NrGnbRrc : public Object
      *
      */
     TracedCallback<uint64_t, uint16_t, uint16_t> m_handoverFailureJoiningTrace;
+    /**
+     * The 'X2DataForwardingDrop' Trace source. Fired when a UE-data packet forwarded over X2-U is
+     * dropped because there is no matching X2-U TEID mapping (the packet arrived outside the
+     * handover data-forwarding window, i.e. before the target bearer is set up or after it is
+     * torn down at handover completion).
+     */
+    TracedCallback<uint16_t, uint16_t, uint32_t, Ptr<const Packet>> m_x2DataForwardingDropTrace;
 
     uint16_t m_numberOfComponentCarriers; ///< number of component carriers
 
