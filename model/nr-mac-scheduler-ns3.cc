@@ -1839,13 +1839,19 @@ NrMacSchedulerNs3::DoScheduleUlSr(PointInFTPlane* spoint, const std::list<uint16
 
     for (const auto& v : rntiList)
     {
-        const auto itUe = m_ueMap.find(v);
-        if (itUe == m_ueMap.end())
+        // A scheduling request can race against the UE context lifetime during
+        // a handover: a UE that re-tuned to (or away from) this cell may have an
+        // SR in flight that reaches the scheduler before its context is added or
+        // after it is removed. Such an SR has no UE info here, so skip it
+        // instead of dereferencing a missing map entry (which would abort).
+        auto ueIt = m_ueMap.find(v);
+        if (ueIt == m_ueMap.end())
         {
-            NS_LOG_WARN("Unknown RNTI was scheduled for SR " << v);
+            NS_LOG_WARN("Ignoring scheduling request from unknown RNTI "
+                        << v << " (no UE context on this cell, likely a handover race)");
             continue;
         }
-        for (auto& ulLcg : NrMacSchedulerUeInfo::GetUlLCG(m_ueMap.at(v)))
+        for (auto& ulLcg : NrMacSchedulerUeInfo::GetUlLCG(ueIt->second))
         {
             NS_LOG_DEBUG("Assigning 12 bytes to UE " << v << " because of a SR");
             ulLcg.second->UpdateInfo(12);
