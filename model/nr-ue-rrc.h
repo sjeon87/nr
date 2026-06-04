@@ -1555,7 +1555,7 @@ class NR_EXPORT NrUeRrc : public Object
 
     uint8_t m_rachAttempts{0}; ///< number of RACH attempts before looking for a new cell to camp on
     uint8_t m_rachAttemptsLimit{
-        10}; ///< the maximum number of RACH attempts before looking for a new cell to camp on
+        2}; ///< the maximum number of RACH attempts before looking for a new cell to camp on
   public:
     /**
      * The number of component carriers.

@@ -929,9 +929,26 @@ NrUePhy::StartSlot(const SfnSf& s)
 
     if (GetNumerology() != s.GetNumerology())
     {
+        // The active PHY numerology changed (e.g. the UE re-tuned to a cell on a
+        // different numerology during cell (re)selection or an inter-frequency
+        // handover). The in-flight slot 's' belongs to the abandoned numerology
+        // timeline, so its frame/subframe/slot indices are meaningless here.
+        // Drop the stale allocations and re-stamp the slot machine onto the new
+        // numerology so that the event loop keeps running instead of stalling
+        // forever (which would silently kill the UE PHY, e.g. preventing RACH
+        // preambles from ever being transmitted on the target cell).
         NS_LOG_INFO("Numerology changed from " << s.GetNumerology() << " to " << GetNumerology()
-                                               << ", ignoring stale SlotAllocInfo entries.");
+                                               << ", restarting slot loop on the new numerology.");
         PurgeStaleSlotAllocInfo();
+
+        // Rebuild a slot index consistent with the new numerology from the
+        // current absolute time, and align to the next slot boundary.
+        Time slotPeriod = GetSlotPeriod();
+        uint64_t slotsElapsed = Simulator::Now().GetTimeStep() / slotPeriod.GetTimeStep();
+        Time nextSlotStart = slotPeriod * (slotsElapsed + 1) - Simulator::Now();
+        SfnSf restartSlot(0, 0, 0, GetNumerology());
+        restartSlot.Add(static_cast<uint32_t>(slotsElapsed + 1));
+        Simulator::Schedule(nextSlotStart, &NrUePhy::StartSlot, this, restartSlot);
         return;
     }
     m_currentSlot = s;

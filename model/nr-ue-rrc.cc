@@ -1828,6 +1828,9 @@ NrUeRrc::EvaluateCellForSelection()
         // currently setup
         auto bwpId = GetArfcnBwpId(m_initDlArfcn);
         SetPrimaryDlIndex(bwpId);
+        // Align the active BWP PHY numerology with the cell we are about to camp
+        // on. The RNTI is unknown at this point (it is assigned by random access),
+        // so it must not be touched here.
         m_cphySapProvider.at(bwpId)->SetNumerology(m_lastSib1.servingCellConfigCommon.numerology);
         m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(cellId, m_initDlArfcn);
         m_cphySapProvider.at(bwpId)->SetDlBandwidth(m_dlBandwidth);
