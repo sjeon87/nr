@@ -112,7 +112,7 @@ class NR_EXPORT NrRrcAsn1Header : public NrAsn1Header
      * @returns the modified buffer iterator
      */
     Buffer::Iterator DeserializeSupportedBandwidth(uint16_t* bandwidth100kHz,
-                                                   Buffer::Iterator bIterator) const;
+                                                   Buffer::Iterator bIterator);
 
     // Serialization functions
     /**
