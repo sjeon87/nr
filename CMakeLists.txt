@@ -347,6 +347,7 @@ set(header_files
     model/nr-mac-pdu-info.h
     model/nr-mac-sap.h
     model/nr-mac-sched-sap.h
+    model/nr-mac-scheduler-ai-message-structs.h
     model/nr-mac-scheduler-cqi-management.h
     model/nr-mac-scheduler-harq-rr.h
     model/nr-mac-scheduler-lc-alg.h
@@ -468,6 +469,7 @@ set(test_sources
     test/nr-epc-test-s1u-uplink.cc
     test/nr-ideal-beamforming-test.cc
     test/nr-lte-pattern-generation.cc
+    test/nr-mac-scheduler-ai-msg-structs-test-suite.cc
     test/nr-mac-short-bsr-ce-test.cc
     test/nr-multipanel-test.cc
     test/nr-phy-patterns.cc
