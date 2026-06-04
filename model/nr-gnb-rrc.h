@@ -376,6 +376,23 @@ class NR_EXPORT NrUeManager : public Object
     uint8_t GetComponentCarrierId() const;
 
     /**
+     * @brief Set the UE's current primary (serving) BWP/CC index.
+     *
+     * Called when the UE reports a same-cell primary-BWP switch. It records the
+     * new primary BWP and re-points the UE's DL scheduling to it (via the
+     * component-carrier manager), so downlink data follows the UE to the new
+     * BWP. Same-cell only: the cellId is unchanged.
+     *
+     * @param bwpId the new primary BWP/CC index.
+     */
+    void SetPrimaryBwp(uint8_t bwpId);
+
+    /**
+     * @return the UE's current primary (serving) BWP/CC index.
+     */
+    uint8_t GetPrimaryBwp() const;
+
+    /**
      *
      * @return the SRS Configuration Index
      */
@@ -563,6 +580,14 @@ class NR_EXPORT NrUeManager : public Object
      * ID of the primary CC for this UE
      */
     uint8_t m_componentCarrierId;
+
+    /**
+     * UE's current primary (serving) BWP/CC index for downlink. Initialized to
+     * #m_componentCarrierId and updated by SetPrimaryBwp when the UE reports a
+     * same-cell primary-BWP switch. Used to route the UE's DL scheduling to the
+     * BWP it is actually listening on.
+     */
+    uint8_t m_primaryBwpId;
 
     uint8_t m_lastRrcTransactionIdentifier; ///< last RRC transaction identifier
 
@@ -1257,6 +1282,19 @@ class NR_EXPORT NrGnbRrc : public Object
      * @param rnti the C-RNTI identifying the user
      */
     void DoRecvIdealUeContextRemoveRequest(uint16_t rnti);
+
+    /**
+     * @brief Part of the RRC protocol. Forwarding
+     * NrGnbRrcSapProvider::RecvIdealBwpSwitchIndication to the UE's manager.
+     *
+     * Handles the UE's notification that it switched its primary serving BWP to
+     * another BWP of the SAME cell. Updates the gNB's per-UE primary-BWP
+     * bookkeeping and re-points the UE's DL scheduling to the new BWP.
+     *
+     * @param rnti  the C-RNTI identifying the user
+     * @param bwpId the new primary BWP/CC index the UE switched to
+     */
+    void DoRecvIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId);
 
     // S1 SAP methods
 

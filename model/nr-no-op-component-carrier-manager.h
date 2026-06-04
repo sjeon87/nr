@@ -136,6 +136,17 @@ class NR_EXPORT NrNoOpComponentCarrierManager : public NrGnbComponentCarrierMana
      * @param rlcMacSapUser the MAC SAP user of the RLC instance
      */
     void DoRegisterSignalBearer(uint16_t rnti, uint8_t lcid, NrMacSapUser* rlcMacSapUser) override;
+
+    /**
+     * @brief Set the primary (serving) BWP a UE's downlink should be routed to.
+     *
+     * Base implementation is a no-op; CCM algorithms that support per-UE BWP
+     * overrides (e.g. BwpManagerGnb) override this for same-cell BWP switching.
+     *
+     * @param rnti  the C-RNTI of the UE
+     * @param bwpId the BWP/CC index the UE's downlink should be scheduled on
+     */
+    virtual void DoSetUePrimaryBwp(uint16_t rnti, uint8_t bwpId);
     /**
      * @brief Forwards uplink BSR to CCM, called by MAC through CCM SAP interface.
      * @param bsr the BSR

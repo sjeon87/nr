@@ -154,6 +154,7 @@ NrUeManager::NrUeManager(Ptr<NrGnbRrc> rrc, uint16_t rnti, State s, uint8_t comp
       m_rnti(rnti),
       m_imsi(0),
       m_componentCarrierId(componentCarrierId),
+      m_primaryBwpId(componentCarrierId),
       m_lastRrcTransactionIdentifier(0),
       m_rrc(rrc),
       m_state(s),
@@ -1496,6 +1497,27 @@ uint8_t
 NrUeManager::GetComponentCarrierId() const
 {
     return m_componentCarrierId;
+}
+
+void
+NrUeManager::SetPrimaryBwp(uint8_t bwpId)
+{
+    NS_LOG_FUNCTION(this << m_rnti << +bwpId);
+    m_primaryBwpId = bwpId;
+    // Re-point this UE's downlink scheduling to the new BWP so DL data follows
+    // the UE's same-cell primary-BWP switch. The component carrier manager
+    // (e.g. BwpManagerGnb) records the per-UE override; subsequent BSR-driven
+    // DL scheduling for this UE is then placed on the new BWP.
+    if (m_rrc->m_ccmRrcSapProvider != nullptr)
+    {
+        m_rrc->m_ccmRrcSapProvider->SetUePrimaryBwp(m_rnti, bwpId);
+    }
+}
+
+uint8_t
+NrUeManager::GetPrimaryBwp() const
+{
+    return m_primaryBwpId;
 }
 
 uint16_t
@@ -2890,6 +2912,22 @@ NrGnbRrc::DoRecvIdealUeContextRemoveRequest(uint16_t rnti)
         // delete the UE context at the eNB
         RemoveUe(rnti);
     }
+}
+
+void
+NrGnbRrc::DoRecvIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId)
+{
+    NS_LOG_FUNCTION(this << rnti << +bwpId);
+
+    if (!HasUeManager(rnti))
+    {
+        NS_LOG_WARN("BWP-switch indication for unknown/stale RNTI " << rnti);
+        return;
+    }
+    NS_LOG_INFO("UE " << rnti << " reported same-cell primary BWP switch -> " << +bwpId
+                      << "; updating gNB DL routing");
+    // Track the UE's new primary BWP and re-point its DL scheduling to it.
+    GetUeManager(rnti)->SetPrimaryBwp(bwpId);
 }
 
 void
