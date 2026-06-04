@@ -21,6 +21,7 @@
 #include "nr-rlc-um.h"
 #include "nr-rlc.h"
 
+#include "ns3/double.h"
 #include "ns3/fatal-error.h"
 #include "ns3/log.h"
 #include "ns3/object-factory.h"
@@ -206,6 +207,12 @@ NrUeRrc::GetTypeId()
                           ObjectMapValue(),
                           MakeObjectMapAccessor(&NrUeRrc::m_drbMap),
                           MakeObjectMapChecker<NrDataRadioBearerInfo>())
+            .AddAttribute("BwpSwitchHysteresis",
+                          "Hysteresis margin (dB) a non-serving same-cell BWP must exceed the "
+                          "serving BWP's RSRP by before the UE switches its primary BWP to it.",
+                          DoubleValue(3.0),
+                          MakeDoubleAccessor(&NrUeRrc::m_bwpSwitchHysteresisDb),
+                          MakeDoubleChecker<double>(0.0))
             .AddAttribute("Srb0",
                           "SignalingRadioBearerInfo for SRB0",
                           PointerValue(),
@@ -1595,21 +1602,38 @@ NrUeRrc::TrackCellArfcn(uint16_t cellId, uint32_t arfcn)
     {
         return;
     }
-    m_cellIdToArfcn[cellId] = arfcn;
+    // A cell can span several carriers (same cellId on several BWPs). Record
+    // this carrier in the cell's carrier set rather than overwriting, so the
+    // same-cell BWP-switch guard can recognize every BWP belonging to the cell.
+    m_cellIdToArfcn[cellId].insert(arfcn);
 }
 
 bool
 NrUeRrc::GetCellBwpId(uint16_t cellId, std::size_t& bwpId) const
 {
     auto it = m_cellIdToArfcn.find(cellId);
-    if (it == m_cellIdToArfcn.end())
+    if (it == m_cellIdToArfcn.end() || it->second.empty())
     {
         return false;
     }
-    const uint32_t arfcn = it->second;
+    // Resolve to any BWP tuned to one of the cell's carriers. When the cell
+    // spans a single carrier this is unambiguous; when it spans several, this
+    // returns the lowest-indexed tuned BWP, which callers that only need "a"
+    // BWP of the cell (e.g. MIB routing) can use. The current primary BWP is
+    // preferred when it already belongs to the cell.
+    if (m_cellIdToArfcn.count(cellId))
+    {
+        const auto& carriers = it->second;
+        const uint32_t primaryArfcn = m_cphySapProvider.at(m_primaryDlIndex)->GetArfcn();
+        if (carriers.count(primaryArfcn))
+        {
+            bwpId = m_primaryDlIndex;
+            return true;
+        }
+    }
     for (std::size_t i = 0; i < m_cphySapProvider.size(); i++)
     {
-        if (m_cphySapProvider.at(i)->GetArfcn() == arfcn)
+        if (it->second.count(m_cphySapProvider.at(i)->GetArfcn()))
         {
             bwpId = i;
             return true;
@@ -1634,26 +1658,25 @@ NrUeRrc::SwitchPrimaryBwpSameCell(std::size_t targetBwpId)
         return true;
     }
 
-    // Same-cell guard. Only ever move the serving BWP between BWPs that belong
-    // to the CURRENT serving cell. Moving to a BWP tuned to a different cell
-    // would be a handover (and, if both were kept active, dual connectivity),
-    // which is explicitly out of scope here.
-    std::size_t servingBwp = 0;
-    if (!GetCellBwpId(m_cellId, servingBwp))
+    // Same-cell guard, CELLID-based. Only ever move the serving BWP between BWPs
+    // that belong to the CURRENT serving cell. Because all BWPs of a gNB share
+    // one cellId and differ by ARFCN alone, the test is membership of the target
+    // BWP's carrier in the serving cell's carrier SET (#m_cellIdToArfcn). Moving
+    // to a BWP whose carrier is NOT in that set would be a handover (and, if both
+    // were kept active, dual connectivity), which is explicitly out of scope.
+    auto cellIt = m_cellIdToArfcn.find(m_cellId);
+    if (cellIt == m_cellIdToArfcn.end() || cellIt->second.empty())
     {
         NS_LOG_WARN("SwitchPrimaryBwpSameCell: serving cell="
-                    << m_cellId << " carrier unknown; refusing to switch");
+                    << m_cellId << " carrier set unknown; refusing to switch");
         return false;
     }
-    // The target BWP must be tuned to (i.e. carry the same cell as) the serving
-    // cell. With the current single-carrier-per-cell model a cell maps to one
-    // BWP; this check makes the same-cell intent explicit and future-proofs the
-    // mechanism for when a single cell legitimately spans several BWPs.
-    if (m_cphySapProvider.at(targetBwpId)->GetArfcn() !=
-        m_cphySapProvider.at(servingBwp)->GetArfcn())
+    const uint32_t targetArfcn = m_cphySapProvider.at(targetBwpId)->GetArfcn();
+    if (cellIt->second.count(targetArfcn) == 0)
     {
         NS_LOG_WARN("SwitchPrimaryBwpSameCell: target bwp="
-                    << targetBwpId << " is not tuned to serving cell=" << m_cellId
+                    << targetBwpId << " (arfcn " << targetArfcn
+                    << ") is not a carrier of serving cell=" << m_cellId
                     << "; refusing (would be handover/DC)");
         return false;
     }
@@ -1686,6 +1709,79 @@ NrUeRrc::SwitchPrimaryBwpSameCell(std::size_t targetBwpId)
     // mapping to the new BWP and any required RRC signalling) is NOT implemented
     // and must be added before this is driven automatically.
     return true;
+}
+
+void
+NrUeRrc::EvaluateSameCellBwpSwitch()
+{
+    // Only meaningful for a connected UE with a known serving cell that spans
+    // more than one carrier (otherwise there is nothing to switch between).
+    if (m_state != CONNECTED_NORMALLY || m_cellId == 0)
+    {
+        return;
+    }
+    auto cellIt = m_cellIdToArfcn.find(m_cellId);
+    if (cellIt == m_cellIdToArfcn.end() || cellIt->second.size() < 2)
+    {
+        return;
+    }
+
+    const uint32_t servingArfcn = m_cphySapProvider.at(GetPrimaryDlIndex())->GetArfcn();
+    // The serving BWP must itself be a carrier of the serving cell.
+    if (cellIt->second.count(servingArfcn) == 0)
+    {
+        return;
+    }
+    auto servIt = m_rsrpPerArfcn.find(servingArfcn);
+    if (servIt == m_rsrpPerArfcn.end())
+    {
+        return;
+    }
+    const double servingRsrp = servIt->second;
+
+    // Find the strongest same-cell carrier (other than the serving one).
+    uint32_t bestArfcn = 0;
+    double bestRsrp = -std::numeric_limits<double>::infinity();
+    for (const uint32_t arfcn : cellIt->second)
+    {
+        if (arfcn == servingArfcn)
+        {
+            continue;
+        }
+        auto rit = m_rsrpPerArfcn.find(arfcn);
+        if (rit == m_rsrpPerArfcn.end())
+        {
+            continue;
+        }
+        if (rit->second > bestRsrp)
+        {
+            bestRsrp = rit->second;
+            bestArfcn = arfcn;
+        }
+    }
+
+    if (bestArfcn == 0 || bestRsrp < servingRsrp + m_bwpSwitchHysteresisDb)
+    {
+        return; // no candidate beats the serving BWP by the hysteresis margin
+    }
+
+    const std::size_t targetBwp = GetArfcnBwpId(bestArfcn);
+    NS_LOG_INFO("Same-cell BWP switch trigger: serving arfcn "
+                << servingArfcn << " rsrp " << servingRsrp << " -> arfcn " << bestArfcn << " rsrp "
+                << bestRsrp << " (margin " << m_bwpSwitchHysteresisDb << " dB) on cell "
+                << m_cellId);
+
+    if (SwitchPrimaryBwpSameCell(targetBwp))
+    {
+        // Inform the gNB so its DL scheduling follows the UE's new primary BWP.
+        // Without this the gNB would keep scheduling the old BWP and DL data
+        // would stall (the UE/gNB would be desynchronized).
+        if (m_reportedPrimaryArfcn != bestArfcn && m_rrcSapUser != nullptr)
+        {
+            m_rrcSapUser->SendIdealBwpSwitchIndication(m_rnti, static_cast<uint8_t>(targetBwp));
+            m_reportedPrimaryArfcn = bestArfcn;
+        }
+    }
 }
 
 void
@@ -2327,7 +2423,23 @@ NrUeRrc::SaveUeMeasurements(uint16_t cellId,
     // Cell<->BWP bookkeeping: remember which carrier this cell was measured on,
     // so a later broadcast (MIB) from this cell can be routed to the BWP that
     // is actually tuned to its carrier (see GetCellBwpId / DoRecvMIB).
-    TrackCellArfcn(cellId, m_cphySapProvider.at(componentCarrierId)->GetArfcn());
+    const uint32_t arfcn = m_cphySapProvider.at(componentCarrierId)->GetArfcn();
+    TrackCellArfcn(cellId, arfcn);
+
+    // Per-carrier RSRP, tracked ADDITIVELY (same L3 alpha as the cellId-keyed
+    // store). This is the only RSRP that can distinguish two BWPs of the same
+    // cell (which share a cellId), so it is what drives the same-cell switch.
+    {
+        auto rit = m_rsrpPerArfcn.find(arfcn);
+        if (rit == m_rsrpPerArfcn.end() || !useLayer3Filtering)
+        {
+            m_rsrpPerArfcn[arfcn] = rsrp;
+        }
+        else
+        {
+            rit->second = (1 - m_varMeasConfig.aRsrp) * rit->second + m_varMeasConfig.aRsrp * rsrp;
+        }
+    }
 
     auto storedMeasIt = m_storedMeasValues.find(cellId);
 
@@ -2376,6 +2488,10 @@ NrUeRrc::SaveUeMeasurements(uint16_t cellId,
                       << storedMeasIt->second.carrierFreq << ", new RSRP " << rsrp << " stored "
                       << storedMeasIt->second.rsrp << ", new RSRQ " << rsrq << " stored "
                       << storedMeasIt->second.rsrq);
+
+    // Same-cell BWP-switch policy: after refreshing per-carrier RSRP, check
+    // whether a better same-cell BWP exists and switch the primary BWP to it.
+    EvaluateSameCellBwpSwitch();
 
 } // end of void SaveUeMeasurements
 
