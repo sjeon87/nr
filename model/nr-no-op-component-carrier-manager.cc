@@ -302,6 +302,14 @@ NrNoOpComponentCarrierManager::DoRegisterSignalBearer(uint16_t rnti,
 }
 
 void
+NrNoOpComponentCarrierManager::DoSetUePrimaryBwp(uint16_t rnti, uint8_t bwpId)
+{
+    NS_LOG_FUNCTION(this << rnti << +bwpId);
+    // No-op: the plain no-op manager keeps all traffic on the primary carrier
+    // and has no per-UE BWP override. BwpManagerGnb overrides this.
+}
+
+void
 NrNoOpComponentCarrierManager::DoNotifyPrbOccupancy(double prbOccupancy, uint8_t componentCarrierId)
 {
     NS_LOG_FUNCTION(this);

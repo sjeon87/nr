@@ -94,6 +94,14 @@ class NR_EXPORT NrUeRrcProtocolIdeal : public Object
      */
     void DoSendIdealUeContextRemoveRequest(uint16_t rnti);
 
+    /**
+     * @brief Send the UE's same-cell primary-BWP switch indication to the gNB.
+     *
+     * @param rnti  the RNTI of the UE
+     * @param bwpId the new primary BWP/CC index the UE switched to
+     */
+    void DoSendIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId);
+
     void SetGnbRrcSapProvider();
 
     Ptr<NrUeRrc> m_rrc;

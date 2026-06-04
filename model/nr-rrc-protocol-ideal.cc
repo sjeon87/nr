@@ -175,6 +175,25 @@ NrUeRrcProtocolIdeal::DoSendIdealUeContextRemoveRequest(uint16_t rnti)
 }
 
 void
+NrUeRrcProtocolIdeal::DoSendIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId)
+{
+    NS_LOG_FUNCTION(this << rnti << +bwpId);
+
+    m_rnti = m_rrc->GetRnti();
+    NS_ABORT_MSG_IF(m_rnti != rnti, "RNTI mismatch");
+
+    // Resolve the gNB RRC SAP provider for the cell we are currently attached
+    // to (same-cell switch: the cell does not change, but keep the pattern
+    // consistent with the other ideal indications).
+    SetGnbRrcSapProvider();
+    Simulator::Schedule(RRC_IDEAL_MSG_DELAY,
+                        &NrGnbRrcSapProvider::RecvIdealBwpSwitchIndication,
+                        m_gnbRrcSapProvider,
+                        m_rnti,
+                        bwpId);
+}
+
+void
 NrUeRrcProtocolIdeal::SetGnbRrcSapProvider()
 {
     uint16_t cellId = m_rrc->GetCellId();

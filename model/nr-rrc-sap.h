@@ -1067,6 +1067,20 @@ class NR_EXPORT NrUeRrcSapUser : public NrRrcSap
      * @param rnti the C-RNTI of the UE
      */
     virtual void SendIdealUeContextRemoveRequest(uint16_t rnti) = 0;
+
+    /**
+     * @brief Notify the gNB that the UE switched its primary serving BWP.
+     *
+     * Same-cell BWP switching changes which BWP the UE listens to for its
+     * downlink. The gNB must learn this so it can route the UE's DL scheduling
+     * to the new BWP and keep data flowing; otherwise the UE and gNB
+     * desynchronize. This is an ideal (RNTI-carrying) indication, mirroring
+     * SendIdealUeContextRemoveRequest.
+     *
+     * @param rnti  the C-RNTI of the UE
+     * @param bwpId the new primary BWP/CC index the UE switched to
+     */
+    virtual void SendIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId) = 0;
 };
 
 /**
@@ -1362,6 +1376,18 @@ class NR_EXPORT NrGnbRrcSapProvider : public NrRrcSap
      * @param rnti the C-RNTI of the UE
      */
     virtual void RecvIdealUeContextRemoveRequest(uint16_t rnti) = 0;
+
+    /**
+     * @brief Receive the UE's same-cell primary-BWP switch indication.
+     *
+     * The UE notifies the gNB that it moved its primary serving BWP to another
+     * BWP of the SAME cell. The gNB updates its per-UE primary-BWP bookkeeping
+     * and re-points the UE's DL scheduling to the indicated BWP.
+     *
+     * @param rnti  the C-RNTI of the UE
+     * @param bwpId the new primary BWP/CC index the UE switched to
+     */
+    virtual void RecvIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId) = 0;
 };
 
 ////////////////////////////////////
@@ -1398,6 +1424,7 @@ class MemberNrUeRrcSapUser : public NrUeRrcSapUser
         RrcConnectionReestablishmentComplete msg) override;
     void SendMeasurementReport(MeasurementReport msg) override;
     void SendIdealUeContextRemoveRequest(uint16_t rnti) override;
+    void SendIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId) override;
 
   private:
     C* m_owner; ///< the owner class
@@ -1466,6 +1493,13 @@ void
 MemberNrUeRrcSapUser<C>::SendIdealUeContextRemoveRequest(uint16_t rnti)
 {
     m_owner->DoSendIdealUeContextRemoveRequest(rnti);
+}
+
+template <class C>
+void
+MemberNrUeRrcSapUser<C>::SendIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId)
+{
+    m_owner->DoSendIdealBwpSwitchIndication(rnti, bwpId);
 }
 
 /**
@@ -1735,6 +1769,7 @@ class MemberNrGnbRrcSapProvider : public NrGnbRrcSapProvider
         RrcConnectionReestablishmentComplete msg) override;
     void RecvMeasurementReport(uint16_t rnti, MeasurementReport msg) override;
     void RecvIdealUeContextRemoveRequest(uint16_t rnti) override;
+    void RecvIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId) override;
 
   private:
     C* m_owner; ///< the owner class
@@ -1807,6 +1842,13 @@ void
 MemberNrGnbRrcSapProvider<C>::RecvIdealUeContextRemoveRequest(uint16_t rnti)
 {
     Simulator::ScheduleNow(&C::DoRecvIdealUeContextRemoveRequest, m_owner, rnti);
+}
+
+template <class C>
+void
+MemberNrGnbRrcSapProvider<C>::RecvIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId)
+{
+    Simulator::ScheduleNow(&C::DoRecvIdealBwpSwitchIndication, m_owner, rnti, bwpId);
 }
 
 } // namespace ns3

@@ -87,6 +87,15 @@ BwpManagerGnb::GetBwpIndex(uint16_t rnti, uint8_t lcid)
                       m_ueInfo.at(rnti).m_rlcLcInstantiated.end(),
                   "Unknown logical channel of UE");
 
+    // Same-cell BWP-switch override: if the UE has reported a primary BWP, all
+    // of its downlink is scheduled there regardless of 5QI, so DL data follows
+    // the UE to the BWP it is actually listening on.
+    auto ovrIt = m_uePrimaryBwp.find(rnti);
+    if (ovrIt != m_uePrimaryBwp.end())
+    {
+        return ovrIt->second;
+    }
+
     uint8_t fiveQi = m_ueInfo[rnti].m_rlcLcInstantiated[lcid].fiveQi;
 
     // Force a conversion between the uint8_t type that comes from the LcInfo
@@ -100,6 +109,14 @@ BwpManagerGnb::GetBwpIndex(uint16_t rnti, uint8_t lcid)
     return dataBwpId;
 }
 
+void
+BwpManagerGnb::DoSetUePrimaryBwp(uint16_t rnti, uint8_t bwpId)
+{
+    NS_LOG_FUNCTION(this << rnti << +bwpId);
+    NS_LOG_INFO("UE " << rnti << " primary DL BWP override -> " << +bwpId);
+    m_uePrimaryBwp[rnti] = bwpId;
+}
+
 uint8_t
 BwpManagerGnb::PeekBwpIndex(uint16_t rnti, uint8_t lcid) const
 {
@@ -110,6 +127,12 @@ BwpManagerGnb::PeekBwpIndex(uint16_t rnti, uint8_t lcid) const
     NS_ASSERT_MSG(m_ueInfo.at(rnti).m_rlcLcInstantiated.find(lcid) !=
                       m_ueInfo.at(rnti).m_rlcLcInstantiated.end(),
                   "Unknown logical channel of UE");
+
+    auto ovrIt = m_uePrimaryBwp.find(rnti);
+    if (ovrIt != m_uePrimaryBwp.end())
+    {
+        return ovrIt->second;
+    }
 
     uint8_t fiveQi = m_ueInfo.at(rnti).m_rlcLcInstantiated.at(lcid).fiveQi;
 
