@@ -938,13 +938,35 @@ class NR_EXPORT NrGnbRrc : public Object
      * @return the measurement IDs (measId) referring to the newly added
      *         reporting configuration
      *
-     * Assuming intra-frequency environment, the new measurement reporting
-     * configuration will be automatically associated to measurement
-     * objects corresponding to serving cell frequencies.
+     * The new measurement reporting configuration is automatically associated
+     * to all configured measurement objects, i.e. both the serving cell
+     * frequencies and any neighbour frequencies previously registered through
+     * `NrGnbRrc::AddNeighbourMeasFrequency`. This enables both intra-frequency
+     * and inter-frequency measurement reporting (and thus handover).
      *
      * Can only be called before the start of simulation.
      */
     std::vector<uint8_t> AddUeMeasReportConfig(NrRrcSap::ReportConfigEutra config);
+
+    /**
+     * @brief Register a neighbour frequency for inter-frequency measurements.
+     *
+     * Registers an additional carrier frequency (ARFCN) belonging to a
+     * neighbour cell that does not match any of this gNB's own component
+     * carriers. A dedicated measurement object is created for it in
+     * `NrGnbRrc::ConfigureCell`, so that a connected UE can measure and be
+     * handed over to cells operating on that frequency (inter-frequency and,
+     * by extension, inter-numerology handover).
+     *
+     * Must be called before `NrGnbRrc::ConfigureCell` (i.e. before the gNB
+     * NetDevice is installed) and before the simulation starts. Frequencies
+     * already covered by this gNB's own carriers are silently ignored.
+     *
+     * @param arfcn the neighbour carrier frequency (ARFCN)
+     * @param dlBandwidth the downlink bandwidth (in RBs) advertised for the
+     *        neighbour measurement object
+     */
+    void AddNeighbourMeasFrequency(uint32_t arfcn, uint8_t dlBandwidth);
 
     /**
      * @brief Configure cell-specific parameters.
@@ -1667,6 +1689,13 @@ class NR_EXPORT NrGnbRrc : public Object
      * this eNodeB instance.
      */
     NrRrcSap::MeasConfig m_ueMeasConfig;
+
+    /**
+     * Neighbour carrier frequencies (ARFCNs) registered for inter-frequency
+     * measurements via `NrGnbRrc::AddNeighbourMeasFrequency`. Each entry maps an
+     * ARFCN to the downlink bandwidth advertised for its measurement object.
+     */
+    std::map<uint32_t, uint8_t> m_neighbourMeasFreqs;
 
     /// List of measurement identities which are intended for handover purpose.
     std::set<uint8_t> m_handoverMeasIds;

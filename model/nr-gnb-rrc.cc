@@ -2382,10 +2382,24 @@ NrGnbRrc::AddUeMeasReportConfig(NrRrcSap::ReportConfigEutra config)
     NS_LOG_FUNCTION(this);
 
     // SANITY CHECK
+    // Each reporting configuration is linked to the gNB's own carriers
+    // (m_numberOfComponentCarriers objects) plus every registered inter-frequency
+    // neighbour measurement object (those with measObjectId beyond the own-carrier
+    // range). The number of measurement identities must therefore equal the number
+    // of reporting configurations times the number of linked measurement objects.
 
+    std::size_t neighbourMeasObjects = 0;
+    for (const auto& measObject : m_ueMeasConfig.measObjectToAddModList)
+    {
+        if (measObject.measObjectId > m_numberOfComponentCarriers)
+        {
+            neighbourMeasObjects++;
+        }
+    }
     NS_ASSERT_MSG(
         m_ueMeasConfig.measIdToAddModList.size() ==
-            m_ueMeasConfig.reportConfigToAddModList.size() * m_numberOfComponentCarriers,
+            m_ueMeasConfig.reportConfigToAddModList.size() *
+                (m_numberOfComponentCarriers + neighbourMeasObjects),
         "Measurement identities and reporting configuration should not have different quantity");
 
     if (Simulator::Now() != Seconds(0))
@@ -2462,16 +2476,45 @@ NrGnbRrc::AddUeMeasReportConfig(NrRrcSap::ReportConfigEutra config)
 
     std::vector<uint8_t> measIds;
 
-    // create measurement identities, linking reporting configuration to all objects
-    for (uint16_t BandwidthPartGnb = 0; BandwidthPartGnb < m_numberOfComponentCarriers;
-         BandwidthPartGnb++)
+    // Create measurement identities, linking the reporting configuration to the
+    // gNB's own carrier measurement objects (one per component carrier, with
+    // predictable measObjectId 1..m_numberOfComponentCarriers). These objects
+    // are created in ConfigureCell(), which may run after this method, so the
+    // component carrier count is used rather than the current object list size.
+    for (uint16_t componentCarrier = 0; componentCarrier < m_numberOfComponentCarriers;
+         componentCarrier++)
     {
         NrRrcSap::MeasIdToAddMod measIdToAddMod;
 
         uint8_t measId = m_ueMeasConfig.measIdToAddModList.size() + 1;
 
         measIdToAddMod.measId = measId;
-        measIdToAddMod.measObjectId = BandwidthPartGnb + 1;
+        measIdToAddMod.measObjectId = componentCarrier + 1;
+        measIdToAddMod.reportConfigId = nextId;
+
+        m_ueMeasConfig.measIdToAddModList.push_back(measIdToAddMod);
+        measIds.push_back(measId);
+    }
+
+    // Additionally link the reporting configuration to every inter-frequency
+    // neighbour measurement object registered via AddNeighbourMeasFrequency().
+    // This lets a single report configuration (e.g. the A3 handover report)
+    // evaluate neighbours on other carrier frequencies, enabling inter-frequency
+    // handover. The returned measIds therefore cover both own and neighbour
+    // frequencies, so the requesting algorithm recognises cross-frequency
+    // measurement reports.
+    for (const auto& measObject : m_ueMeasConfig.measObjectToAddModList)
+    {
+        if (measObject.measObjectId <= m_numberOfComponentCarriers)
+        {
+            continue; // own-carrier object, already linked above
+        }
+
+        NrRrcSap::MeasIdToAddMod measIdToAddMod;
+        uint8_t measId = m_ueMeasConfig.measIdToAddModList.size() + 1;
+
+        measIdToAddMod.measId = measId;
+        measIdToAddMod.measObjectId = measObject.measObjectId;
         measIdToAddMod.reportConfigId = nextId;
 
         m_ueMeasConfig.measIdToAddModList.push_back(measIdToAddMod);
@@ -2479,6 +2522,36 @@ NrGnbRrc::AddUeMeasReportConfig(NrRrcSap::ReportConfigEutra config)
     }
 
     return measIds;
+}
+
+void
+NrGnbRrc::AddNeighbourMeasFrequency(uint32_t arfcn, uint8_t dlBandwidth)
+{
+    NS_LOG_FUNCTION(this << arfcn << +dlBandwidth);
+    NS_ASSERT_MSG(!m_configured, "AddNeighbourMeasFrequency must be called before ConfigureCell()");
+
+    // Ignore duplicates (a neighbour frequency may be registered more than once).
+    if (m_neighbourMeasFreqs.find(arfcn) != m_neighbourMeasFreqs.end())
+    {
+        return;
+    }
+    m_neighbourMeasFreqs[arfcn] = dlBandwidth;
+
+    // Create the inter-frequency measurement object immediately, with a
+    // measObjectId placed after the gNB's own carrier objects (which use ids
+    // 1..m_numberOfComponentCarriers, assigned in ConfigureCell). Doing this
+    // before the handover algorithm registers its reporting configuration lets
+    // AddUeMeasReportConfig() link the report configs to this neighbour object
+    // as well, so cross-frequency neighbours are measured and reported.
+    NrRrcSap::MeasObjectToAddMod measObject;
+    measObject.measObjectId = m_numberOfComponentCarriers + m_neighbourMeasFreqs.size();
+    measObject.measObjectEutra.carrierFreq = arfcn;
+    measObject.measObjectEutra.allowedMeasBandwidth = dlBandwidth;
+    measObject.measObjectEutra.presenceAntennaPort1 = false;
+    measObject.measObjectEutra.neighCellConfig = 0;
+    measObject.measObjectEutra.offsetFreq = 0;
+    measObject.measObjectEutra.haveCellForWhichToReportCGI = false;
+    m_ueMeasConfig.measObjectToAddModList.push_back(measObject);
 }
 
 void
@@ -2506,8 +2579,13 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
 
     /*
      * Initializing the list of measurement objects.
-     * Only intra-frequency measurements are supported,
-     * so one measurement object is created for each carrier frequency.
+     * One intra-frequency measurement object is created for each of this gNB's
+     * own carrier frequencies (measObjectId 1..m_numberOfComponentCarriers).
+     * Inter-frequency neighbour measurement objects, if any, were already added
+     * to m_ueMeasConfig by AddNeighbourMeasFrequency() before this call, using
+     * measObjectIds beyond the own-carrier range. Together they enable both
+     * intra-frequency and inter-frequency (and, by extension, inter-numerology)
+     * measurements and handover.
      */
     for (const auto& it : ccPhyConf)
     {
@@ -2526,7 +2604,13 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
     m_ueMeasConfig.haveQuantityConfig = true;
     m_ueMeasConfig.quantityConfig.filterCoefficientRSRP = m_rsrpFilterCoefficient;
     m_ueMeasConfig.quantityConfig.filterCoefficientRSRQ = m_rsrqFilterCoefficient;
+    // The NR PHY model measures all configured BWPs simultaneously, so no
+    // measurement gaps are required for inter-frequency measurements. The flag
+    // is kept false even when neighbour frequencies are registered.
     m_ueMeasConfig.haveMeasGapConfig = false;
+    NS_LOG_INFO(this << " configured " << m_ueMeasConfig.measObjectToAddModList.size()
+                     << " measurement objects (inter-frequency neighbours: "
+                     << m_neighbourMeasFreqs.size() << ")");
     m_ueMeasConfig.haveSmeasure = false;
     m_ueMeasConfig.haveSpeedStatePars = false;
 
