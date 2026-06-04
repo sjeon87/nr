@@ -889,6 +889,7 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
     case IDLE_START: {
         m_cellId = cellId;
         m_initDlArfcn = arfcn;
+        TrackCellArfcn(cellId, arfcn);
         auto bwpId = GetArfcnBwpId(arfcn);
         SetPrimaryDlIndex(bwpId);
         m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
@@ -1557,6 +1558,7 @@ NrUeRrc::SynchronizeToStrongestCell()
                           << " is the strongest untried surrounding cell");
         // We may receive MIBs from different BWPs. When that happens, we switch active BWP.
         m_initDlArfcn = maxRsrpArfcn;
+        TrackCellArfcn(maxRsrpCellId, maxRsrpArfcn);
         auto dlIt =
             std::find_if(m_cphySapProvider.begin(),
                          m_cphySapProvider.end(),
@@ -1583,6 +1585,37 @@ NrUeRrc::GetArfcnBwpId(uint32_t arfcn) const
         }
     }
     NS_FATAL_ERROR("No BWP found with arfcn " << arfcn);
+}
+
+void
+NrUeRrc::TrackCellArfcn(uint16_t cellId, uint32_t arfcn)
+{
+    NS_LOG_FUNCTION(this << cellId << arfcn);
+    if (cellId == 0 || arfcn == 0)
+    {
+        return;
+    }
+    m_cellIdToArfcn[cellId] = arfcn;
+}
+
+bool
+NrUeRrc::GetCellBwpId(uint16_t cellId, std::size_t& bwpId) const
+{
+    auto it = m_cellIdToArfcn.find(cellId);
+    if (it == m_cellIdToArfcn.end())
+    {
+        return false;
+    }
+    const uint32_t arfcn = it->second;
+    for (std::size_t i = 0; i < m_cphySapProvider.size(); i++)
+    {
+        if (m_cphySapProvider.at(i)->GetArfcn() == arfcn)
+        {
+            bwpId = i;
+            return true;
+        }
+    }
+    return false;
 }
 
 void
@@ -2220,6 +2253,11 @@ NrUeRrc::SaveUeMeasurements(uint16_t cellId,
                             uint8_t componentCarrierId)
 {
     NS_LOG_FUNCTION(this << cellId << +componentCarrierId << rsrp << rsrq << useLayer3Filtering);
+
+    // Cell<->BWP bookkeeping: remember which carrier this cell was measured on,
+    // so a later broadcast (MIB) from this cell can be routed to the BWP that
+    // is actually tuned to its carrier (see GetCellBwpId / DoRecvMIB).
+    TrackCellArfcn(cellId, m_cphySapProvider.at(componentCarrierId)->GetArfcn());
 
     auto storedMeasIt = m_storedMeasValues.find(cellId);
 
