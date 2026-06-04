@@ -253,25 +253,23 @@ NrRrcAsn1Header::SerializeSupportedBandwidth(uint16_t bandwidth100kHz, uint32_t 
 
 Buffer::Iterator
 NrRrcAsn1Header::DeserializeSupportedBandwidth(uint16_t* bandwidth100kHz,
-                                               Buffer::Iterator bIterator) const
+                                               Buffer::Iterator bIterator)
 {
     // The FR discriminator is on the wire, so the round-trip is exact regardless
-    // of the serialize-time FR choice.
+    // of the serialize-time FR choice. Non-const to match the rest of the
+    // Deserialize* family (and this method's callers); deserialization reads the
+    // iterator and writes outputs, it never mutates the header.
     int sel = 0;
-    bIterator = const_cast<NrRrcAsn1Header*>(this)->DeserializeChoice(2, false, &sel, bIterator);
+    bIterator = DeserializeChoice(2, false, &sel, bIterator);
     int n = 0;
     if (sel == 1)
     {
-        bIterator = const_cast<NrRrcAsn1Header*>(this)->DeserializeEnum(FR2_BANDWIDTH_ENUM_SIZE,
-                                                                        &n,
-                                                                        bIterator);
+        bIterator = DeserializeEnum(FR2_BANDWIDTH_ENUM_SIZE, &n, bIterator);
         *bandwidth100kHz = EnumToFr2Bandwidth(n);
     }
     else
     {
-        bIterator = const_cast<NrRrcAsn1Header*>(this)->DeserializeEnum(FR1_BANDWIDTH_ENUM_SIZE,
-                                                                        &n,
-                                                                        bIterator);
+        bIterator = DeserializeEnum(FR1_BANDWIDTH_ENUM_SIZE, &n, bIterator);
         *bandwidth100kHz = EnumToFr1Bandwidth(n);
     }
     return bIterator;
