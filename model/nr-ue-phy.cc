@@ -1320,11 +1320,19 @@ NrUePhy::EndVarTti(const std::shared_ptr<DciInfoElementTdma>& dci)
         Time nextVarTtiTime = nextVarTtiStart + m_lastSlotStart;
         Time delay = nextVarTtiTime - Simulator::Now();
 
-        NS_ASSERT_MSG(delay.IsStrictlyPositive() || delay.IsZero(),
-                      "Scheduling StartVarTti in the past. delay="
-                          << delay << " nextVarTtiTime=" << nextVarTtiTime
-                          << " now=" << Simulator::Now() << " lastSlotStart=" << m_lastSlotStart
-                          << " symStart=" << +allocation.m_dci->m_symStart);
+        // During an inter-frequency handover the UE re-tunes to a different BWP
+        // PHY, whose m_lastSlotStart timeline is re-stamped by StartSlot(). A
+        // VarTti that was in flight on the abandoned timeline can then resolve
+        // to a start time slightly in the past, yielding a small negative delay.
+        // Clamp such a stale allocation to the current instant so that it is
+        // still processed (keeping the data plane alive across the handover)
+        // without scheduling an event in the past.
+        if (delay.IsNegative())
+        {
+            NS_LOG_WARN("Clamping VarTti scheduled "
+                        << delay << " in the past to now, due to a BWP/numerology switch");
+            delay = Time(0);
+        }
 
         Simulator::Schedule(delay, &NrUePhy::StartVarTti, this, allocation.m_dci);
     }
