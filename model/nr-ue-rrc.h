@@ -1183,8 +1183,28 @@ class NR_EXPORT NrUeRrc : public Object
      * cell's carrier (via GetArfcnBwpId), instead of unconditionally applying
      * it to the primary serving BWP. Populated by TrackCellArfcn() as cells are
      * discovered/measured/synchronized.
+     *
+     * A single cell can legitimately span SEVERAL carriers (the same cellId on
+     * several BWPs, differentiated by ARFCN alone). Therefore the value is a
+     * SET of carriers, not a single carrier. This is what lets same-cell BWP
+     * switching tell apart "another BWP of my serving cell" (accept) from "a
+     * different cell" (reject; that would be handover/DC).
      */
-    std::map<uint16_t, uint32_t> m_cellIdToArfcn;
+    std::map<uint16_t, std::set<uint32_t>> m_cellIdToArfcn;
+
+    /**
+     * @brief Per-carrier RSRP, keyed by ARFCN, layer-3 filtered.
+     *
+     * Because all BWPs of a single gNB share one cellId, the cellId-keyed
+     * #m_storedMeasValues store (used by A3 / SynchronizeToStrongestCell) cannot
+     * tell one BWP from another of the same cell: the last-measured carrier
+     * simply overwrites the previous one. To drive a SAME-CELL primary-BWP
+     * switch we therefore track RSRP SEPARATELY per carrier (ARFCN). This is
+     * updated additively (same alpha as #m_storedMeasValues) inside
+     * SaveUeMeasurements and consulted only by the same-cell switch policy; it
+     * never feeds the cellId-keyed handover machinery.
+     */
+    std::map<uint32_t, double> m_rsrpPerArfcn;
 
     /**
      * @brief Stored measure values per carrier.
@@ -1488,6 +1508,26 @@ class NR_EXPORT NrUeRrc : public Object
      *         target BWP is not tuned to the serving cell).
      */
     bool SwitchPrimaryBwpSameCell(std::size_t targetBwpId);
+
+    /**
+     * @brief Same-cell BWP-switch POLICY: pick the best same-cell BWP by RSRP.
+     *
+     * Examines the per-carrier RSRP (#m_rsrpPerArfcn) of every BWP tuned to the
+     * CURRENT serving cell (#m_cellId). If a non-serving same-cell BWP beats the
+     * serving BWP by at least #m_bwpSwitchHysteresisDb, it requests a switch to
+     * it via SwitchPrimaryBwpSameCell. Does nothing unless connected. This is
+     * the minimal RSRP-driven trigger; it deliberately does NOT use the
+     * cellId-keyed #m_storedMeasValues (which cannot tell same-cell BWPs apart).
+     */
+    void EvaluateSameCellBwpSwitch();
+
+    /// Hysteresis margin (dB) a non-serving same-cell BWP must exceed the
+    /// serving BWP's RSRP by before the UE switches its primary BWP to it.
+    double m_bwpSwitchHysteresisDb{3.0};
+
+    /// True once the UE has reported its current primary BWP to the gNB; used
+    /// to avoid resending the same indication every measurement.
+    uint32_t m_reportedPrimaryArfcn{0};
 
     // Multi-BWP RACH lock
     /** True while a RACH procedure is in progress on any BWP. */
