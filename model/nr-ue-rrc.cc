@@ -2543,7 +2543,20 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
         }
     }
 
-    if (servingCellId == 0)
+    /*
+     * Events A1 and A2 evaluate the serving cell configured on the measObject's
+     * frequency; if there is none (e.g. an inter-frequency neighbour object),
+     * there is nothing to evaluate for those events.
+     * Events A3, A4 and A5 instead compare neighbour cells against the PCell
+     * (m_cellId) and therefore must be evaluated even when the measObject
+     * describes an inter-frequency neighbour, for which no serving cell exists
+     * on that frequency. Otherwise inter-frequency handover could never be
+     * triggered.
+     */
+    bool isServingCellEvent =
+        (reportConfigEutra.eventId == NrRrcSap::ReportConfigEutra::EVENT_A1) ||
+        (reportConfigEutra.eventId == NrRrcSap::ReportConfigEutra::EVENT_A2);
+    if (servingCellId == 0 && isServingCellEvent)
     {
         return;
     }
