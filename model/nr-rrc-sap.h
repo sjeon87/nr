@@ -597,6 +597,29 @@ class NR_EXPORT NrRrcSap
         uint8_t raPrachMaskIndex; ///< RA PRACH mask index
     };
 
+    /// ServingCellConfigCommon structure (broadcast cell PHY configuration)
+    struct NR_EXPORT ServingCellConfigCommon
+    {
+        uint8_t numerology; // SubcarrierSpacing (0..5)
+
+        uint8_t symbolsPerSlot; // 14 (normal CP), 12 (extended CP)
+
+        // DL/UL control symbols (approx. downlinkSymbolsNum/uplinkSymbolsNum from TDD pattern)
+
+        // Number of DL control symbols (scheduled forwards from first symbol)
+        uint8_t dlCtrlSymsNum;
+
+        // Number of DL control symbols (scheduled backwards from last symbol)
+        uint8_t ulCtrlSymsNum;
+
+        std::string tddPattern; // TDD pattern (Not following ASN.1 structure just yet)
+
+        // Number of RBs per RBG. Standard actually defines a bit to select between config1 and
+        // config2. We avoid it here because we have flexible rbOverhead numbers that cause weird
+        // rounding issues.
+        uint8_t rbgSize;
+    };
+
     /// MobilityControlInfo structure
     struct NR_EXPORT MobilityControlInfo
     {
@@ -609,6 +632,8 @@ class NR_EXPORT NrRrcSap
         RadioResourceConfigCommon radioResourceConfigCommon; ///< radio resource config common
         bool haveRachConfigDedicated{false};                 ///< Have RACH config dedicated?
         RachConfigDedicated rachConfigDedicated;             ///< RACH config dedicated
+        bool haveServingCellConfigCommon{false}; ///< have target serving cell config common?
+        ServingCellConfigCommon servingCellConfigCommon; ///< target cell PHY configuration
     };
 
     /// ReestabUeIdentity structure
@@ -632,28 +657,6 @@ class NR_EXPORT NrRrcSap
         int numerology;             ///< numerology
         uint16_t dlBandwidth;       ///< DL bandwidth
         uint16_t systemFrameNumber; ///< system frame number
-    };
-
-    struct NR_EXPORT ServingCellConfigCommon
-    {
-        uint8_t numerology; // SubcarrierSpacing (0..5)
-
-        uint8_t symbolsPerSlot; // 14 (normal CP), 12 (extended CP)
-
-        // DL/UL control symbols (approx. downlinkSymbolsNum/uplinkSymbolsNum from TDD pattern)
-
-        // Number of DL control symbols (scheduled forwards from first symbol)
-        uint8_t dlCtrlSymsNum;
-
-        // Number of DL control symbols (scheduled backwards from last symbol)
-        uint8_t ulCtrlSymsNum;
-
-        std::string tddPattern; // TDD pattern (Not following ASN.1 structure just yet)
-
-        // Number of RBs per RBG. Standard actually defines a bit to select between config1 and
-        // config2. We avoid it here because we have flexible rbOverhead numbers that cause weird
-        // rounding issues.
-        uint8_t rbgSize;
     };
 
     /// SystemInformationBlockType1 structure

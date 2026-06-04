@@ -1335,24 +1335,33 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
                     "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
                 auto dlBwp = std::distance(m_cphySapProvider.begin(), dlIt);
                 auto ulBwp = std::distance(m_cphySapProvider.begin(), ulIt);
+                // Prefer the target cell's broadcast PHY configuration carried in
+                // the handover command. The UE last decoded SIB1 on the *source*
+                // cell, so reusing m_lastSib1 here would re-tune the target BWP to
+                // the source numerology/TDD pattern and break inter-numerology
+                // handover. Fall back to m_lastSib1 only if the target config was
+                // not supplied (keeps same-numerology behaviour unchanged).
+                const NrRrcSap::ServingCellConfigCommon& targetScc =
+                    mci.haveServingCellConfigCommon ? mci.servingCellConfigCommon
+                                                    : m_lastSib1.servingCellConfigCommon;
                 ReconfigureFromSib1(dlBwp,
                                     mci.targetPhysCellId,
-                                    m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
-                                    m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
-                                    m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
-                                    m_lastSib1.servingCellConfigCommon.numerology,
-                                    m_lastSib1.servingCellConfigCommon.tddPattern,
-                                    m_lastSib1.servingCellConfigCommon.rbgSize);
+                                    targetScc.dlCtrlSymsNum,
+                                    targetScc.ulCtrlSymsNum,
+                                    targetScc.symbolsPerSlot,
+                                    targetScc.numerology,
+                                    targetScc.tddPattern,
+                                    targetScc.rbgSize);
                 if (ulBwp != dlBwp)
                 {
                     ReconfigureFromSib1(ulBwp,
                                         mci.targetPhysCellId,
-                                        m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
-                                        m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
-                                        m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
-                                        m_lastSib1.servingCellConfigCommon.numerology,
+                                        targetScc.dlCtrlSymsNum,
+                                        targetScc.ulCtrlSymsNum,
+                                        targetScc.symbolsPerSlot,
+                                        targetScc.numerology,
                                         "F",
-                                        m_lastSib1.servingCellConfigCommon.rbgSize);
+                                        targetScc.rbgSize);
                 }
                 SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
                 SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));

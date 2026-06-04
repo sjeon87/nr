@@ -319,29 +319,25 @@ NrInterFreqHandoverTestCase::DoRun()
     // target cell for a sustained period after the inter-frequency (inter-BWP)
     // handover completes, not merely complete the control-plane handover.
     //
-    // This is asserted for the same-numerology inter-frequency handover (the
-    // primary scenario) under both the ideal and the real RRC protocol. For the
-    // inter-numerology variant the control-plane handover and the pre-handover
-    // data plane are verified, but sustained post-handover downlink delivery on
-    // the re-tuned target BWP is a known, still-open limitation (the UE's
-    // DL-CQI feedback is generated but not transmitted on the target BWP after
-    // an inter-numerology re-tune, so the target gNB does not schedule downlink
-    // data); see the handover limitations in the module documentation.
+    // This is asserted for every variant: same- and inter-numerology, under
+    // both the ideal and the real RRC protocol. The inter-numerology case
+    // requires that the target cell's broadcast PHY configuration (numerology,
+    // TDD pattern, control symbols) is carried in the handover command and that
+    // the UE does not let a neighbour cell's overheard MIB reset the re-tuned
+    // serving BWP, so DL data reception (and hence the DL-CQI feedback the
+    // target gNB needs to schedule downlink) recovers on the new numerology.
     uint32_t rxAtEnd = dlSink->GetTotalRx();
-    if (!m_interNumerology)
-    {
-        NS_TEST_ASSERT_MSG_GT(rxAtEnd,
-                              m_rxAtHandover,
-                              "No downlink data delivered on the target cell after the "
-                              "inter-frequency handover (data plane did not survive the re-tune)");
-        // Require a meaningful amount of post-handover traffic (several packets
-        // of 100 bytes each at one packet per 10 ms), demonstrating sustained
-        // delivery.
-        NS_TEST_ASSERT_MSG_GT_OR_EQ(rxAtEnd - m_rxAtHandover,
-                                    500,
-                                    "Insufficient sustained downlink traffic on the target cell "
-                                    "after the inter-frequency handover");
-    }
+    NS_TEST_ASSERT_MSG_GT(rxAtEnd,
+                          m_rxAtHandover,
+                          "No downlink data delivered on the target cell after the "
+                          "inter-frequency handover (data plane did not survive the re-tune)");
+    // Require a meaningful amount of post-handover traffic (several packets
+    // of 100 bytes each at one packet per 10 ms), demonstrating sustained
+    // delivery.
+    NS_TEST_ASSERT_MSG_GT_OR_EQ(rxAtEnd - m_rxAtHandover,
+                                500,
+                                "Insufficient sustained downlink traffic on the target cell "
+                                "after the inter-frequency handover");
 
     Simulator::Destroy();
 
@@ -400,17 +396,15 @@ NrInterFreqHandoverTestSuite::NrInterFreqHandoverTestSuite()
 {
     // useIdealRrc, interNumerology.
     // Each case drives a measurement-triggered inter-frequency handover and
-    // verifies the control-plane handover plus the pre-handover data plane.
-    // The same-numerology cases additionally assert sustained end-to-end
-    // downlink data continuity on the target cell after the inter-BWP re-tune,
-    // under both the ideal and the real RRC protocol. The inter-numerology
-    // case verifies handover completion (post-handover downlink continuity on a
-    // re-tuned, different-numerology BWP remains a known limitation, and the
-    // real-RRC inter-numerology handover does not yet complete, so only the
-    // ideal-RRC inter-numerology variant is exercised here).
+    // verifies the control-plane handover, the pre-handover data plane, and
+    // sustained end-to-end downlink data continuity on the target cell after
+    // the inter-BWP re-tune. All four combinations are exercised:
+    // same-numerology and inter-numerology, each under both the ideal and the
+    // real RRC protocol.
     AddTestCase(new NrInterFreqHandoverTestCase(true, false), Duration::QUICK);
     AddTestCase(new NrInterFreqHandoverTestCase(false, false), Duration::QUICK);
     AddTestCase(new NrInterFreqHandoverTestCase(true, true), Duration::QUICK);
+    AddTestCase(new NrInterFreqHandoverTestCase(false, true), Duration::QUICK);
 }
 
 /**
