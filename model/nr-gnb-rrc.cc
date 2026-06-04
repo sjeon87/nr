@@ -895,6 +895,27 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
     result.mobilityControlInfo.carrierBandwidth.ulBandwidth =
         targetComponentCarrier->GetUlBandwidth();
 
+    // Carry the target cell's broadcast PHY configuration in the handover
+    // command so the UE re-tunes its target BWP to the *target* numerology,
+    // TDD pattern and control-symbol layout. Without this the UE would fall
+    // back to the (stale) serving-cell SIB1 it last decoded on the source
+    // cell, which breaks inter-numerology handover: the target BWP would keep
+    // the source numerology, so DL data reception (and hence the DL-CQI
+    // feedback that lets the target gNB schedule downlink) never recovers.
+    result.mobilityControlInfo.haveServingCellConfigCommon = true;
+    result.mobilityControlInfo.servingCellConfigCommon.numerology =
+        targetComponentCarrier->GetPhy()->GetNumerology();
+    result.mobilityControlInfo.servingCellConfigCommon.symbolsPerSlot =
+        targetComponentCarrier->GetPhy()->GetSymbolsPerSlot();
+    result.mobilityControlInfo.servingCellConfigCommon.dlCtrlSymsNum =
+        targetComponentCarrier->GetMac()->GetDlCtrlSyms();
+    result.mobilityControlInfo.servingCellConfigCommon.ulCtrlSymsNum =
+        targetComponentCarrier->GetMac()->GetUlCtrlSyms();
+    result.mobilityControlInfo.servingCellConfigCommon.tddPattern =
+        targetComponentCarrier->GetPhy()->GetPattern();
+    result.mobilityControlInfo.servingCellConfigCommon.rbgSize =
+        targetComponentCarrier->GetPhy()->GetNumRbPerRbg();
+
     if (m_caSupportConfigured && m_rrc->m_numberOfComponentCarriers > 1)
     {
         // Release sCells
