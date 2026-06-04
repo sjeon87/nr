@@ -1174,6 +1174,19 @@ class NR_EXPORT NrUeRrc : public Object
     std::map<uint16_t, MeasValues> m_storedMeasValues;
 
     /**
+     * @brief Cell<->carrier bookkeeping: maps a discovered cell ID to the
+     *        carrier (ARFCN) on which it was found.
+     *
+     * The UE keeps multiple BWPs tuned (one per carrier) so it can receive SSB
+     * and measure RSRP on neighbour frequencies. This map lets the RRC route a
+     * received broadcast (MIB) to the BWP actually tuned to the originating
+     * cell's carrier (via GetArfcnBwpId), instead of unconditionally applying
+     * it to the primary serving BWP. Populated by TrackCellArfcn() as cells are
+     * discovered/measured/synchronized.
+     */
+    std::map<uint16_t, uint32_t> m_cellIdToArfcn;
+
+    /**
      * @brief Stored measure values per carrier.
      */
     std::map<uint16_t, std::map<uint8_t, MeasValues>> m_storedMeasValuesPerCarrier;
@@ -1430,6 +1443,51 @@ class NR_EXPORT NrUeRrc : public Object
      */
     void ResetRlfParams();
     std::size_t GetArfcnBwpId(uint32_t arfcn) const;
+
+    /**
+     * @brief Record the carrier (ARFCN) on which a given cell was discovered.
+     *
+     * Maintains the cell<->BWP bookkeeping used to route per-cell broadcasts
+     * (MIB) to the BWP that is actually tuned to that cell's carrier. Called
+     * whenever a cell's SSB is measured/synchronized, so the UE always knows
+     * which of its tuned BWPs corresponds to a given cell.
+     *
+     * @param cellId Cell whose carrier is being recorded.
+     * @param arfcn  Carrier (ARFCN) the cell was discovered on.
+     */
+    void TrackCellArfcn(uint16_t cellId, uint32_t arfcn);
+
+    /**
+     * @brief Resolve the BWP/CC index tuned to a given cell's carrier.
+     *
+     * Uses the cell<->carrier bookkeeping (TrackCellArfcn) plus the BWP ARFCN
+     * lookup (GetArfcnBwpId) to find which tuned BWP received/can receive that
+     * cell's broadcast. Returns false if the cell's carrier is unknown or no
+     * BWP is tuned to it.
+     *
+     * @param cellId Cell to resolve.
+     * @param[out] bwpId BWP/CC index tuned to that cell, if found.
+     * @return true if a tuned BWP was found for the cell.
+     */
+    bool GetCellBwpId(uint16_t cellId, std::size_t& bwpId) const;
+
+    /**
+     * @brief Switch the primary (serving) DL/UL BWP to another BWP of the
+     *        SAME serving cell.
+     *
+     * This is the mechanism for same-cell BWP switching. It only re-points the
+     * primary DL (and, when they coincide, UL) index to @p targetBwpId and
+     * re-binds the RNTI on the new PHY/MAC; it does NOT implement any policy
+     * for *when* to switch. It is guarded so it can only ever move between BWPs
+     * that belong to the current serving cell (@a m_cellId): moving to a BWP of
+     * a different cell would be a handover (and, if kept simultaneously, dual
+     * connectivity), which is out of scope.
+     *
+     * @param targetBwpId BWP/CC index to make the new primary serving BWP.
+     * @return true if the switch was performed; false if rejected (e.g. the
+     *         target BWP is not tuned to the serving cell).
+     */
+    bool SwitchPrimaryBwpSameCell(std::size_t targetBwpId);
 
     // Multi-BWP RACH lock
     /** True while a RACH procedure is in progress on any BWP. */
