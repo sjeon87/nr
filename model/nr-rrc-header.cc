@@ -30,10 +30,16 @@
 #define MAX_SCELL_REPORT 5
 #define MAX_SCELL_CONF 5
 
-// Number of entries in the flattened bandwidth ENUMERATED used by
-// BandwidthToEnum / EnumToBandwidth: the FR1 set {5,10,15,20,25,30,40,50,60,
-// 80,100} MHz unioned with the FR2-only {200,400} MHz, i.e. 13 entries.
-#define BANDWIDTH_ENUM_SIZE 13
+// Number of leaves in the FR1 and FR2 SupportedBandwidth ENUMERATED CHOICE
+// (TS 38.331): fr1 has 11 values {5,10,15,20,25,30,40,50,60,80,100} MHz and
+// fr2 has 4 values {50,100,200,400} MHz.
+#define FR1_BANDWIDTH_ENUM_SIZE 11
+#define FR2_BANDWIDTH_ENUM_SIZE 4
+
+// NR-ARFCN at the FR1/FR2 boundary (24.25 GHz). Carriers at or above this ARFCN
+// are FR2 (mmWave). See NrPhy::ArfcnToFrequencyHz (3GPP TS 38.104). Kept as a
+// local constant to avoid a header dependency on the PHY layer.
+#define FR2_BOUNDARY_ARFCN 2016667
 
 namespace ns3
 {
@@ -65,29 +71,17 @@ NrRrcAsn1Header::GetMessageType() const
 }
 
 int
-NrRrcAsn1Header::BandwidthToEnum(uint16_t bandwidth) const
+NrRrcAsn1Header::Fr1BandwidthToEnum(uint16_t bandwidth) const
 {
-    // 3GPP SupportedBandwidth ::= CHOICE {
-    //    fr1 ENUMERATED {mhz5, mhz10, mhz15, mhz20, mhz25, mhz30, mhz40, mhz50, mhz60, mhz80,
-    //    mhz100}, fr2 ENUMERATED {mhz50, mhz100, mhz200, mhz400}
-    // }
-    //
-    // The (de)serialization here uses a single flattened ENUMERATED of width
-    // BANDWIDTH_ENUM_SIZE that unions the FR1 set with the FR2-only 200/400 MHz
-    // bandwidths: {5,10,15,20,25,30,40,50,60,80,100,200,400} MHz mapped to enum
-    // indices 0..12. See EnumToBandwidth for the inverse.
+    // FR1 leaf of SupportedBandwidth ::= CHOICE (TS 38.331):
+    //    fr1 ENUMERATED {mhz5, mhz10, mhz15, mhz20, mhz25, mhz30, mhz40, mhz50,
+    //    mhz60, mhz80, mhz100} -- indices 0..10.
     //
     // The bandwidth argument is expressed in units of 100 kHz (the convention
     // used throughout the NR module, see NrComponentCarrier::GetDlBandwidth and
     // NrHelper which sets it to channelBandwidthHz / 100 kHz). For example a
     // 5 MHz carrier is 50, a 20 MHz carrier is 200, a 100 MHz carrier is 1000.
-    // Convert to MHz before mapping it to the enum index so that all FR1
-    // bandwidths (including 15/25/30/50/60/80/100 MHz) and the FR2 200/400 MHz
-    // bandwidths can be represented. The old code switched directly on the
-    // 100 kHz value, so only carriers whose 100 kHz value happened to coincide
-    // with an MHz label survived (50/100/200/400 -> 5/10/20/40 MHz, encoded
-    // moreover with the wrong enum index), and 15/25/30/50/60/80/100 MHz
-    // triggered NS_FATAL_ERROR.
+    // Convert to MHz before mapping it to the enum index.
     NS_ABORT_MSG_IF(bandwidth % 10 != 0,
                     "Bandwidth (in 100 kHz units) is not a multiple of 1 MHz: " << bandwidth);
     const uint16_t mhz = bandwidth / 10;
@@ -127,25 +121,18 @@ NrRrcAsn1Header::BandwidthToEnum(uint16_t bandwidth) const
     case 100:
         n = 10;
         break;
-    case 200:
-        n = 11;
-        break;
-    case 400:
-        n = 12;
-        break;
     default:
-        NS_FATAL_ERROR("Wrong bandwidth (MHz): " << mhz << " (raw 100 kHz value: " << bandwidth
-                                                 << ")");
+        NS_FATAL_ERROR("Bandwidth not in the FR1 SupportedBandwidth set (MHz): "
+                       << mhz << " (raw 100 kHz value: " << bandwidth << ")");
     }
     return n;
 }
 
 uint16_t
-NrRrcAsn1Header::EnumToBandwidth(int n) const
+NrRrcAsn1Header::EnumToFr1Bandwidth(int n) const
 {
-    // Inverse of BandwidthToEnum: maps a SupportedBandwidth enum index back to a
-    // bandwidth expressed in units of 100 kHz (MHz * 10), matching the rest of
-    // the NR module convention.
+    // Inverse of Fr1BandwidthToEnum: maps an FR1 SupportedBandwidth enum index
+    // back to a bandwidth expressed in units of 100 kHz (MHz * 10).
     uint16_t mhz;
     switch (n)
     {
@@ -182,16 +169,112 @@ NrRrcAsn1Header::EnumToBandwidth(int n) const
     case 10:
         mhz = 100;
         break;
-    case 11:
+    default:
+        NS_FATAL_ERROR("Wrong FR1 enum value for bandwidth: " << n);
+    }
+    return mhz * 10;
+}
+
+int
+NrRrcAsn1Header::Fr2BandwidthToEnum(uint16_t bandwidth) const
+{
+    // FR2 leaf of SupportedBandwidth ::= CHOICE (TS 38.331):
+    //    fr2 ENUMERATED {mhz50, mhz100, mhz200, mhz400} -- indices 0..3.
+    // The bandwidth argument is in units of 100 kHz (MHz * 10).
+    NS_ABORT_MSG_IF(bandwidth % 10 != 0,
+                    "Bandwidth (in 100 kHz units) is not a multiple of 1 MHz: " << bandwidth);
+    const uint16_t mhz = bandwidth / 10;
+    int n;
+    switch (mhz)
+    {
+    case 50:
+        n = 0;
+        break;
+    case 100:
+        n = 1;
+        break;
+    case 200:
+        n = 2;
+        break;
+    case 400:
+        n = 3;
+        break;
+    default:
+        NS_FATAL_ERROR("Bandwidth not in the FR2 SupportedBandwidth set (MHz): "
+                       << mhz << " (raw 100 kHz value: " << bandwidth << ")");
+    }
+    return n;
+}
+
+uint16_t
+NrRrcAsn1Header::EnumToFr2Bandwidth(int n) const
+{
+    // Inverse of Fr2BandwidthToEnum: maps an FR2 SupportedBandwidth enum index
+    // back to a bandwidth expressed in units of 100 kHz (MHz * 10).
+    uint16_t mhz;
+    switch (n)
+    {
+    case 0:
+        mhz = 50;
+        break;
+    case 1:
+        mhz = 100;
+        break;
+    case 2:
         mhz = 200;
         break;
-    case 12:
+    case 3:
         mhz = 400;
         break;
     default:
-        NS_FATAL_ERROR("Wrong enum value for bandwidth: " << n);
+        NS_FATAL_ERROR("Wrong FR2 enum value for bandwidth: " << n);
     }
     return mhz * 10;
+}
+
+void
+NrRrcAsn1Header::SerializeSupportedBandwidth(uint16_t bandwidth100kHz, uint32_t arfcn) const
+{
+    // SupportedBandwidth ::= CHOICE { fr1 ..., fr2 ... } (TS 38.331).
+    // Determine the FR from the carrier ARFCN: a carrier at or above the
+    // FR1/FR2 boundary (24.25 GHz, NR-ARFCN >= 2016667) is FR2.
+    const bool isFr2 = (arfcn >= FR2_BOUNDARY_ARFCN);
+    // Choice index 0 -> fr1, 1 -> fr2; no extension marker.
+    SerializeChoice(2, isFr2 ? 1 : 0, false);
+    if (isFr2)
+    {
+        SerializeEnum(FR2_BANDWIDTH_ENUM_SIZE, Fr2BandwidthToEnum(bandwidth100kHz));
+    }
+    else
+    {
+        SerializeEnum(FR1_BANDWIDTH_ENUM_SIZE, Fr1BandwidthToEnum(bandwidth100kHz));
+    }
+}
+
+Buffer::Iterator
+NrRrcAsn1Header::DeserializeSupportedBandwidth(uint16_t* bandwidth100kHz,
+                                               Buffer::Iterator bIterator) const
+{
+    // The FR discriminator is on the wire, so the round-trip is exact regardless
+    // of the serialize-time FR choice.
+    int sel = 0;
+    bIterator = const_cast<NrRrcAsn1Header*>(this)->DeserializeChoice(2, false, &sel, bIterator);
+    int n = 0;
+    if (sel == 1)
+    {
+        bIterator = const_cast<NrRrcAsn1Header*>(this)->DeserializeEnum(FR2_BANDWIDTH_ENUM_SIZE,
+                                                                        &n,
+                                                                        bIterator);
+        *bandwidth100kHz = EnumToFr2Bandwidth(n);
+    }
+    else
+    {
+        bIterator = const_cast<NrRrcAsn1Header*>(this)->DeserializeEnum(FR1_BANDWIDTH_ENUM_SIZE,
+                                                                        &n,
+                                                                        bIterator);
+        *bandwidth100kHz = EnumToFr1Bandwidth(n);
+    }
+    return bIterator;
 }
 
 void
@@ -778,8 +861,8 @@ NrRrcAsn1Header::SerializeSystemInformationBlockType2(
     // freqInfo
     SerializeSequence(std::bitset<2>(3), false);
     SerializeInteger((int)systemInformationBlockType2.freqInfo.ulCarrierFreq, 0, MAX_ARFCN);
-    SerializeEnum(BANDWIDTH_ENUM_SIZE,
-                  BandwidthToEnum(systemInformationBlockType2.freqInfo.ulBandwidth));
+    SerializeSupportedBandwidth(systemInformationBlockType2.freqInfo.ulBandwidth,
+                                systemInformationBlockType2.freqInfo.ulCarrierFreq);
 
     SerializeInteger(29, 1, 32); // additionalSpectrumEmission
     // timeAlignmentTimerCommon
@@ -1276,8 +1359,8 @@ NrRrcAsn1Header::SerializeMeasConfig(NrRrcSap::MeasConfig measConfig) const
             SerializeInteger(it->measObjectEutra.carrierFreq, 0, MAX_ARFCN);
 
             // Serialize  allowedMeasBandwidth
-            SerializeEnum(BANDWIDTH_ENUM_SIZE,
-                          BandwidthToEnum(it->measObjectEutra.allowedMeasBandwidth));
+            SerializeSupportedBandwidth(it->measObjectEutra.allowedMeasBandwidth,
+                                        it->measObjectEutra.carrierFreq);
 
             SerializeBoolean(it->measObjectEutra.presenceAntennaPort1);
             SerializeBitstring(std::bitset<2>(it->measObjectEutra.neighCellConfig));
@@ -1959,7 +2042,8 @@ NrRrcAsn1Header::SerializeNonCriticalExtensionConfiguration(
             SerializeInteger(it.cellIdentification.dlCarrierFreq, 1, MAX_ARFCN);
 
             // Serialize RadioResourceConfigCommonSCell
-            SerializeRadioResourceConfigCommonSCell(it.radioResourceConfigCommonSCell);
+            SerializeRadioResourceConfigCommonSCell(it.radioResourceConfigCommonSCell,
+                                                    it.cellIdentification.dlCarrierFreq);
 
             if (it.haveRadioResourceConfigDedicatedSCell)
             {
@@ -1972,7 +2056,8 @@ NrRrcAsn1Header::SerializeNonCriticalExtensionConfiguration(
 
 void
 NrRrcAsn1Header::SerializeRadioResourceConfigCommonSCell(
-    NrRrcSap::RadioResourceConfigCommonSCell rrccsc) const
+    NrRrcSap::RadioResourceConfigCommonSCell rrccsc,
+    uint32_t dlArfcn) const
 {
     // 2 optional fields. Extension marker not present.
     std::bitset<2> radioResourceConfigCommonSCell_r10;
@@ -1991,10 +2076,11 @@ NrRrcAsn1Header::SerializeRadioResourceConfigCommonSCell(
         nonUlConfiguration_r10.set(0, false); // Tdd-Config-r10 Not Implemented
         SerializeSequence(nonUlConfiguration_r10, false);
 
-        // dl-Bandwidth: encode via the NR bandwidth enum (FR1/FR2), like the MIB
-        // and handover paths, instead of the LTE RB-count integer [11,100] which
-        // cannot represent NR carriers >= 20 MHz (value 200 in 100 kHz units).
-        SerializeEnum(BANDWIDTH_ENUM_SIZE, BandwidthToEnum(rrccsc.nonUlConfiguration.dlBandwidth));
+        // dl-Bandwidth: encode via the NR SupportedBandwidth CHOICE (FR1/FR2),
+        // like the MIB and handover paths, instead of the LTE RB-count integer
+        // [11,100] which cannot represent NR carriers >= 20 MHz (value 200 in
+        // 100 kHz units). FR is selected from the SCell DL carrier ARFCN.
+        SerializeSupportedBandwidth(rrccsc.nonUlConfiguration.dlBandwidth, dlArfcn);
 
         std::bitset<1> antennaInfoCommon_r10;
         antennaInfoCommon_r10.set(0, true);
@@ -2031,9 +2117,10 @@ NrRrcAsn1Header::SerializeRadioResourceConfigCommonSCell(
         SerializeSequence(FreqInfo_r10, false);
 
         SerializeInteger(rrccsc.ulConfiguration.ulFreqInfo.ulCarrierFreq, 0, MAX_ARFCN);
-        // ul-Bandwidth: NR bandwidth enum (see dl-Bandwidth above).
-        SerializeEnum(BANDWIDTH_ENUM_SIZE,
-                      BandwidthToEnum(rrccsc.ulConfiguration.ulFreqInfo.ulBandwidth));
+        // ul-Bandwidth: NR SupportedBandwidth CHOICE (see dl-Bandwidth above).
+        // FR is selected from the SCell UL carrier ARFCN.
+        SerializeSupportedBandwidth(rrccsc.ulConfiguration.ulFreqInfo.ulBandwidth,
+                                    rrccsc.ulConfiguration.ulFreqInfo.ulCarrierFreq);
 
         // Serialize UlPowerControlCommonSCell
         std::bitset<2> UlPowerControlCommonSCell_r10;
@@ -2927,8 +3014,8 @@ NrRrcAsn1Header::DeserializeRadioResourceConfigCommonSCell(
         std::bitset<5> nonUlConfiguration_r10;
         bIterator = DeserializeSequence(&nonUlConfiguration_r10, false, bIterator);
         int n;
-        bIterator = DeserializeEnum(BANDWIDTH_ENUM_SIZE, &n, bIterator);
-        rrccsc->nonUlConfiguration.dlBandwidth = EnumToBandwidth(n);
+        bIterator =
+            DeserializeSupportedBandwidth(&rrccsc->nonUlConfiguration.dlBandwidth, bIterator);
 
         std::bitset<1> antennaInfoCommon_r10;
         bIterator = DeserializeSequence(&antennaInfoCommon_r10, false, bIterator);
@@ -2952,8 +3039,8 @@ NrRrcAsn1Header::DeserializeRadioResourceConfigCommonSCell(
         int n;
         bIterator = DeserializeInteger(&n, 0, MAX_ARFCN, bIterator);
         rrccsc->ulConfiguration.ulFreqInfo.ulCarrierFreq = n;
-        bIterator = DeserializeEnum(BANDWIDTH_ENUM_SIZE, &n, bIterator);
-        rrccsc->ulConfiguration.ulFreqInfo.ulBandwidth = EnumToBandwidth(n);
+        bIterator = DeserializeSupportedBandwidth(&rrccsc->ulConfiguration.ulFreqInfo.ulBandwidth,
+                                                  bIterator);
 
         std::bitset<2> UlPowerControlCommonSCell_r10;
         bIterator = DeserializeSequence(&UlPowerControlCommonSCell_r10, false, bIterator);
@@ -3405,8 +3492,9 @@ NrRrcAsn1Header::DeserializeSystemInformationBlockType2(
     if (freqInfoOpts[0])
     {
         // Deserialize ul-Bandwidth
-        bIterator = DeserializeEnum(BANDWIDTH_ENUM_SIZE, &n, bIterator);
-        systemInformationBlockType2->freqInfo.ulBandwidth = EnumToBandwidth(n);
+        bIterator =
+            DeserializeSupportedBandwidth(&systemInformationBlockType2->freqInfo.ulBandwidth,
+                                          bIterator);
     }
 
     // additionalSpectrumEmission
@@ -4157,8 +4245,9 @@ NrRrcAsn1Header::DeserializeMeasConfig(NrRrcSap::MeasConfig* measConfig, Buffer:
                 elem.measObjectEutra.carrierFreq = n;
 
                 // allowedMeasBandwidth
-                bIterator = DeserializeEnum(BANDWIDTH_ENUM_SIZE, &n, bIterator);
-                elem.measObjectEutra.allowedMeasBandwidth = EnumToBandwidth(n);
+                bIterator =
+                    DeserializeSupportedBandwidth(&elem.measObjectEutra.allowedMeasBandwidth,
+                                                  bIterator);
 
                 // presenceAntennaPort1
                 bIterator =
@@ -5513,13 +5602,13 @@ NrRrcConnectionReconfigurationHeader::PreSerialize() const
         {
             SerializeSequence(std::bitset<1>(1), false);
 
-            // Serialize dl-Bandwidth
-            SerializeEnum(BANDWIDTH_ENUM_SIZE,
-                          BandwidthToEnum(m_mobilityControlInfo.carrierBandwidth.dlBandwidth));
+            // Serialize dl-Bandwidth (FR from the target DL carrier ARFCN)
+            SerializeSupportedBandwidth(m_mobilityControlInfo.carrierBandwidth.dlBandwidth,
+                                        m_mobilityControlInfo.carrierFreq.dlCarrierFreq);
 
-            // Serialize ul-Bandwidth
-            SerializeEnum(BANDWIDTH_ENUM_SIZE,
-                          BandwidthToEnum(m_mobilityControlInfo.carrierBandwidth.ulBandwidth));
+            // Serialize ul-Bandwidth (FR from the target UL carrier ARFCN)
+            SerializeSupportedBandwidth(m_mobilityControlInfo.carrierBandwidth.ulBandwidth,
+                                        m_mobilityControlInfo.carrierFreq.ulCarrierFreq);
         }
 
         // Serialize t304
@@ -5666,13 +5755,15 @@ NrRrcConnectionReconfigurationHeader::Deserialize(Buffer::Iterator bIterator)
                     std::bitset<1> ulBandwidthPresent;
                     bIterator = DeserializeSequence(&ulBandwidthPresent, false, bIterator);
 
-                    bIterator = DeserializeEnum(BANDWIDTH_ENUM_SIZE, &n, bIterator);
-                    m_mobilityControlInfo.carrierBandwidth.dlBandwidth = EnumToBandwidth(n);
+                    bIterator = DeserializeSupportedBandwidth(
+                        &m_mobilityControlInfo.carrierBandwidth.dlBandwidth,
+                        bIterator);
 
                     if (ulBandwidthPresent[0])
                     {
-                        bIterator = DeserializeEnum(BANDWIDTH_ENUM_SIZE, &n, bIterator);
-                        m_mobilityControlInfo.carrierBandwidth.ulBandwidth = EnumToBandwidth(n);
+                        bIterator = DeserializeSupportedBandwidth(
+                            &m_mobilityControlInfo.carrierBandwidth.ulBandwidth,
+                            bIterator);
                     }
                 }
 
@@ -6219,9 +6310,9 @@ NrHandoverPreparationInfoHeader::PreSerialize() const
     // Serialize sourceMasterInformationBlock
     SerializeSequence(std::bitset<0>(), false);
     SerializeInteger(m_asConfig.sourceMasterInformationBlock.numerology, 0, 6); // numerology
-    SerializeEnum(
-        BANDWIDTH_ENUM_SIZE,
-        BandwidthToEnum(m_asConfig.sourceMasterInformationBlock.dlBandwidth)); // dl-Bandwidth
+    // dl-Bandwidth (FR from the source DL carrier ARFCN)
+    SerializeSupportedBandwidth(m_asConfig.sourceMasterInformationBlock.dlBandwidth,
+                                m_asConfig.sourceDlCarrierFreq);
     SerializeSequence(std::bitset<0>(), false); // phich-Config sequence
     SerializeEnum(2, 0);                        // phich-Duration
     SerializeEnum(4, 0);                        // phich-Resource
@@ -6316,9 +6407,11 @@ NrHandoverPreparationInfoHeader::Deserialize(Buffer::Iterator bIterator)
                 bIterator = DeserializeInteger(&m_asConfig.sourceMasterInformationBlock.numerology,
                                                0,
                                                6,
-                                               bIterator);                       // numerology
-                bIterator = DeserializeEnum(BANDWIDTH_ENUM_SIZE, &n, bIterator); // dl-Bandwidth
-                m_asConfig.sourceMasterInformationBlock.dlBandwidth = EnumToBandwidth(n);
+                                               bIterator); // numerology
+                // dl-Bandwidth
+                bIterator = DeserializeSupportedBandwidth(
+                    &m_asConfig.sourceMasterInformationBlock.dlBandwidth,
+                    bIterator);
 
                 // phich-Config
                 bIterator = DeserializeSequence(&bitset0, false, bIterator);
