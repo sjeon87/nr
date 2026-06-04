@@ -1323,10 +1323,22 @@ NrUePhy::EndVarTti(const std::shared_ptr<DciInfoElementTdma>& dci)
         // end of slot
         m_currentSlot.Add(1);
 
-        Simulator::Schedule(m_lastSlotStart + GetSlotPeriod() - Simulator::Now(),
-                            &NrUePhy::StartSlot,
-                            this,
-                            m_currentSlot);
+        // During an inter-frequency / inter-numerology handover the UE re-tunes
+        // to a different BWP PHY. The slot period (which is numerology-dependent)
+        // and the m_lastSlotStart reference belong to the abandoned timeline, so
+        // the next-slot start can resolve to a time in the past. Clamp such a
+        // stale boundary to the current instant so the slot machine keeps
+        // running on the target BWP instead of asserting; StartSlot() detects
+        // the numerology change and cleanly re-stamps the loop from there.
+        Time delay = m_lastSlotStart + GetSlotPeriod() - Simulator::Now();
+        if (delay.IsNegative())
+        {
+            NS_LOG_WARN("Clamping next-slot start "
+                        << delay << " in the past to now, due to a BWP/numerology switch");
+            delay = Time(0);
+        }
+
+        Simulator::Schedule(delay, &NrUePhy::StartSlot, this, m_currentSlot);
     }
     else
     {
