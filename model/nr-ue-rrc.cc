@@ -585,6 +585,27 @@ NrUeRrc::GetPrimaryDlIndex() const
 }
 
 void
+NrUeRrc::SetCellIndividualOffset(uint16_t cellId, double offsetDb)
+{
+    NS_LOG_FUNCTION(this << cellId << offsetDb);
+    if (offsetDb == 0.0)
+    {
+        m_cellIndividualOffsetDb.erase(cellId);
+    }
+    else
+    {
+        m_cellIndividualOffsetDb[cellId] = offsetDb;
+    }
+}
+
+double
+NrUeRrc::GetCellIndividualOffset(uint16_t cellId) const
+{
+    auto it = m_cellIndividualOffsetDb.find(cellId);
+    return (it != m_cellIndividualOffsetDb.end()) ? it->second : 0.0;
+}
+
+void
 NrUeRrc::InitializeSrb0()
 {
     NS_LOG_FUNCTION(this);
@@ -2445,7 +2466,8 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
         double mp;                    // Mp, the measurement result of the PCell
         double ofp = measObjectEutra
                          .offsetFreq; // Ofp, the frequency specific offset of the primary frequency
-        double ocp = 0.0;             // Ocp, the cell specific offset of the PCell
+        // Ocp, the cell specific offset of the PCell (e.g. pico cell-range expansion bias)
+        double ocp = GetCellIndividualOffset(m_cellId);
         // Off, the offset parameter for this event.
         double off =
             nr::EutranMeasurementMapping::IeValue2ActualA3Offset(reportConfigEutra.a3Offset);
@@ -2486,6 +2508,10 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
             {
                 continue;
             }
+
+            // Ocn, the cell specific offset of this neighbour cell (e.g. pico
+            // cell-range expansion bias). Re-evaluated per neighbour.
+            ocn = GetCellIndividualOffset(cellId);
 
             switch (reportConfigEutra.triggerQuantity)
             {
