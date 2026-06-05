@@ -37,7 +37,7 @@
       ssh
     - python3 -m venv ns3env
     - source ./ns3env/bin/activate
-    - pip install cmake==3.24.0
+    - pip install cmake==$CMAKE_VERSION
 
 # GCC 11
 weekly-build-gcc-11-debug:
