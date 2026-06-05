@@ -337,6 +337,28 @@ class NR_EXPORT NrUeRrc : public Object
     uint16_t GetPrimaryDlIndex() const;
 
     /**
+     * @brief Set the cell-individual offset (Ocn/Ocp, in dB) applied to the given
+     * cell during event A3 evaluation, per 3GPP TS 36.331 Section 5.5.4.4.
+     *
+     * A positive value biases handover towards that cell: it is added to the
+     * cell's measured level both when the cell is the A3 neighbour (Ocn) and when
+     * it is the serving PCell (Ocp). This implements cell-range expansion (CRE),
+     * e.g. applying a positive bias to pico cells so UEs offload to them earlier
+     * and remain attached longer.
+     *
+     * @param cellId the cell the offset applies to
+     * @param offsetDb the offset in dB (0 removes any previously set offset)
+     */
+    void SetCellIndividualOffset(uint16_t cellId, double offsetDb);
+
+    /**
+     * @brief Get the cell-individual offset (in dB) configured for a cell.
+     * @param cellId the cell to query
+     * @return the configured offset in dB, or 0.0 if none was set
+     */
+    double GetCellIndividualOffset(uint16_t cellId) const;
+
+    /**
      * Configures the UE physical layer based on the SIB1 information corresponding to a given cell
      * ID and BWP ID.
      *
@@ -821,6 +843,9 @@ class NR_EXPORT NrUeRrc : public Object
 
     /// The unique UE identifier.
     uint64_t m_imsi;
+    /// Per-cell individual offset (Ocn/Ocp) in dB applied during event A3
+    /// evaluation, used to bias handover (e.g. pico cell-range expansion).
+    std::map<uint16_t, double> m_cellIndividualOffsetDb;
     /**
      * The `C-RNTI` attribute. Cell Radio Network Temporary Identifier.
      */
