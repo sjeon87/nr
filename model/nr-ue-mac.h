@@ -471,9 +471,9 @@ class NR_EXPORT NrUeMac : public Object
     SrBsrMachine m_srState{INACTIVE}; //!< Current state for the SR/BSR machine.
 
     Ptr<UniformRandomVariable> m_raPreambleUniformVariable;
-    uint8_t m_raPreambleId{0}; //!< The RA Preamble ID
-    uint8_t m_raRnti{0};       //!< The RA Rnti
-    uint64_t m_imsi{0};        ///< IMSI
+    uint8_t m_raPreambleId{255}; //!< The RA Preamble ID (255 = none sent; valid IDs 0..63)
+    uint8_t m_raRnti{0};         //!< The RA Rnti
+    uint64_t m_imsi{0};          ///< IMSI
 
     // The HARQ part has to be reviewed
     struct NR_EXPORT UlHarqProcessInfo
