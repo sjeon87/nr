@@ -619,6 +619,44 @@ NrRrcAsn1Header::SerializeRadioResourceConfigCommon(
 }
 
 void
+NrRrcAsn1Header::SerializeServingCellConfigCommon(
+    NrRrcSap::ServingCellConfigCommon servingCellConfigCommon) const
+{
+    // Custom (non-3GPP) encoding carrying the target cell's PHY configuration
+    // directly over SRB1. Kept aligned with the surrounding hand-rolled ASN.1
+    // style: a no-optional/no-extension SEQUENCE preamble followed by
+    // constrained INTEGERs, and an explicit length-prefixed character sequence
+    // for the variable-length TDD pattern string.
+
+    // No optional fields, no extension marker.
+    SerializeSequence(std::bitset<0>(), false);
+
+    // numerology: SubcarrierSpacing (0..5)
+    SerializeInteger(servingCellConfigCommon.numerology, 0, 5);
+
+    // symbolsPerSlot: 12 (extended CP) or 14 (normal CP)
+    SerializeInteger(servingCellConfigCommon.symbolsPerSlot, 0, 14);
+
+    // dlCtrlSymsNum / ulCtrlSymsNum: number of DL/UL control symbols
+    SerializeInteger(servingCellConfigCommon.dlCtrlSymsNum, 0, 14);
+    SerializeInteger(servingCellConfigCommon.ulCtrlSymsNum, 0, 14);
+
+    // rbgSize: number of RBs per RBG
+    SerializeInteger(servingCellConfigCommon.rbgSize, 0, 255);
+
+    // tddPattern: variable-length string (e.g. "DL|DL|DL|DL|UL"). Encode the
+    // length as a constrained INTEGER, then each character as an octet so the
+    // round-trip is exact regardless of pattern content/length.
+    const std::string& tddPattern = servingCellConfigCommon.tddPattern;
+    NS_ASSERT_MSG(tddPattern.size() <= 255, "tddPattern too long to serialize");
+    SerializeInteger(static_cast<int>(tddPattern.size()), 0, 255);
+    for (char c : tddPattern)
+    {
+        SerializeInteger(static_cast<uint8_t>(c), 0, 255);
+    }
+}
+
+void
 NrRrcAsn1Header::SerializeRadioResourceConfigCommonSib(
     NrRrcSap::RadioResourceConfigCommonSib radioResourceConfigCommonSib) const
 {
@@ -3638,6 +3676,47 @@ NrRrcAsn1Header::DeserializeRachConfigCommon(NrRrcSap::RachConfigCommon* rachCon
 }
 
 Buffer::Iterator
+NrRrcAsn1Header::DeserializeServingCellConfigCommon(
+    NrRrcSap::ServingCellConfigCommon* servingCellConfigCommon,
+    Buffer::Iterator bIterator)
+{
+    std::bitset<0> bitset0;
+    int n;
+
+    // No optional fields, no extension marker.
+    bIterator = DeserializeSequence(&bitset0, false, bIterator);
+
+    bIterator = DeserializeInteger(&n, 0, 5, bIterator);
+    servingCellConfigCommon->numerology = static_cast<uint8_t>(n);
+
+    bIterator = DeserializeInteger(&n, 0, 14, bIterator);
+    servingCellConfigCommon->symbolsPerSlot = static_cast<uint8_t>(n);
+
+    bIterator = DeserializeInteger(&n, 0, 14, bIterator);
+    servingCellConfigCommon->dlCtrlSymsNum = static_cast<uint8_t>(n);
+
+    bIterator = DeserializeInteger(&n, 0, 14, bIterator);
+    servingCellConfigCommon->ulCtrlSymsNum = static_cast<uint8_t>(n);
+
+    bIterator = DeserializeInteger(&n, 0, 255, bIterator);
+    servingCellConfigCommon->rbgSize = static_cast<uint8_t>(n);
+
+    // tddPattern: length-prefixed character sequence.
+    int patternLength;
+    bIterator = DeserializeInteger(&patternLength, 0, 255, bIterator);
+    std::string tddPattern;
+    tddPattern.reserve(patternLength);
+    for (int i = 0; i < patternLength; ++i)
+    {
+        bIterator = DeserializeInteger(&n, 0, 255, bIterator);
+        tddPattern.push_back(static_cast<char>(static_cast<uint8_t>(n)));
+    }
+    servingCellConfigCommon->tddPattern = tddPattern;
+
+    return bIterator;
+}
+
+Buffer::Iterator
 NrRrcAsn1Header::DeserializeRadioResourceConfigCommonSib(
     NrRrcSap::RadioResourceConfigCommonSib* radioResourceConfigCommonSib,
     Buffer::Iterator bIterator)
@@ -5408,6 +5487,15 @@ NrRrcConnectionReconfigurationHeader::PreSerialize() const
             SerializeInteger(m_mobilityControlInfo.rachConfigDedicated.raPreambleIndex, 0, 63);
             SerializeInteger(m_mobilityControlInfo.rachConfigDedicated.raPrachMaskIndex, 0, 15);
         }
+
+        // servingCellConfigCommon (custom trailing field carrying the target
+        // cell PHY/numerology configuration over SRB1). A leading boolean flag
+        // makes the field self-describing on deserialization.
+        SerializeBoolean(m_mobilityControlInfo.haveServingCellConfigCommon);
+        if (m_mobilityControlInfo.haveServingCellConfigCommon)
+        {
+            SerializeServingCellConfigCommon(m_mobilityControlInfo.servingCellConfigCommon);
+        }
     }
 
     if (m_haveRadioResourceConfigDedicated)
@@ -5565,6 +5653,17 @@ NrRrcConnectionReconfigurationHeader::Deserialize(Buffer::Iterator bIterator)
                     m_mobilityControlInfo.rachConfigDedicated.raPreambleIndex = n;
                     bIterator = DeserializeInteger(&n, 0, 15, bIterator);
                     m_mobilityControlInfo.rachConfigDedicated.raPrachMaskIndex = n;
+                }
+
+                // servingCellConfigCommon (custom trailing field)
+                bool haveScc;
+                bIterator = DeserializeBoolean(&haveScc, bIterator);
+                m_mobilityControlInfo.haveServingCellConfigCommon = haveScc;
+                if (haveScc)
+                {
+                    bIterator = DeserializeServingCellConfigCommon(
+                        &m_mobilityControlInfo.servingCellConfigCommon,
+                        bIterator);
                 }
             }
 
@@ -5874,6 +5973,18 @@ NrRrcConnectionReconfigurationHeader::Print(std::ostream& os) const
                << (int)m_mobilityControlInfo.rachConfigDedicated.raPreambleIndex << std::endl;
             os << "raPrachMaskIndex: "
                << (int)m_mobilityControlInfo.rachConfigDedicated.raPrachMaskIndex << std::endl;
+        }
+        os << "haveServingCellConfigCommon: " << m_mobilityControlInfo.haveServingCellConfigCommon
+           << std::endl;
+        if (m_mobilityControlInfo.haveServingCellConfigCommon)
+        {
+            const auto& scc = m_mobilityControlInfo.servingCellConfigCommon;
+            os << "  scc.numerology: " << (int)scc.numerology << std::endl;
+            os << "  scc.symbolsPerSlot: " << (int)scc.symbolsPerSlot << std::endl;
+            os << "  scc.dlCtrlSymsNum: " << (int)scc.dlCtrlSymsNum << std::endl;
+            os << "  scc.ulCtrlSymsNum: " << (int)scc.ulCtrlSymsNum << std::endl;
+            os << "  scc.rbgSize: " << (int)scc.rbgSize << std::endl;
+            os << "  scc.tddPattern: " << scc.tddPattern << std::endl;
         }
     }
     os << "haveRadioResourceConfigDedicated: " << m_haveRadioResourceConfigDedicated << std::endl;

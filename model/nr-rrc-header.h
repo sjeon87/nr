@@ -129,6 +129,20 @@ class NR_EXPORT NrRrcAsn1Header : public NrAsn1Header
     void SerializeRadioResourceConfigCommon(
         NrRrcSap::RadioResourceConfigCommon radioResourceConfigCommon) const;
     /**
+     * Serialize serving cell config common function.
+     *
+     * Encodes the target cell PHY configuration (numerology, symbolsPerSlot,
+     * DL/UL control symbols, RBG size and the variable-length TDD pattern
+     * string) so that the inter-numerology handover target configuration is
+     * carried directly over SRB1, instead of being inferred from the target
+     * cell's periodic MIB. This is a custom (non-3GPP) encoding kept aligned
+     * with the surrounding hand-rolled ASN.1 style.
+     *
+     * @param servingCellConfigCommon NrRrcSap::ServingCellConfigCommon
+     */
+    void SerializeServingCellConfigCommon(
+        NrRrcSap::ServingCellConfigCommon servingCellConfigCommon) const;
+    /**
      * Serialize radio resource config common SIB function
      *
      * @param radioResourceConfigCommonSib NrRrcSap::RadioResourceConfigCommonSib
@@ -271,6 +285,16 @@ class NR_EXPORT NrRrcAsn1Header : public NrAsn1Header
      */
     Buffer::Iterator DeserializeRadioResourceConfigCommon(
         NrRrcSap::RadioResourceConfigCommon* radioResourceConfigCommon,
+        Buffer::Iterator bIterator);
+    /**
+     * Deserialize serving cell config common function.
+     *
+     * @param servingCellConfigCommon NrRrcSap::ServingCellConfigCommon *
+     * @param bIterator buffer iterator
+     * @returns buffer iterator
+     */
+    Buffer::Iterator DeserializeServingCellConfigCommon(
+        NrRrcSap::ServingCellConfigCommon* servingCellConfigCommon,
         Buffer::Iterator bIterator);
     /**
      * Deserialize radio resource config common SIB function
