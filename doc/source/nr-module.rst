@@ -2160,6 +2160,7 @@ The reception window is defined by the interval [VR(UR),VR(UH)), i.e. VR(UR) <= 
 
 If VR(UR) ≠ VR(UH), there are missing PDUs, then t-reordering timer is activated, and VR(UX) is updated, which represents
 the upper edge of the reordering window. VR(UX) takes the value of VR(UH) at the moment reordering timer starts.
+
    * PDUs with VR(UR) ≤ SNs ≤ VR(UX) are included in the current reordering window and will be delivered together
      once t-Reordering expires.
    * PDUs with SN > VR(UX) are buffered for future reordering operations.
