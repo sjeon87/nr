@@ -22,6 +22,7 @@ workflow:
 variables:
   NS3_RELEASE_VERSION: master
   NS3_REPOSITORY_URL: https://gitlab.com/nsnam/ns-3-dev
+  CMAKE_VERSION: 3.25.2
 
 ###################### BUILD STAGE #############################################
 
@@ -96,7 +97,10 @@ variables:
     - pacman-key --init
     - pacman -Sy
     - pacman -S --noconfirm archlinux-keyring
-    - pacman -Su --noconfirm base-devel gcc clang libc++ cmake ninja ccache git python openssh eigen
+    - pacman -Su --noconfirm base-devel gcc clang libc++ ninja ccache git python python-pip openssh eigen
+    - python3 -m venv ns3env
+    - source ./ns3env/bin/activate
+    - pip install cmake==$CMAKE_VERSION
 
 per-commit-clang-debug:
   extends: .base-per-commit-compile
@@ -160,8 +164,23 @@ documentation:
   before_script:
     - apt-get update
     - DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
-    - apt-get install -y ccache cmake g++ python3 doxygen graphviz make imagemagick dia texlive texlive-font-utils python3-sphinx python3-sphinx-rtd-theme latexmk texlive texlive-science texlive-formats-extra texlive-base python3-pip python3-jinja2 python3-pygments fonts-freefont-otf fonts-freefont-ttf git libeigen3-dev dvipng libjpeg-dev zlib1g-dev
-    - pip install seqdiag Pillow --break-system-packages
+    - apt-get install -y ccache g++ doxygen graphviz make imagemagick dia
+      texlive texlive-font-utils latexmk texlive texlive-science texlive-formats-extra texlive-base
+      fonts-freefont-otf fonts-freefont-ttf git libeigen3-dev dvipng
+      libjpeg-dev zlib1g-dev libfreetype6-dev
+      python3 python3-dev python3-pip python3-venv python3-sphinx python3-sphinx-rtd-theme python3-jinja2 python3-pygments
+    - python3 -m venv ns3env
+    - source ./ns3env/bin/activate
+    # seqdiag (renders the .seqdiag figures) and its blockdiag backend are
+    # unmaintained and only work with old Pillow/setuptools. Pin those versions:
+    # Pillow 9.5.0 keeps textsize()/getsize()/ANTIALIAS and setuptools < 81 keeps
+    # pkg_resources. Pillow 9.5.0 has no cp312 wheel, so it is built from source
+    # against the libjpeg/zlib/libfreetype dev packages installed above; reportlab
+    # provides the seqdiag PDF backend. cmake comes from pip (not apt).
+    - pip install seqdiag==3.0.0 blockdiag==3.0.0 Pillow==9.5.0 reportlab "setuptools<81" cmake==$CMAKE_VERSION
+    # blockdiag only autodetects Japanese fonts, so the reportlab PDF backend
+    # needs a font pointed at explicitly (fonts-freefont-ttf installed above).
+    - printf '[seqdiag]\nfontpath = /usr/share/fonts/truetype/freefont/FreeSans.ttf\n' > "$HOME/.blockdiagrc"
     # Relax ImageMagick's policy so the EPS/PDF coders work, independent of the
     # installed major version (the policy path is ImageMagick-6 or -7).
     - for policy in /etc/ImageMagick-*/policy.xml ; do
@@ -187,16 +206,18 @@ documentation:
     # Export nr version for documentation
     - export NRVERSION="nr-`git describe --tags`"
     - mkdir -p public/manual
+    # Treat Sphinx warnings (missing figures, broken refs) as errors
+    - SPHINXSTRICT="-W --keep-going"
     # Build NR manual
     - pushd doc
-    - make latexpdf && mv ./build/latex/nrmodule.pdf ../public/
-    - make html     && mv ./build/html/* ../public/manual
+    - make latexpdf SPHINXOPTS="$SPHINXSTRICT" && mv ./build/latex/nrmodule.pdf ../public/
+    - make html SPHINXOPTS="$SPHINXSTRICT" && mv ./build/html/* ../public/manual
     # Build doxygen
     - doxygen doxygen.conf && mv ./doc/html/ ../public/
     - popd
     # Build tutorial
     - pushd tutorial
-    - make latexpdf && mv ./build/latex/cttc-nr-demo-tutorial.pdf ../public/
+    - make latexpdf SPHINXOPTS="$SPHINXSTRICT" && mv ./build/latex/cttc-nr-demo-tutorial.pdf ../public/
     - popd
     # Copy FEATURES.md to preview it 5G-LENA website in FEATURES section
     - pushd ns-3-dev/contrib/nr

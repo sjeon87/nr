@@ -117,6 +117,12 @@ spell-check:
 clang-tidy-19:
   stage: code-linting
   image: ubuntu:latest
+  rules:
+    - changes:
+        - "**/*.cc"
+        - "**/*.h"
+    - when: manual
+      allow_failure: true
   before_script:
     - apt update
     - DEBIAN_FRONTEND=noninteractive apt install -y
