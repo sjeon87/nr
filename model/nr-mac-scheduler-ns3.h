@@ -245,6 +245,7 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
     friend class NrSchedGeneralTestCase;
     friend class NrTestMacSchedulerHarqRrReshape;
     friend class NrTestMacSchedulerHarqRrScheduleDlHarq;
+    friend class NrTestMacSchedulerHarqRrBeamOrder;
 
   public:
     /**

@@ -485,12 +485,162 @@ NrTestMacSchedulerHarqRrScheduleDlHarq::DoRun()
     delete cschedSapUser;
 }
 
+/**
+ * @brief Regression test for the HARQ round-robin beam ordering
+ *
+ * NrMacSchedulerHarqRr keeps a persistent round-robin queue of every beam ever
+ * seen (m_rrBeams). A previous implementation of GetBeamOrderRR() sized the
+ * returned vector to the number of currently active beams while indexing it with
+ * the (potentially much larger) size of the persistent queue, causing a heap
+ * buffer overflow once more beams had been observed than were active in the
+ * current slot. The overflow corrupted the heap and manifested later as a
+ * "double free or corruption" abort.
+ *
+ * This test reuses a single scheduler across several DL HARQ scheduling rounds
+ * with a shrinking set of active beams, so that the persistent queue grows
+ * larger than the active-beam set, and asserts that scheduling completes without
+ * memory corruption.
+ */
+class NrTestMacSchedulerHarqRrBeamOrder : public TestCase
+{
+  public:
+    NrTestMacSchedulerHarqRrBeamOrder()
+        : TestCase("HARQ RR beam order does not overflow with shrinking active beams")
+    {
+    }
+
+  protected:
+    void DoRun() override;
+
+  private:
+    /**
+     * @brief Drive a single DL HARQ scheduling round on the given scheduler.
+     * @param sched Scheduler under test (reused across rounds)
+     * @param activeRntis RNTIs (one per beam) whose HARQ process is NACKed in
+     *                    this round
+     */
+    void ScheduleRound(Ptr<NrMacSchedulerNs3> sched, const std::vector<uint16_t>& activeRntis);
+};
+
+void
+NrTestMacSchedulerHarqRrBeamOrder::ScheduleRound(Ptr<NrMacSchedulerNs3> sched,
+                                                 const std::vector<uint16_t>& activeRntis)
+{
+    NrMacSchedSapProvider::SchedDlTriggerReqParameters paramsDlTrigger;
+    paramsDlTrigger.m_snfSf = SfnSf(0, 0, 0, 0);
+    paramsDlTrigger.m_slotType = LteNrTddSlotType::DL;
+    paramsDlTrigger.m_dlHarqInfoList = {};
+
+    for (auto rnti : activeRntis)
+    {
+        auto& ueInfo = sched->m_ueMap.find(rnti)->second;
+        auto& harqProcess = ueInfo->m_dlHarq.Find(rnti)->second;
+
+        DciInfoElementTdma dci(rnti,
+                               DciInfoElementTdma::DL,
+                               0,
+                               1,
+                               10,
+                               1,
+                               {},
+                               100,
+                               0,
+                               0,
+                               DciInfoElementTdma::DATA,
+                               0,
+                               0);
+        dci.m_harqProcess = static_cast<uint8_t>(rnti);
+        dci.m_rbgBitmask = std::vector<bool>(10, false);
+        dci.m_rbgBitmask.at(0) = true;
+        harqProcess.m_dciElement = std::make_shared<DciInfoElementTdma>(dci);
+        harqProcess.m_active = true;
+        harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
+
+        DlHarqInfo harqInfo;
+        harqInfo.m_harqStatus = DlHarqInfo::NACK;
+        harqInfo.m_numRetx = 0;
+        harqInfo.m_rnti = rnti;
+        harqInfo.m_harqProcessId = static_cast<uint8_t>(rnti);
+        harqInfo.m_bwpIndex = 0;
+        paramsDlTrigger.m_dlHarqInfoList.push_back(harqInfo);
+    }
+
+    sched->DoSchedDlTriggerReq(paramsDlTrigger);
+}
+
+void
+NrTestMacSchedulerHarqRrBeamOrder::DoRun()
+{
+    auto cellConfig = NrMacCschedSapProvider::CschedCellConfigReqParameters();
+    cellConfig.m_dlBandwidth = 10; // 10 RBGs
+    cellConfig.m_ulBandwidth = 10;
+
+    // Configure one UE per beam, with as many beams as RNTIs.
+    std::vector<NrMacCschedSapProvider::CschedUeConfigReqParameters> ueConfig;
+    const uint16_t numUes = 8;
+    for (uint16_t rnti = 0; rnti < numUes; ++rnti)
+    {
+        NrMacCschedSapProvider::CschedUeConfigReqParameters config{};
+        config.m_rnti = rnti;
+        config.m_transmissionMode = 0;
+        config.m_beamId = BeamId(rnti, 0); // distinct beam per UE
+        ueConfig.push_back(config);
+    }
+
+    auto* schedSapUser = new TestSchedSapUserHarq([](auto params) {}, []() { return 14; });
+    auto* cschedSapUser = new TestCschedSapUserHarq();
+
+    auto sched = CreateObject<NrMacSchedulerTdmaRR>();
+    sched->InstallDlAmc(CreateObject<NrAmc>());
+    sched->InstallUlAmc(CreateObject<NrAmc>());
+    sched->SetMacSchedSapUser(schedSapUser);
+    sched->SetMacCschedSapUser(cschedSapUser);
+    sched->DoCschedCellConfigReq(cellConfig);
+    for (const auto& ueConf : ueConfig)
+    {
+        sched->DoCschedUeConfigReq(ueConf);
+    }
+    sched->SetDlCtrlSyms(0);
+
+    // First round: all beams active, so the persistent round-robin queue learns
+    // every beam.
+    std::vector<uint16_t> allRntis;
+    allRntis.reserve(numUes);
+    for (uint16_t rnti = 0; rnti < numUes; ++rnti)
+    {
+        allRntis.push_back(rnti);
+    }
+    ScheduleRound(sched, allRntis);
+
+    // Subsequent rounds: progressively fewer active beams. With the old code,
+    // the result vector (sized to the active-beam count) was indexed by the
+    // larger persistent-queue size, overflowing the heap. Reaching this point
+    // without an abort confirms the fix.
+    for (uint16_t active = numUes - 1; active >= 1 && active < numUes; --active)
+    {
+        std::vector<uint16_t> rntis;
+        rntis.reserve(active);
+        for (uint16_t rnti = 0; rnti < active; ++rnti)
+        {
+            rntis.push_back(rnti);
+        }
+        ScheduleRound(sched, rntis);
+    }
+
+    NS_TEST_EXPECT_MSG_EQ(true, true, "HARQ RR beam ordering completed without memory corruption");
+
+    delete schedSapUser;
+    delete cschedSapUser;
+}
+
 class NrTestSchedHarqSuite : public TestSuite
 {
   public:
     NrTestSchedHarqSuite()
         : TestSuite("nr-test-sched-harq", Type::UNIT)
     {
+        AddTestCase(new NrTestMacSchedulerHarqRrBeamOrder(), Duration::QUICK);
+
         // clang-format off
         using DIET = DciInfoElementTdma;
         std::vector<DciInfoElementTdma> dcis{

@@ -86,7 +86,8 @@ NrMacSchedulerHarqRr::InstallReshapeAllocation(
 std::vector<BeamId>
 NrMacSchedulerHarqRr::GetBeamOrderRR(NrMacSchedulerNs3::ActiveHarqMap activeHarqMap) const
 {
-    std::vector<BeamId> ret(activeHarqMap.size());
+    std::vector<BeamId> ret;
+    ret.reserve(activeHarqMap.size());
 
     for (const auto& el : activeHarqMap)
     {
@@ -98,14 +99,18 @@ NrMacSchedulerHarqRr::GetBeamOrderRR(NrMacSchedulerNs3::ActiveHarqMap activeHarq
         }
     }
 
-    // Find first active beam in the round-robin queue
+    // The round-robin queue accumulates every beam ever seen, so it may be
+    // larger than the set of currently active beams. Walk the whole queue once,
+    // appending only the active beams (in round-robin order) to the result, and
+    // rotate the queue to preserve fairness across calls. The result therefore
+    // contains exactly the active beams, with no out-of-range writes and no
+    // default-constructed entries that the caller would fail to look up.
     for (size_t i = 0; i < m_rrBeams.size(); ++i)
     {
-        // If front beam in round-robin queue is active,
-        // put it at the beginning of the order
+        // If front beam in round-robin queue is active, append it to the order
         if (activeHarqMap.find(m_rrBeams.front()) != activeHarqMap.end())
         {
-            ret[i] = m_rrBeams.front();
+            ret.push_back(m_rrBeams.front());
         }
         // Move round-robin front queue item to the end
         m_rrBeams.push_back(m_rrBeams.front());
