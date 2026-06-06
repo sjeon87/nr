@@ -1192,6 +1192,16 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
     }
     break;
 
+    case CONNECTION_SETUP:
+        // Duplicate RRC Connection Request: the gNB has already received msg3,
+        // sent msg4 (RRC Connection Setup) and is awaiting Setup Complete. A
+        // second copy of the same Connection Request can be delivered when msg3
+        // HARQ (re)transmissions are combined/decoded more than once. It is a
+        // lower-layer artefact, so ignore it rather than restarting setup.
+        NS_LOG_INFO("Ignoring duplicate RRC Connection Request in CONNECTION_SETUP for RNTI "
+                    << m_rnti);
+        break;
+
     default:
         NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
         break;
