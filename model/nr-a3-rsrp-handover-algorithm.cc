@@ -42,14 +42,15 @@ NrA3RsrpHandoverAlgorithm::GetTypeId()
             .SetParent<NrHandoverAlgorithm>()
             .SetGroupName("Nr")
             .AddConstructor<NrA3RsrpHandoverAlgorithm>()
-            .AddAttribute(
-                "Hysteresis",
-                "Handover margin (hysteresis) in dB "
-                "(rounded to the nearest multiple of 0.5 dB)",
-                DoubleValue(3.0),
-                MakeDoubleAccessor(&NrA3RsrpHandoverAlgorithm::m_hysteresisDb),
-                MakeDoubleChecker<uint8_t>(0.0, 15.0)) // Hysteresis IE value range is [0..30] as
-                                                       // per Section 6.3.5 of 3GPP TS 36.331
+            .AddAttribute("Hysteresis",
+                          "Handover margin (A3 offset) in dB (rounded to the nearest 0.5 dB). "
+                          "A non-negative value is applied as the A3 hysteresis IE [0..15]; a "
+                          "negative value (e.g. TR 36.839 Set 5 a3-offset = -1 dB) is applied "
+                          "as the signed A3 offset IE [-15..15], which a plain hysteresis "
+                          "cannot represent.",
+                          DoubleValue(3.0),
+                          MakeDoubleAccessor(&NrA3RsrpHandoverAlgorithm::m_hysteresisDb),
+                          MakeDoubleChecker<double>(-15.0, 15.0))
             .AddAttribute("TimeToTrigger",
                           "Time during which neighbour cell's RSRP "
                           "must continuously higher than serving cell's RSRP "
@@ -80,15 +81,27 @@ NrA3RsrpHandoverAlgorithm::DoInitialize()
 {
     NS_LOG_FUNCTION(this);
 
-    uint8_t hysteresisIeValue =
-        nr::EutranMeasurementMapping::ActualHysteresis2IeValue(m_hysteresisDb);
+    // A non-negative margin is applied as hysteresis (existing behaviour). A
+    // negative margin (e.g. TR 36.839 Set 5 a3-offset = -1 dB) cannot be a
+    // hysteresis (unsigned IE), so it is applied as the signed A3 offset instead.
+    int8_t a3OffsetIeValue = 0;
+    uint8_t hysteresisIeValue = 0;
+    if (m_hysteresisDb >= 0.0)
+    {
+        hysteresisIeValue = nr::EutranMeasurementMapping::ActualHysteresis2IeValue(m_hysteresisDb);
+    }
+    else
+    {
+        a3OffsetIeValue = nr::EutranMeasurementMapping::ActualA3Offset2IeValue(m_hysteresisDb);
+    }
     NS_LOG_LOGIC(this << " requesting Event A3 measurements"
-                      << " (hysteresis=" << (uint16_t)hysteresisIeValue << ")"
+                      << " (hysteresis=" << (uint16_t)hysteresisIeValue
+                      << " a3Offset=" << (int16_t)a3OffsetIeValue << ")"
                       << " (ttt=" << m_timeToTrigger.As(Time::MS) << ")");
 
     NrRrcSap::ReportConfigEutra reportConfig;
     reportConfig.eventId = NrRrcSap::ReportConfigEutra::EVENT_A3;
-    reportConfig.a3Offset = 0;
+    reportConfig.a3Offset = a3OffsetIeValue;
     reportConfig.hysteresis = hysteresisIeValue;
     reportConfig.timeToTrigger = m_timeToTrigger.GetMilliSeconds();
     reportConfig.reportOnLeave = false;
