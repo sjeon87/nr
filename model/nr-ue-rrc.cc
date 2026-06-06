@@ -893,6 +893,15 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 
     switch (m_state)
     {
+    case IDLE_CELL_SEARCH:
+    case IDLE_WAIT_MIB_SIB1:
+    case IDLE_WAIT_SIB1:
+        // An explicit force-camp request (Connect with a target cell/ARFCN) is a
+        // deterministic override: it aborts an in-progress autonomous cell
+        // selection and retunes directly to the requested cell. Fall through to
+        // the camp logic below.
+        NS_LOG_INFO("force-camp overrides in-progress cell selection " << ToString(m_state));
+        [[fallthrough]];
     case IDLE_START: {
         m_cellId = cellId;
         m_initDlArfcn = arfcn;
@@ -909,12 +918,6 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
         SwitchToState(IDLE_WAIT_MIB);
     }
     break;
-
-    case IDLE_CELL_SEARCH:
-    case IDLE_WAIT_MIB_SIB1:
-    case IDLE_WAIT_SIB1:
-        NS_FATAL_ERROR("cannot abort cell selection " << ToString(m_state));
-        break;
 
     case IDLE_WAIT_MIB:
         NS_LOG_INFO("already forced to camp to cell " << m_cellId);
