@@ -347,7 +347,7 @@ set(header_files
     model/nr-mac-pdu-info.h
     model/nr-mac-sap.h
     model/nr-mac-sched-sap.h
-    model/nr-mac-scheduler-ai-message-structs.h
+    model/nr-mac-scheduler-ai-msg-structs.h
     model/nr-mac-scheduler-cqi-management.h
     model/nr-mac-scheduler-harq-rr.h
     model/nr-mac-scheduler-lc-alg.h
