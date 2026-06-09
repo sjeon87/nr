@@ -23,36 +23,16 @@ class NrSchedObservationLayoutTestCase : public TestCase
   private:
     void DoRun() override
     {
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, rnti),
-                              0,
-                              "rnti should be at offset 0");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, lcID),
-                              2,
-                              "lcID should be at offset 2");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, fiveQI),
-                              3,
-                              "fiveQI should be at offset 3");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, priority),
-                              4,
-                              "priority should be at offset 4");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, holDelay),
-                              6,
-                              "holDelay should be at offset 6");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, cqi),
-                              8,
-                              "cqi should be at offset 8");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, bsr),
-                              12,
-                              "bsr should be at offset 12");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, avgTput),
-                              16,
-                              "avgTput should be at offset 16");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, potentialTput),
-                              20,
-                              "potentialTput should be at offset 20");
-        NS_TEST_ASSERT_MSG_EQ(sizeof(NrSchedulerObservation),
-                              24,
-                              "NrSchedulerObservation should be 24 bytes");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, rnti), 0, "rnti should be at offset 0");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, lcID), 2, "lcID should be at offset 2");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, fiveQI), 3, "fiveQI should be at offset 3");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, priority), 4, "priority should be at offset 4");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, holDelay), 6, "holDelay should be at offset 6");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, cqi), 8, "cqi should be at offset 8");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, bsr), 12, "bsr should be at offset 12");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, avgTput), 16, "avgTput should be at offset 16");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerObservation, potentialTput), 20, "potentialTput should be at offset 20");
+        NS_TEST_ASSERT_MSG_EQ(sizeof(NrSchedulerObservation), 24, "NrSchedulerObservation should be 24 bytes");
     }
 };
 
@@ -69,9 +49,7 @@ class NrSchedActionLayoutTestCase : public TestCase
     {
         NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerAction, rnti), 0, "rnti should be at offset 0");
         NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerAction, lcID), 2, "lcID should be at offset 2");
-        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerAction, weight),
-                              4,
-                              "weight should be at offset 4");
+        NS_TEST_ASSERT_MSG_EQ(offsetof(NrSchedulerAction, weight), 4, "weight should be at offset 4");
         NS_TEST_ASSERT_MSG_EQ(sizeof(NrSchedulerAction), 8, "NrSchedulerAction should be 8 bytes");
     }
 };
