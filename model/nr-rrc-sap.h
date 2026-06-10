@@ -61,7 +61,7 @@ class NR_EXPORT NrRrcSap
     {
         PlmnIdentityInfo plmnIdentityInfo; ///< PLMN identity info
         uint32_t cellIdentity;             ///< cell identity
-        bool csgIndication;                ///< CSG indication
+        bool csgIndication{false};         ///< CSG indication
         uint32_t csgIdentity;              ///< CSG identity
     };
 
@@ -215,12 +215,12 @@ class NR_EXPORT NrRrcSap
     /// PhysicalConfigDedicated structure
     struct NR_EXPORT PhysicalConfigDedicated
     {
-        bool haveSoundingRsUlConfigDedicated; ///< have sounding RS UL config dedicated?
+        bool haveSoundingRsUlConfigDedicated{false}; ///< have sounding RS UL config dedicated?
         SoundingRsUlConfigDedicated
             soundingRsUlConfigDedicated;           ///< sounding RS UL config dedicated
-        bool haveAntennaInfoDedicated;             ///< have antenna info dedicated?
+        bool haveAntennaInfoDedicated{false};      ///< have antenna info dedicated?
         AntennaInfoDedicated antennaInfo;          ///< antenna info
-        bool havePdschConfigDedicated;             ///< have PDSCH config dedicated?
+        bool havePdschConfigDedicated{false};      ///< have PDSCH config dedicated?
         PdschConfigDedicated pdschConfigDedicated; ///< PDSCH config dedicated
     };
 
@@ -288,7 +288,7 @@ class NR_EXPORT NrRrcSap
         std::list<SrbToAddMod> srbToAddModList;          ///< SRB to add mod list
         std::list<DrbToAddMod> drbToAddModList;          ///< DRB to add mod list
         std::list<uint8_t> drbToReleaseList;             ///< DRB to release list
-        bool havePhysicalConfigDedicated;                ///< have physical config dedicated?
+        bool havePhysicalConfigDedicated{false};         ///< have physical config dedicated?
         PhysicalConfigDedicated physicalConfigDedicated; ///< physical config dedicated
     };
 
@@ -310,9 +310,9 @@ class NR_EXPORT NrRrcSap
     /// PhysCellIdRange structure
     struct NR_EXPORT PhysCellIdRange
     {
-        uint16_t start; ///< starting cell ID
-        bool haveRange; ///< has a range?
-        uint16_t range; ///< the range
+        uint16_t start;        ///< starting cell ID
+        bool haveRange{false}; ///< has a range?
+        uint16_t range;        ///< the range
     };
 
     /// BlackCellsToAddMod structure
@@ -334,8 +334,8 @@ class NR_EXPORT NrRrcSap
         std::list<CellsToAddMod> cellsToAddModList;           ///< cells to add mod list
         std::list<uint8_t> blackCellsToRemoveList;            ///< black cells to remove list
         std::list<BlackCellsToAddMod> blackCellsToAddModList; ///< black cells to add mod list
-        bool haveCellForWhichToReportCGI; ///< have cell for which to report CGI?
-        uint16_t cellForWhichToReportCGI; ///< cell for which to report CGI
+        bool haveCellForWhichToReportCGI{false}; ///< have cell for which to report CGI?
+        uint16_t cellForWhichToReportCGI;        ///< cell for which to report CGI
     };
 
     /**
@@ -387,7 +387,7 @@ class NR_EXPORT NrRrcSap
         /// Indicates whether or not the UE shall initiate the measurement reporting procedure when
         /// the leaving condition is met for a cell in `cellsTriggeredList`, as specified in 5.5.4.1
         /// of 3GPP TS 36.331.
-        bool reportOnLeave;
+        bool reportOnLeave{false};
 
         /// Offset value for Event A3. An integer between -30 and 30. The actual value is (value *
         /// 0.5) dB.
@@ -566,13 +566,13 @@ class NR_EXPORT NrRrcSap
         std::list<ReportConfigToAddMod> reportConfigToAddModList; ///< report config to add mod list
         std::list<uint8_t> measIdToRemoveList;                    ///< measure ID to remove list
         std::list<MeasIdToAddMod> measIdToAddModList;             ///< measure ID to add mod list
-        bool haveQuantityConfig;                                  ///< have quantity config?
+        bool haveQuantityConfig{false};                           ///< have quantity config?
         QuantityConfig quantityConfig;                            ///< quantity config
-        bool haveMeasGapConfig;                                   ///< have measure gap config?
+        bool haveMeasGapConfig{false};                            ///< have measure gap config?
         MeasGapConfig measGapConfig;                              ///< measure gap config
-        bool haveSmeasure;                                        ///< have S measure?
+        bool haveSmeasure{false};                                 ///< have S measure?
         uint8_t sMeasure;                                         ///< S measure
-        bool haveSpeedStatePars;                                  ///< have speed state parameters?
+        bool haveSpeedStatePars{false};                           ///< have speed state parameters?
         SpeedStatePars speedStatePars;                            ///< speed state parameters
     };
 
@@ -601,13 +601,13 @@ class NR_EXPORT NrRrcSap
     struct NR_EXPORT MobilityControlInfo
     {
         uint16_t targetPhysCellId;                           ///< target Phy cell ID
-        bool haveCarrierFreq;                                ///< have carrier frequency?
+        bool haveCarrierFreq{false};                         ///< have carrier frequency?
         CarrierFreqEutra carrierFreq;                        ///< carrier frequency
-        bool haveCarrierBandwidth;                           ///< have carrier bandwidth?
+        bool haveCarrierBandwidth{false};                    ///< have carrier bandwidth?
         CarrierBandwidthEutra carrierBandwidth;              ///< carrier bandwidth
         uint16_t newUeIdentity;                              ///< new UE identity
         RadioResourceConfigCommon radioResourceConfigCommon; ///< radio resource config common
-        bool haveRachConfigDedicated;                        ///< Have RACH config dedicated?
+        bool haveRachConfigDedicated{false};                 ///< Have RACH config dedicated?
         RachConfigDedicated rachConfigDedicated;             ///< RACH config dedicated
     };
 
@@ -711,13 +711,13 @@ class NR_EXPORT NrRrcSap
     /// MeasResultEutra structure
     struct NR_EXPORT MeasResultEutra
     {
-        uint16_t physCellId; ///< Phy cell ID
-        bool haveCgiInfo;    ///< have CGI info?
-        CgiInfo cgiInfo;     ///< CGI info
-        bool haveRsrpResult; ///< have RSRP result
-        uint8_t rsrpResult;  ///< RSRP result
-        bool haveRsrqResult; ///< have RSRQ result?
-        uint8_t rsrqResult;  ///< RSRQ result
+        uint16_t physCellId;        ///< Phy cell ID
+        bool haveCgiInfo{false};    ///< have CGI info?
+        CgiInfo cgiInfo;            ///< CGI info
+        bool haveRsrpResult{false}; ///< have RSRP result
+        uint8_t rsrpResult;         ///< RSRP result
+        bool haveRsrqResult{false}; ///< have RSRQ result?
+        uint8_t rsrqResult;         ///< RSRQ result
     };
 
     /// MeasResultSCell structure
@@ -739,9 +739,9 @@ class NR_EXPORT NrRrcSap
     struct NR_EXPORT MeasResultServFreq
     {
         uint16_t servFreqId;                             ///< serving cell index
-        bool haveMeasResultSCell;                        ///< have measResultSCell?
+        bool haveMeasResultSCell{false};                 ///< have measResultSCell?
         MeasResultSCell measResultSCell;                 ///< SCell measurement results
-        bool haveMeasResultBestNeighCell;                ///< have measResultBestNeighCell?
+        bool haveMeasResultBestNeighCell{false};         ///< have measResultBestNeighCell?
         MeasResultBestNeighCell measResultBestNeighCell; ///< best neighbor cell measurement results
     };
 
@@ -750,9 +750,9 @@ class NR_EXPORT NrRrcSap
     {
         uint8_t measId;                                 ///< measure ID
         MeasResultPCell measResultPCell;                ///< measurement result primary cell
-        bool haveMeasResultNeighCells;                  ///< have measure result neighbor cells
+        bool haveMeasResultNeighCells{false};           ///< have measure result neighbor cells
         std::list<MeasResultEutra> measResultListEutra; ///< measure result list eutra
-        bool haveMeasResultServFreqList;                ///< has measResultServFreqList-r10
+        bool haveMeasResultServFreqList{false};         ///< has measResultServFreqList-r10
         std::list<MeasResultServFreq> measResultServFreqList; ///< MeasResultServFreqList-r10
     };
 
@@ -853,23 +853,23 @@ class NR_EXPORT NrRrcSap
     struct NR_EXPORT PhysicalConfigDedicatedSCell
     {
         // Non-Ul Configuration
-        bool haveNonUlConfiguration;       ///< have non UL configuration?
-        bool haveAntennaInfoDedicated;     ///< have antenna info dedicated?
-        AntennaInfoDedicated antennaInfo;  ///< antenna info dedicated
-        bool crossCarrierSchedulingConfig; ///< currently implemented as boolean variable -->
-                                           ///< implementing crossCarrierScheduling is out of the
-                                           ///< scope of this GSoC proposal
-        bool havePdschConfigDedicated;     ///< have PDSCH config dedicated?
+        bool haveNonUlConfiguration{false};       ///< have non UL configuration?
+        bool haveAntennaInfoDedicated{false};     ///< have antenna info dedicated?
+        AntennaInfoDedicated antennaInfo;         ///< antenna info dedicated
+        bool crossCarrierSchedulingConfig{false}; ///< currently implemented as boolean variable -->
+                                                  ///< implementing crossCarrierScheduling is out of
+                                                  ///< the scope of this GSoC proposal
+        bool havePdschConfigDedicated{false};     ///< have PDSCH config dedicated?
         PdschConfigDedicated pdschConfigDedicated; ///< PDSCH config dedicated
 
         // Ul Configuration
-        bool haveUlConfiguration;                           ///< have UL configuration?
-        bool haveAntennaInfoUlDedicated;                    ///< have antenna info UL dedicated?
+        bool haveUlConfiguration{false};                    ///< have UL configuration?
+        bool haveAntennaInfoUlDedicated{false};             ///< have antenna info UL dedicated?
         AntennaInfoDedicated antennaInfoUl;                 ///< antenna info UL
         PuschConfigDedicatedSCell pushConfigDedicatedSCell; ///< PUSCH config dedicated SCell
         UlPowerControlDedicatedSCell
-            ulPowerControlDedicatedSCell;     ///< UL power control dedicated SCell
-        bool haveSoundingRsUlConfigDedicated; ///< have sounding RS UL config dedicated?
+            ulPowerControlDedicatedSCell;            ///< UL power control dedicated SCell
+        bool haveSoundingRsUlConfigDedicated{false}; ///< have sounding RS UL config dedicated?
         SoundingRsUlConfigDedicated
             soundingRsUlConfigDedicated; ///< sounding RS UL config dedicated
     };
@@ -877,9 +877,9 @@ class NR_EXPORT NrRrcSap
     /// RadioResourceConfigCommonSCell
     struct NR_EXPORT RadioResourceConfigCommonSCell
     {
-        bool haveNonUlConfiguration;           ///< have non UL configuration?
+        bool haveNonUlConfiguration{false};    ///< have non UL configuration?
         NonUlConfiguration nonUlConfiguration; ///< non UL configuration
-        bool haveUlConfiguration;              ///< have UL configuration
+        bool haveUlConfiguration{false};       ///< have UL configuration
         UlConfiguration ulConfiguration;       ///< UL configuration
     };
 
@@ -896,8 +896,9 @@ class NR_EXPORT NrRrcSap
         uint32_t sCellIndex;                   ///< SCell index
         CellIdentification cellIdentification; ///< cell identification
         RadioResourceConfigCommonSCell
-            radioResourceConfigCommonSCell;         ///< radio resource config common SCell
-        bool haveRadioResourceConfigDedicatedSCell; ///< have radio resource config dedicated SCell?
+            radioResourceConfigCommonSCell; ///< radio resource config common SCell
+        bool haveRadioResourceConfigDedicatedSCell{
+            false}; ///< have radio resource config dedicated SCell?
         RadioResourceConfigDedicatedSCell
             radioResourceConfigDedicatedSCell; ///< radio resource config dedicated SCell
     };
@@ -912,15 +913,15 @@ class NR_EXPORT NrRrcSap
     /// RrcConnectionReconfiguration structure
     struct NR_EXPORT RrcConnectionReconfiguration
     {
-        uint8_t rrcTransactionIdentifier;        ///< RRC transaction identifier
-        bool haveMeasConfig;                     ///< have measure config
-        MeasConfig measConfig;                   ///< measure config
-        bool haveMobilityControlInfo;            ///< have mobility control info
-        MobilityControlInfo mobilityControlInfo; ///< mobility control info
-        bool haveRadioResourceConfigDedicated;   ///< have radio resource config dedicated
+        uint8_t rrcTransactionIdentifier;             ///< RRC transaction identifier
+        bool haveMeasConfig{false};                   ///< have measure config
+        MeasConfig measConfig;                        ///< measure config
+        bool haveMobilityControlInfo{false};          ///< have mobility control info
+        MobilityControlInfo mobilityControlInfo;      ///< mobility control info
+        bool haveRadioResourceConfigDedicated{false}; ///< have radio resource config dedicated
         RadioResourceConfigDedicated
-            radioResourceConfigDedicated; ///< radio resource config dedicated
-        bool haveNonCriticalExtension;    ///< have critical extension?
+            radioResourceConfigDedicated;     ///< radio resource config dedicated
+        bool haveNonCriticalExtension{false}; ///< have critical extension?
         /// 3GPP TS 36.331 v.11.10 R11 Sec. 6.2.2 pag. 147 (also known as ETSI TS 136 331 v.11.10
         /// Feb-2015)
         NonCriticalExtensionConfiguration nonCriticalExtension;
