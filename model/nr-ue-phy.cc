@@ -688,7 +688,7 @@ NrUePhy::PhyCtrlMessagesReceived(const Ptr<NrControlMessage>& msg)
         NS_LOG_DEBUG("received MIB");
         Ptr<NrMibMessage> msg2 = DynamicCast<NrMibMessage>(msg);
         m_phyRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), m_rnti, GetBwpId(), msg);
-        m_ueCphySapUser->RecvMasterInformationBlock(GetCellId(), msg2->GetMib());
+        m_ueCphySapUser->RecvMasterInformationBlock(GetCellId(), DoGetArfcn(), msg2->GetMib());
     }
     else if (msg->GetMessageType() == NrControlMessage::SIB1)
     {

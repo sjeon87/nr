@@ -242,9 +242,11 @@ class NR_EXPORT NrUeCphySapUser
      * the BCH.
      *
      * @param cellId the ID of the eNodeB where the message originates from
+     * @param arfcn the ARFCN of the carrier (BWP) on which the MIB was received
      * @param mib the Master Information Block message.
      */
     virtual void RecvMasterInformationBlock(uint16_t cellId,
+                                            uint32_t arfcn,
                                             NrRrcSap::MasterInformationBlock mib) = 0;
 
     /**
@@ -534,7 +536,9 @@ class MemberNrUeCphySapUser : public NrUeCphySapUser
     MemberNrUeCphySapUser() = delete;
 
     // methods inherited from NrUeCphySapUser go here
-    void RecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformationBlock mib) override;
+    void RecvMasterInformationBlock(uint16_t cellId,
+                                    uint32_t arfcn,
+                                    NrRrcSap::MasterInformationBlock mib) override;
     void RecvSystemInformationBlockType1(uint16_t cellId,
                                          uint32_t arfcn,
                                          NrRrcSap::SystemInformationBlockType1 sib1) override;
@@ -556,9 +560,10 @@ MemberNrUeCphySapUser<C>::MemberNrUeCphySapUser(C* owner)
 template <class C>
 void
 MemberNrUeCphySapUser<C>::RecvMasterInformationBlock(uint16_t cellId,
+                                                     uint32_t arfcn,
                                                      NrRrcSap::MasterInformationBlock mib)
 {
-    m_owner->DoRecvMasterInformationBlock(cellId, mib);
+    m_owner->DoRecvMasterInformationBlock(cellId, arfcn, mib);
 }
 
 template <class C>

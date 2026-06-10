@@ -501,9 +501,12 @@ class NR_EXPORT NrUeRrc : public Object
      * Receive master information block function
      *
      * @param cellId the cell ID
+     * @param arfcn the ARFCN of the carrier (BWP) on which the MIB was received
      * @param msg NrRrcSap::MasterInformationBlock
      */
-    void DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformationBlock msg);
+    void DoRecvMasterInformationBlock(uint16_t cellId,
+                                      uint32_t arfcn,
+                                      NrRrcSap::MasterInformationBlock msg);
     /**
      * Receive system information block type 1 function
      *

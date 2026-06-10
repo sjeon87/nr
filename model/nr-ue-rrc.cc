@@ -925,12 +925,41 @@ NrUeRrc::DoConnect()
 // CPHY SAP methods
 
 void
-NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformationBlock msg)
+NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId,
+                                      uint32_t arfcn,
+                                      NrRrcSap::MasterInformationBlock msg)
 {
-    m_dlBandwidth = msg.dlBandwidth;
-    m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(msg.dlBandwidth);
-    m_cphySapProvider.at(GetPrimaryDlIndex())->SetNumerology(msg.numerology);
-    m_cphySapProvider.at(GetPrimaryUlIndex())->SetNumerology(msg.numerology);
+    NS_LOG_FUNCTION(this << cellId << arfcn << m_cellId << +GetPrimaryDlIndex());
+
+    // Per-carrier / per-BWP MIB routing.
+    //
+    // The UE keeps MULTIPLE BWPs tuned (one per carrier) so it can receive SSB
+    // and measure RSRP on neighbour frequencies (and hand over between them).
+    // A MIB is a per-CARRIER broadcast: it carries the numerology/bandwidth of
+    // the carrier it was received on. Configure the BWP actually tuned to that
+    // carrier, resolved by its ARFCN -- never "the primary serving" BWP.
+    //
+    // Routing by the primary index is wrong once a same-cell BWP switch has
+    // moved the primary onto a carrier with a DIFFERENT numerology: applying
+    // this MIB's (foreign) numerology to it desyncs that BWP's PHY slot timeline
+    // and trips the "Cannot TX while RX" fatal in NrSpectrumPhy. The BWP that
+    // received this MIB is, by construction, on the MIB's carrier, so
+    // configuring it from the MIB is always self-consistent.
+    const std::size_t mibBwp = GetArfcnBwpId(arfcn);
+    m_cphySapProvider.at(mibBwp)->SetDlBandwidth(msg.dlBandwidth);
+    m_cphySapProvider.at(mibBwp)->SetNumerology(msg.numerology);
+
+    // Update the SERVING DL bandwidth bookkeeping only when this MIB configures
+    // the primary serving BWP (serving cell, primary carrier). Before commitment
+    // (m_cellId == 0, initial cell selection / manual attach) the MIB is from the
+    // cell we are synchronizing to; a connected UE's neighbour-measurement MIB
+    // keeps its own BWP decodable for RSRP but must never disturb serving state.
+    const bool isServingCell = (cellId == m_cellId) || (m_cellId == 0);
+    if (isServingCell && mibBwp == GetPrimaryDlIndex())
+    {
+        m_dlBandwidth = msg.dlBandwidth;
+    }
+
     m_hasReceivedMib = true;
     m_mibReceivedTrace(m_imsi, m_cellId, m_rnti, cellId);
 
