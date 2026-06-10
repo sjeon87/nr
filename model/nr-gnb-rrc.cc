@@ -2821,13 +2821,32 @@ void
 NrGnbRrc::DoRecvMeasurementReport(uint16_t rnti, NrRrcSap::MeasurementReport msg)
 {
     NS_LOG_FUNCTION(this << rnti);
-    if (m_handoverDecisionDelay.GetSeconds() > 0)
+    if (m_handoverDecisionDelay.IsStrictlyPositive())
     {
+        // Model the measurement-report processing (handover decision) delay by
+        // delivering the report after m_handoverDecisionDelay. The delayed event
+        // must go to DeliverMeasurementReport, not back here, or the report would
+        // reschedule itself forever and never reach the UE manager.
         Simulator::Schedule(m_handoverDecisionDelay,
-                            &NrGnbRrc::DoRecvMeasurementReport,
+                            &NrGnbRrc::DeliverMeasurementReport,
                             this,
                             rnti,
                             msg);
+        return;
+    }
+    DeliverMeasurementReport(rnti, msg);
+}
+
+void
+NrGnbRrc::DeliverMeasurementReport(uint16_t rnti, NrRrcSap::MeasurementReport msg)
+{
+    NS_LOG_FUNCTION(this << rnti);
+    // The UE may have detached or failed while the report was being delayed.
+    if (!HasUeManager(rnti))
+    {
+        NS_LOG_WARN("UE with RNTI " << rnti
+                                    << " was removed before the delayed measurement "
+                                       "report could be processed; dropping report");
         return;
     }
     GetUeManager(rnti)->RecvMeasurementReport(msg);
@@ -3211,23 +3230,33 @@ NrGnbRrc::DoTriggerHandover(uint16_t rnti, uint16_t targetCellId)
 {
     NS_LOG_FUNCTION(this << rnti << targetCellId);
 
-    if (m_handoverTriggeringDelay.GetSeconds() > 0)
+    if (m_handoverTriggeringDelay.IsStrictlyPositive())
     {
         NS_LOG_INFO("Scheduling handover for RNTI " << rnti << " to cell " << targetCellId
                                                     << " with delay " << m_handoverTriggeringDelay);
-        Ptr<NrUeManager> ueManager = GetUeManager(rnti);
+        // The delayed event must go to ExecuteHandover, not back here, or the
+        // handover would reschedule itself forever and never execute.
         Simulator::Schedule(m_handoverTriggeringDelay,
-                            &NrGnbRrc::DoTriggerHandover,
+                            &NrGnbRrc::ExecuteHandover,
                             this,
                             rnti,
                             targetCellId);
-        // Verify UE is still connected after scheduling
-        if (HasUeManager(rnti) && ueManager->GetState() == NrUeManager::CONNECTED_NORMALLY)
-        {
-            return;
-        }
-        NS_LOG_WARN("UE " << rnti << " no longer in CONNECTED_NORMALLY state when scheduling "
-                          << "handover; canceling");
+        return;
+    }
+    ExecuteHandover(rnti, targetCellId);
+}
+
+void
+NrGnbRrc::ExecuteHandover(uint16_t rnti, uint16_t targetCellId)
+{
+    NS_LOG_FUNCTION(this << rnti << targetCellId);
+
+    // The UE may have detached or failed while the handover was being delayed.
+    if (!HasUeManager(rnti))
+    {
+        NS_LOG_WARN("UE with RNTI " << rnti
+                                    << " was removed before the delayed handover could "
+                                       "be executed; canceling handover");
         return;
     }
 

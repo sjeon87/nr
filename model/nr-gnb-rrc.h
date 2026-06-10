@@ -1236,6 +1236,15 @@ class NR_EXPORT NrGnbRrc : public Object
      */
     void DoRecvMeasurementReport(uint16_t rnti, NrRrcSap::MeasurementReport msg);
     /**
+     * Deliver a measurement report to the UE manager, after the
+     * HandoverDecisionDelay (if any) has elapsed. The report is dropped if the
+     * UE was removed while the report was being delayed.
+     *
+     * @param rnti the RNTI
+     * @param msg the NrRrcSap::MeasurementReport
+     */
+    void DeliverMeasurementReport(uint16_t rnti, NrRrcSap::MeasurementReport msg);
+    /**
      * @brief Part of the RRC protocol. Forwarding
      * NrGnbRrcSapProvider::RecvIdealUeContextRemoveRequest interface to
      * NrUeManager::RecvIdealUeContextRemoveRequest.
@@ -1384,6 +1393,16 @@ class NR_EXPORT NrGnbRrc : public Object
      * @param targetCellId target cell ID
      */
     void DoTriggerHandover(uint16_t rnti, uint16_t targetCellId);
+
+    /**
+     * Execute a handover towards the target cell, after the
+     * HandoverTriggeringDelay (if any) has elapsed. The handover is canceled if
+     * the UE was removed while the trigger was being delayed.
+     *
+     * @param rnti RNTI
+     * @param targetCellId target cell ID
+     */
+    void ExecuteHandover(uint16_t rnti, uint16_t targetCellId);
 
     // ANR SAP methods
 
