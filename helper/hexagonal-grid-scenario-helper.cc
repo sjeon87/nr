@@ -681,7 +681,11 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
                     "Speed",
                     StringValue(ss.str()));
             }
-            ss.clear();
+            // stringstream::clear() only resets the error flags; str("") empties the
+            // buffer. With clear() alone the outdoor spec was appended after the
+            // indoor one and the attribute parser kept the first (indoor) value, so
+            // every outdoor UE silently moved at the indoor speed.
+            ss.str("");
             ss << "ns3::ConstantRandomVariable[Constant=" << outdoorUeSpeed.GetLength() << "]";
             for (uint32_t i = 0; i < outdoorUes.GetN(); i++)
             {
