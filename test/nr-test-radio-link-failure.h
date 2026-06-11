@@ -29,17 +29,6 @@ class NrUeNetDevice;
 using namespace ns3;
 
 /**
- * @brief Test suite for
- *
- * \sa ns3::NrRadioLinkFailureTestCase
- */
-class NrRadioLinkFailureTestSuite : public TestSuite
-{
-  public:
-    NrRadioLinkFailureTestSuite();
-};
-
-/**
  * @ingroup nr
  *
  * @brief Testing the cell reselection procedure by UE at IDLE state
@@ -241,5 +230,33 @@ class NrRadioLinkFailureTestCase : public TestCase
     std::vector<Ptr<MobilityModel>> m_ueMobility; ///< UE mobility model
     bool m_enableUplinkTraffic{true};
 }; // end of class NrRadioLinkFailureTestCase
+
+/**
+ * @brief Radio link failure test suite.
+ *
+ * One suite instance is created per duplexing/pattern setup (TDD with fixed
+ * DL/UL pattern, TDD with mixed fixed/flexible pattern, TDD with all-flexible
+ * pattern, and FDD), each holding the RLF cases of that setup for every
+ * RRC protocol model and network topology. Partitioning the cases by what
+ * they test, instead of keeping a single suite with every combination, also
+ * lets the test runner execute the suites in parallel processes.
+ *
+ * \sa ns3::NrRadioLinkFailureTestCase
+ */
+class NrRadioLinkFailureTestSuite : public TestSuite
+{
+  public:
+    /**
+     * @brief Creates a suite with the RLF cases of one duplexing setup.
+     *
+     * @param name the test suite name
+     * @param setup the duplexing/pattern setup used by all cases of this suite
+     * @param idealRrcFlags the RRC protocol models to generate cases for
+     *        (true for the Ideal RRC protocol, false for the Real one)
+     */
+    NrRadioLinkFailureTestSuite(const std::string& name,
+                                NrRadioLinkFailureTestCase::TestFddTddSetupType setup,
+                                const std::vector<bool>& idealRrcFlags);
+};
 
 #endif /* NR_TEST_RADIO_LINK_FAILURE_H */

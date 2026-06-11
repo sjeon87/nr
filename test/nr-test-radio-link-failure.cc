@@ -34,8 +34,11 @@ NS_LOG_COMPONENT_DEFINE("NrRadioLinkFailureTest");
 /*
  * Test Suite
  */
-NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
-    : TestSuite("nr-rlf", Type::SYSTEM)
+NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite(
+    const std::string& name,
+    NrRadioLinkFailureTestCase::TestFddTddSetupType setup,
+    const std::vector<bool>& idealRrcFlags)
+    : TestSuite(name, Type::SYSTEM)
 {
     const auto addCasesForConfiguration =
         [this](bool isIdealRrc,
@@ -91,24 +94,14 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
             }
         };
 
-    using Setup = NrRadioLinkFailureTestCase::TestFddTddSetupType;
-    std::vector<std::pair<Setup, bool>> setupAndRrcCombinations{
-        {Setup::TDD_DL_UL, true},
-        {Setup::TDD_MIXED_DL_UL_FLEXIBLE, true},
-        {Setup::TDD_ALL_FLEXIBLE, true},
-        {Setup::FDD, true},
-        {Setup::TDD_DL_UL, false},
-        {Setup::TDD_MIXED_DL_UL_FLEXIBLE, false},
-        {Setup::FDD, false},
-    };
     std::vector<uint32_t> numGnbCounts{1, 2};
     std::vector<uint32_t> backgroundUeCounts{0, 1, 2, 4};
 
-    for (auto numGnbs : numGnbCounts)
+    for (auto isIdealRrc : idealRrcFlags)
     {
-        for (auto numBackgroundUes : backgroundUeCounts)
+        for (auto numGnbs : numGnbCounts)
         {
-            for (auto [setup, isIdealRrc] : setupAndRrcCombinations)
+            for (auto numBackgroundUes : backgroundUeCounts)
             {
                 addCasesForConfiguration(isIdealRrc, setup, numGnbs, numBackgroundUes);
             }
@@ -118,9 +111,20 @@ NrRadioLinkFailureTestSuite::NrRadioLinkFailureTestSuite()
 
 /**
  * @ingroup nr-test
- * Static variable for test initialization
+ * Static suite instances, one per duplexing/pattern setup; together they
+ * hold exactly the same test cases as the original single "nr-rlf" suite.
+ * Note that the TDD all-flexible setup is only exercised with the Ideal RRC
+ * protocol, as before the split.
  */
-static NrRadioLinkFailureTestSuite g_nrRadioLinkFailureTestSuite;
+using Setup = NrRadioLinkFailureTestCase::TestFddTddSetupType;
+static NrRadioLinkFailureTestSuite g_nrRlfTddSuite("nr-rlf-tdd", Setup::TDD_DL_UL, {true, false});
+static NrRadioLinkFailureTestSuite g_nrRlfTddMixedSuite("nr-rlf-tdd-mixed",
+                                                        Setup::TDD_MIXED_DL_UL_FLEXIBLE,
+                                                        {true, false});
+static NrRadioLinkFailureTestSuite g_nrRlfTddFlexibleSuite("nr-rlf-tdd-flexible",
+                                                           Setup::TDD_ALL_FLEXIBLE,
+                                                           {true});
+static NrRadioLinkFailureTestSuite g_nrRlfFddSuite("nr-rlf-fdd", Setup::FDD, {true, false});
 
 /*
  * Test Case
