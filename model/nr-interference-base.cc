@@ -49,7 +49,7 @@ NrInterferenceBase::GetTypeId()
     return tid;
 }
 
-void
+bool
 NrInterferenceBase::StartRx(Ptr<const SpectrumValue> rxPsd)
 {
     NS_LOG_FUNCTION(this << *rxPsd);
@@ -80,9 +80,19 @@ NrInterferenceBase::StartRx(Ptr<const SpectrumValue> rxPsd)
         // receiving multiple simultaneous signals, make sure they are synchronized
         NS_ASSERT(m_lastChangeTime == Now());
         // make sure they use orthogonal resource blocks
-        NS_ASSERT(Sum((*rxPsd) * (*m_rxSignal)) == 0.0);
+        if (Sum((*rxPsd) * (*m_rxSignal)) != 0.0)
+        {
+            // Overlapping signals detected: this can happen during handover
+            // (or on colliding same-cell grants) when two receptions share
+            // resource blocks. Reject the new signal instead of crashing: it
+            // stays in the all-signals set, so the caller accounts it as
+            // interference rather than as part of the desired signal.
+            NS_LOG_LOGIC("Overlapping PSD detected; treating the new signal as interference");
+            return false;
+        }
         (*m_rxSignal) += (*rxPsd);
     }
+    return true;
 }
 
 void

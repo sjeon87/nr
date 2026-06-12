@@ -142,6 +142,7 @@ NrUeRrc::NrUeRrc()
       m_rnti(0),
       m_cellId(0),
       m_useRlcSm(true),
+      m_useRrcReestablishment(true),
       m_connectionPending(false),
       m_hasReceivedMib(false),
       m_hasReceivedSib1(false),
@@ -257,6 +258,13 @@ NrUeRrc::GetTypeId()
                 UintegerValue(2), // see 3GPP 36.331 UE-TimersAndConstants & RLF-TimersAndConstants
                 MakeUintegerAccessor(&NrUeRrc::m_n311),
                 MakeUintegerChecker<uint8_t>(1, 10))
+            .AddAttribute(
+                "UseRrcReestablishment",
+                "Whether to use RRC connection reestablishment procedure. "
+                "When disabled, the UE directly clears its context upon radio link failure.",
+                BooleanValue(true),
+                MakeBooleanAccessor(&NrUeRrc::m_useRrcReestablishment),
+                MakeBooleanChecker())
             .AddTraceSource("MibReceived",
                             "trace fired upon reception of Master Information Block",
                             MakeTraceSourceAccessor(&NrUeRrc::m_mibReceivedTrace),
@@ -407,6 +415,13 @@ NrUeRrc::GetNrUeRrcSapProvider()
     return m_rrcSapProvider;
 }
 
+NrUeRrcSapUser*
+NrUeRrc::GetNrUeRrcSapUser()
+{
+    NS_LOG_FUNCTION(this);
+    return m_rrcSapUser;
+}
+
 void
 NrUeRrc::SetNrMacSapProvider(NrMacSapProvider* s)
 {
@@ -534,6 +549,13 @@ NrUeRrc::SetUseRlcSm(bool val)
 {
     NS_LOG_FUNCTION(this);
     m_useRlcSm = val;
+}
+
+void
+NrUeRrc::SetUseRrcReestablishment(bool val)
+{
+    NS_LOG_FUNCTION(this);
+    m_useRrcReestablishment = val;
 }
 
 void
@@ -903,12 +925,41 @@ NrUeRrc::DoConnect()
 // CPHY SAP methods
 
 void
-NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformationBlock msg)
+NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId,
+                                      uint32_t arfcn,
+                                      NrRrcSap::MasterInformationBlock msg)
 {
-    m_dlBandwidth = msg.dlBandwidth;
-    m_cphySapProvider.at(GetPrimaryDlIndex())->SetDlBandwidth(msg.dlBandwidth);
-    m_cphySapProvider.at(GetPrimaryDlIndex())->SetNumerology(msg.numerology);
-    m_cphySapProvider.at(GetPrimaryUlIndex())->SetNumerology(msg.numerology);
+    NS_LOG_FUNCTION(this << cellId << arfcn << m_cellId << +GetPrimaryDlIndex());
+
+    // Per-carrier / per-BWP MIB routing.
+    //
+    // The UE keeps MULTIPLE BWPs tuned (one per carrier) so it can receive SSB
+    // and measure RSRP on neighbour frequencies (and hand over between them).
+    // A MIB is a per-CARRIER broadcast: it carries the numerology/bandwidth of
+    // the carrier it was received on. Configure the BWP actually tuned to that
+    // carrier, resolved by its ARFCN -- never "the primary serving" BWP.
+    //
+    // Routing by the primary index is wrong once a same-cell BWP switch has
+    // moved the primary onto a carrier with a DIFFERENT numerology: applying
+    // this MIB's (foreign) numerology to it desyncs that BWP's PHY slot timeline
+    // and trips the "Cannot TX while RX" fatal in NrSpectrumPhy. The BWP that
+    // received this MIB is, by construction, on the MIB's carrier, so
+    // configuring it from the MIB is always self-consistent.
+    const std::size_t mibBwp = GetArfcnBwpId(arfcn);
+    m_cphySapProvider.at(mibBwp)->SetDlBandwidth(msg.dlBandwidth);
+    m_cphySapProvider.at(mibBwp)->SetNumerology(msg.numerology);
+
+    // Update the SERVING DL bandwidth bookkeeping only when this MIB configures
+    // the primary serving BWP (serving cell, primary carrier). Before commitment
+    // (m_cellId == 0, initial cell selection / manual attach) the MIB is from the
+    // cell we are synchronizing to; a connected UE's neighbour-measurement MIB
+    // keeps its own BWP decodable for RSRP but must never disturb serving state.
+    const bool isServingCell = (cellId == m_cellId) || (m_cellId == 0);
+    if (isServingCell && mibBwp == GetPrimaryDlIndex())
+    {
+        m_dlBandwidth = msg.dlBandwidth;
+    }
+
     m_hasReceivedMib = true;
     m_mibReceivedTrace(m_imsi, m_cellId, m_rnti, cellId);
 
@@ -1152,6 +1203,15 @@ NrUeRrc::DoRecvRrcConnectionSetup(NrRrcSap::RrcConnectionSetup msg)
     break;
 
     default:
+        // Stale or duplicate RrcConnectionSetup: if the UE is already
+        // CONNECTED_NORMALLY, drop the message and log a warning.
+        // This can happen during handover when old SRB0 messages race
+        // with the completed connection.
+        if (m_state == CONNECTED_NORMALLY)
+        {
+            NS_LOG_WARN("RrcConnectionSetup received in CONNECTED_NORMALLY (stale/duplicate)");
+            break;
+        }
         NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
         break;
     }
@@ -3568,12 +3628,27 @@ NrUeRrc::RadioLinkFailureDetected()
 {
     NS_LOG_FUNCTION(this << "IMSI " << m_imsi << m_rnti << ", cellId " << m_cellId);
     m_radioLinkFailureTrace(m_imsi, m_cellId, m_rnti);
-    NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Radio link failure detected for IMSI: "
-                 << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
-                 << " in state: " << ToString(m_state) << ".");
-    SwitchToState(CONNECTED_PHY_PROBLEM);
-    m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
-    m_asSapUser->NotifyConnectionReleased();
+    if (m_useRrcReestablishment)
+    {
+        NS_LOG_DEBUG(
+            "Switch to CONNECTED_PHY_PROBLEM. Reason: Radio link failure detected for IMSI: "
+            << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
+            << " in state: " << ToString(m_state) << ".");
+        SwitchToState(CONNECTED_PHY_PROBLEM);
+        m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
+        m_asSapUser->NotifyConnectionReleased();
+    }
+    else
+    {
+        NS_LOG_INFO(
+            "RRC reestablishment disabled. UE directly clears context and transitions to IDLE "
+            "mode for IMSI: "
+            << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId);
+        m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
+        m_asSapUser->NotifyConnectionReleased();
+        ResetRlfParams();
+        SwitchToState(IDLE_CELL_SEARCH);
+    }
 }
 
 void

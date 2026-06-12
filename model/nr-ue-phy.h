@@ -584,6 +584,33 @@ class NR_EXPORT NrUePhy : public NrPhy
     /// @brief Get the precoding matrix search engine
     Ptr<NrPmSearch> GetPmSearch() const;
 
+    /**
+     * @brief Set a "genie" callback that replaces measured neighbor RSRPs
+     * with externally computed values.
+     *
+     * When set, the next ReportUeMeasurements() invocation drops every
+     * non-serving entry from the PSS-derived measurement map and
+     * repopulates the neighbors from the callback's return value (a map of
+     * NR cell id to RSRP in dB, same convention as PopulateRsrps in
+     * NrInitialAssociation). The serving cell entry is left untouched so
+     * that A3 sees the same RSRP that the locked-beam spectrum path
+     * delivers to the SINR / RLF pipeline. The genie reference scale is
+     * anchored to PSS by shifting every neighbor by (PSS_serving - genie_serving),
+     * preserving the genie-computed relative deltas between cells while
+     * keeping the serving anchor consistent with the real signal magnitude.
+     *
+     * The override is skipped for the current reporting period if the
+     * PSS map has no serving-cell entry or the callback returns none for
+     * it (no anchor available).
+     *
+     * Intended as a debugging cheat to isolate the handover-decision
+     * pipeline from beam-management issues (e.g. when neighbor
+     * measurements arrive on a beam locked to the serving cell).
+     *
+     * @param cb the genie RSRP callback (returns map cellId -> RSRP dB).
+     */
+    void SetGenieRsrpCallback(Callback<std::map<uint16_t, double>> cb);
+
   protected:
     /**
      * @brief DoDispose method inherited from Object
@@ -1008,6 +1035,12 @@ class NR_EXPORT NrUePhy : public NrPhy
      * Indexed by the physical cell ID where the measurements come from.
      */
     std::map<uint16_t, UeMeasurementsElement> m_ueMeasurementsMap;
+    /**
+     * Optional genie RSRP override. When non-null, ReportUeMeasurements
+     * replaces m_ueMeasurementsMap with the values returned by this
+     * callback before reporting to RRC. See SetGenieRsrpCallback.
+     */
+    Callback<std::map<uint16_t, double>> m_genieRsrpCallback;
     /**
      * The `UeMeasurementsFilterPeriod` attribute. Time period for reporting UE
      * measurements, i.e., the length of layer-1 filtering (default 200 ms).

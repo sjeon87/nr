@@ -87,6 +87,7 @@ class NR_EXPORT ScenarioParameters
     // Keep the data members public to facilitate defining custom scenarios
     double m_isd{-1.0};                          //!< Inter-site distance (ISD) in meters
     double m_bsHeight{-1.0};                     //!< Height of gNB nodes
+    double m_picoBsHeight{-1.0};                 //!< Height of pico cell nodes
     double m_utHeight{-1.0};                     //!< Height of UE nodes
     SiteSectorizationType m_sectorization{NONE}; //!< Number of sectors per site
     double m_minBsUtDistance{-1.0};              //!< Minimum distance between BS and UT in meters

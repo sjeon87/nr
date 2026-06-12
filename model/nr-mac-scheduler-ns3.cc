@@ -212,6 +212,15 @@ NrMacSchedulerNs3::GetTypeId()
                           UintegerValue(0),
                           MakeUintegerAccessor(&NrMacSchedulerNs3::SetRachUlGrantMcs),
                           MakeUintegerChecker<uint8_t>())
+            .AddAttribute("Msg3MaxRetx",
+                          "Maximum number of HARQ retransmissions for msg3 (UL RRC Connection "
+                          "Request). 0 disables msg3 retransmission (single-shot, legacy "
+                          "behaviour, default). NOTE: when enabled, msg3 HARQ combining can "
+                          "deliver a duplicate Connection Request that is not yet handled by the "
+                          "gNB RRC state machine; do not enable without addressing that.",
+                          UintegerValue(0),
+                          MakeUintegerAccessor(&NrMacSchedulerNs3::m_msg3MaxRetx),
+                          MakeUintegerChecker<uint8_t>())
             .AddAttribute(
                 "McsCsiSource",
                 "Choose which CSI information is used to estimate DL MCS(default AVG_MCS)",
@@ -575,6 +584,13 @@ NrMacSchedulerNs3::DoCschedUeConfigReq(
     NS_LOG_FUNCTION(this << " RNTI " << params.m_rnti << " txMode "
                          << static_cast<uint32_t>(params.m_transmissionMode));
 
+    // NOTE: msg3 pending entries are NOT cleared here. CschedUeConfigReq for a
+    // T-C-RNTI fires when the UE is registered for RA reception (BEFORE the msg3
+    // PUSCH is decoded), so erasing here would drop the pending entry before any
+    // msg3 HARQ feedback and defeat retransmission. The entry is instead managed
+    // by the UL HARQ feedback in DoSchedUlTriggerReq: an Ok closes it (success),
+    // a NotOk retransmits (or closes it once the budget is exhausted).
+
     auto itUe = m_ueMap.find(params.m_rnti);
     GetSecond UeInfoOf;
     if (itUe == m_ueMap.end())
@@ -636,6 +652,14 @@ NrMacSchedulerNs3::DoCschedUeReleaseReq(
 
     m_schedulerSrs->RemoveUe(itUe->second->m_srsOffset);
     m_ueMap.erase(itUe);
+    std::erase(m_srList, params.m_rnti);
+
+    // Drop any msg3 retransmission state still keyed to this RNTI. Without
+    // this, an entry from a TC-RNTI that never completed random access
+    // survives the release, and a later UE reusing the same numeric RNTI
+    // would inherit a bogus msg3 retransmission grant.
+    m_msg3Pending.erase(params.m_rnti);
+    std::erase(m_msg3RetxList, params.m_rnti);
 
     // We clean m_ulAllocationMap in two steps, first we remove vector entries from map items
     // Later we remove map items with empty vectors
@@ -992,7 +1016,16 @@ NrMacSchedulerNs3::DoSchedUlCqiInfoReq(
             if (allocation.m_symStart == symStart)
             {
                 auto itUe = m_ueMap.find(allocation.m_rnti);
-                NS_ASSERT(itUe != m_ueMap.end());
+                if (itUe == m_ueMap.end())
+                {
+                    // No UE context for this RNTI: e.g. a msg3 (RRC Connection
+                    // Request) retransmission grant addressed to a T-C-RNTI that is
+                    // not yet a registered UE. There is nowhere to store a CQI, so
+                    // consume the allocation and skip it.
+                    found = true;
+                    it = ulAllocations.erase(it);
+                    continue;
+                }
                 NS_ASSERT(allocation.m_numSym > 0);
                 NS_ASSERT(allocation.m_tbs > 0);
 
@@ -1710,6 +1743,14 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
                 continue;
             }
 
+            auto distributedBytes = m_schedLc->AssignBytesToUlLC(ue.first->m_ulLCG, dci->m_tbSize);
+            if (distributedBytes.empty())
+            {
+                NS_LOG_DEBUG("Not enough bytes assigned to UL LCs. Skipping UE.");
+                ue.first->ResetUlMetric();
+                continue;
+            }
+
             assigned = true;
 
             if (symbStartDci.insert(dci->m_symStart).second)
@@ -1741,7 +1782,6 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
                                << " harqId " << static_cast<uint32_t>(id) << " rv "
                                << static_cast<uint32_t>(dci->m_rv));
 
-            auto distributedBytes = m_schedLc->AssignBytesToUlLC(ue.first->m_ulLCG, dci->m_tbSize);
             bool assignedToLC = false;
             for (const auto& byteDistribution : distributedBytes)
             {
@@ -1799,6 +1839,12 @@ NrMacSchedulerNs3::DoScheduleUlSr(PointInFTPlane* spoint, const std::list<uint16
 
     for (const auto& v : rntiList)
     {
+        const auto itUe = m_ueMap.find(v);
+        if (itUe == m_ueMap.end())
+        {
+            NS_LOG_WARN("Unknown RNTI was scheduled for SR " << v);
+            continue;
+        }
         for (auto& ulLcg : NrMacSchedulerUeInfo::GetUlLCG(m_ueMap.at(v)))
         {
             NS_LOG_DEBUG("Assigning 12 bytes to UE " << v << " because of a SR");
@@ -2111,6 +2157,23 @@ NrMacSchedulerNs3::DoScheduleUl(const std::vector<UlHarqInfo>& ulHarqFeedback,
                                     << " symbols for UL MSG3");
         ulSymAvail -= usedMsg3;
         allocInfo->m_numSymAlloc += usedMsg3;
+        NS_ASSERT_MSG(allocInfo->m_numSymAlloc <= 14,
+                      "Invalid number of symbols: " << allocInfo->m_numSymAlloc << " symbols. ");
+    }
+
+    // msg3 (RRC Connection Request) HARQ retransmissions. Allocated after the
+    // initial msg3 grants so they do not collide in the same slot/RBs.
+    if (m_msg3MaxRetx > 0 && !m_msg3RetxList.empty() &&
+        (type == LteNrTddSlotType::F || type == LteNrTddSlotType::UL))
+    {
+        uint8_t usedMsg3Retx =
+            DoScheduleUlMsg3Retx(&ulAssignationStartPoint, ulSymAvail, allocInfo);
+        NS_ASSERT_MSG(ulSymAvail >= usedMsg3Retx,
+                      "Available: " << +ulSymAvail << " used by UL MSG3 retx: " << +usedMsg3Retx);
+        NS_LOG_INFO("For the slot " << ulSfn << " reserved " << static_cast<uint32_t>(usedMsg3Retx)
+                                    << " symbols for UL MSG3 retx");
+        ulSymAvail -= usedMsg3Retx;
+        allocInfo->m_numSymAlloc += usedMsg3Retx;
         NS_ASSERT_MSG(allocInfo->m_numSymAlloc <= 14,
                       "Invalid number of symbols: " << allocInfo->m_numSymAlloc << " symbols. ");
     }
@@ -2671,6 +2734,43 @@ NrMacSchedulerNs3::DoSchedUlTriggerReq(
         // if there are feedbacks for expired process, remove them
         for (auto it = ulHarqFeedback.begin(); it != ulHarqFeedback.end(); /* no inc */)
         {
+            // msg3 (RRC Connection Request) HARQ feedback. The TC-RNTI is not yet
+            // a registered UE (not in m_ueMap), so the regular HARQ machinery below
+            // would crash on it. Handle it here: a NACK queues a retransmission,
+            // an ACK or an exhausted retransmission budget closes the pending entry.
+            if (m_msg3MaxRetx > 0)
+            {
+                auto msg3It = m_msg3Pending.find(it->m_rnti);
+                if (msg3It != m_msg3Pending.end())
+                {
+                    if (it->m_receptionStatus == UlHarqInfo::NotOk &&
+                        msg3It->second.attempts < m_msg3MaxRetx)
+                    {
+                        NS_LOG_INFO("msg3 NACK for TC-RNTI "
+                                    << it->m_rnti << " (attempt "
+                                    << static_cast<uint32_t>(msg3It->second.attempts)
+                                    << "), scheduling retransmission");
+                        ++msg3It->second.attempts;
+                        m_msg3RetxList.push_back(it->m_rnti);
+                    }
+                    else
+                    {
+                        // ACK (msg3 decoded; UE config will follow) or no budget left:
+                        // stop tracking. On success the entry is normally also erased
+                        // in DoCschedUeConfigReq; doing it here is harmless and covers
+                        // the give-up case.
+                        NS_LOG_INFO(
+                            "msg3 for TC-RNTI "
+                            << it->m_rnti << " closed (status "
+                            << (it->m_receptionStatus == UlHarqInfo::Ok ? "Ok" : "exhausted")
+                            << ")");
+                        m_msg3Pending.erase(msg3It);
+                    }
+                    // Never let TC-RNTI feedback reach ProcessHARQFeedbacks.
+                    it = ulHarqFeedback.erase(it);
+                    continue;
+                }
+            }
             if (m_ueMap.find(it->m_rnti) == m_ueMap.end())
             {
                 NS_LOG_WARN("UE was released, but HARQ feedback remained in a buffer. We dispose "
@@ -2740,6 +2840,24 @@ NrMacSchedulerNs3::DoSchedUlSrInfoReq(
  *
  * @return The number of symbols used in the allocation
  */
+std::pair<uint8_t, uint16_t>
+NrMacSchedulerNs3::FitMsg3Grant(uint16_t estimatedSizeBits,
+                                uint8_t symAvail,
+                                uint16_t usableRbgs) const
+{
+    uint8_t allocSymbols = 0;
+    uint16_t tbSizeBits = 0;
+
+    // find the lowest TB size that fits UL grant estimated size
+    while ((tbSizeBits < estimatedSizeBits) && (symAvail - allocSymbols > 0))
+    {
+        allocSymbols++;
+        const auto nprbs = usableRbgs * GetNumRbPerRbg() * allocSymbols;
+        tbSizeBits = GetUlAmc()->CalculateTbSize(m_rachUlGrantMcs, 1, nprbs) * 8;
+    }
+    return {allocSymbols, tbSizeBits};
+}
+
 uint8_t
 NrMacSchedulerNs3::DoScheduleUlMsg3(PointInFTPlane* sPoint,
                                     uint8_t symAvail,
@@ -2754,16 +2872,8 @@ NrMacSchedulerNs3::DoScheduleUlMsg3(PointInFTPlane* sPoint,
 
     for (const auto& rachReq : m_rachList)
     {
-        uint8_t allocSymbols = 0;
-        uint16_t tbSizeBits = 0;
-
-        // find the lowest TB size that fits UL grant estimated size
-        while ((tbSizeBits < rachReq.m_estimatedSize) && (symAvail - allocSymbols > 0))
-        {
-            allocSymbols++;
-            const auto nprbs = usableRbgs * GetNumRbPerRbg() * allocSymbols;
-            tbSizeBits = GetUlAmc()->CalculateTbSize(m_rachUlGrantMcs, 1, nprbs) * 8;
-        }
+        const auto [allocSymbols, tbSizeBits] =
+            FitMsg3Grant(rachReq.m_estimatedSize, symAvail, usableRbgs);
 
         if (tbSizeBits < rachReq.m_estimatedSize)
         {
@@ -2807,10 +2917,106 @@ NrMacSchedulerNs3::DoScheduleUlMsg3(PointInFTPlane* sPoint,
 
         VarTtiAllocInfo slotInfo(ulMsg3Dci);
         slotAlloc->m_varTtiAllocInfo.emplace_front(slotInfo);
+
+        // Track this msg3 so that, if its UL PUSCH fails to decode, we can
+        // retransmit it instead of letting the UE's T300 expire. Only the
+        // INITIAL grant registers the entry; refresh on a re-grant of the same
+        // TC-RNTI (RAR resent) without resetting the attempt counter.
+        if (m_msg3MaxRetx > 0)
+        {
+            auto pendingIt = m_msg3Pending.find(rachReq.m_rnti);
+            if (pendingIt == m_msg3Pending.end())
+            {
+                m_msg3Pending[rachReq.m_rnti] = Msg3RetxInfo{0, rachReq.m_estimatedSize};
+            }
+            else
+            {
+                pendingIt->second.estimatedSizeBits = rachReq.m_estimatedSize;
+            }
+        }
     }
 
     m_rachList.clear();
     return (symAvailBeforeRach - symAvail);
+}
+
+uint8_t
+NrMacSchedulerNs3::DoScheduleUlMsg3Retx(PointInFTPlane* sPoint,
+                                        uint8_t symAvail,
+                                        SlotAllocInfo* slotAlloc)
+{
+    NS_LOG_FUNCTION(this);
+    NS_ASSERT(sPoint->m_rbg == 0);
+
+    uint8_t symAvailBeforeRetx = symAvail;
+    auto rbgBitmask = GetUlBitmask();
+    uint16_t usableRbgs = std::count(rbgBitmask.begin(), rbgBitmask.end(), true);
+
+    for (const auto& rnti : m_msg3RetxList)
+    {
+        auto pendingIt = m_msg3Pending.find(rnti);
+        if (pendingIt == m_msg3Pending.end())
+        {
+            // Should not happen: NACK handling keeps the pending entry alive while
+            // it queues the retx. Skip defensively.
+            NS_LOG_WARN("msg3 retx requested for TC-RNTI " << rnti
+                                                           << " with no pending entry; skipping");
+            continue;
+        }
+
+        const uint16_t estimatedSize = pendingIt->second.estimatedSizeBits;
+        // rv carries the (capped) retransmission index; the HARQ combiner at the
+        // gNB only distinguishes rv==3 (last redundancy version) from the rest.
+        const uint8_t rv = std::min<uint8_t>(pendingIt->second.attempts, 3);
+
+        // Same sizing rule as the initial msg3 grant
+        const auto [allocSymbols, tbSizeBits] = FitMsg3Grant(estimatedSize, symAvail, usableRbgs);
+
+        if (tbSizeBits < estimatedSize || allocSymbols == 0)
+        {
+            // No room left in this slot for this retx; keep it pending and try the
+            // next UL slot (the entry stays in m_msg3Pending and we re-queue below).
+            NS_LOG_INFO("Not enough UL symbols for msg3 retx of TC-RNTI " << rnti << " this slot");
+            break;
+        }
+
+        sPoint->m_sym -= allocSymbols;
+
+        uint8_t rank{1};
+        Ptr<const ComplexMatrixArray> precMats{nullptr};
+        std::shared_ptr<DciInfoElementTdma> ulMsg3RetxDci =
+            std::make_shared<DciInfoElementTdma>(rnti,
+                                                 DciInfoElementTdma::UL,
+                                                 sPoint->m_sym,
+                                                 allocSymbols,
+                                                 m_rachUlGrantMcs,
+                                                 rank,
+                                                 precMats,
+                                                 tbSizeBits / 8,
+                                                 0, // NDI=0 -> UE retransmits buffered msg3
+                                                 rv,
+                                                 DciInfoElementTdma::DATA, // dispatched as UL DCI
+                                                 GetBwpId(),
+                                                 GetTpc());
+        ulMsg3RetxDci->m_rbgBitmask = rbgBitmask;
+        ulMsg3RetxDci->m_harqProcess = 0; // msg3 lives at HARQ process 0 on the UE
+        symAvail -= allocSymbols;
+
+        NS_LOG_INFO("MSG3 RETX UL grant from cell ID "
+                    << GetCellId() << " allocated to TC-RNTI " << rnti << " in slot "
+                    << slotAlloc->m_sfnSf << " symStart " << +ulMsg3RetxDci->m_symStart
+                    << " numSym " << +ulMsg3RetxDci->m_numSym << " MCS "
+                    << (uint16_t)+ulMsg3RetxDci->m_mcs << " tbSize " << +ulMsg3RetxDci->m_tbSize
+                    << " rv " << +rv);
+
+        VarTtiAllocInfo slotInfo(ulMsg3RetxDci);
+        slotAlloc->m_varTtiAllocInfo.emplace_front(slotInfo);
+    }
+
+    // Clear the queue: retransmissions not placed this slot keep their pending
+    // entry and will be re-queued by the next NACK.
+    m_msg3RetxList.clear();
+    return (symAvailBeforeRetx - symAvail);
 }
 
 bool

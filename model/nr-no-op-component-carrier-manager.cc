@@ -293,6 +293,15 @@ NrNoOpComponentCarrierManager::DoConfigureSignalBearer(NrGnbCmacSapProvider::LcI
 }
 
 void
+NrNoOpComponentCarrierManager::DoRegisterSignalBearer(uint16_t rnti,
+                                                      uint8_t lcid,
+                                                      NrMacSapUser* rlcMacSapUser)
+{
+    NS_LOG_FUNCTION(this << rnti << +lcid);
+    // No-op: signal bearer registration is handled by the concrete CCM implementation.
+}
+
+void
 NrNoOpComponentCarrierManager::DoNotifyPrbOccupancy(double prbOccupancy, uint8_t componentCarrierId)
 {
     NS_LOG_FUNCTION(this);

@@ -245,6 +245,7 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
     friend class NrSchedGeneralTestCase;
     friend class NrTestMacSchedulerHarqRrReshape;
     friend class NrTestMacSchedulerHarqRrScheduleDlHarq;
+    friend class NrTestMacSchedulerHarqRrBeamOrder;
 
   public:
     /**
@@ -862,6 +863,40 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
                              const ActiveUeMap& activeUl,
                              SlotAllocInfo* slotAlloc) const;
     uint8_t DoScheduleUlMsg3(PointInFTPlane* sPoint, uint8_t symAvail, SlotAllocInfo* slotAlloc);
+    /**
+     * @brief Schedule msg3 (RRC Connection Request) HARQ retransmissions
+     *
+     * For each TC-RNTI queued in m_msg3RetxList (because its initial msg3 UL
+     * PUSCH failed to decode at the gNB and a UL HARQ NACK was received), this
+     * allocates fresh UL resources and builds a normal UL HARQ retransmission
+     * DCI (m_type=DATA, m_format=UL, m_ndi=0, m_harqProcess=0, m_rv=attempts)
+     * addressed to the TC-RNTI. The UE, which already buffered msg3 at HARQ
+     * process 0, retransmits it upon receiving this DCI.
+     *
+     * @param sPoint Starting point in the FT plane (updated)
+     * @param symAvail Number of available symbols
+     * @param slotAlloc Slot allocation info (updated)
+     * @return The number of symbols used by the msg3 retransmission grants
+     */
+    uint8_t DoScheduleUlMsg3Retx(PointInFTPlane* sPoint,
+                                 uint8_t symAvail,
+                                 SlotAllocInfo* slotAlloc);
+    /**
+     * @brief Find the smallest msg3 UL grant that fits an estimated size
+     *
+     * Computes the lowest number of UL symbols whose TB size (at the RACH UL
+     * grant MCS, over the usable RBGs) fits the estimated msg3 size. Shared by
+     * the initial msg3 grant and the msg3 HARQ retransmission grant so both
+     * always apply the same sizing rule.
+     *
+     * @param estimatedSizeBits Estimated msg3 size in bits
+     * @param symAvail Number of available symbols
+     * @param usableRbgs Number of usable RBGs in the UL bitmask
+     * @return Pair of allocated symbols and the resulting TB size in bits
+     */
+    std::pair<uint8_t, uint16_t> FitMsg3Grant(uint16_t estimatedSizeBits,
+                                              uint8_t symAvail,
+                                              uint16_t usableRbgs) const;
     void DoScheduleUlSr(PointInFTPlane* spoint, const std::list<uint16_t>& rntiList) const;
     uint8_t DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
                          const ActiveHarqMap& activeDlHarq,
@@ -980,6 +1015,31 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
     std::list<uint16_t> m_srList; //!< List of RNTI of UEs that asked for a SR
 
     std::vector<struct nr::RachListElement_s> m_rachList; //!< rach list
+
+    /**
+     * @brief Bookkeeping for an in-flight msg3 (RRC Connection Request) awaiting
+     *        HARQ acknowledgement / retransmission.
+     */
+    struct Msg3RetxInfo
+    {
+        uint8_t attempts{0};           //!< Number of retransmissions issued so far
+        uint16_t estimatedSizeBits{0}; //!< Estimated msg3 size in bits, from the RACH request
+    };
+
+    uint8_t m_msg3MaxRetx{0}; //!< Max msg3 HARQ retransmissions (0 disables the feature)
+
+    /**
+     * @brief Pending msg3 transmissions keyed by TC-RNTI. Populated when the
+     *        initial msg3 grant is issued, refreshed/erased on HARQ feedback,
+     *        and cleared once the TC-RNTI becomes a registered UE.
+     */
+    std::map<uint16_t, Msg3RetxInfo> m_msg3Pending;
+
+    /**
+     * @brief TC-RNTIs whose msg3 must be retransmitted in the next UL slot
+     *        (a UL HARQ NACK was received for a pending msg3).
+     */
+    std::vector<uint16_t> m_msg3RetxList;
 
     uint16_t m_bandwidth{0};         //!< Bandwidth in number of RBG
     uint8_t m_dlCtrlSymbols{0};      //!< DL ctrl symbols (attribute)

@@ -834,7 +834,8 @@ NrEpcX2SnStatusTransferHeader::Serialize(Buffer::Iterator start) const
             uint64_t statusValue = 0;
             for (int m = 0; m < 64; m++)
             {
-                statusValue |= item.receiveStatusOfUlPdcpSdus[64 * k + m] << m;
+                statusValue |= static_cast<uint64_t>(item.receiveStatusOfUlPdcpSdus[64 * k + m])
+                               << m;
             }
             i.WriteHtonU64(statusValue);
         }
@@ -856,7 +857,7 @@ NrEpcX2SnStatusTransferHeader::Deserialize(Buffer::Iterator start)
     int sz = i.ReadNtohU16();
 
     m_numberOfIes = 3;
-    m_headerLength = 6 + sz * (14 + (NrEpcX2Sap::m_maxPdcpSn / 64));
+    m_headerLength = 6 + sz * (14 + (NrEpcX2Sap::m_maxPdcpSn / 8));
 
     for (int j = 0; j < sz; j++)
     {

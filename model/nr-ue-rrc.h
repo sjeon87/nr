@@ -199,6 +199,13 @@ class NR_EXPORT NrUeRrc : public Object
     NrUeRrcSapProvider* GetNrUeRrcSapProvider();
 
     /**
+     * Get the RRC SAP user interface used by this RRC.
+     *
+     * @return s the RRC SAP User interface
+     */
+    NrUeRrcSapUser* GetNrUeRrcSapUser();
+
+    /**
      * set the MAC SAP provider. The ue RRC does not use this
      * directly, but it needs to provide it to newly created RLC instances.
      *
@@ -494,9 +501,12 @@ class NR_EXPORT NrUeRrc : public Object
      * Receive master information block function
      *
      * @param cellId the cell ID
+     * @param arfcn the ARFCN of the carrier (BWP) on which the MIB was received
      * @param msg NrRrcSap::MasterInformationBlock
      */
-    void DoRecvMasterInformationBlock(uint16_t cellId, NrRrcSap::MasterInformationBlock msg);
+    void DoRecvMasterInformationBlock(uint16_t cellId,
+                                      uint32_t arfcn,
+                                      NrRrcSap::MasterInformationBlock msg);
     /**
      * Receive system information block type 1 function
      *
@@ -854,6 +864,19 @@ class NR_EXPORT NrUeRrc : public Object
      * Can be modified using SetUseRlcSm().
      */
     bool m_useRlcSm;
+
+    /**
+     * True if RRC connection reestablishment is enabled, false if the UE
+     * should directly clear its context upon radio link failure.
+     * Can be modified using SetUseRrcReestablishment().
+     */
+    bool m_useRrcReestablishment; ///< RRC reestablishment enabled flag
+
+    /**
+     * @brief Set whether RRC connection reestablishment is enabled.
+     * @param val true to enable reestablishment, false to disable it
+     */
+    void SetUseRrcReestablishment(bool val);
 
     uint8_t m_lastRrcTransactionIdentifier; ///< last RRC transaction identifier
 
@@ -1414,7 +1437,7 @@ class NR_EXPORT NrUeRrc : public Object
  * @param state enum value of the state
  * @return string value of the state
  */
-const std::string ToString(NrUeRrc::State state);
+NR_EXPORT const std::string ToString(NrUeRrc::State state);
 /**
  * Prints to the output stream the NrUeRrc::State
  * @param os output stream

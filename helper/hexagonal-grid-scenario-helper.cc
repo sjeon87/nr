@@ -9,6 +9,9 @@
 #include "ns3/fast-fading-constant-position-mobility-model.h"
 #include "ns3/hexagonal-wraparound-model.h"
 #include "ns3/mobility-helper.h"
+#include "ns3/random-direction-2d-mobility-model.h"
+#include "ns3/rectangle.h"
+#include "ns3/string.h"
 
 #include <algorithm>
 #include <cmath>
@@ -167,10 +170,12 @@ std::vector<double> HexagonalGridScenarioHelper::siteAngles{
  * @param cellCenterVector Vector of cell center positions
  * @param utPosVector Vector of user terminals positions
  * @param cellRadius Hexagonal cell radius in meters
+ * @param picoCellPosVector Vector of pico cell positions
  */
 static void
 PlotHexagonalDeployment(const Ptr<const ListPositionAllocator>& sitePosVector,
                         const Ptr<const ListPositionAllocator>& cellCenterVector,
+                        const Ptr<const ListPositionAllocator>& picoCellPosVector,
                         const Ptr<const ListPositionAllocator>& utPosVector,
                         double cellRadius,
                         std::string resultsDir,
@@ -179,6 +184,7 @@ PlotHexagonalDeployment(const Ptr<const ListPositionAllocator>& sitePosVector,
     uint16_t numCells = cellCenterVector->GetSize();
     uint16_t numSites = sitePosVector->GetSize();
     uint16_t numSectors = numCells / numSites;
+    uint16_t numPicos = picoCellPosVector->GetSize();
     uint16_t numUts = utPosVector->GetSize();
     NS_ASSERT_MSG(numCells > 0, "no cells");
     NS_ASSERT_MSG(numSites > 0, "no sites");
@@ -249,6 +255,16 @@ PlotHexagonalDeployment(const Ptr<const ListPositionAllocator>& sitePosVector,
 
         topologyOutfile << "set label " << cellId + 1 << " \"" << (cellId + 1) << "\" at "
                         << cellPos.x << " , " << cellPos.y << " center" << std::endl;
+    }
+
+    for (uint16_t picoId = 0; picoId < numPicos; ++picoId)
+    {
+        Vector picoPos = picoCellPosVector->GetNext();
+        auto cellId = numCells + picoId + 1;
+        //      set label at xPos, yPos, zPos "" point pointtype 7 pointsize 2
+        topologyOutfile << "set label " << cellId << " \"" << cellId << "\" at " << picoPos.x
+                        << " , " << picoPos.y << " point pointtype 1 pointsize 0.5 center"
+                        << std::endl;
     }
 
     for (uint16_t utId = 0; utId < numUts; ++utId)
@@ -425,6 +441,7 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         wraparound = CreateObject<HexagonalWraparoundModel>(m_isd, GetNumSites());
     }
 
+    Rectangle outdoorBoundingBox{0, 0, 0, 0};
     // BS position
     for (std::size_t cellId = 0; cellId < m_numBs; cellId++)
     {
@@ -435,6 +452,23 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         sitePos.x += m_isd * dist * cos(angleRad);
         sitePos.y += m_isd * dist * sin(angleRad);
         sitePos.z = m_bsHeight;
+
+        if (sitePos.x - m_isd < outdoorBoundingBox.xMin)
+        {
+            outdoorBoundingBox.xMin = sitePos.x - m_isd;
+        }
+        if (sitePos.x + m_isd > outdoorBoundingBox.xMax)
+        {
+            outdoorBoundingBox.xMax = sitePos.x + m_isd;
+        }
+        if (sitePos.y - m_isd < outdoorBoundingBox.yMin)
+        {
+            outdoorBoundingBox.yMin = sitePos.y - m_isd;
+        }
+        if (sitePos.y + m_isd > outdoorBoundingBox.yMax)
+        {
+            outdoorBoundingBox.yMax = sitePos.y + m_isd;
+        }
 
         if (GetSectorIndex(cellId) == 0)
         {
@@ -468,6 +502,7 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
     if (m_installPicoCells)
     {
         std::vector<Vector3D> picoCellCoordinate;
+        constexpr double ONE_180TH = 1 / 180.0;
         for (std::size_t cellId = 0; cellId < m_numBs; cellId++)
         {
             uint16_t siteIndex = GetSiteIndex(cellId);
@@ -483,19 +518,25 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
             sitePos.y += m_isd * dist * std::sin(angleRad);
             sitePos.z = m_bsHeight;
             // Six pico cells around the site, every 60 degrees
-            const double picoRadius = m_isd / 2;
-            const double eps = 1e-6; // only for exact-duplicate protection
+            const double picoRadius = m_isd * 0.6;
+            // Merge radius in meters: pico positions generated from different
+            // sites (or wraparound images) that land within this distance are
+            // treated as the same pico. Distinct picos on the 0.6 * ISD ring are
+            // spaced much farther apart at calibration ISDs (>= 100 m at
+            // ISD 500 m), so only coincident positions collapse.
+            const double eps = 30;
 
+            NS_ASSERT_MSG(m_picoBsHeight != -1.0, "Scenario does not support picocells");
             for (uint8_t picoCellOffset = 0; picoCellOffset < 6; ++picoCellOffset)
             {
-                const double ang = (30.0 + picoCellOffset * 60.0) * M_PI / 180.0;
+                const double ang = (60.0 + picoCellOffset * 60.0) * M_PI * ONE_180TH;
 
                 Vector picoCellPos(sitePos);
                 picoCellPos.x += picoRadius * std::cos(ang);
                 picoCellPos.y += picoRadius * std::sin(ang);
-                picoCellPos.z = m_bsHeight;
+                picoCellPos.z = m_picoBsHeight;
 
-                // Optional: avoid exact duplicates due to floating point
+                // Skip this pico if an equivalent position was already added
                 auto it = std::find_if(picoCellCoordinate.begin(),
                                        picoCellCoordinate.end(),
                                        [eps, &picoCellPos](const Vector3D& a) {
@@ -618,6 +659,41 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
                     outdoorUeSpeed);
             }
         }
+        else if (mobilityModel == "ns3::RandomDirection2dMobilityModel")
+        {
+            ueMobility.SetMobilityModel(mobilityModel,
+                                        "Bounds",
+                                        RectangleValue(outdoorBoundingBox));
+            ueMobility.SetPositionAllocator(utPosVector);
+            ueMobility.Install(m_ut);
+            std::stringstream ss;
+            ss << "ns3::ConstantRandomVariable[Constant=" << indoorUeSpeed.GetLength() << "]";
+            // Set bounding boxes and velocity for indoor and outdoor UEs
+            for (uint32_t i = 0; i < indoorUes.GetN(); i++)
+            {
+                auto uePos = indoorUes.Get(i)->GetObject<MobilityModel>()->GetPosition();
+                auto indoorUeBoundingBox =
+                    Rectangle(uePos.x - 100, uePos.x + 100, uePos.y - 100, uePos.y + 100);
+                indoorUes.Get(i)->GetObject<RandomDirection2dMobilityModel>()->SetAttribute(
+                    "Bounds",
+                    RectangleValue(indoorUeBoundingBox));
+                indoorUes.Get(i)->GetObject<RandomDirection2dMobilityModel>()->SetAttribute(
+                    "Speed",
+                    StringValue(ss.str()));
+            }
+            // stringstream::clear() only resets the error flags; str("") empties the
+            // buffer. With clear() alone the outdoor spec was appended after the
+            // indoor one and the attribute parser kept the first (indoor) value, so
+            // every outdoor UE silently moved at the indoor speed.
+            ss.str("");
+            ss << "ns3::ConstantRandomVariable[Constant=" << outdoorUeSpeed.GetLength() << "]";
+            for (uint32_t i = 0; i < outdoorUes.GetN(); i++)
+            {
+                outdoorUes.Get(i)->GetObject<RandomDirection2dMobilityModel>()->SetAttribute(
+                    "Speed",
+                    StringValue(ss.str()));
+            }
+        }
         else if (mobilityModel == "ns3::FastFadingConstantPositionMobilityModel")
         {
             ueMobility.SetMobilityModel(mobilityModel, "FakeVelocity", VectorValue(indoorUeSpeed));
@@ -647,6 +723,7 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
     }
     PlotHexagonalDeployment(sitePosVector,
                             bsCenterVector,
+                            picoBsPosVector,
                             utPosVector,
                             m_hexagonalRadius,
                             m_resultsDir,

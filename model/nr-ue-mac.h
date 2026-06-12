@@ -471,9 +471,9 @@ class NR_EXPORT NrUeMac : public Object
     SrBsrMachine m_srState{INACTIVE}; //!< Current state for the SR/BSR machine.
 
     Ptr<UniformRandomVariable> m_raPreambleUniformVariable;
-    uint8_t m_raPreambleId{0}; //!< The RA Preamble ID
-    uint8_t m_raRnti{0};       //!< The RA Rnti
-    uint64_t m_imsi{0};        ///< IMSI
+    uint8_t m_raPreambleId{255}; //!< The RA Preamble ID (255 = none sent; valid IDs 0..63)
+    uint8_t m_raRnti{0};         //!< The RA Rnti
+    uint64_t m_imsi{0};          ///< IMSI
 
     // The HARQ part has to be reviewed
     struct NR_EXPORT UlHarqProcessInfo
@@ -503,10 +503,10 @@ class NR_EXPORT NrUeMac : public Object
 
     /**
      * Trace information regarding Ue MAC Received Control Messages
-     * Frame number, Subframe number, slot, VarTtti, nodeId, rnti, bwpId,
+     * imsi, Frame number, Subframe number, slot, VarTtti, cellId, rnti, bwpId,
      * pointer to message in order to get the msg type
      */
-    TracedCallback<SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
+    TracedCallback<uint64_t, SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
         m_macRxedCtrlMsgsTrace;
 
     /**
@@ -514,7 +514,7 @@ class NR_EXPORT NrUeMac : public Object
      * Frame number, Subframe number, slot, VarTtti, nodeId, rnti, bwpId,
      * pointer to message in order to get the msg type
      */
-    TracedCallback<SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
+    TracedCallback<uint64_t, SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>>
         m_macTxedCtrlMsgsTrace;
 
     /**
@@ -526,10 +526,11 @@ class NR_EXPORT NrUeMac : public Object
 
     /**
      * Trace information regarding Ue MAC Received Control Messages
-     * Frame number, Subframe number, slot, VarTtti, nodeId, rnti, bwpId, UE current state,
+     * IMSI, Frame number, Subframe number, slot, VarTtti, cellId, rnti, bwpId, UE current state,
      * BSR data, retransmission, name of the function
      */
-    TracedCallback<SfnSf,
+    TracedCallback<uint64_t,
+                   SfnSf,
                    uint16_t,
                    uint16_t,
                    uint8_t,
