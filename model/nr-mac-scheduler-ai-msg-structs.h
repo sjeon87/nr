@@ -1,69 +1,118 @@
+// Copyright (c) 2026 University of Peradeniya (UoP)
 // Copyright (c) 2026 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
 #pragma once
+
 #include <cstdint>
 
 namespace ns3
 {
 
-static constexpr uint32_t MAX_UES = 32; // Max UEs per slot (16 realistic, ×4 bearers aggregated per UE) + headroom
-
 /**
- * @brief Per-UE observation written by C++ for the Python agent.
+ * @file nr-mac-scheduler-ai-msg-structs.h
+ * @ingroup scheduler
+ * @brief Plain-old-data message structs exchanged between the NR MAC scheduler
+ *        (C++) and a Python agent through the ns3-ai message interface.
  *
- * One entry per active UE in the current scheduling slot. QoS fields are
- * aggregated across the UE's logical channels (bearers) so the agent emits a
- * single scheduling weight per UE.
- * Stored directly in shared memory so both C++ and Python can read it.
+ * These structs are placed byte-for-byte in shared memory (ns3-ai vector-based
+ * message interface, one element per UE), so their layout is a binary contract
+ * between C++ and Python: every field offset and size is verified by the
+ * nr-mac-scheduler-ai-msg-structs test suite and mirrored by the pybind11
+ * bindings. Do not reorder or resize fields without updating both.
+ *
+ * Exchange cadence: one observation/action exchange happens per scheduler
+ * assignment iteration (inside the resource-assignment loop, possibly many
+ * times per slot), not once per slot. The Python side must simply loop
+ * receive/send until the ns3-ai finish flag is set, and must not assume any
+ * fixed time cadence. An empty observation vector is a valid exchange (no
+ * active UE in that iteration).
+ *
+ * Reward and episode termination are intentionally not part of these structs:
+ * the reward is computed on the Python side from the observations, and
+ * termination uses the native ns3-ai finish handling (SetHandleFinish).
+ *
+ * Scope: one scheduler instance (one cell/BWP) per simulation, because the
+ * ns3-ai message interface is a process-wide singleton.
+ *
+ * The number of UEs per exchange is dynamic (the vector length), so no fixed
+ * maximum UE count is needed. Only the per-UE bearer list is bounded.
  */
-struct NrSchedulerObservation {
-	uint16_t rnti; 		// Radio Network Temp Identifier
-	uint8_t numLcs; 	// Number of active logical channels (bearers) for this UE
-	uint8_t fiveQI; 	// Representative 5QI class across the UE's bearers
-	uint8_t priority; 	// Representative QoS priority level across the UE's bearers
-	uint16_t holDelay; 	// Worst (max) Head of Line Delay across bearers (ms)
-	float cqi; 		// Wideband CQI
-	float bsr; 		// Aggregate Buffer Status Report (sum across bearers)
-	float avgTput; 		// Historical Average Throughput for the UE
-	float potentialTput; 	// Instantaneous achievable Throughput
-	};
+
+/// Maximum number of bearers (logical channels) reported per UE.
+static constexpr uint32_t MAX_LCS_PER_UE = 4;
 
 /**
- * @brief Per-UE action sent from the Python agent back to C++.
+ * @brief Per-bearer (logical channel) observation for one UE.
  *
- * The agent writes one action per active UE with a scheduling weight.
- * Higher weight means the scheduler gives that UE more resources.
-*/
-struct NrSchedulerAction {
-	uint16_t rnti; 		// Radio Network Temp Identifier
-	float weight; 		// Scheduling weight from Agent
-	};
+ * Holds the Quality-of-Service fields that are inherently per-bearer, so the
+ * Python agent can see how each of a UE's traffic streams is doing rather
+ * than only an aggregate. One of these is filled per active bearer of the UE.
+ *
+ * Downlink: all fields are valid; they come from the gNB-side RLC buffer
+ * reports. Uplink: only the static QoS fields (lcId, fiveQI, priority,
+ * resourceType, delayBudgetMs) and bsr are meaningful; bsr is the per-LCG
+ * Buffer Status Report size (quantized to Short-BSR levels) and holDelay is
+ * always 0 because the standard BSR does not carry head-of-line delay.
+ *
+ * Layout: 12 bytes, no padding.
+ */
+struct NrSchedulerLcObservation
+{
+    uint16_t holDelay;      //!< Head-of-line delay of the bearer in ms (DL only; 0 in UL)
+    uint16_t delayBudgetMs; //!< Packet delay budget of the bearer's 5QI in ms
+    uint8_t lcId;           //!< Logical Channel identifier
+    uint8_t fiveQI;         //!< 5G QoS Identifier (QoS class) of this bearer
+    uint8_t priority;       //!< QoS priority level associated with the 5QI
+    uint8_t resourceType;   //!< Resource type of the 5QI (non-GBR, GBR or DC-GBR)
+    float bsr;              //!< Bytes waiting in this bearer (UL: quantized per-LCG BSR size)
+};
 
 /**
- * @brief Complete message from C++ to Python each scheduling slot.
+ * @brief Per-UE observation written by C++ for the Python agent (C++ -> Python).
  *
- * Wraps all per-UE observations into a fixed-size block for shared memory.
- * Only the first numUes entries in the obs array are valid.
-*/
-struct NrSchedulerEnvMessage {			// C++ -> Python
-	uint32_t numUes; 			// Active UEs per Transmission Time Interval
-	float reward; 				// Reward from previous session
-	bool isFinished; 			// Simulation Ended flag
-	NrSchedulerObservation obs[MAX_UES]; 	// Per UE Observation array
-	};
+ * One of these is pushed per active UE into the ns3-ai message-interface
+ * vector each assignment iteration, so the number of UEs is dynamic (the
+ * vector length).
+ *
+ * The lc array holds up to MAX_LCS_PER_UE of the UE's active bearers, sorted
+ * most-urgent-first: GBR/DC-GBR bearers first (by guaranteed-bytes
+ * accounting), then non-GBR bearers ranked by
+ * (1 + holDelay) / delayBudget / priority. Bearers beyond MAX_LCS_PER_UE are
+ * dropped, and only the first numLcs entries are valid. The agent still emits
+ * a single scheduling weight per UE, because the NR scheduler allocates
+ * resources per UE; distributing an assigned transport block among the UE's
+ * bearers remains the job of the configured LC algorithm.
+ *
+ * Layout: 68 bytes; one reserved padding byte at offset 19.
+ */
+struct NrSchedulerObservation
+{
+    float cqi;              //!< Wideband Channel Quality Indicator of the UE
+    float avgTput;          //!< Historical average throughput of the UE
+    float potentialTput;    //!< Instantaneous achievable throughput of the UE
+    uint32_t assignedBytes; //!< Transport block size assigned to the UE in the last
+                            //!< allocation (feedback on what the previous action achieved)
+    uint16_t rnti;          //!< Radio Network Temporary Identifier
+    uint8_t numLcs;         //!< Number of valid entries in lc
+    NrSchedulerLcObservation lc[MAX_LCS_PER_UE]; //!< Per-bearer QoS, most urgent first
+};
 
 /**
- * @brief Complete message from Python to C++ each scheduling slot.
+ * @brief Per-UE action sent from the Python agent back to C++ (Python -> C++).
  *
- * Wraps all per-UE actions into a fixed-size block for shared memory.
- * Only the first numUes entries in the action array are valid.
-*/
-struct NrSchedulerActionMessage {		// Python -> C++
-	uint32_t numUes; 			// Active UEs per TTI
-	NrSchedulerAction action[MAX_UES]; 	// Per UE Weights
-	};
+ * One of these is pushed per active UE into the ns3-ai message-interface
+ * vector. Actions are matched to UEs by rnti (not by position), so the agent
+ * may return them in any order. A higher weight means the scheduler gives
+ * that UE more resources.
+ *
+ * Layout: 8 bytes; two padding bytes after rnti.
+ */
+struct NrSchedulerAction
+{
+    uint16_t rnti; //!< Radio Network Temporary Identifier of the UE this weight applies to
+    float weight;  //!< Scheduling weight assigned by the agent
+};
 
 } // namespace ns3
-

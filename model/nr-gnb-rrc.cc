@@ -504,7 +504,11 @@ NrUeManager::SetupDataRadioBearer(NrQosFlow flow,
                                                          qfi,
                                                          m_rnti,
                                                          lcid,
-                                                         m_rrc->GetLogicalChannelGroup(flow),
+                                                         m_rrc->m_perBearerUlLcg
+                                                             ? m_rrc->GetLogicalChannelGroupPerBearer(
+                                                                   flow,
+                                                                   lcid)
+                                                             : m_rrc->GetLogicalChannelGroup(flow),
                                                          rlc->GetNrMacSapUser());
     // NrGnbCmacSapProvider::LcInfo lcinfo;
     // lcinfo.rnti = m_rnti;
@@ -546,7 +550,9 @@ NrUeManager::SetupDataRadioBearer(NrQosFlow flow,
     drbInfo->m_logicalChannelIdentity = lcid;
     drbInfo->m_logicalChannelConfig.priority = m_rrc->GetLogicalChannelPriority(flow);
     drbInfo->m_logicalChannelConfig.fiveQi = m_rrc->GetLogicalChannelFiveQi(flow);
-    drbInfo->m_logicalChannelConfig.logicalChannelGroup = m_rrc->GetLogicalChannelGroup(flow);
+    drbInfo->m_logicalChannelConfig.logicalChannelGroup =
+        m_rrc->m_perBearerUlLcg ? m_rrc->GetLogicalChannelGroupPerBearer(flow, lcid)
+                                : m_rrc->GetLogicalChannelGroup(flow);
     if (flow.GetResourceType() > 0) // 1, 2 for GBR and DC-GBR
     {
         drbInfo->m_logicalChannelConfig.prioritizedBitRateKbps = flow.gbrQosInfo.gbrUl;
@@ -2109,6 +2115,14 @@ NrGnbRrc::GetTypeId()
                           TimeValue(MilliSeconds(0)), // 40 ms in TR 36.839
                           MakeTimeAccessor(&NrGnbRrc::m_handoverTriggeringDelay),
                           MakeTimeChecker())
+            .AddAttribute("PerBearerUlLcg",
+                          "If true, map each data radio bearer to its own Logical Channel "
+                          "Group so the UL Buffer Status Report carries per-bearer buffer "
+                          "sizes (for per-bearer UL observations in the AI scheduler), "
+                          "instead of the stock GBR/non-GBR LCG mapping.",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrGnbRrc::m_perBearerUlLcg),
+                          MakeBooleanChecker())
 
             // UE measurements related attributes
             .AddAttribute("RsrpFilterCoefficient",
@@ -3659,6 +3673,17 @@ NrGnbRrc::GetLogicalChannelGroup(NrQosFlow flow)
     {
         return 2;
     }
+}
+
+uint8_t
+NrGnbRrc::GetLogicalChannelGroupPerBearer(NrQosFlow flow, uint8_t lcid)
+{
+    // Per-bearer LCG mapping (AI scheduler feasibility): each DRB gets its own
+    // LCG (1..3) so the UL BSR reports per-bearer buffer sizes instead of
+    // lumping all GBR (or all non-GBR) bearers into a single LCG bucket. LCG 0
+    // is reserved for SRBs. This is opt-in via the PerBearerLcg attribute and
+    // leaves the stock GetLogicalChannelGroup() mapping untouched.
+    return 1 + ((lcid - 1) % 3);
 }
 
 uint8_t

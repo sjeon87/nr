@@ -1609,6 +1609,22 @@ class NR_EXPORT NrGnbRrc : public Object
     uint8_t GetLogicalChannelGroup(NrQosFlow flow);
 
     /**
+     * @brief Per-bearer Logical Channel Group mapping (AI scheduler feasibility).
+     *
+     * Alternative to GetLogicalChannelGroup() that gives each DRB its own LCG
+     * (1..3, LCG 0 reserved for SRBs) so the UL Buffer Status Report carries
+     * per-bearer buffer sizes rather than aggregating all GBR (or all non-GBR)
+     * bearers into one bucket. Used only when the PerBearerUlLcg attribute is
+     * enabled; the stock GetLogicalChannelGroup() mapping is left unchanged.
+     *
+     * @param flow the QoS characteristics of the flow
+     * @param lcid the logical channel id of the bearer
+     *
+     * @return the per-bearer Logical Channel Group for this bearer
+     */
+    uint8_t GetLogicalChannelGroupPerBearer(NrQosFlow flow, uint8_t lcid);
+
+    /**
      *
      * @param flow the QoS characteristics of the flow
      *
@@ -1769,6 +1785,14 @@ class NR_EXPORT NrGnbRrc : public Object
      * reestablishment requests from UEs.
      */
     bool m_useRrcReestablishment;
+    /**
+     * The `PerBearerUlLcg` attribute. When true, data radio bearers are mapped
+     * to Logical Channel Groups per bearer (GetLogicalChannelGroupPerBearer)
+     * so the UL Buffer Status Report carries per-bearer buffer sizes, instead
+     * of the stock GBR/non-GBR LCG mapping (GetLogicalChannelGroup). Used by
+     * the AI scheduler to obtain per-bearer UL observations.
+     */
+    bool m_perBearerUlLcg{false};
     /**
      * The `RsrpFilterCoefficient` attribute. Determines the strength of
      * smoothing effect induced by layer 3 filtering of RSRP in all attached UE.
