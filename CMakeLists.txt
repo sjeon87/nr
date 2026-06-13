@@ -531,6 +531,7 @@ set(test_sources
     test/nr-test-handover-failure.cc
     test/nr-test-handover-target.cc
     test/nr-test-handover-scenarios.cc
+    test/nr-test-cell-individual-offset.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover
