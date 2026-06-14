@@ -3678,8 +3678,8 @@ NrGnbRrc::GetLogicalChannelGroup(NrQosFlow flow)
 uint8_t
 NrGnbRrc::GetLogicalChannelGroupPerBearer(NrQosFlow flow, uint8_t lcid)
 {
-    // Per-bearer LCG mapping (AI scheduler feasibility): each DRB gets its own
-    // LCG (1..3) so the UL BSR reports per-bearer buffer sizes instead of
+    // Per-bearer LCG mapping : each DRB gets its own
+    // LCG (1-3) so the UL BSR reports per-bearer buffer sizes instead of
     // lumping all GBR (or all non-GBR) bearers into a single LCG bucket. LCG 0
     // is reserved for SRBs. This is opt-in via the PerBearerLcg attribute and
     // leaves the stock GetLogicalChannelGroup() mapping untouched.

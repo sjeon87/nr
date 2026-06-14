@@ -12,8 +12,6 @@
 
 using namespace ns3;
 
-// Compile-time guarantee: the shared-memory transport relies on these structs
-// being trivially copyable PODs.
 static_assert(std::is_trivially_copyable<NrSchedulerLcObservation>::value,
               "NrSchedulerLcObservation must be trivially copyable");
 static_assert(std::is_trivially_copyable<NrSchedulerObservation>::value,

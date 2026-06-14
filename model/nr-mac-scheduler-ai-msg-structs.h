@@ -22,18 +22,18 @@ namespace ns3
  * nr-mac-scheduler-ai-msg-structs test suite and mirrored by the pybind11
  * bindings. Do not reorder or resize fields without updating both.
  *
- * Exchange cadence: one observation/action exchange happens per scheduler
+ * Exchange flow : one observation/action exchange happens per scheduler
  * assignment iteration (inside the resource-assignment loop, possibly many
  * times per slot), not once per slot. The Python side must simply loop
  * receive/send until the ns3-ai finish flag is set, and must not assume any
- * fixed time cadence. An empty observation vector is a valid exchange (no
+ * fixed time flow. An empty observation vector is a valid exchange (no
  * active UE in that iteration).
  *
  * Reward and episode termination are intentionally not part of these structs:
  * the reward is computed on the Python side from the observations, and
  * termination uses the native ns3-ai finish handling (SetHandleFinish).
  *
- * Scope: one scheduler instance (one cell/BWP) per simulation, because the
+ * One scheduler instance (one cell/BWP) per simulation, because the
  * ns3-ai message interface is a process-wide singleton.
  *
  * The number of UEs per exchange is dynamic (the vector length), so no fixed
@@ -60,7 +60,7 @@ static constexpr uint32_t MAX_LCS_PER_UE = 4;
  */
 struct NrSchedulerLcObservation
 {
-    uint16_t holDelay;      //!< Head-of-line delay of the bearer in ms (DL only; 0 in UL)
+    uint16_t holDelay;      //!< Head-of-line delay of the bearer in ms
     uint16_t delayBudgetMs; //!< Packet delay budget of the bearer's 5QI in ms
     uint8_t lcId;           //!< Logical Channel identifier
     uint8_t fiveQI;         //!< 5G QoS Identifier (QoS class) of this bearer
