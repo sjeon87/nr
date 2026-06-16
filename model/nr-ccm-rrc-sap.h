@@ -141,6 +141,22 @@ class NR_EXPORT NrCcmRrcSapProvider
      */
     virtual void RegisterSignalBearer(uint16_t rnti, uint8_t lcid, NrMacSapUser* rlcMacSapUser) = 0;
 
+    /**
+     * @brief Set the primary (serving) BWP a UE's downlink should be routed to.
+     *
+     * Used for same-cell BWP switching: when a UE moves its primary serving BWP
+     * to another BWP of the same cell, the gNB RRC calls this so the component
+     * carrier manager routes that UE's DL traffic (BSR-driven scheduling) to the
+     * new BWP. The default base implementation is a no-op for CCM algorithms
+     * that do not support per-UE BWP overrides.
+     *
+     * @param rnti  the C-RNTI of the UE
+     * @param bwpId the BWP/CC index the UE's downlink should be scheduled on
+     */
+    virtual void SetUePrimaryBwp(uint16_t rnti, uint8_t bwpId)
+    {
+    }
+
 }; // end of class NrCcmRrcSapProvider
 
 /**
@@ -252,6 +268,7 @@ class MemberNrCcmRrcSapProvider : public NrCcmRrcSapProvider
     NrMacSapUser* ConfigureSignalBearer(NrGnbCmacSapProvider::LcInfo lcInfo,
                                         NrMacSapUser* rlcMacSapUser) override;
     void RegisterSignalBearer(uint16_t rnti, uint8_t lcid, NrMacSapUser* rlcMacSapUser) override;
+    void SetUePrimaryBwp(uint16_t rnti, uint8_t bwpId) override;
 
   private:
     C* m_owner; ///< the owner class
@@ -325,6 +342,13 @@ MemberNrCcmRrcSapProvider<C>::RegisterSignalBearer(uint16_t rnti,
                                                    NrMacSapUser* rlcMacSapUser)
 {
     m_owner->DoRegisterSignalBearer(rnti, lcid, rlcMacSapUser);
+}
+
+template <class C>
+void
+MemberNrCcmRrcSapProvider<C>::SetUePrimaryBwp(uint16_t rnti, uint8_t bwpId)
+{
+    m_owner->DoSetUePrimaryBwp(rnti, bwpId);
 }
 
 /// MemberNrCcmRrcSapUser class

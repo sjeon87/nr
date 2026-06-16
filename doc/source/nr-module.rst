@@ -2240,9 +2240,72 @@ This information allows the simulator to configure the initial DL BWP and perfor
 As a result, UEs can now be placed directly into the simulation and will connect automatically to a nearby cell.
 In case of radio link failure, they will also search for a new cell to reconnect to.
 
-Limited handover support has been added, following the same architecture as LTE.
-A UE is able to hand over between different cells in the same BWP with the same numerology.
-Support for handover between different numerologies and BWPs is planned.
+Handover support has been added, following the same architecture as LTE.
+A UE is able to hand over between cells on the same carrier frequency (intra-frequency)
+as well as between cells on different carrier frequencies (inter-frequency), including
+cells configured with different numerologies and BWPs.
+For inter-frequency handover, the gNB must be told which neighbour frequencies to
+measure: ``NrGnbRrc::AddNeighbourMeasFrequency()`` registers a neighbour ARFCN (and its
+bandwidth) before the cell is configured, which creates an inter-frequency measurement
+object so that a connected UE measures and can be handed over to cells on that frequency.
+The UE must also have a bandwidth part configured on each candidate carrier frequency,
+as it re-tunes the corresponding BWP to the target cell upon handover. The NR PHY measures
+all configured BWPs simultaneously, so no measurement gaps are required.
+The measurement-driven inter-frequency handover is verified in the
+``nr-inter-freq-handover`` test, which also asserts end-to-end downlink data continuity
+both before and (for a sustained period) after the inter-BWP re-tune. All four
+combinations are exercised and keep the user plane flowing across the re-tune:
+same-numerology and inter-numerology, each under both the ideal and the real RRC protocol.
+The UE PHY slot machine is re-stamped onto the target BWP timeline during the re-tune
+(clamping stale slot/var-TTI boundaries and restarting the loop when the numerology
+changes) so that the UE resumes scheduling cleanly on the target cell, and forwarded
+X2-U user-plane packets that arrive outside the handover data-forwarding window are
+dropped rather than aborting the simulation.
+
+Inter-numerology handover requires the UE to re-tune the target BWP to the *target*
+cell's numerology, TDD pattern and control-symbol layout. Two pieces make this work.
+First, the target cell's broadcast PHY configuration (``ServingCellConfigCommon``) is
+carried in the handover command (``RrcConnectionReconfiguration`` mobility control info),
+so the UE configures the target BWP from the target cell rather than from the source
+cell's last-decoded SIB1. Second, while connected (or mid-handover) the UE keeps every
+candidate BWP tuned and can overhear a neighbour cell's periodic MIB on another carrier.
+A MIB is a per-cell broadcast, so it is *routed to the BWP that is actually tuned to the
+originating cell's carrier* rather than applied to whichever BWP happens to be primary.
+The UE maintains a cell-to-carrier map (populated as cells are measured/synchronized) and
+resolves the matching BWP via its ARFCN. Only the *serving* cell's MIB updates the serving
+numerology/bandwidth; a neighbour's MIB configures its own measurement BWP so its SSB stays
+decodable for RSRP measurement, and can never reconfigure the serving BWP. This routing is
+correct by construction and replaces an earlier band-aid that simply discarded any
+non-serving MIB while connected. Without it, the re-tuned BWP would keep (or be repeatedly
+reset to) the source numerology, so DL data reception - and hence the DL-CQI feedback the
+target gNB needs to schedule downlink - would never recover.
+
+Single-serving-cell invariant and dual connectivity
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The connected UE has exactly **one** serving cell, reached through the primary DL/UL BWP.
+The other tuned BWPs exist only to receive SSB and measure RSRP on neighbour carriers (and,
+in the future, to act as secondary BWPs of the *same* serving cell). They never carry a
+second data connection. Handover re-tunes that single primary BWP to the target cell using
+the ``ServingCellConfigCommon`` carried in the handover command; it does not add a second
+serving cell.
+
+A mechanism for switching the primary BWP between BWPs of the *same* serving cell is in
+place (``NrUeRrc::SwitchPrimaryBwpSameCell``): it re-points the primary DL/UL index and
+re-binds the RNTI, and is guarded so it can only move between BWPs tuned to the current
+serving cell (moving to a different cell would be a handover, or - if kept simultaneously -
+dual connectivity). The *policy* for when to switch (e.g. RSRP/load-driven selection, plus
+re-application of the dedicated radio configuration and bearer mapping to the new BWP) is
+deliberately left as a TODO and is not yet implemented.
+
+**Dual connectivity (DC) is out of scope and is future work.** DC - dual MAC/RLC stacks,
+split bearers, a master node (MN) and secondary node (SN), and two simultaneous connections
+to different cells - is intentionally not implemented. Even though the multi-BWP tuning and
+per-cell MIB routing described above could provide some of the plumbing, adding DC would
+violate the single-serving-cell invariant and require substantial additional machinery
+(SN addition/release signalling, split-bearer PDCP, per-leg flow control); it is therefore
+left as future work rather than built opportunistically.
+
 The precoding matrix effect on interference is not accounted for when the transmitter
 and receiver have different numerologies. CSI feedback currently requires the antenna ports,
 maximum rank, and RI/PMI algorithm to be the same across gNBs.

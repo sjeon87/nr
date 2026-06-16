@@ -527,6 +527,7 @@ set(test_sources
     test/nr-test-cell-selection.cc
     test/nr-test-x2-handover.cc
     test/nr-test-x2-handover-measures.cc
+    test/nr-test-same-cell-bwp-switch.cc
     test/nr-test-handover-delay.cc
     test/nr-test-handover-failure.cc
     test/nr-test-handover-target.cc

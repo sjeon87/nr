@@ -213,6 +213,21 @@ UeRrcProtocolReal::DoSendIdealUeContextRemoveRequest(uint16_t rnti)
 }
 
 void
+UeRrcProtocolReal::DoSendIdealBwpSwitchIndication(uint16_t rnti, uint8_t bwpId)
+{
+    NS_LOG_FUNCTION(this << rnti << +bwpId);
+    m_rnti = m_rrc->GetRnti();
+    NS_ABORT_MSG_IF(m_rnti != rnti, "RNTI mismatch");
+
+    SetGnbRrcSapProvider();
+    Simulator::Schedule(RRC_REAL_MSG_DELAY,
+                        &NrGnbRrcSapProvider::RecvIdealBwpSwitchIndication,
+                        m_gnbRrcSapProvider,
+                        rnti,
+                        bwpId);
+}
+
+void
 UeRrcProtocolReal::DoSendRrcConnectionReestablishmentRequest(
     NrRrcSap::RrcConnectionReestablishmentRequest msg) const
 {

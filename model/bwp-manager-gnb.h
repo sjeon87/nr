@@ -93,6 +93,19 @@ class NR_EXPORT BwpManagerGnb : public NrRrComponentCarrierManager
      */
     void SetOutputLink(uint32_t sourceBwp, uint32_t outputBwp);
 
+    /**
+     * @brief Override the BWP a given UE's downlink traffic is scheduled on.
+     *
+     * For same-cell BWP switching: when a UE moves its primary serving BWP, the
+     * gNB calls this so the UE's DL (which the BwpManager would otherwise place
+     * by 5QI alone) follows it to the new BWP. The override takes precedence
+     * over the 5QI-to-BWP algorithm in GetBwpIndex / PeekBwpIndex.
+     *
+     * @param rnti  the C-RNTI of the UE
+     * @param bwpId the BWP/CC index the UE's downlink should be scheduled on
+     */
+    void DoSetUePrimaryBwp(uint16_t rnti, uint8_t bwpId) override;
+
   protected:
     /*
      * @brief This function contains most of the BwpManager logic.
@@ -149,6 +162,10 @@ class NR_EXPORT BwpManagerGnb : public NrRrComponentCarrierManager
     Ptr<BwpManagerAlgorithm> m_algorithm; //!< The BWP selection algorithm.
 
     std::unordered_map<uint32_t, uint32_t> m_outputLinks; //!< Mapping between BWP.
+
+    /// Per-UE downlink primary-BWP override (same-cell BWP switch). When present
+    /// for an RNTI, it takes precedence over the 5QI-to-BWP algorithm.
+    std::unordered_map<uint16_t, uint8_t> m_uePrimaryBwp;
 };
 
 } // end of namespace ns3

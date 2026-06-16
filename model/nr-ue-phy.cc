@@ -926,6 +926,14 @@ void
 NrUePhy::StartSlot(const SfnSf& s)
 {
     NS_LOG_FUNCTION(this);
+
+    if (GetNumerology() != s.GetNumerology())
+    {
+        NS_LOG_INFO("Numerology changed from " << s.GetNumerology() << " to " << GetNumerology()
+                                               << ", ignoring stale SlotAllocInfo entries.");
+        PurgeStaleSlotAllocInfo();
+        return;
+    }
     m_currentSlot = s;
     m_lastSlotStart = Simulator::Now();
 
@@ -1457,6 +1465,7 @@ NrUePhy::DoReset()
     m_raPreambleId = 255; // value out of range
     m_isConnected = false;
     m_avgIntCovMat = {};
+    PurgeStaleSlotAllocInfo();
 }
 
 void

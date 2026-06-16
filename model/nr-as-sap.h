@@ -44,6 +44,12 @@ class NR_EXPORT NrAsSapProvider
     virtual void StartCellSelection(uint32_t arfcn) = 0;
 
     /**
+     * @brief Initiate Idle mode cell selection procedure in all configured BWPs.
+     *
+     */
+    virtual void StartCellSelection() = 0;
+
+    /**
      * @brief Force the RRC entity to stay camped on a certain eNodeB.
      *
      * @param cellId the cell ID identifying the eNodeB
@@ -137,6 +143,7 @@ class MemberNrAsSapProvider : public NrAsSapProvider
     // inherited from NrAsSapProvider
     void SetCsgWhiteList(uint32_t csgId) override;
     void StartCellSelection(uint32_t arfcn) override;
+    void StartCellSelection() override;
     void ForceCampedOnGnb(uint16_t cellId, uint32_t arfcn) override;
     void Connect() override;
     void SendData(Ptr<Packet> packet, uint8_t qfi) override;
@@ -164,6 +171,13 @@ void
 MemberNrAsSapProvider<C>::StartCellSelection(uint32_t arfcn)
 {
     m_owner->DoStartCellSelection(arfcn);
+}
+
+template <class C>
+void
+MemberNrAsSapProvider<C>::StartCellSelection()
+{
+    m_owner->DoStartCellSelection();
 }
 
 template <class C>
