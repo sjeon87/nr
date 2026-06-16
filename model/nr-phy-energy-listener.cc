@@ -14,8 +14,8 @@
 #include "nr-mac-scheduler-ns3.h"
 #include "nr-ue-phy.h"
 #include "nr-gnb-phy.h"
-// #include "nr-ue-energy-model.h"   // TODO: uncomment when class is defined
-// #include "nr-gnb-energy-model.h"  // TODO: uncomment when class is defined
+#include "nr-ue-energy-model.h"
+#include "nr-gnb-energy-model.h"
 
 #include "ns3/log.h"
 #include "ns3/simulator.h"
