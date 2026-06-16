@@ -252,8 +252,16 @@ NrMacSchedulerHarqRr::ScheduleDlHarq(
             else
             {
                 // If not reshaping, we just change at most the starting symbol.
-                // But first we check if there are collisions.
-                symAvailBackup -= harqProcess.m_dciElement->m_numSym;
+                // Note: do NOT debit symAvail here. In this path every
+                // retransmission of a beam is placed at the same starting
+                // symbol, so the slot symbol budget must be debited exactly
+                // once per beam, by the beam's symbol span, at the end of the
+                // beam loop below (see "symAvail -= symbolsUsedForBeam").
+                // Debiting per retransmission here as well double-counted the
+                // symbols and could underflow the uint8_t budget, which then
+                // over-allocated symbols for the following beams and tripped the
+                // caller assertion "dlSymAvail >= usedHarq".
+                // First, check if there are collisions.
                 bool collision = false;
                 for (std::size_t i = 0; i < dlBitmaskBackup.size(); i++)
                 {
@@ -359,6 +367,15 @@ NrMacSchedulerHarqRr::ScheduleDlHarq(
                     startingPoint->m_sym,
                     slotAlloc->m_varTtiAllocInfo.begin() + preexistingDciNumToBeam,
                     slotAlloc->m_varTtiAllocInfo.end());
+                // symAvail is a uint8_t: guard against underflow. Every
+                // retransmission placed in this beam was checked against symAvail
+                // above, so the beam span can never exceed it. If this fires, the
+                // symbol budget is being debited more than once for the same
+                // symbols.
+                NS_ASSERT_MSG(symAvail >= symbolsUsedForBeam,
+                              "HARQ beam span (" << +symbolsUsedForBeam
+                                                 << ") exceeds remaining symbols (" << +symAvail
+                                                 << "); symbol budget was double-counted");
                 currStartingSymbol += symbolsUsedForBeam;
                 symAvail -= symbolsUsedForBeam;
             }
