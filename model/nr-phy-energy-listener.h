@@ -25,6 +25,8 @@ class NrUePhy;
 class NrGnbPhy;
 class NrUeEnergyModel;
 class NrGnbEnergyModel;
+class NrMacSchedulerNs3;
+class NrUeMac;
 
 /**
  * @ingroup nr
@@ -87,6 +89,18 @@ class NrPhyEnergyListener : public Object
     void SetGnbPhy(Ptr<NrGnbPhy> phy);
 
     /**
+     * @brief Attach the gNB MAC scheduler (source of sf = allocated/total RBs).
+     * @param scheduler Pointer to the NrMacSchedulerNs3 on the gNB.
+     */
+    void SetScheduler(Ptr<NrMacSchedulerNs3> scheduler);
+
+    /**
+     * @brief Attach the UE MAC (source of DRX state transitions).
+     * @param mac Pointer to the NrUeMac on the UE node.
+     */
+    void SetUeMac(Ptr<NrUeMac> mac);
+
+    /**
      * @brief Connect the UE energy model that this listener will drive.
      * @param model Pointer to the NrUeEnergyModel instance.
      */
@@ -133,6 +147,12 @@ class NrPhyEnergyListener : public Object
      * @return Last sa value in [0.0, 1.0].
      */
     double GetLastSa() const;
+
+  protected:
+    /**
+     * @brief Release attached pointers. Inherited from Object.
+     */
+    void DoDispose() override;
 
   private:
     /**
@@ -213,15 +233,26 @@ class NrPhyEnergyListener : public Object
      */
     void UeUlTxEndCallback();
 
+    /**
+     * @brief Recompute m_lastSp from the gNB's current Tx power.
+     *
+     * sp = currentTxPower_lin / referenceTxPower_lin. Tx power can change at
+     * runtime, so this is called per slot rather than computed once.
+     */
+    void RefreshGnbSp();
+
     Ptr<NrUePhy> m_uePhy;           //!< Attached UE PHY (may be null)
     Ptr<NrGnbPhy> m_gnbPhy;         //!< Attached gNB PHY (may be null)
     Ptr<NrUeEnergyModel> m_ueModel; //!< Attached UE energy model (may be null)
     Ptr<NrGnbEnergyModel> m_gnbModel; //!< Attached gNB energy model (may be null)
+    Ptr<NrMacSchedulerNs3> m_scheduler; //!< Attached gNB scheduler (may be null)
+    Ptr<NrUeMac> m_ueMac;           //!< Attached UE MAC (may be null)
 
     double m_lastDlSf; //!< Last DL sf computed: allocated_RBs / total_RBs
     double m_lastUlSf; //!< Last UL sf computed
     double m_lastSp;   //!< Last sp computed: currentTxPower_lin / refTxPower_lin
-    double m_lastSa;   //!< Last sa: activeTRxRUs / totalTRxRUs
+    double m_lastSa;   //!< Last sa: activeTRxRUs / totalTRxRUs. Fixed at 1.0
+                       //!< until antenna muting is added (no source in PHY yet).
 
     uint32_t m_totalBwpRbs;         //!< Total RBs in active BWP (from NrGnbPhy)
     double m_referenceTxPowerDbm;   //!< Reference Tx power for sp computation

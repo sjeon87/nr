@@ -10,7 +10,8 @@
 //   TR 38.840 V16.0.0 (2019-06): Section 8.1 - UE power state event triggers
 
 #include "nr-phy-energy-listener.h"
-
+#include "nr-ue-mac.h"
+#include "nr-mac-scheduler-ns3.h"
 #include "nr-ue-phy.h"
 #include "nr-gnb-phy.h"
 // #include "nr-ue-energy-model.h"   // TODO: uncomment when class is defined
@@ -18,6 +19,8 @@
 
 #include "ns3/log.h"
 #include "ns3/simulator.h"
+
+#include <cmath>
 
 namespace ns3
 {
@@ -82,9 +85,28 @@ NrPhyEnergyListener::SetGnbPhy(Ptr<NrGnbPhy> phy)
 }
 
 void
+NrPhyEnergyListener::SetScheduler(Ptr<NrMacSchedulerNs3> scheduler)
+{
+    NS_LOG_FUNCTION(this << scheduler);
+    NS_ASSERT_MSG(scheduler, "NrMacSchedulerNs3 pointer must not be null");
+    m_scheduler = scheduler;
+    // TODO Week 7: connect scheduler trace source for per-TTI sf extraction.
+}
+
+void
+NrPhyEnergyListener::SetUeMac(Ptr<NrUeMac> mac)
+{
+    NS_LOG_FUNCTION(this << mac);
+    NS_ASSERT_MSG(mac, "NrUeMac pointer must not be null");
+    m_ueMac = mac;
+    // TODO Week 6: connect NrUeMac DRX state trace source.
+}
+
+void
 NrPhyEnergyListener::SetUeEnergyModel(Ptr<NrUeEnergyModel> model)
 {
     NS_LOG_FUNCTION(this << model);
+    NS_ASSERT_MSG(model, "NrUeEnergyModel pointer must not be null");
     m_ueModel = model;
 }
 
@@ -92,37 +114,54 @@ void
 NrPhyEnergyListener::SetGnbEnergyModel(Ptr<NrGnbEnergyModel> model)
 {
     NS_LOG_FUNCTION(this << model);
+    NS_ASSERT_MSG(model, "NrGnbEnergyModel pointer must not be null");
     m_gnbModel = model;
+}
+
+void
+NrPhyEnergyListener::DoDispose()
+{
+    NS_LOG_FUNCTION(this);
+    m_uePhy = nullptr;
+    m_gnbPhy = nullptr;
+    m_ueModel = nullptr;
+    m_gnbModel = nullptr;
+    m_scheduler = nullptr;
+    m_ueMac = nullptr;
+    Object::DoDispose();
 }
 
 void
 NrPhyEnergyListener::GnbSlotIndicationCallback(const SfnSf& sfnSf)
 {
+    NS_LOG_FUNCTION(this << sfnSf);
+    if (!m_gnbModel)
+    {
+        return; 
+    }
     // TODO Week 7 (revisit here in Week 3 to stub):
     //
     // Key computation per TR 38.864 §5.1:
     //
     // For each symbol (0..13) in this slot:
-    //   1. Classify symbol type: DL / UL / Guard
-    //      using NrGnbPhy::GetTddPattern() and slot position
+    //   1. Classify symbol type: DL / UL / Guard from the TDD pattern.
+    //      NrGnbPhy currently exposes only SetTddPattern() (no getter), so
+    //      this needs a getter added, or the pattern cached at attach time.
+    //      Decision (caching vs. per-slot query) to be made before Week 7.
     //
-    //   2. Compute sa = activeTRxRUs / totalTRxRUs
-    //      (from m_gnbPhy->GetActiveTxRus() if available, else 1.0)
+    //   2. sa = activeTRxRUs / totalTRxRUs. No source in PHY yet, so use
+    //      m_lastSa (fixed at 1.0) until antenna muting is added.
     //
     //   3. Compute sf = allocatedDlRBs / m_totalBwpRbs
     //      (updated by GnbDlBurstSentCallback, use m_lastDlSf)
     //
-    //   4. Compute sp = pow(10.0, m_gnbPhy->GetTxPower()/10.0)
-    //                   / pow(10.0, m_referenceTxPowerDbm/10.0)
-    //      Source: TR 38.864 §5.1 — sp = current PSD / reference PSD
+    //   4. RefreshGnbSp() to update m_lastSp from current Tx power.
     //
     //   5. Call m_gnbModel->UpdateSymbolPower(sa, sf, sp, symbolType)
     //      for each symbol
     //
     // After all 14 symbols processed:
     //   6. Call m_gnbModel->FinalizeSlotEnergy()
-    //
-    NS_LOG_FUNCTION(this << sfnSf);
 }
 void
 NrPhyEnergyListener::GnbDlBurstSentCallback(uint32_t allocatedRbs)
@@ -144,6 +183,23 @@ NrPhyEnergyListener::GnbUlReceiveCallback(uint32_t allocatedRbs)
     // m_lastUlSf = static_cast<double>(allocatedRbs) / m_totalBwpRbs;
     NS_LOG_FUNCTION(this << allocatedRbs);
 }
+
+void
+NrPhyEnergyListener::RefreshGnbSp()
+{
+    NS_LOG_FUNCTION(this);
+    if (!m_gnbPhy)
+    {
+        return;
+    }
+    // sp = current Tx power / reference Tx power (linear).
+    // m_referenceTxPowerDbm is captured from m_gnbPhy->GetTxPower() at attach
+    // time in SetGnbPhy(); the current value below is re-read each slot so
+    // runtime Tx-power changes (e.g. power control) are reflected.
+    double curLin = std::pow(10.0, m_gnbPhy->GetTxPower() / 10.0);
+    double refLin = std::pow(10.0, m_referenceTxPowerDbm / 10.0);
+    m_lastSp = (refLin > 0.0) ? (curLin / refLin) : 1.0;
+}
 void
 NrPhyEnergyListener::UeSlotIndicationCallback(const SfnSf& sfnSf)
 {
@@ -155,6 +211,10 @@ NrPhyEnergyListener::UeSlotIndicationCallback(const SfnSf& sfnSf)
     //               or DEEP_SLEEP based on remaining inactive period vs. T_deep
     //
     NS_LOG_FUNCTION(this << sfnSf);
+    if (!m_ueModel)
+    {
+        return; 
+    }
 }
 
 void
@@ -171,6 +231,10 @@ NrPhyEnergyListener::UePdcchDecodeSuccessCallback(bool hasDlGrant, bool hasUlGra
     //   else:
     //     m_ueModel->ChangeState(NR_UE_PDCCH_ONLY)   // 100 power-units FR1
     NS_LOG_FUNCTION(this << hasDlGrant << hasUlGrant);
+    if (!m_ueModel)
+    {
+        return; 
+    }
 }
 
 void
@@ -187,6 +251,10 @@ NrPhyEnergyListener::UeUlTxStartCallback(double txPowerDbm)
     // m_ueModel->SetUlTxPowerDbm(txPowerDbm);
     // m_ueModel->ChangeState(NR_UE_UL_TX);
     NS_LOG_FUNCTION(this << txPowerDbm);
+    if (!m_ueModel)
+    {
+        return; 
+    }
 }
 
 void
@@ -195,6 +263,10 @@ NrPhyEnergyListener::UeUlTxEndCallback()
     // TODO Week 6:
     //   m_ueModel->ChangeState(NR_UE_MICRO_SLEEP)  // brief micro-sleep after UL burst
     NS_LOG_FUNCTION(this);
+    if (!m_ueModel)
+    {
+        return; 
+    }
 }
 
 
