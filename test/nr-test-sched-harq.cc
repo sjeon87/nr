@@ -633,6 +633,346 @@ NrTestMacSchedulerHarqRrBeamOrder::DoRun()
     delete cschedSapUser;
 }
 
+/**
+ * @brief Regression test for the DL HARQ symbol-budget (symAvail) underflow.
+ *
+ * With ConsolidateHarqRetx disabled (the default), ScheduleDlHarq() used to
+ * debit its uint8_t symbol budget (symAvail) twice for the same symbols: once
+ * per allocated retransmission, and again at the end of each beam by the beam's
+ * symbol span. When a beam's retransmission spanned more than half of the
+ * remaining symbols, the second, unguarded subtraction underflowed the budget
+ * and wrapped to ~254. The next beam's retransmissions then passed every check
+ * and were placed past the end of the slot, so ScheduleDlHarq() returned a span
+ * larger than the budget it was given and the caller tripped
+ * NS_ASSERT_MSG(dlSymAvail >= usedHarq, ...).
+ *
+ * This test places one retransmission per beam in two distinct beams, each
+ * spanning more than half of the slot, and checks that no DCI is scheduled past
+ * the end of the slot (and, in a build with assertions enabled, that the caller
+ * assertion is not tripped). It is exercised on both the TDMA and OFDMA
+ * round-robin schedulers, since both share NrMacSchedulerHarqRr.
+ */
+class NrTestMacSchedulerHarqRrSymbolBudget : public TestCase
+{
+  public:
+    /**
+     * @brief Constructor
+     * @param isTdma whether to test the TDMA (true) or OFDMA (false) scheduler
+     */
+    NrTestMacSchedulerHarqRrSymbolBudget(bool isTdma)
+        : TestCase(std::string("HARQ DL symbol budget does not underflow across beams (") +
+                   (isTdma ? "TDMA)" : "OFDMA)")),
+          m_isTdma(isTdma)
+    {
+    }
+
+  protected:
+    void DoRun() override;
+
+  private:
+    /**
+     * @brief Verify that no scheduled HARQ DCI extends past the end of the slot.
+     * @param params the scheduled slot allocation reported by the scheduler
+     */
+    void CheckSchedule(const NrMacSchedSapUser::SchedConfigIndParameters& params);
+
+    bool m_isTdma;                                 //!< Test TDMA (true) or OFDMA (false)
+    static constexpr uint8_t m_symbolsPerSlot{14}; //!< Symbols available in the slot
+};
+
+void
+NrTestMacSchedulerHarqRrSymbolBudget::CheckSchedule(
+    const NrMacSchedSapUser::SchedConfigIndParameters& params)
+{
+    uint16_t lastUsedSymbol = 0;
+    for (const auto& varTtiAllocInfo : params.m_slotAllocInfo.m_varTtiAllocInfo)
+    {
+        // Only data DCIs carry HARQ retransmissions
+        if (varTtiAllocInfo.m_dci->m_type != DciInfoElementTdma::DATA)
+        {
+            continue;
+        }
+        lastUsedSymbol =
+            std::max<uint16_t>(lastUsedSymbol,
+                               varTtiAllocInfo.m_dci->m_symStart + varTtiAllocInfo.m_dci->m_numSym);
+    }
+    NS_TEST_ASSERT_MSG_LT_OR_EQ(
+        +lastUsedSymbol,
+        +m_symbolsPerSlot,
+        (m_isTdma ? "TDMA" : "OFDMA")
+            << ": HARQ retransmissions were placed past the end of the slot "
+               "(symAvail underflowed and over-allocated symbols)");
+}
+
+void
+NrTestMacSchedulerHarqRrSymbolBudget::DoRun()
+{
+    // The bug lived in the default, non-consolidating path. Set the attribute
+    // explicitly so the test does not depend on the default value (and is robust
+    // to other test cases changing it via Config::SetDefault).
+    Config::SetDefault("ns3::NrMacSchedulerHarqRr::ConsolidateHarqRetx", BooleanValue(false));
+
+    auto cellConfig = NrMacCschedSapProvider::CschedCellConfigReqParameters();
+    cellConfig.m_dlBandwidth = 10; // 10 RBGs
+    cellConfig.m_ulBandwidth = 10;
+
+    // One UE per beam, in two distinct beams. Each retransmission spans 8 of the
+    // 14 available symbols: more than half, so a single beam leaves 6 symbols and
+    // the buggy double-subtraction wraps the budget below zero, letting the
+    // second beam over-allocate.
+    const uint8_t numSym = 8;
+    const std::vector<uint16_t> rntis = {0, 1};
+
+    std::vector<NrMacCschedSapProvider::CschedUeConfigReqParameters> ueConfig;
+    for (auto rnti : rntis)
+    {
+        NrMacCschedSapProvider::CschedUeConfigReqParameters config{};
+        config.m_rnti = rnti;
+        config.m_transmissionMode = 0;
+        config.m_beamId = BeamId(rnti, 0); // distinct beam per UE
+        ueConfig.push_back(config);
+    }
+
+    auto* schedSapUser = new TestSchedSapUserHarq([this](auto params) { CheckSchedule(params); },
+                                                  []() { return uint32_t{m_symbolsPerSlot}; });
+    auto* cschedSapUser = new TestCschedSapUserHarq();
+
+    Ptr<NrMacSchedulerNs3> sched;
+    if (m_isTdma)
+    {
+        sched = CreateObject<NrMacSchedulerTdmaRR>();
+    }
+    else
+    {
+        sched = CreateObject<NrMacSchedulerOfdmaRR>();
+    }
+    sched->InstallDlAmc(CreateObject<NrAmc>());
+    sched->InstallUlAmc(CreateObject<NrAmc>());
+    sched->SetMacSchedSapUser(schedSapUser);
+    sched->SetMacCschedSapUser(cschedSapUser);
+    sched->DoCschedCellConfigReq(cellConfig);
+    for (const auto& ueConf : ueConfig)
+    {
+        sched->DoCschedUeConfigReq(ueConf);
+    }
+    sched->SetDlCtrlSyms(0);
+
+    // Build a NACKed HARQ process per UE so ScheduleDlHarq retransmits them.
+    NrMacSchedSapProvider::SchedDlTriggerReqParameters paramsDlTrigger;
+    paramsDlTrigger.m_snfSf = SfnSf(0, 0, 0, 0);
+    paramsDlTrigger.m_slotType = LteNrTddSlotType::DL;
+    for (auto rnti : rntis)
+    {
+        auto& ueInfo = sched->m_ueMap.find(rnti)->second;
+        auto& harqProcess = ueInfo->m_dlHarq.Find(rnti)->second;
+
+        DciInfoElementTdma dci(rnti,
+                               DciInfoElementTdma::DL,
+                               0,
+                               numSym,
+                               10,
+                               1,
+                               {},
+                               100,
+                               0,
+                               0,
+                               DciInfoElementTdma::DATA,
+                               0,
+                               0);
+        dci.m_harqProcess = static_cast<uint8_t>(rnti);
+        dci.m_rbgBitmask = std::vector<bool>(10, true); // full-band allocation
+        harqProcess.m_dciElement = std::make_shared<DciInfoElementTdma>(dci);
+        harqProcess.m_active = true;
+        harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
+
+        DlHarqInfo harqInfo;
+        harqInfo.m_harqStatus = DlHarqInfo::NACK;
+        harqInfo.m_numRetx = 0;
+        harqInfo.m_rnti = rnti;
+        harqInfo.m_harqProcessId = static_cast<uint8_t>(rnti);
+        harqInfo.m_bwpIndex = 0;
+        paramsDlTrigger.m_dlHarqInfoList.push_back(harqInfo);
+    }
+
+    // With the bug present this either trips an assertion (debug build) or
+    // schedules a retransmission past the end of the slot, caught by
+    // CheckSchedule above.
+    sched->DoSchedDlTriggerReq(paramsDlTrigger);
+
+    delete schedSapUser;
+    delete cschedSapUser;
+}
+
+/**
+ * @brief Verify OFDMA HARQ retransmissions in the same beam share symbols.
+ *
+ * In OFDMA, several UEs in the same beam are retransmitted on the same OFDM
+ * symbols but disjoint RBGs (frequency multiplexing). ScheduleDlHarq() must
+ * therefore debit the slot symbol budget by the beam's symbol span, not by the
+ * sum of the per-UE spans. The earlier per-retransmission debit (since fixed)
+ * dropped every UE after the first whenever the shared span exceeded half the
+ * slot, silently losing retransmissions (and, with a following beam, underflowed
+ * the budget). This test schedules two UEs in one beam on disjoint RBGs, each
+ * spanning more than half of the slot, and checks that both are scheduled within
+ * the slot, with and without HARQ consolidation.
+ */
+class NrTestMacSchedulerHarqRrOfdmaSharing : public TestCase
+{
+  public:
+    /**
+     * @brief Constructor
+     * @param consolidate whether ConsolidateHarqRetx (allocation reshaping) is enabled
+     */
+    NrTestMacSchedulerHarqRrOfdmaSharing(bool consolidate)
+        : TestCase(std::string("OFDMA HARQ retransmissions share symbols within a beam (") +
+                   (consolidate ? "consolidated)" : "not consolidated)")),
+          m_consolidate(consolidate)
+    {
+    }
+
+  protected:
+    void DoRun() override;
+
+  private:
+    /**
+     * @brief Check that both same-beam UEs were scheduled within the slot.
+     * @param params the scheduled slot allocation reported by the scheduler
+     */
+    void CheckSchedule(const NrMacSchedSapUser::SchedConfigIndParameters& params);
+
+    bool m_consolidate;                            //!< Reshape (consolidate) HARQ retx or not
+    bool m_checked{false};                         //!< Set once the scheduler reports a slot
+    static constexpr uint8_t m_symbolsPerSlot{14}; //!< Symbols available in the slot
+    static constexpr uint8_t m_numSym{8};          //!< Symbols per retransmission (> half the slot)
+    static constexpr uint32_t m_numUes{2};         //!< UEs sharing the single beam
+};
+
+void
+NrTestMacSchedulerHarqRrOfdmaSharing::CheckSchedule(
+    const NrMacSchedSapUser::SchedConfigIndParameters& params)
+{
+    m_checked = true;
+
+    uint32_t numDataDcis = 0;
+    uint16_t lastUsedSymbol = 0;
+    for (const auto& varTtiAllocInfo : params.m_slotAllocInfo.m_varTtiAllocInfo)
+    {
+        if (varTtiAllocInfo.m_dci->m_type != DciInfoElementTdma::DATA)
+        {
+            continue;
+        }
+        ++numDataDcis;
+        lastUsedSymbol =
+            std::max<uint16_t>(lastUsedSymbol,
+                               varTtiAllocInfo.m_dci->m_symStart + varTtiAllocInfo.m_dci->m_numSym);
+    }
+
+    // Both UEs must be retransmitted: since each spans more than half the slot,
+    // the only way to fit both is to share the same symbols on disjoint RBGs.
+    NS_TEST_ASSERT_MSG_EQ(numDataDcis,
+                          m_numUes,
+                          "Both same-beam OFDMA UEs should be retransmitted by sharing symbols, "
+                          "but some were dropped");
+    NS_TEST_ASSERT_MSG_LT_OR_EQ(+lastUsedSymbol,
+                                +m_symbolsPerSlot,
+                                "HARQ retransmissions were placed past the end of the slot");
+}
+
+void
+NrTestMacSchedulerHarqRrOfdmaSharing::DoRun()
+{
+    Config::SetDefault("ns3::NrMacSchedulerHarqRr::ConsolidateHarqRetx",
+                       BooleanValue(m_consolidate));
+
+    auto cellConfig = NrMacCschedSapProvider::CschedCellConfigReqParameters();
+    cellConfig.m_dlBandwidth = 10; // 10 RBGs
+    cellConfig.m_ulBandwidth = 10;
+
+    // Two UEs in the SAME beam, on disjoint RBG halves, each spanning 8 of the 14
+    // available symbols. Stacking them in time would need 16 > 14 symbols, so the
+    // scheduler can only fit both by sharing the symbols across the two RBG sets.
+    const std::vector<uint16_t> rntis = {0, 1};
+
+    std::vector<NrMacCschedSapProvider::CschedUeConfigReqParameters> ueConfig;
+    for (auto rnti : rntis)
+    {
+        NrMacCschedSapProvider::CschedUeConfigReqParameters config{};
+        config.m_rnti = rnti;
+        config.m_transmissionMode = 0;
+        config.m_beamId = BeamId(0, 0); // single shared beam
+        ueConfig.push_back(config);
+    }
+
+    auto* schedSapUser = new TestSchedSapUserHarq([this](auto params) { CheckSchedule(params); },
+                                                  []() { return uint32_t{m_symbolsPerSlot}; });
+    auto* cschedSapUser = new TestCschedSapUserHarq();
+
+    auto sched = CreateObject<NrMacSchedulerOfdmaRR>();
+    sched->InstallDlAmc(CreateObject<NrAmc>());
+    sched->InstallUlAmc(CreateObject<NrAmc>());
+    sched->SetMacSchedSapUser(schedSapUser);
+    sched->SetMacCschedSapUser(cschedSapUser);
+    sched->DoCschedCellConfigReq(cellConfig);
+    for (const auto& ueConf : ueConfig)
+    {
+        sched->DoCschedUeConfigReq(ueConf);
+    }
+    sched->SetDlCtrlSyms(0);
+
+    NrMacSchedSapProvider::SchedDlTriggerReqParameters paramsDlTrigger;
+    paramsDlTrigger.m_snfSf = SfnSf(0, 0, 0, 0);
+    paramsDlTrigger.m_slotType = LteNrTddSlotType::DL;
+    for (size_t i = 0; i < rntis.size(); ++i)
+    {
+        const auto rnti = rntis.at(i);
+        auto& ueInfo = sched->m_ueMap.find(rnti)->second;
+        auto& harqProcess = ueInfo->m_dlHarq.Find(rnti)->second;
+
+        // Disjoint RBG halves: UE 0 -> RBGs [0,4], UE 1 -> RBGs [5,9].
+        std::vector<bool> bitmask(10, false);
+        for (size_t rbg = i * 5; rbg < (i + 1) * 5; ++rbg)
+        {
+            bitmask.at(rbg) = true;
+        }
+
+        DciInfoElementTdma dci(rnti,
+                               DciInfoElementTdma::DL,
+                               0,
+                               m_numSym,
+                               10,
+                               1,
+                               {},
+                               100,
+                               0,
+                               0,
+                               DciInfoElementTdma::DATA,
+                               0,
+                               0);
+        dci.m_harqProcess = static_cast<uint8_t>(rnti);
+        dci.m_rbgBitmask = bitmask;
+        harqProcess.m_dciElement = std::make_shared<DciInfoElementTdma>(dci);
+        harqProcess.m_active = true;
+        harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
+
+        DlHarqInfo harqInfo;
+        harqInfo.m_harqStatus = DlHarqInfo::NACK;
+        harqInfo.m_numRetx = 0;
+        harqInfo.m_rnti = rnti;
+        harqInfo.m_harqProcessId = static_cast<uint8_t>(rnti);
+        harqInfo.m_bwpIndex = 0;
+        paramsDlTrigger.m_dlHarqInfoList.push_back(harqInfo);
+    }
+
+    sched->DoSchedDlTriggerReq(paramsDlTrigger);
+
+    NS_TEST_ASSERT_MSG_EQ(m_checked,
+                          true,
+                          "Scheduler did not report a slot allocation; checks did not run");
+
+    delete schedSapUser;
+    delete cschedSapUser;
+}
+
 class NrTestSchedHarqSuite : public TestSuite
 {
   public:
@@ -640,6 +980,12 @@ class NrTestSchedHarqSuite : public TestSuite
         : TestSuite("nr-test-sched-harq", Type::UNIT)
     {
         AddTestCase(new NrTestMacSchedulerHarqRrBeamOrder(), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedulerHarqRrSymbolBudget(true /* TDMA */), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedulerHarqRrSymbolBudget(false /* OFDMA */), Duration::QUICK);
+        AddTestCase(new NrTestMacSchedulerHarqRrOfdmaSharing(false /* not consolidated */),
+                    Duration::QUICK);
+        AddTestCase(new NrTestMacSchedulerHarqRrOfdmaSharing(true /* consolidated */),
+                    Duration::QUICK);
 
         // clang-format off
         using DIET = DciInfoElementTdma;
