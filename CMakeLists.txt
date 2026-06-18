@@ -545,6 +545,7 @@ set(test_sources
     test/nr-test-cell-selection-with-rlf.cc
     test/nr-test-attach-window.cc
     test/nr-test-random-direction-disc-2d-mobility.cc
+    test/nr-test-tr36839-handover-failure.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover
