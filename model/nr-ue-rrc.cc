@@ -282,6 +282,16 @@ NrUeRrc::GetTypeId()
                           BooleanValue(false),
                           MakeBooleanAccessor(&NrUeRrc::m_rlcMaxRetxTriggersRlf),
                           MakeBooleanChecker())
+            .AddAttribute(
+                "Tr36839HandoverFailure",
+                "Prototype TR 36.839 (5.3.2) handover-failure model: if the handover "
+                "command is received while the source radio link is already below Qout "
+                "(modelled as the T310 timer running), declare the handover a failure and "
+                "trigger radio link failure, instead of letting the late command rescue the "
+                "link. Disabled by default to preserve legacy behaviour.",
+                BooleanValue(false),
+                MakeBooleanAccessor(&NrUeRrc::m_tr36839HandoverFailure),
+                MakeBooleanChecker())
             .AddTraceSource("MibReceived",
                             "trace fired upon reception of Master Information Block",
                             MakeTraceSourceAccessor(&NrUeRrc::m_mibReceivedTrace),
@@ -1309,6 +1319,25 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
         if (msg.haveMobilityControlInfo)
         {
             NS_LOG_INFO("haveMobilityControlInfo == true");
+            // TR 36.839 (5.3.2) handover-failure model. The handover command is
+            // delivered over the *source* cell. If the source radio link is already
+            // below Qout when the command arrives -- modelled here by the T310 timer
+            // being active (N310 out-of-sync indications already accumulated) -- the
+            // UE cannot reliably receive/act on the command, so the handover fails.
+            // Otherwise the late command silently rescues the link (ResetRlfParams
+            // below) and "too-late" handovers never fail, so the handover failure
+            // rate does not grow with UE speed. Declaring RLF here, before the
+            // HandoverStart trace, makes the event count as a too-late handover
+            // failure and routes the UE through reestablishment. Off by default
+            // (see the Tr36839HandoverFailure attribute).
+            if (m_tr36839HandoverFailure && m_radioLinkFailureDetected.IsPending())
+            {
+                NS_LOG_INFO("HO command arrived while T310 active (source below Qout): "
+                            "declaring TR 36.839 handover failure for IMSI "
+                            << m_imsi);
+                RadioLinkFailureDetected();
+                return;
+            }
             SwitchToState(CONNECTED_HANDOVER);
             if (m_radioLinkFailureDetected.IsPending())
             {

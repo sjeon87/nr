@@ -905,6 +905,9 @@ class NR_EXPORT NrUeRrc : public Object
     bool m_rlcMaxRetxTriggersRlf; ///< if true, RLC-AM max-retx declares RLF (TS 38.331 5.3.10.3)
     bool m_rlcMaxRetxRlfDeclared{
         false}; ///< guard: RLC-max-retx RLF already declared this connection
+    /// TR 36.839 (5.3.2) handover-failure model: fail the handover if the HO
+    /// command arrives while the source link is below Qout (T310 running).
+    bool m_tr36839HandoverFailure{false};
 
     /**
      * @brief Set whether RRC connection reestablishment is enabled.
