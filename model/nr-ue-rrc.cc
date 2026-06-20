@@ -29,6 +29,7 @@
 #include "ns3/simulator.h"
 
 #include <cmath>
+#include <iostream>
 
 namespace ns3
 {
@@ -292,6 +293,20 @@ NrUeRrc::GetTypeId()
                 BooleanValue(false),
                 MakeBooleanAccessor(&NrUeRrc::m_tr36839HandoverFailure),
                 MakeBooleanChecker())
+            .AddAttribute(
+                "Tr36839HoFailureMinT310Elapsed",
+                "Graded threshold for the TR 36.839 handover-failure model "
+                "(Tr36839HandoverFailure). A handover command that arrives while T310 is "
+                "running is declared a too-late failure only if T310 has already been "
+                "running for at least this long; a command arriving earlier still rescues "
+                "the link (the UE can still receive it). This makes the failure depend on "
+                "HOW degraded the source is, not merely on T310 being pending, so short-"
+                "TimeToTrigger configurations (whose commands arrive early in T310) escape "
+                "while long-TTT ones (deep in T310) fail. 0 ms reproduces the original "
+                "binary behaviour (fail on any pending T310).",
+                TimeValue(MilliSeconds(0)),
+                MakeTimeAccessor(&NrUeRrc::m_tr36839HoFailureMinT310Elapsed),
+                MakeTimeChecker())
             .AddTraceSource("MibReceived",
                             "trace fired upon reception of Master Information Block",
                             MakeTraceSourceAccessor(&NrUeRrc::m_mibReceivedTrace),
@@ -364,6 +379,11 @@ NrUeRrc::GetTypeId()
                             "trace fired upon failure of radio link",
                             MakeTraceSourceAccessor(&NrUeRrc::m_radioLinkFailureTrace),
                             "ns3::NrUeRrc::ImsiCidRntiTracedCallback")
+            .AddTraceSource("RadioLinkFailureCause",
+                            "trace fired when the UE enters CONNECTED_PHY_PROBLEM, carrying the "
+                            "failure cause and timing context",
+                            MakeTraceSourceAccessor(&NrUeRrc::m_radioLinkFailureCauseTrace),
+                            "ns3::NrUeRrc::RlfCauseTracedCallback")
             .AddTraceSource(
                 "PhySyncDetection",
                 "trace fired upon receiving in Sync or out of Sync indications from UE PHY",
@@ -810,6 +830,7 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
         m_cmacSapProvider.at(GetPrimaryUlIndex())
             ->NotifyConnectionSuccessful(); // RA successful during handover
         m_handoverEndOkTrace(m_imsi, m_cellId, m_rnti);
+        m_lastHoSuccessTime = Simulator::Now();
     }
     break;
 
@@ -859,7 +880,7 @@ NrUeRrc::DoNotifyRandomAccessFailed()
             NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Handover ongoing for IMSI: "
                          << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
                          << " in state: " << ToString(m_state) << ".");
-            SwitchToState(CONNECTED_PHY_PROBLEM);
+            EnterPhyProblemState(RLF_DURING_HANDOVER);
             m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
             // we should have called NotifyConnectionFailed
             // but that method would immediately ask you UE to
@@ -1330,12 +1351,21 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             // HandoverStart trace, makes the event count as a too-late handover
             // failure and routes the UE through reestablishment. Off by default
             // (see the Tr36839HandoverFailure attribute).
-            if (m_tr36839HandoverFailure && m_radioLinkFailureDetected.IsPending())
+            // Graded criterion: fail only if T310 has been running long enough that
+            // the source is too degraded to receive the command. A command arriving
+            // early in T310 (elapsed < Tr36839HoFailureMinT310Elapsed) still rescues
+            // the link below. With the threshold at 0 this reduces to "fail on any
+            // pending T310" (the original binary behaviour).
+            const bool t310DegradedEnough =
+                m_radioLinkFailureDetected.IsPending() &&
+                (m_t310 - Simulator::GetDelayLeft(m_radioLinkFailureDetected)) >=
+                    m_tr36839HoFailureMinT310Elapsed;
+            if (m_tr36839HandoverFailure && t310DegradedEnough)
             {
                 NS_LOG_INFO("HO command arrived while T310 active (source below Qout): "
                             "declaring TR 36.839 handover failure for IMSI "
                             << m_imsi);
-                RadioLinkFailureDetected();
+                RadioLinkFailureDetected(RLF_HO_COMMAND_LATE);
                 return;
             }
             SwitchToState(CONNECTED_HANDOVER);
@@ -1569,7 +1599,7 @@ NrUeRrc::DoRecvRrcConnectionRelease(NrRrcSap::RrcConnectionRelease msg)
                      "for IMSI: "
                      << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
                      << " in state: " << ToString(m_state) << ".");
-        SwitchToState(CONNECTED_PHY_PROBLEM);
+        EnterPhyProblemState(RLF_CONNECTION_RELEASE);
         m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
         m_asSapUser->NotifyConnectionReleased();
     }
@@ -3931,7 +3961,7 @@ NrUeRrc::ConnectionTimeout()
         NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Connection timeout for IMSI: "
                      << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
                      << " in state: " << ToString(m_state) << ".");
-        SwitchToState(CONNECTED_PHY_PROBLEM);
+        EnterPhyProblemState(RLF_CONNECTION_TIMEOUT);
         // Assumption: The gNB connection request timer would expire
         // before the expiration of T300 at UE. Upon which, the gNB deletes
         // the UE context. Therefore, here we don't need to send the UE context
@@ -4068,12 +4098,12 @@ NrUeRrc::DoNotifyRlcMaxRetx()
         }
         NS_LOG_INFO("RLC-AM reached maxRetxThreshold for IMSI "
                     << m_imsi << "; declaring radio link failure (TS 38.331 5.3.10.3)");
-        RadioLinkFailureDetected();
+        RadioLinkFailureDetected(RLF_RLC_MAX_RETX);
     }
 }
 
 void
-NrUeRrc::RadioLinkFailureDetected()
+NrUeRrc::RadioLinkFailureDetected(RadioLinkFailureCause cause)
 {
     NS_LOG_FUNCTION(this << "IMSI " << m_imsi << m_rnti << ", cellId " << m_cellId);
     m_radioLinkFailureTrace(m_imsi, m_cellId, m_rnti);
@@ -4083,7 +4113,7 @@ NrUeRrc::RadioLinkFailureDetected()
             "Switch to CONNECTED_PHY_PROBLEM. Reason: Radio link failure detected for IMSI: "
             << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
             << " in state: " << ToString(m_state) << ".");
-        SwitchToState(CONNECTED_PHY_PROBLEM);
+        EnterPhyProblemState(cause);
         m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
         m_asSapUser->NotifyConnectionReleased();
     }
@@ -4098,6 +4128,63 @@ NrUeRrc::RadioLinkFailureDetected()
         ResetRlfParams();
         SwitchToState(IDLE_CELL_SEARCH);
     }
+}
+
+std::string
+ToString(NrUeRrc::RadioLinkFailureCause cause)
+{
+    switch (cause)
+    {
+    case NrUeRrc::RLF_T310_EXPIRY:
+        return "T310_EXPIRY";
+    case NrUeRrc::RLF_HO_COMMAND_LATE:
+        return "HO_COMMAND_LATE";
+    case NrUeRrc::RLF_DURING_HANDOVER:
+        return "DURING_HANDOVER";
+    case NrUeRrc::RLF_CONNECTION_RELEASE:
+        return "CONNECTION_RELEASE";
+    case NrUeRrc::RLF_CONNECTION_TIMEOUT:
+        return "CONNECTION_TIMEOUT";
+    case NrUeRrc::RLF_RLC_MAX_RETX:
+        return "RLC_MAX_RETX";
+    case NrUeRrc::RLF_NONE:
+    default:
+        return "NONE";
+    }
+}
+
+void
+NrUeRrc::EnterPhyProblemState(RadioLinkFailureCause cause)
+{
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << " cause " << ToString(cause));
+    // Capture the timing context at the instant of failure, before any reset of
+    // the RLF parameters cancels the T310 event. If T310 is still pending we know
+    // exactly how long the DL has been below Qout; if this very call IS the T310
+    // expiry, the elapsed time is the full T310 duration; otherwise T310 was not
+    // running (e.g. a network connection release) and there is no Qout interval.
+    int64_t t310ElapsedMs = -1;
+    if (m_radioLinkFailureDetected.IsPending())
+    {
+        t310ElapsedMs =
+            (m_t310 - Simulator::GetDelayLeft(m_radioLinkFailureDetected)).GetMilliSeconds();
+    }
+    else if (cause == RLF_T310_EXPIRY)
+    {
+        t310ElapsedMs = m_t310.GetMilliSeconds();
+    }
+    const int64_t msSinceLastHoSuccess =
+        (m_lastHoSuccessTime > Seconds(0))
+            ? (Simulator::Now() - m_lastHoSuccessTime).GetMilliSeconds()
+            : -1;
+    m_rlfCause = cause;
+    m_radioLinkFailureCauseTrace(m_imsi,
+                                 m_cellId,
+                                 m_rnti,
+                                 static_cast<uint16_t>(m_state),
+                                 ToString(cause),
+                                 t310ElapsedMs,
+                                 msSinceLastHoSuccess);
+    SwitchToState(CONNECTED_PHY_PROBLEM);
 }
 
 void
@@ -4124,7 +4211,7 @@ NrUeRrc::DoNotifyOutOfSync()
     if (m_noOfSyncIndications == m_n310)
     {
         m_radioLinkFailureDetected =
-            Simulator::Schedule(m_t310, &NrUeRrc::RadioLinkFailureDetected, this);
+            Simulator::Schedule(m_t310, &NrUeRrc::RadioLinkFailureDetected, this, RLF_T310_EXPIRY);
         if (m_radioLinkFailureDetected.IsPending())
         {
             NS_LOG_INFO("t310 started");

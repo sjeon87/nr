@@ -102,6 +102,24 @@ class NR_EXPORT NrUeRrc : public Object
     };
 
     /**
+     * The cause of a transition into the CONNECTED_PHY_PROBLEM state. Recorded at
+     * the instant of failure so downstream analysis does not have to infer the
+     * cause from the state-machine timeline (which conflates, e.g., a network
+     * connection release with a genuine radio link failure). Mirrors the 3GPP
+     * TR 36.839 mobility-failure taxonomy where applicable.
+     */
+    enum RadioLinkFailureCause
+    {
+        RLF_NONE = 0,        ///< not in a failure (default)
+        RLF_T310_EXPIRY,     ///< T310 ran to completion: DL stayed below Qout (genuine RLF)
+        RLF_HO_COMMAND_LATE, ///< handover command arrived while T310 active (too-late handover)
+        RLF_DURING_HANDOVER, ///< failure while in CONNECTED_HANDOVER (handover execution failure)
+        RLF_CONNECTION_RELEASE, ///< network-initiated RRC connection release (not a radio failure)
+        RLF_CONNECTION_TIMEOUT, ///< RRC connection (re)establishment/setup attempts exhausted
+        RLF_RLC_MAX_RETX ///< RLC-AM reached maxRetxThreshold (TS 38.331 5.3.10.3 RLF trigger)
+    };
+
+    /**
      * create an RRC instance for use within an ue
      *
      */
@@ -464,6 +482,28 @@ class NR_EXPORT NrUeRrc : public Object
                                                    uint16_t cellId,
                                                    uint16_t rnti,
                                                    uint8_t count);
+
+    /**
+     * TracedCallback signature for radio-link-failure events with cause and the
+     * timing context known at the instant of failure.
+     *
+     * @param [in] imsi UE IMSI
+     * @param [in] cellId serving cell at failure
+     * @param [in] rnti UE RNTI
+     * @param [in] oldState RRC state immediately before the failure (NrUeRrc::State value)
+     * @param [in] cause failure cause token (see ns3::ToString(NrUeRrc::RadioLinkFailureCause))
+     * @param [in] t310ElapsedMs time the DL had been below Qout (T310 elapsed), or -1 if T310 was
+     *             not running
+     * @param [in] msSinceLastHoSuccess time since this UE's last successful handover, or -1 if it
+     *             has not handed over yet
+     */
+    typedef void (*RlfCauseTracedCallback)(uint64_t imsi,
+                                           uint16_t cellId,
+                                           uint16_t rnti,
+                                           uint16_t oldState,
+                                           std::string cause,
+                                           int64_t t310ElapsedMs,
+                                           int64_t msSinceLastHoSuccess);
 
   private:
     // PDCP SAP methods
@@ -908,6 +948,10 @@ class NR_EXPORT NrUeRrc : public Object
     /// TR 36.839 (5.3.2) handover-failure model: fail the handover if the HO
     /// command arrives while the source link is below Qout (T310 running).
     bool m_tr36839HandoverFailure{false};
+    /// Graded threshold for the above: a late HO command is only failed if T310
+    /// has been running for at least this long; otherwise the command rescues the
+    /// link. 0 ms = original binary behaviour. @see Tr36839HoFailureMinT310Elapsed
+    Time m_tr36839HoFailureMinT310Elapsed{MilliSeconds(0)};
 
     /**
      * @brief Set whether RRC connection reestablishment is enabled.
@@ -1000,6 +1044,14 @@ class NR_EXPORT NrUeRrc : public Object
      * procedure. Exporting IMSI, cell ID, and RNTI.
      */
     TracedCallback<uint64_t, uint16_t, uint16_t> m_handoverEndErrorTrace;
+    /**
+     * The `RadioLinkFailureCause` trace source. Fired at the instant the UE
+     * enters CONNECTED_PHY_PROBLEM, carrying the cause and timing context.
+     * Exporting IMSI, cellId, RNTI, oldState, cause token, T310-elapsed ms, and
+     * ms since the last successful handover.
+     */
+    TracedCallback<uint64_t, uint16_t, uint16_t, uint16_t, std::string, int64_t, int64_t>
+        m_radioLinkFailureCauseTrace;
     /**
      * The `SCarrierConfigured` trace source. Fired after the configuration
      * of secondary carriers received through RRC Connection Reconfiguration
@@ -1417,6 +1469,13 @@ class NR_EXPORT NrUeRrc : public Object
                                      ///< the gNB
 
     uint8_t m_connEstFailCount; ///< the counter to count T300 timer expiration
+
+    Time m_lastHoSuccessTime{
+        Seconds(0)}; ///< time of this UE's last successful handover (HandoverEndOk);
+                     ///< Seconds(0) means it has not handed over yet
+
+    RadioLinkFailureCause m_rlfCause{
+        RLF_NONE}; ///< cause of the most recent CONNECTED_PHY_PROBLEM entry
     /**
      * @brief Radio link failure detected function
      *
@@ -1426,8 +1485,25 @@ class NR_EXPORT NrUeRrc : public Object
      * in an ideal way since there is no radio link failure detection
      * implemented at the eNodeB. If the deletion process is not synchronous,
      * then errors occur due to triggering of assert messages.
+     *
+     * @param cause why the failure was declared (RLF_T310_EXPIRY when invoked by the
+     *        expiring T310 timer, RLF_HO_COMMAND_LATE when invoked because a handover
+     *        command arrived while T310 was already running)
      */
-    void RadioLinkFailureDetected();
+    void RadioLinkFailureDetected(RadioLinkFailureCause cause = RLF_T310_EXPIRY);
+
+    /**
+     * @brief Single entry point for transitioning into CONNECTED_PHY_PROBLEM.
+     *
+     * Captures the failure cause and the timing context known at this instant
+     * (how long the DL had been below Qout, and how long since the last
+     * successful handover), fires the RadioLinkFailureCause trace, then performs
+     * the state switch. All sites that move the UE into CONNECTED_PHY_PROBLEM go
+     * through here so the recorded cause is authoritative.
+     *
+     * @param cause the failure cause to record
+     */
+    void EnterPhyProblemState(RadioLinkFailureCause cause);
 
     /**
      * @brief Callback target invoked when one of this UE's RLC-AM entities reaches
@@ -1586,6 +1662,13 @@ class NR_EXPORT NrUeRrc : public Object
  * @return string value of the state
  */
 NR_EXPORT const std::string ToString(NrUeRrc::State state);
+/**
+ * Converts NrUeRrc::RadioLinkFailureCause to a stable upper-case token
+ * (e.g. "T310_EXPIRY"), used for logging and database storage.
+ * @param cause enum value of the failure cause
+ * @return string token for the cause
+ */
+NR_EXPORT std::string ToString(NrUeRrc::RadioLinkFailureCause cause);
 /**
  * Prints to the output stream the NrUeRrc::State
  * @param os output stream
