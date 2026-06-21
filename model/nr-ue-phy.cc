@@ -929,9 +929,26 @@ NrUePhy::StartSlot(const SfnSf& s)
 
     if (GetNumerology() != s.GetNumerology())
     {
+        // The active PHY numerology changed (e.g. the UE re-tuned to a cell on a
+        // different numerology during cell (re)selection or an inter-frequency
+        // handover). The in-flight slot 's' belongs to the abandoned numerology
+        // timeline, so its frame/subframe/slot indices are meaningless here.
+        // Drop the stale allocations and re-stamp the slot machine onto the new
+        // numerology so that the event loop keeps running instead of stalling
+        // forever (which would silently kill the UE PHY, e.g. preventing RACH
+        // preambles from ever being transmitted on the target cell).
         NS_LOG_INFO("Numerology changed from " << s.GetNumerology() << " to " << GetNumerology()
-                                               << ", ignoring stale SlotAllocInfo entries.");
+                                               << ", restarting slot loop on the new numerology.");
         PurgeStaleSlotAllocInfo();
+
+        // Rebuild a slot index consistent with the new numerology from the
+        // current absolute time, and align to the next slot boundary.
+        Time slotPeriod = GetSlotPeriod();
+        uint64_t slotsElapsed = Simulator::Now().GetTimeStep() / slotPeriod.GetTimeStep();
+        Time nextSlotStart = slotPeriod * (slotsElapsed + 1) - Simulator::Now();
+        SfnSf restartSlot(0, 0, 0, GetNumerology());
+        restartSlot.Add(static_cast<uint32_t>(slotsElapsed + 1));
+        Simulator::Schedule(nextSlotStart, &NrUePhy::StartSlot, this, restartSlot);
         return;
     }
     m_currentSlot = s;
@@ -1306,10 +1323,22 @@ NrUePhy::EndVarTti(const std::shared_ptr<DciInfoElementTdma>& dci)
         // end of slot
         m_currentSlot.Add(1);
 
-        Simulator::Schedule(m_lastSlotStart + GetSlotPeriod() - Simulator::Now(),
-                            &NrUePhy::StartSlot,
-                            this,
-                            m_currentSlot);
+        // During an inter-frequency / inter-numerology handover the UE re-tunes
+        // to a different BWP PHY. The slot period (which is numerology-dependent)
+        // and the m_lastSlotStart reference belong to the abandoned timeline, so
+        // the next-slot start can resolve to a time in the past. Clamp such a
+        // stale boundary to the current instant so the slot machine keeps
+        // running on the target BWP instead of asserting; StartSlot() detects
+        // the numerology change and cleanly re-stamps the loop from there.
+        Time delay = m_lastSlotStart + GetSlotPeriod() - Simulator::Now();
+        if (delay.IsNegative())
+        {
+            NS_LOG_WARN("Clamping next-slot start "
+                        << delay << " in the past to now, due to a BWP/numerology switch");
+            delay = Time(0);
+        }
+
+        Simulator::Schedule(delay, &NrUePhy::StartSlot, this, m_currentSlot);
     }
     else
     {
@@ -1320,11 +1349,19 @@ NrUePhy::EndVarTti(const std::shared_ptr<DciInfoElementTdma>& dci)
         Time nextVarTtiTime = nextVarTtiStart + m_lastSlotStart;
         Time delay = nextVarTtiTime - Simulator::Now();
 
-        NS_ASSERT_MSG(delay.IsStrictlyPositive() || delay.IsZero(),
-                      "Scheduling StartVarTti in the past. delay="
-                          << delay << " nextVarTtiTime=" << nextVarTtiTime
-                          << " now=" << Simulator::Now() << " lastSlotStart=" << m_lastSlotStart
-                          << " symStart=" << +allocation.m_dci->m_symStart);
+        // During an inter-frequency handover the UE re-tunes to a different BWP
+        // PHY, whose m_lastSlotStart timeline is re-stamped by StartSlot(). A
+        // VarTti that was in flight on the abandoned timeline can then resolve
+        // to a start time slightly in the past, yielding a small negative delay.
+        // Clamp such a stale allocation to the current instant so that it is
+        // still processed (keeping the data plane alive across the handover)
+        // without scheduling an event in the past.
+        if (delay.IsNegative())
+        {
+            NS_LOG_WARN("Clamping VarTti scheduled "
+                        << delay << " in the past to now, due to a BWP/numerology switch");
+            delay = Time(0);
+        }
 
         Simulator::Schedule(delay, &NrUePhy::StartVarTti, this, allocation.m_dci);
     }

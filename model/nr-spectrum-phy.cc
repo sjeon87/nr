@@ -1803,7 +1803,7 @@ NrSpectrumPhy::ProcessReceivedPacketBurst()
                 RxPacketTraceParams traceParams(tbInfo,
                                                 m_dataErrorModelEnabled,
                                                 rnti,
-                                                ueRx->GetTargetGnb()->GetCellId(),
+                                                ueRx->GetCellId(),
                                                 GetBwpId(),
                                                 cqi);
                 m_rxPacketTraceUe(traceParams);

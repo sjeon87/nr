@@ -54,19 +54,65 @@ class NR_EXPORT NrRrcAsn1Header : public NrAsn1Header
 
     // Auxiliary functions
     /**
-     * Convert from bandwidth (in RBs) to ENUMERATED value
+     * Convert from channel bandwidth (in units of 100 kHz) to the FR1 leaf of
+     * the SupportedBandwidth CHOICE (TS 38.331):
+     * fr1 ENUMERATED {mhz5, mhz10, mhz15, mhz20, mhz25, mhz30, mhz40, mhz50,
+     * mhz60, mhz80, mhz100} -- 11 values, indices 0..10.
      *
-     * @param bandwidth Bandwidth in RBs: 6, 15, 25, 50, 75, 100
-     * @returns ENUMERATED value: 0, 1, 2, 3, 4, 5
+     * The argument uses the NR module convention of 100 kHz units (e.g. 50 for
+     * 5 MHz, 200 for 20 MHz, 1000 for 100 MHz), matching
+     * NrComponentCarrier::GetDlBandwidth.
+     *
+     * @param bandwidth Bandwidth in units of 100 kHz (MHz * 10)
+     * @returns FR1 ENUMERATED value in [0, 10]
      */
-    int BandwidthToEnum(uint16_t bandwidth) const;
+    int Fr1BandwidthToEnum(uint16_t bandwidth) const;
     /**
-     * Convert from ENUMERATED value to bandwidth (in RBs)
+     * Convert from the FR1 SupportedBandwidth ENUMERATED index back to a channel
+     * bandwidth expressed in units of 100 kHz (MHz * 10).
      *
-     * @param n ENUMERATED value: 0, 1, 2, 3, 4, 5
-     * @returns bandwidth Bandwidth in RBs: 6, 15, 25, 50, 75, 100
+     * @param n FR1 ENUMERATED value in [0, 10]
+     * @returns bandwidth in units of 100 kHz (e.g. 50 == 5 MHz, 1000 == 100 MHz)
      */
-    uint16_t EnumToBandwidth(int n) const;
+    uint16_t EnumToFr1Bandwidth(int n) const;
+    /**
+     * Convert from channel bandwidth (in units of 100 kHz) to the FR2 leaf of
+     * the SupportedBandwidth CHOICE (TS 38.331):
+     * fr2 ENUMERATED {mhz50, mhz100, mhz200, mhz400} -- 4 values, indices 0..3.
+     *
+     * @param bandwidth Bandwidth in units of 100 kHz (MHz * 10)
+     * @returns FR2 ENUMERATED value in [0, 3]
+     */
+    int Fr2BandwidthToEnum(uint16_t bandwidth) const;
+    /**
+     * Convert from the FR2 SupportedBandwidth ENUMERATED index back to a channel
+     * bandwidth expressed in units of 100 kHz (MHz * 10).
+     *
+     * @param n FR2 ENUMERATED value in [0, 3]
+     * @returns bandwidth in units of 100 kHz (e.g. 500 == 50 MHz, 4000 == 400 MHz)
+     */
+    uint16_t EnumToFr2Bandwidth(int n) const;
+    /**
+     * Serialize a SupportedBandwidth CHOICE (TS 38.331). The frequency range
+     * (FR1 vs FR2) is selected from the carrier ARFCN: a carrier at or above the
+     * FR1/FR2 boundary (24.25 GHz, NR-ARFCN >= 2016667) is encoded as FR2,
+     * otherwise FR1. The FR discriminator is written on the wire, so the value
+     * round-trips exactly regardless of the serialize-time FR choice.
+     *
+     * @param bandwidth100kHz Bandwidth in units of 100 kHz (MHz * 10)
+     * @param arfcn Carrier ARFCN adjacent to this bandwidth field
+     */
+    void SerializeSupportedBandwidth(uint16_t bandwidth100kHz, uint32_t arfcn) const;
+    /**
+     * Deserialize a SupportedBandwidth CHOICE (TS 38.331). The FR discriminator
+     * read from the wire selects the FR1 or FR2 leaf enum.
+     *
+     * @param bandwidth100kHz buffer to store the bandwidth in units of 100 kHz
+     * @param bIterator buffer iterator
+     * @returns the modified buffer iterator
+     */
+    Buffer::Iterator DeserializeSupportedBandwidth(uint16_t* bandwidth100kHz,
+                                                   Buffer::Iterator bIterator);
 
     // Serialization functions
     /**
@@ -129,6 +175,20 @@ class NR_EXPORT NrRrcAsn1Header : public NrAsn1Header
     void SerializeRadioResourceConfigCommon(
         NrRrcSap::RadioResourceConfigCommon radioResourceConfigCommon) const;
     /**
+     * Serialize serving cell config common function.
+     *
+     * Encodes the target cell PHY configuration (numerology, symbolsPerSlot,
+     * DL/UL control symbols, RBG size and the variable-length TDD pattern
+     * string) so that the inter-numerology handover target configuration is
+     * carried directly over SRB1, instead of being inferred from the target
+     * cell's periodic MIB. This is a custom (non-3GPP) encoding kept aligned
+     * with the surrounding hand-rolled ASN.1 style.
+     *
+     * @param servingCellConfigCommon NrRrcSap::ServingCellConfigCommon
+     */
+    void SerializeServingCellConfigCommon(
+        NrRrcSap::ServingCellConfigCommon servingCellConfigCommon) const;
+    /**
      * Serialize radio resource config common SIB function
      *
      * @param radioResourceConfigCommonSib NrRrcSap::RadioResourceConfigCommonSib
@@ -170,9 +230,10 @@ class NR_EXPORT NrRrcAsn1Header : public NrAsn1Header
      * Serialize radio resource config common SCell function
      *
      * @param rrccsc NrRrcSap::RadioResourceConfigCommonSCell
+     * @param dlArfcn SCell DL carrier ARFCN (for the dl-Bandwidth FR choice)
      */
-    void SerializeRadioResourceConfigCommonSCell(
-        NrRrcSap::RadioResourceConfigCommonSCell rrccsc) const;
+    void SerializeRadioResourceConfigCommonSCell(NrRrcSap::RadioResourceConfigCommonSCell rrccsc,
+                                                 uint32_t dlArfcn) const;
     /**
      * Serialize radio resource dedicated SCell function
      *
@@ -271,6 +332,16 @@ class NR_EXPORT NrRrcAsn1Header : public NrAsn1Header
      */
     Buffer::Iterator DeserializeRadioResourceConfigCommon(
         NrRrcSap::RadioResourceConfigCommon* radioResourceConfigCommon,
+        Buffer::Iterator bIterator);
+    /**
+     * Deserialize serving cell config common function.
+     *
+     * @param servingCellConfigCommon NrRrcSap::ServingCellConfigCommon *
+     * @param bIterator buffer iterator
+     * @returns buffer iterator
+     */
+    Buffer::Iterator DeserializeServingCellConfigCommon(
+        NrRrcSap::ServingCellConfigCommon* servingCellConfigCommon,
         Buffer::Iterator bIterator);
     /**
      * Deserialize radio resource config common SIB function

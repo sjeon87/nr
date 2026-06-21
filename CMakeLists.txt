@@ -491,6 +491,9 @@ set(test_sources
     test/nr-test-qos-rule-classifier.cc
     test/nr-test-fdm-of-numerologies.cc
     test/nr-test-harq.cc
+    test/nr-interference-overlap-test.cc
+    test/nr-ue-handover-interference-test.cc
+    test/nr-x2-forwarding-drop-test.cc
     test/nr-test-ipv6-routing.cc
     test/nr-test-l2sm-eesm.cc
     test/nr-test-notching.cc
@@ -528,11 +531,13 @@ set(test_sources
     test/nr-test-x2-handover.cc
     test/nr-test-x2-handover-measures.cc
     test/nr-test-same-cell-bwp-switch.cc
+    test/nr-test-inter-freq-handover.cc
     test/nr-test-handover-delay.cc
     test/nr-test-handover-failure.cc
     test/nr-test-handover-target.cc
     test/nr-test-handover-scenarios.cc
     test/nr-test-cell-individual-offset.cc
+    test/nr-test-cell-selection-with-rlf.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover

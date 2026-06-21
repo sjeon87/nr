@@ -893,12 +893,22 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 
     switch (m_state)
     {
+    case IDLE_CELL_SEARCH:
+    case IDLE_WAIT_MIB_SIB1:
+    case IDLE_WAIT_SIB1:
+        // An explicit force-camp request (Connect with a target cell/ARFCN) is a
+        // deterministic override: it aborts an in-progress autonomous cell
+        // selection and retunes directly to the requested cell. Fall through to
+        // the camp logic below.
+        NS_LOG_INFO("force-camp overrides in-progress cell selection " << ToString(m_state));
+        [[fallthrough]];
     case IDLE_START: {
         m_cellId = cellId;
         m_initDlArfcn = arfcn;
         TrackCellArfcn(cellId, arfcn);
         auto bwpId = GetArfcnBwpId(arfcn);
         SetPrimaryDlIndex(bwpId);
+        m_cphySapProvider.at(bwpId)->SetNumerology(0);
         m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
         m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
         if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
@@ -908,12 +918,6 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
         SwitchToState(IDLE_WAIT_MIB);
     }
     break;
-
-    case IDLE_CELL_SEARCH:
-    case IDLE_WAIT_MIB_SIB1:
-    case IDLE_WAIT_SIB1:
-        NS_FATAL_ERROR("cannot abort cell selection " << ToString(m_state));
-        break;
 
     case IDLE_WAIT_MIB:
         NS_LOG_INFO("already forced to camp to cell " << m_cellId);
@@ -1335,24 +1339,33 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
                     "ARFCN from gNB should have been configured as a BWP/CC on UE at setup time");
                 auto dlBwp = std::distance(m_cphySapProvider.begin(), dlIt);
                 auto ulBwp = std::distance(m_cphySapProvider.begin(), ulIt);
+                // Prefer the target cell's broadcast PHY configuration carried in
+                // the handover command. The UE last decoded SIB1 on the *source*
+                // cell, so reusing m_lastSib1 here would re-tune the target BWP to
+                // the source numerology/TDD pattern and break inter-numerology
+                // handover. Fall back to m_lastSib1 only if the target config was
+                // not supplied (keeps same-numerology behaviour unchanged).
+                const NrRrcSap::ServingCellConfigCommon& targetScc =
+                    mci.haveServingCellConfigCommon ? mci.servingCellConfigCommon
+                                                    : m_lastSib1.servingCellConfigCommon;
                 ReconfigureFromSib1(dlBwp,
                                     mci.targetPhysCellId,
-                                    m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
-                                    m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
-                                    m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
-                                    m_lastSib1.servingCellConfigCommon.numerology,
-                                    m_lastSib1.servingCellConfigCommon.tddPattern,
-                                    m_lastSib1.servingCellConfigCommon.rbgSize);
+                                    targetScc.dlCtrlSymsNum,
+                                    targetScc.ulCtrlSymsNum,
+                                    targetScc.symbolsPerSlot,
+                                    targetScc.numerology,
+                                    targetScc.tddPattern,
+                                    targetScc.rbgSize);
                 if (ulBwp != dlBwp)
                 {
                     ReconfigureFromSib1(ulBwp,
                                         mci.targetPhysCellId,
-                                        m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
-                                        m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
-                                        m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
-                                        m_lastSib1.servingCellConfigCommon.numerology,
+                                        targetScc.dlCtrlSymsNum,
+                                        targetScc.ulCtrlSymsNum,
+                                        targetScc.symbolsPerSlot,
+                                        targetScc.numerology,
                                         "F",
-                                        m_lastSib1.servingCellConfigCommon.rbgSize);
+                                        targetScc.rbgSize);
                 }
                 SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
                 SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
@@ -1828,6 +1841,9 @@ NrUeRrc::EvaluateCellForSelection()
         // currently setup
         auto bwpId = GetArfcnBwpId(m_initDlArfcn);
         SetPrimaryDlIndex(bwpId);
+        // Align the active BWP PHY numerology with the cell we are about to camp
+        // on. The RNTI is unknown at this point (it is assigned by random access),
+        // so it must not be touched here.
         m_cphySapProvider.at(bwpId)->SetNumerology(m_lastSib1.servingCellConfigCommon.numerology);
         m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(cellId, m_initDlArfcn);
         m_cphySapProvider.at(bwpId)->SetDlBandwidth(m_dlBandwidth);
@@ -2543,7 +2559,20 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
         }
     }
 
-    if (servingCellId == 0)
+    /*
+     * Events A1 and A2 evaluate the serving cell configured on the measObject's
+     * frequency; if there is none (e.g. an inter-frequency neighbour object),
+     * there is nothing to evaluate for those events.
+     * Events A3, A4 and A5 instead compare neighbour cells against the PCell
+     * (m_cellId) and therefore must be evaluated even when the measObject
+     * describes an inter-frequency neighbour, for which no serving cell exists
+     * on that frequency. Otherwise inter-frequency handover could never be
+     * triggered.
+     */
+    bool isServingCellEvent =
+        (reportConfigEutra.eventId == NrRrcSap::ReportConfigEutra::EVENT_A1) ||
+        (reportConfigEutra.eventId == NrRrcSap::ReportConfigEutra::EVENT_A2);
+    if (servingCellId == 0 && isServingCellEvent)
     {
         return;
     }
@@ -3759,6 +3788,13 @@ NrUeRrc::StartConnection()
 
     m_connectionPending = false; // reset the flag
     SwitchToState(IDLE_RANDOM_ACCESS);
+    // Bind the PHY to the selected cell before contention-based random access.
+    // RegisterToGnb() sets the PHY cellId so the RACH preamble (Msg1) is sent to
+    // this gNB and its response (RAR/Msg2) is accepted rather than filtered out;
+    // it also (re)initializes the L1/L2 control-message queue that carries the
+    // preamble. Without it, Msg1 would go out on a stale cellId into an
+    // uninitialized queue, so random access would never complete.
+    m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
     m_cmacSapProvider.at(GetPrimaryUlIndex())->StartContentionBasedRandomAccessProcedure();
 }
 
