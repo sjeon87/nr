@@ -82,11 +82,13 @@ NrInterferenceBase::StartRx(Ptr<const SpectrumValue> rxPsd)
         // make sure they use orthogonal resource blocks
         if (Sum((*rxPsd) * (*m_rxSignal)) != 0.0)
         {
-            // Overlapping signals detected: this can happen during handover
-            // (or on colliding same-cell grants) when two receptions share
-            // resource blocks. Reject the new signal instead of crashing: it
-            // stays in the all-signals set, so the caller accounts it as
-            // interference rather than as part of the desired signal.
+            // Keep the first signal, reject this overlapping one (it stays in the
+            // all-signals set, so StartRxMimo counts it as interference). Safe to
+            // pick by arrival order: NrSpectrumPhy::StartRx gates the receive path
+            // by cellId and (for a UE) RNTI, so foreign interferers never reach
+            // here. Colliding candidates already belong to this receiver (an
+            // anomaly: same-cell grant collision or stale handover RX); the
+            // rejected TB just fails to decode and HARQ recovers it.
             NS_LOG_LOGIC("Overlapping PSD detected; treating the new signal as interference");
             return false;
         }
