@@ -243,11 +243,12 @@ NrHandoverTargetAdmissionTestSuite::NrHandoverTargetAdmissionTestSuite()
     : TestSuite("nr-handover-target-admission", Type::SYSTEM)
 {
     // Baseline: floors at their disabling defaults, handover into the weak neighbour occurs.
-    auto baseline = new NrHandoverTargetAdmissionTestCase("baseline: default floors (-140/-100), "
-                                                          "handover occurs",
-                                                          -140.0,
-                                                          -100.0,
-                                                          true);
+    auto baseline =
+        new NrHandoverTargetAdmissionTestCase("baseline: default floors (-140 and -100), "
+                                              "handover occurs",
+                                              -140.0,
+                                              -100.0,
+                                              true);
 
     // Extreme RSRP floor: essentially require a very strong target, so the weak neighbour is
     // rejected and no handover happens. -44 dBm is the maximum of the MinTargetRsrpDbm range.
