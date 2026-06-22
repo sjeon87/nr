@@ -272,6 +272,16 @@ NrUeRrc::GetTypeId()
                 BooleanValue(true),
                 MakeBooleanAccessor(&NrUeRrc::m_useRrcReestablishment),
                 MakeBooleanChecker())
+            .AddAttribute("RlcMaxRetxTriggersRlf",
+                          "If true, an RLC-AM entity reaching maxRetxThreshold declares a radio "
+                          "link failure (TS 38.331 5.3.10.3). This lets an undeliverable uplink "
+                          "(e.g. a lost RrcConnectionReconfigurationComplete on a degraded link) "
+                          "fail and recover via reestablishment instead of retransmitting forever "
+                          "while the peer stays stuck. Default false (legacy behaviour: RLF is "
+                          "driven only by T310 / handover-command timing).",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrUeRrc::m_rlcMaxRetxTriggersRlf),
+                          MakeBooleanChecker())
             .AddTraceSource("MibReceived",
                             "trace fired upon reception of Master Information Block",
                             MakeTraceSourceAccessor(&NrUeRrc::m_mibReceivedTrace),
@@ -2007,6 +2017,8 @@ NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicate
             rlc->SetNrMacSapProvider(m_macSapProvider);
             rlc->SetRnti(m_rnti);
             rlc->SetLcId(lcid);
+            // SRB1 is RLC-AM: an undeliverable uplink (max-retx) is an RLF trigger.
+            rlc->SetMaxRetxReachedCallback(MakeCallback(&NrUeRrc::DoNotifyRlcMaxRetx, this));
 
             Ptr<NrPdcp> pdcp = CreateObject<NrPdcp>();
             pdcp->SetRnti(m_rnti);
@@ -2100,6 +2112,8 @@ NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicate
             rlc->SetNrMacSapProvider(m_macSapProvider);
             rlc->SetRnti(m_rnti);
             rlc->SetLcId(dtamIt->logicalChannelIdentity);
+            // For AM DRBs, max-retx is an RLF trigger (no-op for UM/SM RLC).
+            rlc->SetMaxRetxReachedCallback(MakeCallback(&NrUeRrc::DoNotifyRlcMaxRetx, this));
             if (m_useRlcSm)
             {
                 // Starts the chain of calls:
@@ -3947,13 +3961,54 @@ NrUeRrc::SwitchToState(State newState)
         break;
 
     case IDLE_RANDOM_ACCESS:
-    case IDLE_CONNECTING:
     case CONNECTED_NORMALLY:
+        // A fresh/restored connection clears the RLC-max-retx RLF guard so a later
+        // failure on this new connection can be declared again.
+        m_rlcMaxRetxRlfDeclared = false;
+        break;
+
+    case IDLE_CONNECTING:
     case CONNECTED_HANDOVER:
     case CONNECTED_PHY_PROBLEM:
     case CONNECTED_REESTABLISHING:
     default:
         break;
+    }
+}
+
+void
+NrUeRrc::DoNotifyRlcMaxRetx()
+{
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << " state " << ToString(m_state));
+    if (!m_rlcMaxRetxTriggersRlf)
+    {
+        // Legacy behaviour: RLC retransmission is effectively unbounded at the RRC
+        // level (the RLC requeues and keeps retransmitting); RLF is driven only by
+        // T310 / handover-command timing. Ignore the max-retx indication.
+        return;
+    }
+    // RLC-AM max-retx is a radio-link-failure trigger independent of T310 state
+    // (TS 38.331 5.3.10.3). It may fire from a healthy connection or while a T310
+    // (DL out-of-sync) is already running, in which case it brings the failure
+    // forward. A UE has several AM bearers, so guard against declaring the RLF more
+    // than once per connection.
+    if (m_rlcMaxRetxRlfDeclared)
+    {
+        return;
+    }
+    if (m_state == CONNECTED_NORMALLY || m_state == CONNECTED_HANDOVER ||
+        m_state == CONNECTED_PHY_PROBLEM)
+    {
+        m_rlcMaxRetxRlfDeclared = true;
+        // Supersede any pending T310 so the original timer cannot fire a second,
+        // duplicate RLF after this RLC-driven one.
+        if (m_radioLinkFailureDetected.IsPending())
+        {
+            m_radioLinkFailureDetected.Cancel();
+        }
+        NS_LOG_INFO("RLC-AM reached maxRetxThreshold for IMSI "
+                    << m_imsi << "; declaring radio link failure (TS 38.331 5.3.10.3)");
+        RadioLinkFailureDetected();
     }
 }
 

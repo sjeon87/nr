@@ -167,4 +167,40 @@ class NrRlcAmTransmitterBufferStatusReportTestCase : public NrRlcAmTransmitterTe
     void DoRun() override;
 };
 
+/**
+ * @ingroup nr-test
+ *
+ * @brief Test that an RLC-AM entity raises its max-retx indication exactly once
+ * when a PDU cannot be acknowledged within maxRetxThreshold retransmissions
+ * (TS 38.331 5.3.10.3 radio-link-failure trigger). The transmitter-only harness
+ * never feeds back a STATUS PDU, so the poll-retransmit timer drives the PDU to
+ * max-retx; the SetMaxRetxReachedCallback hook must then fire once.
+ */
+class NrRlcAmTransmitterMaxRetxTestCase : public NrRlcAmTransmitterTestCase
+{
+  public:
+    /**
+     * Constructor
+     *
+     * @param name the reference name
+     */
+    NrRlcAmTransmitterMaxRetxTestCase(std::string name);
+    ~NrRlcAmTransmitterMaxRetxTestCase() override;
+
+  private:
+    void DoRun() override;
+
+    /// Callback target wired to NrRlc::SetMaxRetxReachedCallback; counts invocations.
+    void OnMaxRetxReached();
+
+    /**
+     * Scheduled assertion: the max-retx callback fired the expected number of times.
+     * @param expected expected invocation count
+     * @param assertMsg the assert message
+     */
+    void CheckMaxRetx(uint32_t expected, std::string assertMsg);
+
+    uint32_t m_maxRetxCount{0}; ///< number of times the max-retx callback fired
+};
+
 #endif // NR_TEST_RLC_AM_TRANSMITTER_H

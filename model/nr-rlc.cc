@@ -166,6 +166,13 @@ NrRlc::GetNrMacSapUser()
     return m_macSapUser;
 }
 
+void
+NrRlc::SetMaxRetxReachedCallback(Callback<void> cb)
+{
+    NS_LOG_FUNCTION(this);
+    m_maxRetxReachedCallback = cb;
+}
+
 ////////////////////////////////////////
 
 NS_OBJECT_ENSURE_REGISTERED(NrRlcSm);
