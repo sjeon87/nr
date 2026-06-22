@@ -375,6 +375,18 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
                     if (m_retxBuffer.at(seqNumberValue).m_retxCount >= m_maxRetxThreshold)
                     {
                         NS_LOG_INFO("Max RETX_COUNT for SN = " << seqNumberValue);
+                        // TS 38.331 5.3.10.3: reaching maxRetxThreshold on an AM RLC
+                        // entity is a radio-link-failure trigger. Raise the indication
+                        // once (the RRC decides whether to act on it). Without this the
+                        // PDU is simply requeued and retransmitted indefinitely, so an
+                        // undeliverable uplink (e.g. a lost RrcConnectionReconfiguration
+                        // Complete on a degraded link) never fails and the peer can stay
+                        // stuck awaiting it.
+                        if (!m_maxRetxReachedNotified && !m_maxRetxReachedCallback.IsNull())
+                        {
+                            m_maxRetxReachedNotified = true;
+                            m_maxRetxReachedCallback();
+                        }
                     }
 
                     NS_LOG_INFO("Move SN = " << seqNumberValue << " back to txedBuffer");

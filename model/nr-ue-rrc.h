@@ -902,6 +902,9 @@ class NR_EXPORT NrUeRrc : public Object
      * Can be modified using SetUseRrcReestablishment().
      */
     bool m_useRrcReestablishment; ///< RRC reestablishment enabled flag
+    bool m_rlcMaxRetxTriggersRlf; ///< if true, RLC-AM max-retx declares RLF (TS 38.331 5.3.10.3)
+    bool m_rlcMaxRetxRlfDeclared{
+        false}; ///< guard: RLC-max-retx RLF already declared this connection
 
     /**
      * @brief Set whether RRC connection reestablishment is enabled.
@@ -1420,6 +1423,14 @@ class NR_EXPORT NrUeRrc : public Object
      * then errors occur due to triggering of assert messages.
      */
     void RadioLinkFailureDetected();
+
+    /**
+     * @brief Callback target invoked when one of this UE's RLC-AM entities reaches
+     *        maxRetxThreshold. When RlcMaxRetxTriggersRlf is enabled and the UE is in a
+     *        connected state, this declares a radio link failure (TS 38.331 5.3.10.3);
+     *        otherwise it is ignored (legacy behaviour).
+     */
+    void DoNotifyRlcMaxRetx();
 
     /**
      * @brief Do notify in sync function

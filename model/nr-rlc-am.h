@@ -205,6 +205,10 @@ class NR_EXPORT NrRlcAm : public NrRlc
     uint16_t m_pollPdu;          ///< poll PDU
     uint16_t m_pollByte;         ///< poll byte
 
+    /// Set once the maxRetxThreshold has been reached and the RLF callback fired,
+    /// so the radio-link-failure indication is raised at most once per RLC entity.
+    bool m_maxRetxReachedNotified{false};
+
     bool m_txOpportunityForRetxAlwaysBigEnough; ///< transmit opportunity for retransmit?
     bool m_pollRetransmitTimerJustExpired;      ///< poll retransmit timer just expired?
 

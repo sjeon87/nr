@@ -98,6 +98,17 @@ class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
     NrMacSapUser* GetNrMacSapUser();
 
     /**
+     * Set a callback to be invoked once when an RLC-AM entity reaches its
+     * maxRetxThreshold (i.e. an AM PDU could not be delivered within the
+     * configured number of retransmissions). Per TS 38.331 5.3.10.3 this is a
+     * radio-link-failure trigger; the RRC wires this to its RLF handler. Only
+     * NrRlcAm fires it; for TM/UM RLC it is never invoked.
+     *
+     * @param cb the callback to invoke on max-retx
+     */
+    void SetMaxRetxReachedCallback(Callback<void> cb);
+
+    /**
      * TracedCallback signature for NotifyTxOpportunity events.
      *
      * @param [in] rnti C-RNTI scheduled.
@@ -135,6 +146,10 @@ class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
 
     NrRlcSapUser* m_rlcSapUser;         ///< RLC SAP user
     NrRlcSapProvider* m_rlcSapProvider; ///< RLC SAP provider
+
+    /// Invoked once when an RLC-AM entity reaches maxRetxThreshold (RLF trigger,
+    /// TS 38.331 5.3.10.3). Empty unless wired by the RRC. @see SetMaxRetxReachedCallback
+    Callback<void> m_maxRetxReachedCallback;
 
     // Interface forwarded by NrMacSapUser
     /**

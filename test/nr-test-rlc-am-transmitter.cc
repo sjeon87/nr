@@ -37,6 +37,8 @@ NrRlcAmTransmitterTestSuite::NrRlcAmTransmitterTestSuite()
                 TestCase::Duration::QUICK);
     AddTestCase(new NrRlcAmTransmitterBufferStatusReportTestCase("BufferStatusReport primitive"),
                 TestCase::Duration::QUICK);
+    AddTestCase(new NrRlcAmTransmitterMaxRetxTestCase("Max retx raises RLF indication once"),
+                TestCase::Duration::QUICK);
 }
 
 /**
@@ -299,6 +301,70 @@ NrRlcAmTransmitterBufferStatusReportTestCase::DoRun()
     CheckDataReceived(Seconds(1.700), "XYZABCDEFGHIJKLMNOPQRSTUVWXYZ", "SDU #9 is not OK");
 
     Simulator::Stop(Seconds(2));
+    Simulator::Run();
+    Simulator::Destroy();
+}
+
+/**
+ * Test 4.1.1.5 Max retransmissions raise the RLF indication exactly once.
+ */
+NrRlcAmTransmitterMaxRetxTestCase::NrRlcAmTransmitterMaxRetxTestCase(std::string name)
+    : NrRlcAmTransmitterTestCase(name)
+{
+}
+
+NrRlcAmTransmitterMaxRetxTestCase::~NrRlcAmTransmitterMaxRetxTestCase()
+{
+}
+
+void
+NrRlcAmTransmitterMaxRetxTestCase::OnMaxRetxReached()
+{
+    NS_LOG_FUNCTION(this);
+    m_maxRetxCount++;
+}
+
+void
+NrRlcAmTransmitterMaxRetxTestCase::CheckMaxRetx(uint32_t expected, std::string assertMsg)
+{
+    NS_TEST_ASSERT_MSG_EQ(m_maxRetxCount, expected, assertMsg);
+}
+
+void
+NrRlcAmTransmitterMaxRetxTestCase::DoRun()
+{
+    // Create topology (txPdcp <-> txRlc(NrRlcAm) <-> txMac)
+    NrRlcAmTransmitterTestCase::DoRun();
+
+    // Wire the max-retx indication (the feature under test).
+    txRlc->SetMaxRetxReachedCallback(
+        MakeCallback(&NrRlcAmTransmitterMaxRetxTestCase::OnMaxRetxReached, this));
+
+    // One SDU -> one PDU. The transmitter-only harness never returns a STATUS PDU,
+    // so the PDU is never acknowledged. The poll-retransmit timer (20 ms default)
+    // repeatedly marks it for retransmission; each granted tx opportunity retransmits
+    // it and increments its retx count. After maxRetxThreshold (default 5)
+    // retransmissions the RLC-AM entity must raise the max-retx indication once.
+    txPdcp->SendData(Seconds(0.100), "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+
+    // Grant a tx opportunity every 25 ms (> the 20 ms poll-retransmit timer) so each
+    // cycle produces one (re)transmission; ~14 opportunities comfortably exceed the
+    // 1 original + 5 retransmissions needed to reach the threshold.
+    for (uint32_t i = 0; i < 14; ++i)
+    {
+        txMac->SendTxOpportunity(Seconds(0.150 + 0.025 * i), 30);
+    }
+
+    // The indication must fire exactly once: not zero (the mechanism works) and not
+    // repeatedly (the once-per-entity guard works), even though the RLC keeps
+    // retransmitting past the threshold.
+    Simulator::Schedule(Seconds(0.600),
+                        &NrRlcAmTransmitterMaxRetxTestCase::CheckMaxRetx,
+                        this,
+                        1u,
+                        "RLC-AM max-retx indication did not fire exactly once");
+
+    Simulator::Stop(Seconds(0.7));
     Simulator::Run();
     Simulator::Destroy();
 }
