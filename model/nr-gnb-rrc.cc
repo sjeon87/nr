@@ -410,6 +410,12 @@ NrUeManager::SetSource(uint16_t sourceCellId, uint16_t sourceX2apId)
     m_sourceCellId = sourceCellId;
 }
 
+uint16_t
+NrUeManager::GetSourceCellId() const
+{
+    return m_sourceCellId;
+}
+
 void
 NrUeManager::SetImsi(uint64_t imsi)
 {
@@ -2089,12 +2095,13 @@ NrGnbRrc::GetTypeId()
                           MakeTimeAccessor(&NrGnbRrc::m_handoverJoiningTimeoutDuration),
                           MakeTimeChecker())
             .AddAttribute("HandoverMinTimeOfStay",
-                          "Minimum-time-of-stay handover guard: a handover is suppressed "
-                          "if the UE entered its current serving cell (initial connection "
-                          "or a previous handover) less than this long ago. This damps "
-                          "ping-pong (a UE handed in then immediately handed back out), "
-                          "which the A3 algorithm alone does not prevent when the net A3 "
-                          "margin is near zero. 0 (the default) disables the guard.",
+                          "Reversal-only ping-pong handover guard: a handover is suppressed "
+                          "only if it would send the UE BACK to the cell it just came from "
+                          "(the source of the handover that brought it here) less than this "
+                          "long after arriving. This breaks A->B->A oscillation -- which the "
+                          "A3 algorithm alone does not prevent when the net A3 margin is near "
+                          "zero -- without stranding a UE that genuinely needs to move forward "
+                          "(A->B->C is still allowed). 0 (the default) disables the guard.",
                           TimeValue(MilliSeconds(0)),
                           MakeTimeAccessor(&NrGnbRrc::m_handoverMinTimeOfStay),
                           MakeTimeChecker())
@@ -3511,20 +3518,22 @@ NrGnbRrc::ExecuteHandover(uint16_t rnti, uint16_t targetCellId)
                           << " state");
     }
 
-    // Minimum-time-of-stay (ping-pong) guard: suppress the handover if the UE only
-    // recently became served by this cell. The A3 algorithm alone does not prevent
-    // ping-pong when the net A3 margin is near zero (e.g. a small/negative offset with
-    // no hysteresis), so two near-equal cells would otherwise bounce the UE back and
-    // forth every measurement period.
-    if (isHandoverAllowed && m_handoverMinTimeOfStay.IsStrictlyPositive())
+    // Reversal-only ping-pong guard: suppress a handover only if it sends the UE BACK to
+    // the cell it just came from (target == the source of the handover that brought the UE
+    // here) within HandoverMinTimeOfStay of arriving. This breaks A->B->A oscillation -- the
+    // A3 algorithm alone does not prevent it when the net A3 margin is near zero (e.g. a
+    // small/negative offset with no hysteresis) -- WITHOUT stranding a UE that genuinely needs
+    // to move forward (A->B->C is still allowed, unlike a blunt suppress-any-handover guard).
+    if (isHandoverAllowed && m_handoverMinTimeOfStay.IsStrictlyPositive() &&
+        targetCellId == ueManager->GetSourceCellId())
     {
         const Time timeOfStay = Simulator::Now() - ueManager->GetConnectedNormallyAt();
         if (timeOfStay < m_handoverMinTimeOfStay)
         {
             isHandoverAllowed = false;
-            NS_LOG_LOGIC(this << " handover of rnti=" << rnti << " to cell " << targetCellId
-                              << " suppressed by ping-pong guard: time of stay "
-                              << timeOfStay.As(Time::MS) << " < HandoverMinTimeOfStay "
+            NS_LOG_LOGIC(this << " handover of rnti=" << rnti << " back to source cell "
+                              << targetCellId << " suppressed by reversal ping-pong guard: "
+                              << "time of stay " << timeOfStay.As(Time::MS) << " < "
                               << m_handoverMinTimeOfStay.As(Time::MS));
         }
     }

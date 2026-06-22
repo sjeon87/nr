@@ -101,6 +101,24 @@ class NR_EXPORT NrA3RsrpHandoverAlgorithm : public NrHandoverAlgorithm
      * must continuously higher than serving cell's RSRP "
      */
     Time m_timeToTrigger;
+    /**
+     * The `MinTargetRsrpDbm` attribute. Target-admission floor: a neighbour cell is
+     * not selected as a handover target unless its reported RSRP is at least this
+     * level. Prevents handing a UE into a cell that is already too weak to serve it
+     * (which would immediately radio-link-fail), so a short-TimeToTrigger / low-A3-
+     * offset configuration stops churning UEs into marginal cells. -140 dBm (the
+     * default) effectively disables the floor.
+     */
+    double m_minTargetRsrpDbm;
+    /**
+     * The `MinTargetRsrqDb` attribute. Interference-aware target-admission floor: a
+     * neighbour is not selected as a handover target unless its reported RSRQ is at
+     * least this level (dB). Unlike the RSRP floor, RSRQ tracks SINR/interference, so
+     * this rejects high-RSRP but low-SINR cells that would immediately T310-expire after
+     * a handover (the dominant low-TTT connected-RLF cause in a dense co-channel HetNet).
+     * -100 dB (the default) effectively disables the floor.
+     */
+    double m_minTargetRsrqDb;
 
     /// Interface to the eNodeB RRC instance.
     NrHandoverManagementSapUser* m_handoverManagementSapUser;
