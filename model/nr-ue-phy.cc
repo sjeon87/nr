@@ -1692,6 +1692,27 @@ NrUePhy::ReportUeMeasurements()
 
     NrUeCphySapUser::UeMeasurementsParameters ret{};
 
+    // Carrier RSSI (per resource element, linear W) used to derive a real RSRQ below:
+    // the total received power = sum of every measured cell's RS power plus thermal noise.
+    // RSRP measures one cell's signal; RSSI captures the inter-cell interference + noise, so
+    // RSRQ = RSRP/RSSI is the interference-aware quality the RSRP-only measurement lacked.
+    double rssiPerReLin = 0.0;
+    const auto scsHz = static_cast<double>(GetSubcarrierSpacing());
+    if (scsHz > 0.0)
+    {
+        // thermal noise per subcarrier: kB*T (=-174 dBm/Hz at 290 K) * SCS * noise figure
+        constexpr double kBT = 1.38064852e-23 * 290.0; // W/Hz
+        rssiPerReLin += kBT * scsHz * std::pow(10.0, GetNoiseFigure() / 10.0);
+    }
+    for (const auto& kv : m_ueMeasurementsMap)
+    {
+        if (kv.second.rsrpNum > 0)
+        {
+            const double a = kv.second.rsrpSum / static_cast<double>(kv.second.rsrpNum); // dBm
+            rssiPerReLin += std::pow(10.0, (a - 30.0) / 10.0);
+        }
+    }
+
     std::map<uint16_t, UeMeasurementsElement>::iterator it;
     for (it = m_ueMeasurementsMap.begin(); it != m_ueMeasurementsMap.end(); it++)
     {
@@ -1700,6 +1721,15 @@ NrUePhy::ReportUeMeasurements()
         if ((*it).second.rsrpNum != 0)
         {
             avg_rsrp = (*it).second.rsrpSum / static_cast<double>((*it).second.rsrpNum);
+            // RSRQ = SUBCARRIERS_PER_RB * RSRP / RSSI (per RE): this cell's RS power relative
+            // to the total received power (all cells + noise). Interference-aware -- a strong
+            // cell in a crowded/interfered zone scores low. (Previously hardcoded to 0 dB.)
+            if (rssiPerReLin > 0.0)
+            {
+                const double rsrpLin = std::pow(10.0, (avg_rsrp - 30.0) / 10.0);
+                avg_rsrq = 10.0 * std::log10(rsrpLin / (NrSpectrumValueHelper::SUBCARRIERS_PER_RB *
+                                                        rssiPerReLin));
+            }
         }
         else
         {
@@ -1717,7 +1747,7 @@ NrUePhy::ReportUeMeasurements()
         NrUeCphySapUser::UeMeasurementsElement newEl;
         newEl.m_cellId = (*it).first;
         newEl.m_rsrp = avg_rsrp;
-        newEl.m_rsrq = avg_rsrq; // LEAVE IT 0 FOR THE MOMENT
+        newEl.m_rsrq = avg_rsrq; // interference-aware RSRQ (RSRP/RSSI), computed above
         ret.m_ueMeasurementsList.push_back(newEl);
         ret.m_componentCarrierId = GetBwpId();
 
