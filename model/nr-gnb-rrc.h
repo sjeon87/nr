@@ -124,6 +124,13 @@ class NR_EXPORT NrUeManager : public Object
     void SetSource(uint16_t sourceCellId, uint16_t sourceX2apId);
 
     /**
+     * @return the cell ID the UE came from when it joined this cell via handover
+     *         (0 if the UE attached directly rather than via handover); used by the
+     *         reversal (ping-pong) handover guard
+     */
+    uint16_t GetSourceCellId() const;
+
+    /**
      * Set the IMSI
      *
      * @param imsi the IMSI
@@ -1833,9 +1840,9 @@ class NR_EXPORT NrGnbRrc : public Object
      */
     Time m_handoverJoiningTimeoutDuration;
     /**
-     * The `HandoverMinTimeOfStay` attribute. A handover is suppressed if the UE
-     * entered its current serving cell less than this long ago (ping-pong guard).
-     * 0 disables the guard.
+     * The `HandoverMinTimeOfStay` attribute. Reversal-only ping-pong guard window: a
+     * handover back to the cell the UE just came from is suppressed if it occurs less
+     * than this long after the UE arrived. 0 disables the guard.
      */
     Time m_handoverMinTimeOfStay{MilliSeconds(0)};
     /**
