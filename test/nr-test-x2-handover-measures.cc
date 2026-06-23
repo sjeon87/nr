@@ -351,7 +351,7 @@ NrX2HandoverMeasuresTestCase::DoRun()
 
     NetDeviceContainer gnbDevices;
     gnbDevices = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
-    m_nrHelper->AssignStreams(gnbDevices, 5000);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevices});
     for (auto it = gnbDevices.Begin(); it != gnbDevices.End(); ++it)
     {
         Ptr<NrGnbRrc> gnbRrc = (*it)->GetObject<NrGnbNetDevice>()->GetRrc();
@@ -360,7 +360,7 @@ NrX2HandoverMeasuresTestCase::DoRun()
 
     NetDeviceContainer ueDevices;
     ueDevices = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
-    m_nrHelper->AssignStreams(ueDevices, 6000);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevices});
 
     Ipv4Address remoteHostAddr;
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
@@ -398,10 +398,12 @@ NrX2HandoverMeasuresTestCase::DoRun()
         internet.Install(ueNodes);
         ueIpIfaces = m_epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevices));
 
-        m_epcHelper->AssignStreams(0);
-        internet.AssignStreams(remoteHostContainer, 1000);
-        internet.AssignStreams(gnbNodes, 2000);
-        internet.AssignStreams(ueNodes, 3000);
+        m_nrHelper->AssignStreams({.assignEpc = true,
+                                   .remoteHostNodes = remoteHostContainer,
+                                   .ueNodes = ueNodes,
+                                   .gnbNodes = gnbNodes,
+                                   .ueNodeStream = 3000,
+                                   .gnbNodeStream = 2000});
     }
 
     // attachment (needs to be done after IP stack configuration)

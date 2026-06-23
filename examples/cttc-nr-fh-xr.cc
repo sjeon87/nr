@@ -1270,9 +1270,7 @@ main(int argc, char* argv[])
         ueNetDevs.Add(ueCgSector3NetDev);
     }
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbNetDevs, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDevs, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gnbNetDevs, .ueDevs = ueNetDevs});
 
     // Sectors (cells) of a site are pointing at different directions
     std::vector<double> sectorOrientationRad{

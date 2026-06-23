@@ -54,6 +54,19 @@ class NR_EXPORT NodeDistributionScenarioInterface : public ScenarioParameters
     virtual void CreateScenario() = 0;
 
     /**
+     * @brief Assign a fixed random variable stream number to the random
+     *        variables used by this scenario.
+     *
+     * The default implementation assigns no streams (scenarios that place
+     * nodes deterministically have no random variables). Derived scenarios
+     * that rely on random variables override this method.
+     *
+     * @param stream first stream index to use
+     * @return the number of stream indices (possibly zero) that have been assigned
+     */
+    virtual int64_t AssignStreams(int64_t stream);
+
+    /**
      * @brief Set number of sites/towers.
      * @param n the number of sites
      */

@@ -536,13 +536,16 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     ueSector2NetDev = nrHelper->InstallUeDevice(ueSector2Container, bwps2);
     ueSector3NetDev = nrHelper->InstallUeDevice(ueSector3Container, bwps3);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbSector1NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(gnbSector2NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(gnbSector3NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector1NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector2NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector3NetDev, randomStream);
+    NetDeviceContainer gnbNetDevs;
+    gnbNetDevs.Add(gnbSector1NetDev);
+    gnbNetDevs.Add(gnbSector2NetDev);
+    gnbNetDevs.Add(gnbSector3NetDev);
+    NetDeviceContainer ueNetDevs;
+    ueNetDevs.Add(ueSector1NetDev);
+    ueNetDevs.Add(ueSector2NetDev);
+    ueNetDevs.Add(ueSector3NetDev);
+    nrHelper->AssignStreams(
+        {.scenario = &gridScenario, .gnbDevs = gnbNetDevs, .ueDevs = ueNetDevs});
 
     /*
      * Case (iii): Go node for node and change the attributes we have to setup
@@ -1044,7 +1047,6 @@ main(int argc, char* argv[])
     uint32_t ueNum = ueNumPergNb * gNbNum;
     std::cout << "numUEs: " << ueNum << std::endl;
     gridScenario.SetUtNumber(ueNum);
-    gridScenario.AssignStreams(RngSeedManager::GetRun());
     gridScenario.CreateScenario(); //!< Creates and plots the network deployment
     const uint16_t ffr =
         3; // Fractional Frequency Reuse scheme to mitigate intra-site inter-sector interferences

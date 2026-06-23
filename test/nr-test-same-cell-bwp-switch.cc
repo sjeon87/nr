@@ -137,8 +137,6 @@ NrSameCellBwpSwitchTestCase::DoRun()
     Config::SetDefault("ns3::NrUePhy::TxPower", DoubleValue(23));
     Config::SetDefault("ns3::NrUePhy::EnableUplinkPowerControl", BooleanValue(false));
 
-    int64_t stream = 1;
-
     Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
     Ptr<NrPointToPointEpcHelper> epcHelper = CreateObject<NrPointToPointEpcHelper>();
     nrHelper->SetEpcHelper(epcHelper);
@@ -200,8 +198,7 @@ NrSameCellBwpSwitchTestCase::DoRun()
     NrHelper::GetGnbPhy(gnbDevices.Get(0), 0)->SetAttribute("Numerology", UintegerValue(0));
     NrHelper::GetGnbPhy(gnbDevices.Get(0), 1)->SetAttribute("Numerology", UintegerValue(0));
 
-    stream += nrHelper->AssignStreams(gnbDevices, stream);
-    stream += nrHelper->AssignStreams(ueDevices, stream);
+    nrHelper->AssignStreams({.gnbDevs = gnbDevices, .ueDevs = ueDevices});
 
     Ptr<NrGnbNetDevice> gnb = gnbDevices.Get(0)->GetObject<NrGnbNetDevice>();
     Ptr<NrUeNetDevice> ue = ueDevices.Get(0)->GetObject<NrUeNetDevice>();

@@ -960,14 +960,10 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
         }
     }
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbSector1NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(gnbSector2NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(gnbSector3NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector1NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector2NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector3NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(picoGnbNetDev, randomStream);
+    NetDeviceContainer gnbNetDevsWithPico;
+    gnbNetDevsWithPico.Add(gnbNetDevs);
+    gnbNetDevsWithPico.Add(picoGnbNetDev);
+    nrHelper->AssignStreams({.gnbDevs = gnbNetDevsWithPico, .ueDevs = ueNetDevs});
 
     // Sectors (cells) of a site are pointing at different directions
     std::vector<double> sectorOrientationRad{

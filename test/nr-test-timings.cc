@@ -890,9 +890,7 @@ NrTimingsTest::DoRun()
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gNbNode, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNode, allBwps);
 
-    nrEpcHelper->AssignStreams(0);
-    nrHelper->AssignStreams(gnbNetDev, 5000);
-    nrHelper->AssignStreams(ueNetDev, 6000);
+    nrHelper->AssignStreams({.assignEpc = true, .gnbDevs = gnbNetDev, .ueDevs = ueNetDev});
 
     GET_GNB_PHY(0, 0)->TraceConnectWithoutContext("GnbPhyTxedCtrlMsgsTrace",
                                                   MakeCallback(&NrTimingsTest::GnbPhyTx, this));
@@ -916,7 +914,7 @@ NrTimingsTest::DoRun()
 
     InternetStackHelper internet;
     internet.Install(ueNode);
-    internet.AssignStreams(ueNode, 1000);
+    nrHelper->AssignStreams({.ueNodes = ueNode, .ueNodeStream = 1000});
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
 

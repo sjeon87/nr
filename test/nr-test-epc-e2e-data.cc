@@ -288,13 +288,18 @@ NrEpcE2eDataTestCase::DoRun()
             }
         }
 
-        nrEpcHelper->AssignStreams(0);
-        internet.AssignStreams(remoteHostContainer, 1000);
-        internet.AssignStreams(gnbs, 2000);
-        internet.AssignStreams(ues, 3000);
-        internet.AssignStreams(remoteHostContainer, 4000);
-        nrHelper->AssignStreams(nrGnbDevs, 5000);
-        nrHelper->AssignStreams(ueNrDevs, 6000);
+        // Note: the remote host stack was historically (re)assigned at base
+        // 4000 after an initial 1000; the later assignment wins, so a single
+        // assignment at 4000 reproduces the exact stream allocation.
+        nrHelper->AssignStreams({.assignEpc = true,
+                                 .remoteHostNodes = remoteHostContainer,
+                                 .ueNodes = ues,
+                                 .gnbNodes = gnbs,
+                                 .gnbDevs = nrGnbDevs,
+                                 .ueDevs = ueNrDevs,
+                                 .remoteHostStream = 4000,
+                                 .ueNodeStream = 3000,
+                                 .gnbNodeStream = 2000});
     }
     Config::Set("/NodeList/*/DeviceList/*/NrGnbRrc/UeMap/*/RadioBearerMap/*/NrRlc/MaxTxBufferSize",
                 UintegerValue(2 * 1024 * 1024));

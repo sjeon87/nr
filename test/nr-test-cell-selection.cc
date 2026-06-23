@@ -302,8 +302,7 @@ NrCellSelectionTestCase::DoRun()
     {
         epcHelper->AssignStreams(0);
     }
-    nrHelper->AssignStreams(enbDevs, 5000);
-    nrHelper->AssignStreams(ueDevs, 6000);
+    nrHelper->AssignStreams({.gnbDevs = enbDevs, .ueDevs = ueDevs});
 
     // Tests
     NS_ASSERT(m_ueSetupList.size() == ueDevs.GetN());
@@ -326,7 +325,7 @@ NrCellSelectionTestCase::DoRun()
         Ptr<Node> remoteHost = remoteHostContainer.Get(0);
         InternetStackHelper internet;
         internet.Install(remoteHostContainer);
-        internet.AssignStreams(remoteHostContainer, 1000);
+        nrHelper->AssignStreams({.remoteHostNodes = remoteHostContainer});
 
         // Create the Internet
         PointToPointHelper p2ph;
@@ -348,7 +347,7 @@ NrCellSelectionTestCase::DoRun()
 
         // Install the IP stack on the UEs
         internet.Install(ueNodes);
-        internet.AssignStreams(ueNodes, 2000);
+        nrHelper->AssignStreams({.ueNodes = ueNodes});
         Ipv4InterfaceContainer ueIpIfaces;
         ueIpIfaces = epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
 

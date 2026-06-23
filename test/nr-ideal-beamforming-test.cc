@@ -173,8 +173,8 @@ BeamformingTestCase::DoRun()
     NetDeviceContainer ueNetDevNc = nrHelper->InstallUeDevice(ueContainer, allBwps);
 
     // Pin streams before attaching: the channel matrix is realized during attach.
-    nrHelper->AssignStreams(gnbNetDevNc, 0);
-    nrHelper->AssignStreams(ueNetDevNc, 1000);
+    nrHelper->AssignStreams(
+        {.gnbDevs = gnbNetDevNc, .ueDevs = ueNetDevNc, .gnbDevStream = 0, .ueDevStream = 1000});
 
     nrHelper->AttachToGnb(ueNetDevNc.Get(0), gnbNetDevNc.Get(0));
 

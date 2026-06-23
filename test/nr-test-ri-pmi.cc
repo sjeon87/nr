@@ -300,12 +300,16 @@ RiPmiTestCase::DoRun()
     // attach each UE to its gNB according to desired scenario
     nrHelper->AttachToGnb(ueNetDev.Get(0), gnbNetDev.Get(0));
 
-    epcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHost, 1000);
-    internet.AssignStreams(gnbContainer, 2000);
-    internet.AssignStreams(ueContainer, 3000);
-    nrHelper->AssignStreams(gnbNetDev, 4000);
-    nrHelper->AssignStreams(ueNetDev, 5000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHost,
+                             .ueNodes = ueContainer,
+                             .gnbNodes = gnbContainer,
+                             .gnbDevs = gnbNetDev,
+                             .ueDevs = ueNetDev,
+                             .ueNodeStream = 3000,
+                             .gnbNodeStream = 2000,
+                             .gnbDevStream = 4000,
+                             .ueDevStream = 5000});
 
     /**
      * Install DL traffic part.

@@ -198,7 +198,6 @@ main(int argc, char* argv[])
      * the gnbs and ue following a pre-defined pattern. Please have a look at the
      * GridScenarioHelper documentation to see how the nodes will be distributed.
      */
-    int64_t randomStream = 1;
     GridScenarioHelper gridScenario;
     gridScenario.SetRows(1);
     gridScenario.SetColumns(gNbNum);
@@ -213,7 +212,6 @@ main(int argc, char* argv[])
     gridScenario.SetUtNumber(ueNumPergNb * gNbNum);
     gridScenario.SetScenarioHeight(3); // Create a 3x3 scenario where the UE will
     gridScenario.SetScenarioLength(3); // be distributed.
-    randomStream += gridScenario.AssignStreams(randomStream);
     gridScenario.CreateScenario();
 
     /*
@@ -409,9 +407,10 @@ main(int argc, char* argv[])
     NetDeviceContainer ueLowLatNetDev = nrHelper->InstallUeDevice(ueLowLatContainer, allBwps);
     NetDeviceContainer ueVoiceNetDev = nrHelper->InstallUeDevice(ueVoiceContainer, allBwps);
 
-    randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueLowLatNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueVoiceNetDev, randomStream);
+    NetDeviceContainer ueNetDevs;
+    ueNetDevs.Add(ueLowLatNetDev);
+    ueNetDevs.Add(ueVoiceNetDev);
+    nrHelper->AssignStreams({.scenario = &gridScenario, .gnbDevs = gnbNetDev, .ueDevs = ueNetDevs});
     /*
      * Case (iii): Go node for node and change the attributes we have to setup
      * per-node.

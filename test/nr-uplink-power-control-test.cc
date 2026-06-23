@@ -680,11 +680,11 @@ NrUplinkPowerControlTestCase::DoRun()
         }
     }
 
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(ueNodes, 2000);
-    nrHelper->AssignStreams(gnbDevs, 5000);
-    nrHelper->AssignStreams(ueDevs, 6000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .ueNodes = ueNodes,
+                             .gnbDevs = gnbDevs,
+                             .ueDevs = ueDevs});
 
     Simulator::Stop(simTime);
     Simulator::Run();

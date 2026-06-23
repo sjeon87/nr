@@ -30,8 +30,6 @@ struct SpectrumSignalParameters;
 const uint16_t NR_NUM_BANDS_FOR_SSB = 20;      ///< Number of bands used for the SSB
 const double TRANSMIT_POWER_INIT_ASSOC = 30.0; ///< Transmit power in dBm
 
-const int64_t NR_INIT_ASSOC_STREAM_BASE = 0x10000000; ///< Reserved RNG stream base for init assoc
-
 /// Angle pair in degrees for the row and column angle of beam direction for uniform planar array
 struct NR_EXPORT NrAnglePair
 {
