@@ -509,11 +509,14 @@ NrHandoverFailureTestCase::DoRun()
     nrHelper->AttachToGnb(ueDev, gnbDevs.Get(0));
     nrHelper->HandoverRequest(m_handoverTime, ueDev, gnbDevs.Get(0), gnbDevs.Get(1));
 
-    nrEpcHelper->AssignStreams(0);
-    inetStackHelper.AssignStreams(gnbNodes, 1000);
-    inetStackHelper.AssignStreams(ueNode, 2000);
-    nrHelper->AssignStreams(gnbDevs, 3000);
-    nrHelper->AssignStreams(ueDev, 4000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .ueNodes = ueNode,
+                             .gnbNodes = gnbNodes,
+                             .gnbDevs = gnbDevs,
+                             .ueDevs = ueDev,
+                             .gnbNodeStream = 1000,
+                             .gnbDevStream = 3000,
+                             .ueDevStream = 4000});
 
     // Forcefully drop RACH preambles to reach m_preambleTransMax, since we do not have an error
     // model for the control channel

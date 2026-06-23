@@ -36,6 +36,7 @@
 #include "ns3/nr-ue-phy.h"
 #include "ns3/nr-ue-rrc.h"
 #include "ns3/point-to-point-helper.h"
+#include "ns3/rng-seed-manager.h"
 #include "ns3/simulator.h"
 #include "ns3/string.h"
 
@@ -354,6 +355,11 @@ NrUeMeasurementsTestCase::DoRun()
                     MakeBoundCallback(&ReportUeMeasurementsCallback, this));
     Config::Connect("/NodeList/1/DeviceList/0/NrGnbRrc/RecvMeasurementReport",
                     MakeBoundCallback(&RecvMeasurementReportCallback, this));
+
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrHelper->AssignStreams({.gnbDevs = nrDevs, .ueDevs = ueDevs1});
+    nrHelper->AssignStreams({.ueDevs = ueDevs2, .ueDevStream = 7000});
 
     // need to allow for RRC connection establishment + SRS
     Simulator::Stop(Seconds(0.800));
@@ -880,6 +886,10 @@ NrUeMeasurementsPiecewiseTestCase1::DoRun()
     Simulator::Schedule(MilliSeconds(2001),
                         &NrUeMeasurementsPiecewiseTestCase1::TeleportVeryNear,
                         this);
+
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrHelper->AssignStreams({.gnbDevs = nrDevs, .ueDevs = ueDevs});
 
     // Run simulation
     Simulator::Stop(Seconds(2.201));
@@ -1608,6 +1618,10 @@ NrUeMeasurementsPiecewiseTestCase2::DoRun()
                         &NrUeMeasurementsPiecewiseTestCase2::TeleportVeryNear,
                         this);
 
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrHelper->AssignStreams({.gnbDevs = nrDevs, .ueDevs = ueDevs});
+
     // Run simulation
     Simulator::Stop(Seconds(2.201));
     Simulator::Run();
@@ -1925,6 +1939,10 @@ NrUeMeasurementsPiecewiseTestCase3::DoRun()
     Simulator::Schedule(MilliSeconds(301),
                         &NrUeMeasurementsPiecewiseTestCase3::TeleportGnbNear,
                         this);
+
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrHelper->AssignStreams({.gnbDevs = nrDevs, .ueDevs = ueDevs});
 
     // Run simulation
     Simulator::Stop(Seconds(2.201));
@@ -2538,6 +2556,14 @@ NrUeMeasurementsHandoverTestCase::DoRun()
                               ueDevs.Get(0),
                               nrDevs.Get(0),
                               nrDevs.Get(1));
+
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .ueNodes = ueNodes,
+                             .gnbDevs = nrDevs,
+                             .ueDevs = ueDevs});
 
     // Run simulation
     Simulator::Stop(m_duration);

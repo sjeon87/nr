@@ -377,11 +377,14 @@ NrHandoverTargetTestCase::DoRun()
     // Schedule a "shutdown" of the source gNB
     Simulator::Schedule(Seconds(0.5), &NrHandoverTargetTestCase::CellShutdownCallback, this);
 
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(gnbNodes, 1000);
-    internet.AssignStreams(ueNodes, 2000);
-    nrHelper->AssignStreams(gnbDevs, 3000);
-    nrHelper->AssignStreams(ueDevs, 4000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .ueNodes = ueNodes,
+                             .gnbNodes = gnbNodes,
+                             .gnbDevs = gnbDevs,
+                             .ueDevs = ueDevs,
+                             .gnbNodeStream = 1000,
+                             .gnbDevStream = 3000,
+                             .ueDevStream = 4000});
 
     // Run simulation
     Simulator::Stop(Seconds(1));

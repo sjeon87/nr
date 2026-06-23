@@ -92,6 +92,13 @@ class NR_EXPORT RealisticBeamformingHelper : public BeamformingHelperBase
      */
     void SetBeamformingMethod(const TypeId& beamformingMethod) override;
 
+    /**
+     * @brief Assign streams to every beamforming algorithm added so far
+     * @param stream the first stream index to use
+     * @return the number of stream indices consumed (one per algorithm)
+     */
+    int64_t AssignStreams(int64_t stream);
+
   private:
     void DoDispose() override;
     BeamformingVectorPair GetBeamformingVectors(
@@ -102,6 +109,9 @@ class NR_EXPORT RealisticBeamformingHelper : public BeamformingHelperBase
         SpectrumPhyPairToAlgorithm;
 
     SpectrumPhyPairToAlgorithm m_spectrumPhyPairToAlgorithm;
+
+    /// Algorithms in creation order, for deterministic AssignStreams
+    std::vector<Ptr<RealisticBeamformingAlgorithm>> m_algorithmsInCreationOrder;
 };
 
 }; // namespace ns3

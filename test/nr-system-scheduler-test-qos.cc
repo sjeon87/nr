@@ -12,6 +12,7 @@
 #include "ns3/packet.h"
 #include "ns3/point-to-point-helper.h"
 #include "ns3/pointer.h"
+#include "ns3/rng-seed-manager.h"
 #include "ns3/simulator.h"
 #include "ns3/uinteger.h"
 
@@ -62,9 +63,10 @@ SystemSchedulerTestQos::DoRun()
     Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(999999999));
     Config::SetDefault("ns3::NrRlcUm::ReorderingTimer", TimeValue(Seconds(1)));
 
-    // create base stations and mobile terminals
-    int64_t randomStream = 1;
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
 
+    // create base stations and mobile terminals
     GridScenarioHelper gridScenario;
     gridScenario.SetRows(1);
     gridScenario.SetColumns(gNbNum);
@@ -78,7 +80,7 @@ SystemSchedulerTestQos::DoRun()
     gridScenario.SetUtNumber(m_ueNumPergNb * gNbNum);
     gridScenario.SetScenarioHeight(3); // Create a 3x3 scenario where the UE will
     gridScenario.SetScenarioLength(3); // be distributed.
-    randomStream += gridScenario.AssignStreams(randomStream);
+    gridScenario.AssignStreams(8000);
     gridScenario.CreateScenario();
 
     if (verbose)
@@ -201,10 +203,8 @@ SystemSchedulerTestQos::DoRun()
     NetDeviceContainer ueLowLatNetDev = nrHelper->InstallUeDevice(ueLowLatContainer, allBwps);
     NetDeviceContainer ueVoiceNetDev = nrHelper->InstallUeDevice(ueVoiceContainer, allBwps);
 
-    randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gNbNetDevs, randomStream);
-    randomStream += nrHelper->AssignStreams(ueLowLatNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueVoiceNetDev, randomStream);
+    nrHelper->AssignStreams({.assignEpc = true, .gnbDevs = gNbNetDevs, .ueDevs = ueLowLatNetDev});
+    nrHelper->AssignStreams({.ueDevs = ueVoiceNetDev, .ueDevStream = 7000});
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost
@@ -284,6 +284,9 @@ SystemSchedulerTestQos::DoRun()
     }
 
     internet.Install(gridScenario.GetUserTerminals());
+
+    nrHelper->AssignStreams(
+        {.remoteHostNodes = remoteHostContainer, .ueNodes = gridScenario.GetUserTerminals()});
 
     Ipv4InterfaceContainer ueLowLatIpIface;
     Ipv4InterfaceContainer ueVoiceIpIface;

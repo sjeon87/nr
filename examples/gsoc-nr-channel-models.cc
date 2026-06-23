@@ -51,7 +51,6 @@ NS_LOG_COMPONENT_DEFINE("GsocNrChannelModels");
 int
 main(int argc, char* argv[])
 {
-    int64_t randomStream = 1;
     double centralFrequency = 30.5e9;      // 30.5 GHz
     double bandwidth = 100e6;              // 100 MHz
     Time simTime = Seconds(1.0);           // 1 second simulation time
@@ -205,8 +204,7 @@ main(int argc, char* argv[])
     NetDeviceContainer gNbNetDev = nrHelper->InstallGnbDevice(gNbNodes, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNodes, allBwps);
 
-    randomStream += nrHelper->AssignStreams(gNbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gNbNetDev, .ueDevs = ueNetDev});
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost

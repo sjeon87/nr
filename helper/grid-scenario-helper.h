@@ -73,7 +73,7 @@ class NR_EXPORT GridScenarioHelper : public NodeDistributionScenarioInterface
      * @param stream first stream index to use
      * @return the number of stream indices assigned by this model
      */
-    int64_t AssignStreams(int64_t stream);
+    int64_t AssignStreams(int64_t stream) override;
 
   private:
     double m_verticalBsDistance{-1.0};   //!< Distance between gnb

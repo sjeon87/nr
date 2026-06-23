@@ -232,14 +232,16 @@ NrDeactivateBearerTestCase::DoRun()
     // Install NR devices on gNB and UEs
     NetDeviceContainer gnbDevices;
     NetDeviceContainer ueDevices;
-    int64_t randomStreamIndex = 1;
 
     nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaRR"));
     gnbDevices = nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
-    randomStreamIndex += nrHelper->AssignStreams(gnbDevices, randomStreamIndex);
 
     ueDevices = nrHelper->InstallUeDevice(ueNodes, bandwidthAndBWPPair.second);
-    randomStreamIndex += nrHelper->AssignStreams(ueDevices, randomStreamIndex);
+
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .gnbDevs = gnbDevices,
+                             .ueDevs = ueDevices});
 
     // Configure gNB PHY parameters
     Ptr<NrGnbNetDevice> nrGnbDevice = gnbDevices.Get(0)->GetObject<NrGnbNetDevice>();
@@ -262,6 +264,7 @@ NrDeactivateBearerTestCase::DoRun()
 
     // Install internet stack on UEs and assign IP addresses
     internet.Install(ueNodes);
+    nrHelper->AssignStreams({.ueNodes = ueNodes});
     Ipv4InterfaceContainer ueIpv4Interfaces = nrEpcHelper->AssignUeIpv4Address(ueDevices);
     Ipv6InterfaceContainer ueIpv6Interfaces = nrEpcHelper->AssignUeIpv6Address(ueDevices);
 

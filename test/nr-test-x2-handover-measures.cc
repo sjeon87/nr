@@ -15,6 +15,7 @@
 #include "ns3/packet-sink-helper.h"
 #include "ns3/packet-sink.h"
 #include "ns3/point-to-point-module.h"
+#include "ns3/rng-seed-manager.h"
 #include "ns3/udp-client-server-helper.h"
 
 using namespace ns3;
@@ -267,7 +268,8 @@ NrX2HandoverMeasuresTestCase::DoRun()
     // Disable Uplink Power Control
     Config::SetDefault("ns3::NrUePhy::EnableUplinkPowerControl", BooleanValue(false));
 
-    int64_t stream = 1;
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
 
     m_nrHelper = CreateObject<NrHelper>();
     m_nrHelper->SetAttribute("UseIdealRrc", BooleanValue(m_useIdealRrc));
@@ -349,7 +351,7 @@ NrX2HandoverMeasuresTestCase::DoRun()
 
     NetDeviceContainer gnbDevices;
     gnbDevices = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
-    stream += m_nrHelper->AssignStreams(gnbDevices, stream);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevices});
     for (auto it = gnbDevices.Begin(); it != gnbDevices.End(); ++it)
     {
         Ptr<NrGnbRrc> gnbRrc = (*it)->GetObject<NrGnbNetDevice>()->GetRrc();
@@ -358,7 +360,7 @@ NrX2HandoverMeasuresTestCase::DoRun()
 
     NetDeviceContainer ueDevices;
     ueDevices = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
-    stream += m_nrHelper->AssignStreams(ueDevices, stream);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevices});
 
     Ipv4Address remoteHostAddr;
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
@@ -395,6 +397,13 @@ NrX2HandoverMeasuresTestCase::DoRun()
         // Install the IP stack on the UEs
         internet.Install(ueNodes);
         ueIpIfaces = m_epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevices));
+
+        m_nrHelper->AssignStreams({.assignEpc = true,
+                                   .remoteHostNodes = remoteHostContainer,
+                                   .ueNodes = ueNodes,
+                                   .gnbNodes = gnbNodes,
+                                   .ueNodeStream = 3000,
+                                   .gnbNodeStream = 2000});
     }
 
     // attachment (needs to be done after IP stack configuration)
@@ -420,7 +429,7 @@ NrX2HandoverMeasuresTestCase::DoRun()
         Ptr<UniformRandomVariable> startTimeSeconds = CreateObject<UniformRandomVariable>();
         startTimeSeconds->SetAttribute("Min", DoubleValue(0));
         startTimeSeconds->SetAttribute("Max", DoubleValue(0.010));
-        startTimeSeconds->SetStream(stream++);
+        startTimeSeconds->SetStream(7000);
 
         for (uint32_t u = 0; u < ueNodes.GetN(); ++u)
         {
@@ -794,7 +803,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
 
     std::string sched = "ns3::NrMacSchedulerTdmaPF";
     std::string ho = "ns3::NrA2A4RsrpHandoverAlgorithm";
-    for (auto useIdealRrc : {true, /*false*/})
+    for (auto useIdealRrc : {true, false})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, ho, admitHo, idealRrc
         AddTestCase(new NrX2HandoverMeasuresTestCase(2,
@@ -899,7 +908,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
     }
 
     sched = "ns3::NrMacSchedulerTdmaRR";
-    for (auto useIdealRrc : {true, /*false*/})
+    for (auto useIdealRrc : {true, false})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, admitHo, idealRrc
         AddTestCase(new NrX2HandoverMeasuresTestCase(2,
@@ -939,7 +948,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
 
     ho = "ns3::NrA3RsrpHandoverAlgorithm";
     sched = "ns3::NrMacSchedulerTdmaPF";
-    for (auto useIdealRrc : {true, /*false*/})
+    for (auto useIdealRrc : {true, false})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, admitHo, idealRrc
         AddTestCase(new NrX2HandoverMeasuresTestCase(2,
@@ -978,7 +987,7 @@ NrX2HandoverMeasuresTestSuite::NrX2HandoverMeasuresTestSuite()
     }
 
     sched = "ns3::NrMacSchedulerTdmaRR";
-    for (auto useIdealRrc : {true, /*false*/})
+    for (auto useIdealRrc : {true, false})
     {
         // nGnbs, nUes, nDBearers, celist, name, useUdp, sched, admitHo, idealRrc
         AddTestCase(new NrX2HandoverMeasuresTestCase(2,

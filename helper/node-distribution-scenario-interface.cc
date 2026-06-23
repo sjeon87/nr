@@ -13,6 +13,12 @@ NodeDistributionScenarioInterface::~NodeDistributionScenarioInterface()
 {
 }
 
+int64_t
+NodeDistributionScenarioInterface::AssignStreams(int64_t stream)
+{
+    return 0;
+}
+
 const NodeContainer&
 NodeDistributionScenarioInterface::GetBaseStations() const
 {

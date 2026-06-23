@@ -210,9 +210,7 @@ main(int argc, char* argv[])
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNodes, allBwps);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gnbNetDev, .ueDevs = ueNetDev});
 
     NrHelper::GetGnbPhy(gnbNetDev.Get(0), 0)->SetTxPower(txPower);
     NrHelper::GetGnbPhy(gnbNetDev.Get(1), 0)->SetTxPower(txPower);

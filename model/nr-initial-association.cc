@@ -104,6 +104,13 @@ NrInitialAssociation::GetAssociatedGnb() const
     return m_associatedGnb;
 }
 
+int64_t
+NrInitialAssociation::AssignStreams(int64_t stream)
+{
+    m_assocRng->SetStream(stream);
+    return 1;
+}
+
 NetDeviceContainer
 NrInitialAssociation::GetInterferingGnbs() const
 {
@@ -630,10 +637,9 @@ NrInitialAssociation::FindAssociatedGnb()
     auto numPossibleGnb = std::accumulate(assocFlag.begin(), assocFlag.end(), 0);
 
     // Choose Randomly gnbDev from possible gNB
-    Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable>();
-    x->SetAttribute("Min", DoubleValue(1));
-    x->SetAttribute("Max", DoubleValue(numPossibleGnb));
-    auto value = x->GetInteger();
+    m_assocRng->SetAttribute("Min", DoubleValue(1));
+    m_assocRng->SetAttribute("Max", DoubleValue(numPossibleGnb));
+    auto value = m_assocRng->GetInteger();
     auto count = 0;
     for (size_t i = 0; i < m_gnbDevices.GetN(); i++)
     {

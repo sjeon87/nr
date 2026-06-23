@@ -325,6 +325,15 @@ TestAntenna3gppModelConf::DoRun()
                                                MakeBoundCallback(&UETraceReception, this));
 
     // nrHelper->EnableTraces();
+
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .ueNodes = ueNodes,
+                             .gnbDevs = gNbDevs,
+                             .ueDevs = ueNetDevs,
+                             .ueNodeStream = 1000});
+
     Simulator::Stop(simTime);
     Simulator::Run();
 

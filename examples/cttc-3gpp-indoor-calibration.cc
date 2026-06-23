@@ -681,9 +681,7 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
     NetDeviceContainer gNbDevs = nrHelper->InstallGnbDevice(gNbNodes, allBwps);
     NetDeviceContainer ueNetDevs = nrHelper->InstallUeDevice(selectedUeNodes, allBwps);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gNbDevs, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDevs, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gNbDevs, .ueDevs = ueNetDevs});
 
     for (uint32_t i = 0; i < gNbDevs.GetN(); i++)
     {

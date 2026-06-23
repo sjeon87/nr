@@ -14,6 +14,7 @@
 #include "ns3/nr-helper.h"
 #include "ns3/nr-ue-net-device.h"
 #include "ns3/nr-ue-phy.h"
+#include "ns3/rng-seed-manager.h"
 #include "ns3/test.h"
 #include "ns3/three-gpp-channel-model.h"
 #include "ns3/three-gpp-propagation-loss-model.h"
@@ -65,6 +66,10 @@ class BeamformingTestCase : public TestCase
 void
 BeamformingTestCase::DoRun()
 {
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    RngSeedManager::ResetNextStreamIndex();
+
     // Put very short channel coherence period make sure we get the channel updated after every
     // movement
     Config::SetDefault("ns3::ThreeGppChannelModel::UpdatePeriod", TimeValue(NanoSeconds(1)));
@@ -167,10 +172,11 @@ BeamformingTestCase::DoRun()
     NetDeviceContainer gnbNetDevNc = nrHelper->InstallGnbDevice(gnbContainer, allBwps);
     NetDeviceContainer ueNetDevNc = nrHelper->InstallUeDevice(ueContainer, allBwps);
 
-    nrHelper->AttachToGnb(ueNetDevNc.Get(0), gnbNetDevNc.Get(0));
+    // Pin streams before attaching: the channel matrix is realized during attach.
+    nrHelper->AssignStreams(
+        {.gnbDevs = gnbNetDevNc, .ueDevs = ueNetDevNc, .gnbDevStream = 0, .ueDevStream = 1000});
 
-    nrHelper->AssignStreams(gnbNetDevNc, 0);
-    nrHelper->AssignStreams(ueNetDevNc, 1000);
+    nrHelper->AttachToGnb(ueNetDevNc.Get(0), gnbNetDevNc.Get(0));
 
     Ptr<NrGnbNetDevice> gnbNetDev = DynamicCast<NrGnbNetDevice>(gnbNetDevNc.Get(0));
     Ptr<NrUeNetDevice> ueNetDev = DynamicCast<NrUeNetDevice>(ueNetDevNc.Get(0));
@@ -222,68 +228,53 @@ class TestNrIdealBeamforming : public TestSuite
              std::vector<std::tuple<Vector3D, std::pair<double, double>>>{
                  // clang-format off
                  /**
-                  * In this first block we check UE below gNB (pointing at horizon)
-                  * Scanning from left to right (Y-axis),
-                  * then foreground to background (X-axis)
+                  * AZIMUTH SWEEP: the UE moves left-to-right (Y axis) at the gNB
+                  * height (Z=25) and a far enough distance (X=100) that it stays
+                  * well inside the steerable field of view. As Y increases the
+                  * azimuth sector must increase monotonically, and the beam stays
+                  * ~horizontal (elevation ~99 deg, the wedge nearest 90 deg).
                   *
-                  * gNB > antenna is horizontal
-                  * |  \
-                  * |    \            1 4 7
-                  * |      \         2 5 8
-                  * |        \ UE   3 6 9
+                  *           Y-  ... boresight ...  Y+
+                  *   gNB ----------------- UE sweep (X=100, Z=25)
                   */
                  // (UE coordinate)  (sector  elevation)
-                 {{ 10, -200, 0.0}, {0, 135}},
-                 {{ 10, -150, 0.0}, {0, 135}},
-                 {{ 10, -120, 0.0}, {0, 135}},
-                 {{ 10, -100, 0.0}, {0, 135}},
-                 {{ 10,  -50, 0.0}, {2, 135}},
-                 {{ 10,    0, 0.0}, {2, 135}},
-                 {{ 10,   20, 0.0}, {2,  45}},
-                 {{ 10,  100, 0.0}, {0, 135}},
-                 {{ 10,  200, 0.0}, {3,  45}},
+                 {{100, -200, 25.0}, {1, 99}},
+                 {{100, -100, 25.0}, {2, 99}},
+                 {{100,  -50, 25.0}, {3, 99}},
+                 {{100,    0, 25.0}, {4, 99}},
+                 {{100,   50, 25.0}, {5, 99}},
+                 {{100,  100, 25.0}, {6, 99}},
+                 {{100,  200, 25.0}, {7, 99}},
 
                  /**
-                  * Same height as gNB (Z-axis)
-                  * gNB > ------------- UE   1 4 7
-                  * |                       2 5 8
-                  * |                      3 6 9
-                  * |
-                  * |
+                  * ELEVATION SWEEP: the UE stays on boresight (Y=0, so the
+                  * azimuth sector is fixed at 4) and close in (X=10) so the
+                  * vertical angle is steep, while its height Z moves from below
+                  * the gNB (Z<25, beam points down, elevation >90 deg) through
+                  * above the gNB (Z>25, beam points up, elevation <90 deg). Z=25
+                  * (exactly horizontal) is intentionally skipped: at 90 deg the
+                  * choice between the two bracketing wedges is a symmetric tie.
+                  *
+                  *               UE (Z high) _-- up
+                  *                       _--
+                  *   gNB (Z=25) >============ boresight
+                  *                       --_
+                  *               UE (Z low)  --_ down
                   */
                  // (UE coordinate)  (sector  elevation)
-                 {{100, -200, 25.0}, {0, 135}},
-                 {{100, -100, 25.0}, {0, 135}},
-                 {{100,  -50, 25.0}, {1,  45}},
-                 {{100,    0, 25.0}, {2, 135}},
-                 {{100,   50, 25.0}, {3, 135}},
-                 {{100,  100, 25.0}, {3,  45}},
-                 {{100,  200, 25.0}, {2,  45}},
-
-                 /**
-                  * Pointing above gNB (Z-axis)
-                  *            _-- UE  1 4 7
-                  *        _--       2 5 8
-                  * gNB >          3 6 9
-                  * |
-                  * |
-                  * |
-                  * |
-                  */
-                 // (UE coordinate)  (sector  elevation)
-                 {{ 10, -200, 50.0}, {1,135}},
-                 {{ 10,    0, 50.0}, {2, 45}},
-                 {{ 10,  200, 50.0}, {3, 45}},
-                 {{100, -200, 50.0}, {0, 45}},
-                 {{100,    0, 50.0}, {2,135}},
-                 {{100,  200, 50.0}, {2, 45}},
+                 {{ 10,    0,  0.0}, {4, 165}},
+                 {{ 10,    0, 10.0}, {4, 143}},
+                 {{ 10,    0, 20.0}, {4, 121}},
+                 {{ 10,    0, 30.0}, {4,  55}},
+                 {{ 10,    0, 40.0}, {4,  33}},
+                 {{ 10,    0, 50.0}, {4,  11}},
                  // clang-format on
              })
         {
             std::string beamformingName{"CellScanBeamforming"};
             std::stringstream ss;
-            int cols = 4;
-            int rows = 2;
+            int cols = 8;
+            int rows = 8;
             ss << beamformingName << " with " << cols << "x" << rows << " antenna at " << coord;
             AddTestCase(new BeamformingTestCase(ss.str(),
                                                 beamformingName,
@@ -313,7 +304,7 @@ class TestNrIdealBeamforming : public TestSuite
                {{  10,    0, 25.0}, 1, 1, 1,  0,  90},
                {{  10,    0, 25.0}, 1, 1, 2,  0,  90},
                {{  10,    0, 25.0}, 2, 1, 1,  1,  90},
-               {{ 100, -200, 25.0}, 2, 1, 2,  2,  90},
+               {{ 100, -200, 25.0}, 2, 1, 2,  0,  90},
                {{ 100, -100, 25.0}, 2, 1, 2,  0,  90},
                {{ 100,  -50, 25.0}, 2, 1, 2,  0,  90},
                {{ 100,  -25, 25.0}, 2, 1, 2,  2,  90},

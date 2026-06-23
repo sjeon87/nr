@@ -145,7 +145,6 @@ main(int argc, char* argv[])
     cmd.AddValue("enableUl", "Enable Uplink", enableUl);
     cmd.Parse(argc, argv);
 
-    int64_t randomStream = 1;
     // Create the scenario
     GridScenarioHelper gridScenario;
     gridScenario.SetRows(1);
@@ -159,7 +158,6 @@ main(int argc, char* argv[])
     gridScenario.SetUtNumber(ueNumPergNb * gNbNum);
     gridScenario.SetScenarioHeight(3); // Create a 3x3 scenario where the UE will
     gridScenario.SetScenarioLength(3); // be distributed.
-    randomStream += gridScenario.AssignStreams(randomStream);
     gridScenario.CreateScenario();
 
     Ptr<NrPointToPointEpcHelper> nrEpcHelper = CreateObject<NrPointToPointEpcHelper>();
@@ -216,8 +214,7 @@ main(int argc, char* argv[])
     NetDeviceContainer ueNetDev =
         nrHelper->InstallUeDevice(gridScenario.GetUserTerminals(), allBwps);
 
-    randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
+    nrHelper->AssignStreams({.scenario = &gridScenario, .gnbDevs = gnbNetDev, .ueDevs = ueNetDev});
 
     // Set the attribute of the netdevice (gnbNetDev.Get (0)) and bandwidth part (0)
     NrHelper::GetGnbPhy(gnbNetDev.Get(0), 0)

@@ -281,11 +281,13 @@ NrCellIndividualOffsetTestCase::DoRun()
     Simulator::Schedule(Seconds(0.3), &NrCellIndividualOffsetTestCase::ApplyCio, this);
 
     // Deterministic, stream-isolated RNG assignment.
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(ueNodes, 2000);
-    nrHelper->AssignStreams(gnbDevs, 3000);
-    nrHelper->AssignStreams(ueDevs, 4000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .ueNodes = ueNodes,
+                             .gnbDevs = gnbDevs,
+                             .ueDevs = ueDevs,
+                             .gnbDevStream = 3000,
+                             .ueDevStream = 4000});
 
     Simulator::Stop(Seconds(1.5));
     Simulator::Run();

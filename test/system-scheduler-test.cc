@@ -12,6 +12,7 @@
 #include "ns3/packet.h"
 #include "ns3/point-to-point-helper.h"
 #include "ns3/pointer.h"
+#include "ns3/rng-seed-manager.h"
 #include "ns3/simulator.h"
 #include "ns3/uinteger.h"
 
@@ -250,9 +251,7 @@ SystemSchedulerTest::DoRun()
     NetDeviceContainer gNbNetDevs = nrHelper->InstallGnbDevice(gNbNodes, allBwps);
     NetDeviceContainer ueNetDevs = nrHelper->InstallUeDevice(ueNodes, allBwps);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gNbNetDevs, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDevs, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gNbNetDevs, .ueDevs = ueNetDevs});
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost
@@ -391,6 +390,12 @@ SystemSchedulerTest::DoRun()
     }
 
     // nrHelper->EnableTraces();
+
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    nrHelper->AssignStreams(
+        {.assignEpc = true, .remoteHostNodes = remoteHostContainer, .ueNodes = ueNodes});
+
     Simulator::Stop(simTime);
     Simulator::Run();
 

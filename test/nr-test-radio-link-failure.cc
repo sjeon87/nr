@@ -222,6 +222,10 @@ NrRadioLinkFailureTestCase::~NrRadioLinkFailureTestCase()
 void
 NrRadioLinkFailureTestCase::DoRun()
 {
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+    RngSeedManager::ResetNextStreamIndex();
+
     // LogLevel logLevel = (LogLevel) (LOG_PREFIX_FUNC | LOG_PREFIX_TIME | LOG_LEVEL_ALL);
     // LogComponentEnable ("NrUeRrc", logLevel);
     // LogComponentEnable ("NrGnbRrc", logLevel);
@@ -341,9 +345,7 @@ NrRadioLinkFailureTestCase::DoRun()
     NetDeviceContainer gnbDevs;
     NetDeviceContainer ueDevs;
 
-    int64_t randomStream = 1;
     gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
-    randomStream += nrHelper->AssignStreams(gnbDevs, randomStream);
 
     for (uint32_t i = 0; i < gnbDevs.GetN(); i++)
     {
@@ -376,7 +378,6 @@ NrRadioLinkFailureTestCase::DoRun()
     allUeNodes.Add(backgroundUeNodes);
 
     ueDevs = nrHelper->InstallUeDevice(allUeNodes, bandwidthAndBWPPair.second);
-    randomStream += nrHelper->AssignStreams(ueDevs, randomStream);
 
     if (m_setup == FDD)
     {
@@ -483,6 +484,19 @@ NrRadioLinkFailureTestCase::DoRun()
                         &NrRadioLinkFailureTestCase::JumpAway,
                         this,
                         m_ueJumpAwayPosition);
+
+    // The remote host stack was historically (re)assigned at base 4000 after an
+    // initial 1000; the later assignment wins, so a single assignment at 4000
+    // reproduces the exact stream allocation.
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .ueNodes = ueNodes,
+                             .gnbNodes = gnbNodes,
+                             .gnbDevs = gnbDevs,
+                             .ueDevs = ueDevs,
+                             .remoteHostStream = 4000,
+                             .ueNodeStream = 3000,
+                             .gnbNodeStream = 2000});
 
     // connect custom trace sinks
     Config::Connect(

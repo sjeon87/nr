@@ -121,7 +121,7 @@ class NR_EXPORT HexagonalGridScenarioHelper : public NodeDistributionScenarioInt
      * @param stream first stream index to use
      * @return the number of stream indices assigned by this model
      */
-    int64_t AssignStreams(int64_t stream);
+    int64_t AssignStreams(int64_t stream) override;
 
     /*
      * @brief Sets the maximum distance between UE and the closest site.

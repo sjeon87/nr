@@ -494,9 +494,7 @@ main(int argc, char* argv[])
      * modules classes. This configuration is extremely important for the
      * reproducibility of the results.
      */
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gnbNetDev, .ueDevs = ueNetDev});
 
     std::map<uint16_t, CqiFeedbackTraceStats> cqiTraces;
     for (auto it = ueNetDev.Begin(); it != ueNetDev.End(); ++it)

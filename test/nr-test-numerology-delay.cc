@@ -292,6 +292,13 @@ NrTestNumerologyDelayCase1::DoRun()
 
     nrHelper->EnableTraces();
 
+    SeedManager::SetSeed(1);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .ueNodes = NodeContainer(ueNode),
+                             .gnbDevs = gnbNetDev,
+                             .ueDevs = ueNetDev,
+                             .ueNodeStream = 1000});
+
     Simulator::Stop(MilliSeconds(800));
     Simulator::Run();
     Simulator::Destroy();

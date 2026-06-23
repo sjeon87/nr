@@ -4,11 +4,13 @@
 
 #include "nr-helper.h"
 
+#include "node-distribution-scenario-interface.h"
 #include "nr-bearer-stats-calculator.h"
 #include "nr-channel-helper.h"
 #include "nr-epc-helper.h"
 #include "nr-mac-rx-trace.h"
 #include "nr-phy-rx-trace.h"
+#include "realistic-beamforming-helper.h"
 
 #include "ns3/bandwidth-part-gnb.h"
 #include "ns3/bandwidth-part-ue.h"
@@ -19,6 +21,7 @@
 #include "ns3/bwp-manager-ue.h"
 #include "ns3/config.h"
 #include "ns3/deprecated.h"
+#include "ns3/internet-stack-helper.h"
 #include "ns3/multi-model-spectrum-channel.h"
 #include "ns3/names.h"
 #include "ns3/nr-ch-access-manager.h"
@@ -1083,6 +1086,8 @@ NrHelper::AttachToMaxRsrpGnb(const Ptr<NetDevice>& ueDevice, const NetDeviceCont
     auto nrInitAssoc = m_initialAttachmentFactory.Create<NrInitialAssociation>();
     ueDevice->GetObject<NrUeNetDevice>()->SetInitAssoc(nrInitAssoc);
 
+    nrInitAssoc->AssignStreams(INIT_ASSOC_STREAM_BASE + ueDevice->GetNode()->GetId());
+
     nrInitAssoc->SetUeDevice(ueDevice);
     nrInitAssoc->SetGnbDevices(gnbDevices);
     nrInitAssoc->SetColBeamAngles(m_initialParams.colAngles);
@@ -1465,7 +1470,7 @@ NrHelper::AssignStreams(NetDeviceContainer c, int64_t stream)
         {
             for (uint32_t bwp = 0; bwp < nrGnb->GetCcMapSize(); bwp++)
             {
-                currentStream += nrGnb->GetPhy(bwp)->GetSpectrumPhy()->AssignStreams(currentStream);
+                currentStream += nrGnb->GetPhy(bwp)->AssignStreams(currentStream);
                 currentStream += nrGnb->GetScheduler(bwp)->AssignStreams(currentStream);
                 currentStream +=
                     DoAssignStreamsToChannelObjects(nrGnb->GetPhy(bwp)->GetSpectrumPhy(),
@@ -1493,6 +1498,60 @@ NrHelper::AssignStreams(NetDeviceContainer c, int64_t stream)
     }
 
     return (currentStream - stream);
+}
+
+int64_t
+NrHelper::AssignStreams(const StreamAssignmentParams& params)
+{
+    int64_t assigned = 0;
+
+    if (params.assignEpc)
+    {
+        NS_ABORT_MSG_UNLESS(m_nrEpcHelper,
+                            "AssignStreams: assignEpc requested but no EPC helper was set");
+        assigned += m_nrEpcHelper->AssignStreams(params.epcStream);
+    }
+
+    // InternetStackHelper holds no relevant state for AssignStreams; it merely
+    // walks the IPv4/IPv6 protocols installed on the given nodes.
+    InternetStackHelper internet;
+    if (params.remoteHostNodes.GetN() > 0)
+    {
+        assigned += internet.AssignStreams(params.remoteHostNodes, params.remoteHostStream);
+    }
+    if (params.ueNodes.GetN() > 0)
+    {
+        assigned += internet.AssignStreams(params.ueNodes, params.ueNodeStream);
+    }
+    if (params.gnbNodes.GetN() > 0)
+    {
+        assigned += internet.AssignStreams(params.gnbNodes, params.gnbNodeStream);
+    }
+
+    if (params.scenario)
+    {
+        assigned += params.scenario->AssignStreams(params.scenarioStream);
+    }
+
+    if (params.beamformingHelper)
+    {
+        // Only the realistic beamforming helper draws random variables.
+        if (auto realisticBf = DynamicCast<RealisticBeamformingHelper>(params.beamformingHelper))
+        {
+            assigned += realisticBf->AssignStreams(params.beamformingStream);
+        }
+    }
+
+    if (params.gnbDevs.GetN() > 0)
+    {
+        assigned += AssignStreams(params.gnbDevs, params.gnbDevStream);
+    }
+    if (params.ueDevs.GetN() > 0)
+    {
+        assigned += AssignStreams(params.ueDevs, params.ueDevStream);
+    }
+
+    return assigned;
 }
 
 int64_t

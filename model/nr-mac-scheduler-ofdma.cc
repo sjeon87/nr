@@ -14,6 +14,7 @@
 #include "nr-mac-scheduler-ofdma-symbol-per-beam.h"
 
 #include "ns3/log.h"
+#include "ns3/shuffle.h"
 
 #include <algorithm>
 #include <random>
@@ -50,6 +51,7 @@ NrMacSchedulerOfdma::GetTypeId()
 NrMacSchedulerOfdma::NrMacSchedulerOfdma()
     : NrMacSchedulerTdma()
 {
+    m_fhRng = CreateObject<UniformRandomVariable>();
 }
 
 NrMacSchedulerOfdma::~NrMacSchedulerOfdma()
@@ -329,8 +331,7 @@ NrMacSchedulerOfdma::DeallocateResourcesDueToFronthaulConstraint(
 {
     GetFirst GetUe;
     std::vector<UePtrAndBufferReq> fhUeVector = ueVector;
-    auto rng = std::default_random_engine{};
-    std::shuffle(std::begin(fhUeVector), std::end(fhUeVector), rng);
+    Shuffle(std::begin(fhUeVector), std::end(fhUeVector), m_fhRng);
     for (auto schedInfoIt : fhUeVector)
     {
         const auto numAssignedResourcesToUe = GetUe(schedInfoIt)->m_dlRBG.size();
@@ -481,7 +482,7 @@ NrMacSchedulerOfdma::AssignDLRBG(uint32_t symAvail, const ActiveUeMap& activeDl)
             // remainingRbgSet.size()).
 
             // Now we need to check if there is a UE with less than the minimal TBS.
-            std::sort(ueVector.begin(), ueVector.end(), [](auto a, auto b) {
+            std::stable_sort(ueVector.begin(), ueVector.end(), [](auto a, auto b) {
                 GetFirst GetUe;
                 return GetUe(a)->m_dlTbSize > GetUe(b)->m_dlTbSize;
             });
@@ -840,6 +841,13 @@ NrMacSchedulerOfdma::CreateRbgBitmaskFromAllocatedRbgs(
         rbgBitmask.at(rbg) = true;
     }
     return rbgBitmask;
+}
+
+int64_t
+NrMacSchedulerOfdma::AssignStreams(int64_t stream)
+{
+    m_fhRng->SetStream(stream);
+    return 1 + NrMacSchedulerNs3::AssignStreams(stream + 1);
 }
 
 } // namespace ns3

@@ -158,8 +158,7 @@ class NrX2HandoverTestCase : public TestCase
 
     std::vector<UeData> m_ueDataVector; ///< UE data vector
 
-    const Time m_maxHoDuration;        ///< maximum HO duration (for ideal RRC)
-    Time m_maxHoDurationReal;          ///< maximum HO duration (for real RRC, longer)
+    const Time m_maxHoDuration;        ///< maximum HO duration
     const Time m_statsDuration;        ///< stats duration
     const Time m_udpClientInterval;    ///< UDP client interval
     const uint32_t m_udpClientPktSize; ///< UDP client packet size
@@ -209,7 +208,6 @@ NrX2HandoverTestCase::NrX2HandoverTestCase(uint32_t nUes,
       m_admitHo(admitHo),
       m_useIdealRrc(useIdealRrc),
       m_maxHoDuration(Seconds(0.1)),
-      m_maxHoDurationReal(Seconds(0.5)),
       m_statsDuration(Seconds(0.1)),
       m_udpClientInterval(Seconds(0.01)),
       m_udpClientPktSize(100)
@@ -315,7 +313,7 @@ NrX2HandoverTestCase::DoRun()
     gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(0), allBwps));
     gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(1), allBwps2));
 
-    m_nrHelper->AssignStreams(gnbDevices, 5000);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevices});
     for (auto it = gnbDevices.Begin(); it != gnbDevices.End(); ++it)
     {
         Ptr<NrGnbRrc> gnbRrc = (*it)->GetObject<NrGnbNetDevice>()->GetRrc();
@@ -324,7 +322,7 @@ NrX2HandoverTestCase::DoRun()
 
     NetDeviceContainer ueDevices;
     ueDevices = m_nrHelper->InstallUeDevice(ueNodes, {allBwps.front(), allBwps2.front()});
-    m_nrHelper->AssignStreams(ueDevices, 6000);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevices});
 
     Ipv4Address remoteHostAddr;
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
@@ -362,9 +360,8 @@ NrX2HandoverTestCase::DoRun()
         internet.Install(ueNodes);
         ueIpIfaces = m_epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevices));
 
-        m_epcHelper->AssignStreams(0);
-        internet.AssignStreams(remoteHostContainer, 1000);
-        internet.AssignStreams(ueNodes, 2000);
+        m_nrHelper->AssignStreams(
+            {.assignEpc = true, .remoteHostNodes = remoteHostContainer, .ueNodes = ueNodes});
     }
 
     // attachment (needs to be done after IP stack configuration)
@@ -578,8 +575,7 @@ NrX2HandoverTestCase::DoRun()
                             gnbNodes.Get(m_admitHo ? hoEventIt->targetGnbDeviceIndex
                                                    : hoEventIt->sourceGnbDeviceIndex));
 
-        Time hoEndTime =
-            hoEventIt->startTime + (m_useIdealRrc ? m_maxHoDuration : m_maxHoDurationReal);
+        Time hoEndTime = hoEventIt->startTime + m_maxHoDuration;
         Simulator::Schedule(hoEndTime,
                             &NrX2HandoverTestCase::CheckConnected,
                             this,
@@ -644,35 +640,21 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
     Ptr<NrGnbRrc> gnbRrc = nrGnbDevice->GetRrc();
     uint16_t rnti = ueRrc->GetRnti();
     Ptr<NrUeManager> ueManager = gnbRrc->GetUeManager(rnti);
-    // With REAL RRC, the UE may not be connected to the expected gNB
-    // (e.g., due to RLF or connection failure). Check for nullptr.
-    if (ueManager == nullptr)
-    {
-        NS_LOG_WARN("CheckConnected: UE RNTI "
-                    << rnti << " not found in gNB (state=" << ToString(ueRrc->GetState()) << ")");
-        return;
-    }
+    NS_TEST_ASSERT_MSG_NE(ueManager, nullptr, "RNTI " << rnti << " not found in gNB");
 
     NrUeManager::State ueManagerState = ueManager->GetState();
     NS_TEST_ASSERT_MSG_EQ(ueManagerState,
                           NrUeManager::CONNECTED_NORMALLY,
                           "Wrong NrUeManager state!");
-
-    uint16_t ueCellId = ueRrc->GetCellId();
-    uint16_t gnbCellId = nrGnbDevice->GetCellId();
-    // With REAL RRC, the UE may not be connected to the expected gNB.
-    // If the UE cellId doesn't match this gNB, skip further checks for this gNB.
-    if (ueCellId != gnbCellId)
-    {
-        NS_LOG_WARN("CheckConnected: UE cellId " << ueCellId << " does not match gNB cellId "
-                                                 << gnbCellId << " (UE may be on a different gNB)");
-        return;
-    }
+    NS_ASSERT_MSG(ueManagerState == NrUeManager::CONNECTED_NORMALLY, "Wrong NrUeManager state!");
 
     uint64_t ueImsi = ueNrDevice->GetImsi();
     uint64_t gnbImsi = ueManager->GetImsi();
 
     NS_TEST_ASSERT_MSG_EQ(ueImsi, gnbImsi, "inconsistent IMSI");
+    uint16_t ueCellId = ueRrc->GetCellId();
+    uint16_t gnbCellId = nrGnbDevice->GetCellId();
+    NS_TEST_ASSERT_MSG_EQ(ueCellId, gnbCellId, "gNB does not contain UE cellId");
 
     // Verifying other attributes on both sides.
     uint16_t ueDlBwp = ueRrc->GetPrimaryDlIndex();
@@ -682,38 +664,12 @@ NrX2HandoverTestCase::CheckConnected(Ptr<NetDevice> ueDevice, Ptr<NetDevice> gnb
     uint8_t ueDlBandwidth = ueRrc->GetDlBandwidth();
     uint8_t ueUlBandwidth = ueRrc->GetUlBandwidth();
 
-    // Find the BWP ID for the UE's DL/UL ARFCN in this gNB.
-    uint16_t gnbDlBwp = 0;
-    uint16_t gnbUlBwp = 0;
-    uint32_t gnbDlArfcn = 0;
-    uint32_t gnbUlArfcn = 0;
-    bool gnbHasDlArfcn = false;
-    bool gnbHasUlArfcn = false;
-    for (uint32_t i = 0; i < nrGnbDevice->GetCcMapSize(); i++)
-    {
-        uint32_t ccArfcn = nrGnbDevice->GetBwpArfcn(i);
-        if (ccArfcn == ueDlArfcn)
-        {
-            gnbDlBwp = (uint16_t)i;
-            gnbHasDlArfcn = true;
-        }
-        if (ccArfcn == ueUlArfcn)
-        {
-            gnbUlBwp = (uint16_t)i;
-            gnbHasUlArfcn = true;
-        }
-    }
-    if (!gnbHasDlArfcn || !gnbHasUlArfcn)
-    {
-        NS_LOG_WARN("CheckConnected: gNB does not have UE's ARFCN configured "
-                    "(dlHas="
-                    << gnbHasDlArfcn << " ulHas=" << gnbHasUlArfcn << ")");
-        return;
-    }
+    uint16_t gnbDlBwp = nrGnbDevice->GetArfcnBwpId(ueDlArfcn);
+    uint16_t gnbUlBwp = nrGnbDevice->GetArfcnBwpId(ueUlArfcn);
     uint8_t gnbDlBandwidth = nrGnbDevice->GetBwpDlBandwidth(gnbDlBwp);
     uint8_t gnbUlBandwidth = nrGnbDevice->GetBwpUlBandwidth(gnbUlBwp);
-    gnbDlArfcn = nrGnbDevice->GetBwpArfcn(gnbDlBwp);
-    gnbUlArfcn = nrGnbDevice->GetBwpArfcn(gnbUlBwp);
+    uint32_t gnbDlArfcn = nrGnbDevice->GetBwpArfcn(gnbDlBwp);
+    uint32_t gnbUlArfcn = nrGnbDevice->GetBwpArfcn(gnbUlBwp);
 
     NS_TEST_ASSERT_MSG_EQ(gnbRrc->HasCellId(ueCellId), true, "inconsistent CellId");
     NS_TEST_ASSERT_MSG_EQ(ueDlBandwidth, gnbDlBandwidth, "inconsistent DlBandwidth");
@@ -813,42 +769,6 @@ NrX2HandoverTestCase::CheckNoDataLoss()
                                       << ueIndex << ", b=" << b);
             ++b;
         }
-// REBASE-OURS-BEGIN: ce03f73b "a" — defined CheckStatsAWhileAfterHandover with a
-//   skip-if-real-RRC branch; structurally different from upstream's CheckNoDataLoss.
-//   Review whether this skip behavior is still needed and re-add separately if so.
-#if 0
-void
-NrX2HandoverTestCase::CheckStatsAWhileAfterHandover(uint32_t ueIndex)
-{
-    uint32_t b = 1;
-    for (auto it = m_ueDataVector.at(ueIndex).bearerDataList.begin();
-         it != m_ueDataVector.at(ueIndex).bearerDataList.end();
-         ++it)
-    {
-        uint32_t dlRx = it->dlSink->GetTotalRx() - it->dlOldTotalRx;
-        uint32_t ulRx = it->ulSink->GetTotalRx() - it->ulOldTotalRx;
-        uint32_t expectedBytes =
-            m_udpClientPktSize * (m_statsDuration / m_udpClientInterval).GetDouble();
-
-        // With REAL RRC, data may be lost during handover due to X2 interface
-        // limitations. Skip the strict data check for REAL RRC.
-        if (!m_useIdealRrc)
-        {
-            NS_LOG_INFO("Stats check skipped for REAL RRC (dlRx=" << dlRx
-                                                                   << " ulRx=" << ulRx
-                                                                   << ")");
-            continue;
-        }
-
-        NS_TEST_ASSERT_MSG_EQ(dlRx,
-                              expectedBytes,
-                              "too few RX bytes in DL, ue=" << ueIndex << ", b=" << b);
-        NS_TEST_ASSERT_MSG_EQ(ulRx,
-                              expectedBytes,
-                              "too few RX bytes in UL, ue=" << ueIndex << ", b=" << b);
-        ++b;
-#endif
-        // REBASE-OURS-END
     }
 }
 
@@ -1410,7 +1330,7 @@ NrX2PdcpForwardingTestCase::DoRun()
     NetDeviceContainer gnbDevices;
     gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(0), allBwps1));
     gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(1), allBwps2));
-    m_nrHelper->AssignStreams(gnbDevices, 5000);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevices});
     for (auto it = gnbDevices.Begin(); it != gnbDevices.End(); ++it)
     {
         (*it)->GetObject<NrGnbNetDevice>()->GetRrc()->SetAttribute("AdmitHandoverRequest",
@@ -1419,7 +1339,7 @@ NrX2PdcpForwardingTestCase::DoRun()
 
     NetDeviceContainer ueDevices =
         m_nrHelper->InstallUeDevice(ueNodes, {allBwps1.front(), allBwps2.front()});
-    m_nrHelper->AssignStreams(ueDevices, 6000);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevices});
 
     NodeContainer remoteHostContainer;
     remoteHostContainer.Create(1);
@@ -1446,9 +1366,8 @@ NrX2PdcpForwardingTestCase::DoRun()
     Ipv4InterfaceContainer ueIpIfaces =
         m_epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevices));
 
-    m_epcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(ueNodes, 2000);
+    m_nrHelper->AssignStreams(
+        {.assignEpc = true, .remoteHostNodes = remoteHostContainer, .ueNodes = ueNodes});
 
     m_nrHelper->AttachToGnb(ueDevices.Get(0), gnbDevices.Get(0));
 

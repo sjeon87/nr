@@ -227,7 +227,6 @@ NrCellSelectionTestCase::DoRun()
     allBwps = CcBwpCreator::GetAllBwps({band});
 
     // Create Devices and install them in the Nodes (eNB and UE)
-    int64_t stream = 1;
     NetDeviceContainer enbDevs;
 
     // cell ID 1 is a non-CSG cell
@@ -299,8 +298,11 @@ NrCellSelectionTestCase::DoRun()
         }
     }
 
-    stream += nrHelper->AssignStreams(enbDevs, stream);
-    stream += nrHelper->AssignStreams(ueDevs, stream);
+    if (m_isEpcMode)
+    {
+        epcHelper->AssignStreams(0);
+    }
+    nrHelper->AssignStreams({.gnbDevs = enbDevs, .ueDevs = ueDevs});
 
     // Tests
     NS_ASSERT(m_ueSetupList.size() == ueDevs.GetN());
@@ -323,6 +325,7 @@ NrCellSelectionTestCase::DoRun()
         Ptr<Node> remoteHost = remoteHostContainer.Get(0);
         InternetStackHelper internet;
         internet.Install(remoteHostContainer);
+        nrHelper->AssignStreams({.remoteHostNodes = remoteHostContainer});
 
         // Create the Internet
         PointToPointHelper p2ph;
@@ -344,6 +347,7 @@ NrCellSelectionTestCase::DoRun()
 
         // Install the IP stack on the UEs
         internet.Install(ueNodes);
+        nrHelper->AssignStreams({.ueNodes = ueNodes});
         Ipv4InterfaceContainer ueIpIfaces;
         ueIpIfaces = epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
 

@@ -14,6 +14,7 @@
 #include "ns3/mobility-module.h"
 #include "ns3/network-module.h"
 #include "ns3/nr-module.h"
+#include "ns3/rng-seed-manager.h"
 
 #include <cmath>
 
@@ -329,14 +330,18 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
     mobility.SetPositionAllocator(positionAlloc);
     mobility.Install(gnbNodes);
 
-    int64_t stream = 1;
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+
+    mobility.AssignStreams(ueNodes, 100);
+
     NetDeviceContainer gnbDevs;
     gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
-    stream += m_nrHelper->AssignStreams(gnbDevs, stream);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevs});
 
     NetDeviceContainer ueDevs;
     ueDevs = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
-    stream += m_nrHelper->AssignStreams(ueDevs, stream);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevs});
 
     if (m_isFdd)
     {
@@ -741,14 +746,16 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
     mobility.SetPositionAllocator(gnbPosition);
     mobility.Install(gnbNodes);
 
-    int64_t stream = 1;
+    RngSeedManager::SetSeed(1);
+    RngSeedManager::SetRun(1);
+
     NetDeviceContainer gnbDevs;
     gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
-    stream += m_nrHelper->AssignStreams(gnbDevs, stream);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevs});
 
     NetDeviceContainer ueDevs;
     ueDevs = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
-    stream += m_nrHelper->AssignStreams(ueDevs, stream);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevs});
 
     m_nrHelper->AttachToClosestGnb(ueDevs, gnbDevs);
 
