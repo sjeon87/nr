@@ -251,8 +251,7 @@ SystemSchedulerTest::DoRun()
     NetDeviceContainer gNbNetDevs = nrHelper->InstallGnbDevice(gNbNodes, allBwps);
     NetDeviceContainer ueNetDevs = nrHelper->InstallUeDevice(ueNodes, allBwps);
 
-    nrHelper->AssignStreams(gNbNetDevs, 5000);
-    nrHelper->AssignStreams(ueNetDevs, 6000);
+    nrHelper->AssignStreams({.gnbDevs = gNbNetDevs, .ueDevs = ueNetDevs});
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost
@@ -394,9 +393,8 @@ SystemSchedulerTest::DoRun()
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(1);
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(ueNodes, 2000);
+    nrHelper->AssignStreams(
+        {.assignEpc = true, .remoteHostNodes = remoteHostContainer, .ueNodes = ueNodes});
 
     Simulator::Stop(simTime);
     Simulator::Run();

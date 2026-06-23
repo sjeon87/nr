@@ -196,10 +196,11 @@ NrMultipanelTestCase::DoRun()
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(1);
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(ueContainer, 1000);
-    nrHelper->AssignStreams(gnbNetDev, 5000);
-    nrHelper->AssignStreams(ueNetDev, 6000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .ueNodes = ueContainer,
+                             .gnbDevs = gnbNetDev,
+                             .ueDevs = ueNetDev,
+                             .ueNodeStream = 1000});
 
     Simulator::Stop(Seconds(1));
     std::cout << "Test if 4-panel UE, with " + std::to_string(m_uePorts) +

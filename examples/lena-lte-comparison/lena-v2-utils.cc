@@ -687,13 +687,7 @@ LenaV2Utils::SetLenaV2SimulatorParameters(const double sector0AngleRad,
     ueSector3NetDev = nrHelper->InstallUeDevice(ueSector3Container, sector3Bwps);
     ueNetDevs.Add(ueSector3NetDev);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbSector1NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(gnbSector2NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(gnbSector3NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector1NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector2NetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueSector3NetDev, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gnbNetDevs, .ueDevs = ueNetDevs});
 
     /*
      * Case (iii): Go node for node and change the attributes we have to setup

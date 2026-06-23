@@ -641,9 +641,7 @@ NrCsiTestCase::DoRun()
      * modules classes. This configuration is extremely important for the
      * reproducibility of the results.
      */
-    nrEpcHelper->AssignStreams(0);
-    nrHelper->AssignStreams(gnbNetDev, 5000);
-    nrHelper->AssignStreams(ueNetDev, 6000);
+    nrHelper->AssignStreams({.assignEpc = true, .gnbDevs = gnbNetDev, .ueDevs = ueNetDev});
 
     // Hookup transport block reception trace at measuring UE0
     Ptr<NrSpectrumPhy> ue0SpectrumPhy =
@@ -686,7 +684,7 @@ NrCsiTestCase::DoRun()
     InternetStackHelper internet;
     Ipv4InterfaceContainer ueIpIface;
     internet.Install(ueContainer);
-    internet.AssignStreams(ueContainer, 1000);
+    nrHelper->AssignStreams({.ueNodes = ueContainer, .ueNodeStream = 1000});
     ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
 
     for (int i = 0; i < interferingNodes + 1; i++)

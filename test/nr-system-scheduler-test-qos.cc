@@ -203,10 +203,8 @@ SystemSchedulerTestQos::DoRun()
     NetDeviceContainer ueLowLatNetDev = nrHelper->InstallUeDevice(ueLowLatContainer, allBwps);
     NetDeviceContainer ueVoiceNetDev = nrHelper->InstallUeDevice(ueVoiceContainer, allBwps);
 
-    nrEpcHelper->AssignStreams(0);
-    nrHelper->AssignStreams(gNbNetDevs, 5000);
-    nrHelper->AssignStreams(ueLowLatNetDev, 6000);
-    nrHelper->AssignStreams(ueVoiceNetDev, 7000);
+    nrHelper->AssignStreams({.assignEpc = true, .gnbDevs = gNbNetDevs, .ueDevs = ueLowLatNetDev});
+    nrHelper->AssignStreams({.ueDevs = ueVoiceNetDev, .ueDevStream = 7000});
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost
@@ -287,8 +285,8 @@ SystemSchedulerTestQos::DoRun()
 
     internet.Install(gridScenario.GetUserTerminals());
 
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(gridScenario.GetUserTerminals(), 2000);
+    nrHelper->AssignStreams(
+        {.remoteHostNodes = remoteHostContainer, .ueNodes = gridScenario.GetUserTerminals()});
 
     Ipv4InterfaceContainer ueLowLatIpIface;
     Ipv4InterfaceContainer ueVoiceIpIface;

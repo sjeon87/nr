@@ -802,9 +802,6 @@ CttcRealisticBeamforming::RunSimulation()
     NetDeviceContainer gNbDev = nrHelper->InstallGnbDevice(gNbNode, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNode, allBwps);
 
-    nrHelper->AssignStreams(gNbDev, 1000);
-    nrHelper->AssignStreams(ueNetDev, 2000);
-
     for (uint32_t i = 0; i < gNbDev.GetN(); i++)
     {
         NrHelper::GetGnbPhy(gNbDev.Get(i), 0)
@@ -824,10 +821,12 @@ CttcRealisticBeamforming::RunSimulation()
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
 
-    internet.AssignStreams(remoteHost, 3000);
-    internet.AssignStreams(gNbNode, 4000);
-    internet.AssignStreams(ueNode, 5000);
-    nrEpcHelper->AssignStreams(6000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = NodeContainer(remoteHost),
+                             .ueNodes = ueNode,
+                             .gnbNodes = gNbNode,
+                             .gnbDevs = gNbDev,
+                             .ueDevs = ueNetDev});
 
     // Attach UE to gNB
     nrHelper->AttachToGnb(ueNetDev.Get(0), gNbDev.Get(0));

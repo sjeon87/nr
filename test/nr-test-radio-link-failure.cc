@@ -485,13 +485,18 @@ NrRadioLinkFailureTestCase::DoRun()
                         this,
                         m_ueJumpAwayPosition);
 
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(gnbNodes, 2000);
-    internet.AssignStreams(ueNodes, 3000);
-    internet.AssignStreams(remoteHostContainer, 4000);
-    nrHelper->AssignStreams(gnbDevs, 5000);
-    nrHelper->AssignStreams(ueDevs, 6000);
+    // The remote host stack was historically (re)assigned at base 4000 after an
+    // initial 1000; the later assignment wins, so a single assignment at 4000
+    // reproduces the exact stream allocation.
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .ueNodes = ueNodes,
+                             .gnbNodes = gnbNodes,
+                             .gnbDevs = gnbDevs,
+                             .ueDevs = ueDevs,
+                             .remoteHostStream = 4000,
+                             .ueNodeStream = 3000,
+                             .gnbNodeStream = 2000});
 
     // connect custom trace sinks
     Config::Connect(

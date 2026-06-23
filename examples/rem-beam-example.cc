@@ -149,9 +149,7 @@ main(int argc, char* argv[])
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gnbNodes, singleBwp);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNodes, singleBwp);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gnbNetDev, .ueDevs = ueNetDev});
 
     // install the IP stack on the UEs, this is needed to allow attachment
     InternetStackHelper internet;

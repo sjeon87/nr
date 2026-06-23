@@ -318,11 +318,11 @@ NrTestFdmOfNumerologiesCase1::DoRun()
 
     // nrHelper->EnableTraces();
 
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(ueNodes, 2000);
-    nrHelper->AssignStreams(gnbNetDev, 5000);
-    nrHelper->AssignStreams(ueNetDev, 6000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .ueNodes = ueNodes,
+                             .gnbDevs = gnbNetDev,
+                             .ueDevs = ueNetDev});
 
     Simulator::Stop(Seconds(simTime));
     Simulator::Run();

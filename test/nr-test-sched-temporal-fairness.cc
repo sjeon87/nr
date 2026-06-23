@@ -147,9 +147,7 @@ SchedTemporalFairnessTestCase::DoRun()
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueContainer, allBwps);
 
     // Assign random variable streams for reproducible results
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueNetDev, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gnbNetDev, .ueDevs = ueNetDev});
 
     // Create the Internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost

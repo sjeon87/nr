@@ -337,11 +337,11 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
 
     NetDeviceContainer gnbDevs;
     gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
-    m_nrHelper->AssignStreams(gnbDevs, 5000);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevs});
 
     NetDeviceContainer ueDevs;
     ueDevs = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
-    m_nrHelper->AssignStreams(ueDevs, 6000);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevs});
 
     if (m_isFdd)
     {
@@ -751,11 +751,11 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
 
     NetDeviceContainer gnbDevs;
     gnbDevs = m_nrHelper->InstallGnbDevice(gnbNodes, allBwps);
-    m_nrHelper->AssignStreams(gnbDevs, 5000);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevs});
 
     NetDeviceContainer ueDevs;
     ueDevs = m_nrHelper->InstallUeDevice(ueNodes, allBwps);
-    m_nrHelper->AssignStreams(ueDevs, 6000);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevs});
 
     m_nrHelper->AttachToClosestGnb(ueDevs, gnbDevs);
 

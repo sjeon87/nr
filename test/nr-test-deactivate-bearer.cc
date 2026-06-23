@@ -238,10 +238,10 @@ NrDeactivateBearerTestCase::DoRun()
 
     ueDevices = nrHelper->InstallUeDevice(ueNodes, bandwidthAndBWPPair.second);
 
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    nrHelper->AssignStreams(gnbDevices, 5000);
-    nrHelper->AssignStreams(ueDevices, 6000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .gnbDevs = gnbDevices,
+                             .ueDevs = ueDevices});
 
     // Configure gNB PHY parameters
     Ptr<NrGnbNetDevice> nrGnbDevice = gnbDevices.Get(0)->GetObject<NrGnbNetDevice>();
@@ -264,7 +264,7 @@ NrDeactivateBearerTestCase::DoRun()
 
     // Install internet stack on UEs and assign IP addresses
     internet.Install(ueNodes);
-    internet.AssignStreams(ueNodes, 2000);
+    nrHelper->AssignStreams({.ueNodes = ueNodes});
     Ipv4InterfaceContainer ueIpv4Interfaces = nrEpcHelper->AssignUeIpv4Address(ueDevices);
     Ipv6InterfaceContainer ueIpv6Interfaces = nrEpcHelper->AssignUeIpv6Address(ueDevices);
 

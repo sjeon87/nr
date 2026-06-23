@@ -293,10 +293,11 @@ NrTestNumerologyDelayCase1::DoRun()
     nrHelper->EnableTraces();
 
     SeedManager::SetSeed(1);
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(NodeContainer(ueNode), 1000);
-    nrHelper->AssignStreams(gnbNetDev, 5000);
-    nrHelper->AssignStreams(ueNetDev, 6000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .ueNodes = NodeContainer(ueNode),
+                             .gnbDevs = gnbNetDev,
+                             .ueDevs = ueNetDev,
+                             .ueNodeStream = 1000});
 
     Simulator::Stop(MilliSeconds(800));
     Simulator::Run();

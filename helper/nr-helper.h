@@ -41,6 +41,8 @@ class NrUeMac;
 class BwpManagerGnb;
 class BwpManagerUe;
 class NrFhControl;
+class NodeDistributionScenarioInterface;
+class BeamformingHelperBase;
 
 /**
  * @ingroup helper
@@ -849,6 +851,83 @@ class NR_EXPORT NrHelper : public Object
      * @return the number of stream indices (possibly zero) that have been assigned
      */
     int64_t AssignStreams(NetDeviceContainer c, int64_t stream);
+
+    /**
+     * @name Recommended RNG stream base offsets
+     *
+     * Default first-stream index for each kind of simulation object handled by
+     * AssignStreams(const StreamAssignmentParams&). The offsets are spaced far
+     * apart so that the (much smaller) blocks of streams consumed by distinct
+     * objects never overlap, regardless of scenario size. These are the values
+     * historically replicated across the nr tests and examples, now defined in
+     * a single place.
+     * @{
+     */
+    static constexpr int64_t EPC_STREAM_BASE = 0;            //!< EPC core nodes
+    static constexpr int64_t REMOTE_HOST_STREAM_BASE = 1000; //!< Remote host internet stacks
+    static constexpr int64_t UE_NODE_STREAM_BASE = 2000;     //!< UE node internet stacks
+    static constexpr int64_t GNB_NODE_STREAM_BASE = 3000;    //!< gNB node internet stacks
+    static constexpr int64_t GNB_DEV_STREAM_BASE = 5000;     //!< gNB NR net devices
+    static constexpr int64_t UE_DEV_STREAM_BASE = 6000;      //!< UE NR net devices
+    static constexpr int64_t SCENARIO_STREAM_BASE = 8000;    //!< Scenario/mobility models
+    static constexpr int64_t BEAMFORMING_STREAM_BASE = 9000; //!< Beamforming helper
+    /// Reserved base for the per-UE initial association RNG (offset by the UE node id);
+    /// kept far above the other offsets so it never collides with them.
+    static constexpr int64_t INIT_ASSOC_STREAM_BASE = 0x10000000;
+
+    /** @} */
+
+    /**
+     * @brief Parameters describing which simulation objects should receive a
+     *        deterministic RNG stream assignment, and the base stream for each.
+     *
+     * This is the single point of entry for assigning RNG streams in an nr
+     * simulation. Every member is optional: empty containers, null pointers and
+     * false flags are skipped, so a caller passes only the objects it actually
+     * created. Each object is assigned a contiguous block of streams starting at
+     * its (overridable) base offset; the defaults follow the recommended
+     * large-gap scheme so that distinct objects never share a stream.
+     *
+     * @see NrHelper::AssignStreams(const StreamAssignmentParams&)
+     */
+    struct NR_EXPORT StreamAssignmentParams
+    {
+        // Objects to assign streams to (optional).
+        bool assignEpc{false}; //!< also assign streams to the EPC helper set on this NrHelper
+        NodeContainer remoteHostNodes{}; //!< remote host nodes whose internet stacks get streams
+        NodeContainer ueNodes{};         //!< UE nodes whose internet stacks get streams
+        NodeContainer gnbNodes{};        //!< gNB nodes whose internet stacks get streams
+        //!< scenario/mobility helper (a stack object, hence a raw, non-owning pointer)
+        NodeDistributionScenarioInterface* scenario{nullptr};
+        Ptr<BeamformingHelperBase> beamformingHelper{nullptr}; //!< beamforming helper
+        NetDeviceContainer gnbDevs{}; //!< gNB NR net devices (PHY, scheduler, channel objects)
+        NetDeviceContainer ueDevs{};  //!< UE NR net devices
+
+        // First stream index used for each object (defaults to the recommended scheme).
+        int64_t epcStream{EPC_STREAM_BASE};                 //!< base stream for the EPC helper
+        int64_t remoteHostStream{REMOTE_HOST_STREAM_BASE};  //!< base stream for remote host stacks
+        int64_t ueNodeStream{UE_NODE_STREAM_BASE};          //!< base stream for UE node stacks
+        int64_t gnbNodeStream{GNB_NODE_STREAM_BASE};        //!< base stream for gNB node stacks
+        int64_t scenarioStream{SCENARIO_STREAM_BASE};       //!< base stream for the scenario
+        int64_t beamformingStream{BEAMFORMING_STREAM_BASE}; //!< base stream for beamforming
+        int64_t gnbDevStream{GNB_DEV_STREAM_BASE};          //!< base stream for gNB net devices
+        int64_t ueDevStream{UE_DEV_STREAM_BASE};            //!< base stream for UE net devices
+    };
+
+    /**
+     * @brief Assign deterministic RNG streams to all objects in a simulation.
+     *
+     * Single point of entry that replaces the repeated sequences of
+     * AssignStreams() calls previously scattered across nr tests and examples.
+     * Only the objects present in @p params are touched; each is assigned a
+     * block of streams starting at its configured base offset (see
+     * StreamAssignmentParams). Assigning the EPC helper requires that one has
+     * been set via SetEpcHelper().
+     *
+     * @param params the objects to assign streams to and their base offsets
+     * @return the total number of stream indices that have been assigned
+     */
+    int64_t AssignStreams(const StreamAssignmentParams& params);
 
     /// @brief parameters of the gNB or UE antenna arrays
     struct NR_EXPORT AntennaParams

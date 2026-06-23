@@ -529,11 +529,11 @@ UlSchedulingTest::DoRun()
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(1);
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(ueNode, 2000);
-    nrHelper->AssignStreams(gnbDevices, 5000);
-    nrHelper->AssignStreams(ueDevices, 6000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .ueNodes = ueNode,
+                             .gnbDevs = gnbDevices,
+                             .ueDevs = ueDevices});
 
     Simulator::Stop(simTime);
     Simulator::Run();

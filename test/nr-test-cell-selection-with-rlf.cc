@@ -275,11 +275,9 @@ NrCellSelectionWithRlfTestCase::DoRun()
     NetDeviceContainer gnbDevs;
     NetDeviceContainer ueDevs;
 
-    int64_t randomStream = 1;
     gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, bandwidthAndBWPPair.second);
-    randomStream += nrHelper->AssignStreams(gnbDevs, randomStream);
     ueDevs = nrHelper->InstallUeDevice(ueNodes, bandwidthAndBWPPair.second);
-    randomStream += nrHelper->AssignStreams(ueDevs, randomStream);
+    nrHelper->AssignStreams({.gnbDevs = gnbDevs, .ueDevs = ueDevs});
 
     auto ueNetDev = DynamicCast<NrUeNetDevice>(ueDevs.Get(0));
     ueNetDev->GetNas()->Connect();

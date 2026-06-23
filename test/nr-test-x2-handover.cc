@@ -313,7 +313,7 @@ NrX2HandoverTestCase::DoRun()
     gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(0), allBwps));
     gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(1), allBwps2));
 
-    m_nrHelper->AssignStreams(gnbDevices, 5000);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevices});
     for (auto it = gnbDevices.Begin(); it != gnbDevices.End(); ++it)
     {
         Ptr<NrGnbRrc> gnbRrc = (*it)->GetObject<NrGnbNetDevice>()->GetRrc();
@@ -322,7 +322,7 @@ NrX2HandoverTestCase::DoRun()
 
     NetDeviceContainer ueDevices;
     ueDevices = m_nrHelper->InstallUeDevice(ueNodes, {allBwps.front(), allBwps2.front()});
-    m_nrHelper->AssignStreams(ueDevices, 6000);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevices});
 
     Ipv4Address remoteHostAddr;
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
@@ -360,9 +360,8 @@ NrX2HandoverTestCase::DoRun()
         internet.Install(ueNodes);
         ueIpIfaces = m_epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevices));
 
-        m_epcHelper->AssignStreams(0);
-        internet.AssignStreams(remoteHostContainer, 1000);
-        internet.AssignStreams(ueNodes, 2000);
+        m_nrHelper->AssignStreams(
+            {.assignEpc = true, .remoteHostNodes = remoteHostContainer, .ueNodes = ueNodes});
     }
 
     // attachment (needs to be done after IP stack configuration)
@@ -1331,7 +1330,7 @@ NrX2PdcpForwardingTestCase::DoRun()
     NetDeviceContainer gnbDevices;
     gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(0), allBwps1));
     gnbDevices.Add(m_nrHelper->InstallGnbDevice(gnbNodes.Get(1), allBwps2));
-    m_nrHelper->AssignStreams(gnbDevices, 5000);
+    m_nrHelper->AssignStreams({.gnbDevs = gnbDevices});
     for (auto it = gnbDevices.Begin(); it != gnbDevices.End(); ++it)
     {
         (*it)->GetObject<NrGnbNetDevice>()->GetRrc()->SetAttribute("AdmitHandoverRequest",
@@ -1340,7 +1339,7 @@ NrX2PdcpForwardingTestCase::DoRun()
 
     NetDeviceContainer ueDevices =
         m_nrHelper->InstallUeDevice(ueNodes, {allBwps1.front(), allBwps2.front()});
-    m_nrHelper->AssignStreams(ueDevices, 6000);
+    m_nrHelper->AssignStreams({.ueDevs = ueDevices});
 
     NodeContainer remoteHostContainer;
     remoteHostContainer.Create(1);
@@ -1367,9 +1366,8 @@ NrX2PdcpForwardingTestCase::DoRun()
     Ipv4InterfaceContainer ueIpIfaces =
         m_epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevices));
 
-    m_epcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(ueNodes, 2000);
+    m_nrHelper->AssignStreams(
+        {.assignEpc = true, .remoteHostNodes = remoteHostContainer, .ueNodes = ueNodes});
 
     m_nrHelper->AttachToGnb(ueDevices.Get(0), gnbDevices.Get(0));
 

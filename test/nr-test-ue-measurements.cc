@@ -358,9 +358,8 @@ NrUeMeasurementsTestCase::DoRun()
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(1);
-    nrHelper->AssignStreams(nrDevs, 5000);
-    nrHelper->AssignStreams(ueDevs1, 6000);
-    nrHelper->AssignStreams(ueDevs2, 7000);
+    nrHelper->AssignStreams({.gnbDevs = nrDevs, .ueDevs = ueDevs1});
+    nrHelper->AssignStreams({.ueDevs = ueDevs2, .ueDevStream = 7000});
 
     // need to allow for RRC connection establishment + SRS
     Simulator::Stop(Seconds(0.800));
@@ -890,8 +889,7 @@ NrUeMeasurementsPiecewiseTestCase1::DoRun()
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(1);
-    nrHelper->AssignStreams(nrDevs, 5000);
-    nrHelper->AssignStreams(ueDevs, 6000);
+    nrHelper->AssignStreams({.gnbDevs = nrDevs, .ueDevs = ueDevs});
 
     // Run simulation
     Simulator::Stop(Seconds(2.201));
@@ -1622,8 +1620,7 @@ NrUeMeasurementsPiecewiseTestCase2::DoRun()
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(1);
-    nrHelper->AssignStreams(nrDevs, 5000);
-    nrHelper->AssignStreams(ueDevs, 6000);
+    nrHelper->AssignStreams({.gnbDevs = nrDevs, .ueDevs = ueDevs});
 
     // Run simulation
     Simulator::Stop(Seconds(2.201));
@@ -1945,8 +1942,7 @@ NrUeMeasurementsPiecewiseTestCase3::DoRun()
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(1);
-    nrHelper->AssignStreams(nrDevs, 5000);
-    nrHelper->AssignStreams(ueDevs, 6000);
+    nrHelper->AssignStreams({.gnbDevs = nrDevs, .ueDevs = ueDevs});
 
     // Run simulation
     Simulator::Stop(Seconds(2.201));
@@ -2563,11 +2559,11 @@ NrUeMeasurementsHandoverTestCase::DoRun()
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(1);
-    nrEpcHelper->AssignStreams(0);
-    internet.AssignStreams(remoteHostContainer, 1000);
-    internet.AssignStreams(ueNodes, 2000);
-    nrHelper->AssignStreams(nrDevs, 5000);
-    nrHelper->AssignStreams(ueDevs, 6000);
+    nrHelper->AssignStreams({.assignEpc = true,
+                             .remoteHostNodes = remoteHostContainer,
+                             .ueNodes = ueNodes,
+                             .gnbDevs = nrDevs,
+                             .ueDevs = ueDevs});
 
     // Run simulation
     Simulator::Stop(m_duration);

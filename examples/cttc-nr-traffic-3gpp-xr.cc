@@ -276,11 +276,11 @@ main(int argc, char* argv[])
     NetDeviceContainer ueVrNetDev = nrHelper->InstallUeDevice(ueVrContainer, allBwps);
     NetDeviceContainer ueCgNetDev = nrHelper->InstallUeDevice(ueCgContainer, allBwps);
 
-    int64_t randomStream = 1;
-    randomStream += nrHelper->AssignStreams(gNbNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueArNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueVrNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueCgNetDev, randomStream);
+    NetDeviceContainer ueNetDevs;
+    ueNetDevs.Add(ueArNetDev);
+    ueNetDevs.Add(ueVrNetDev);
+    ueNetDevs.Add(ueCgNetDev);
+    nrHelper->AssignStreams({.gnbDevs = gNbNetDev, .ueDevs = ueNetDevs});
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost
