@@ -88,8 +88,10 @@ class NR_EXPORT NrRlcUm : public NrRlc
   private:
     friend class NrRlcUmTestCase; ///< Grant NrRlcUmTestCase access to private members for
                                   ///<  RLC UM RX verification
-    uint32_t m_maxTxBufferSize;   ///< maximum transmit buffer status
-    uint32_t m_txBufferSize;      ///< transmit buffer size
+    /// Grant the t-Reordering discard regression test access to private reassembly state
+    friend class NrRlcUmReorderingDiscardTestCase;
+    uint32_t m_maxTxBufferSize; ///< maximum transmit buffer status
+    uint32_t m_txBufferSize;    ///< transmit buffer size
 
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
