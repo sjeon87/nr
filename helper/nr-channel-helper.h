@@ -184,6 +184,7 @@ class NR_EXPORT NrChannelHelper : public Object
         ThreeGpp, //!< 3GPP
         TwoRay,   //!< TwoRay
         NYU,      //!< NYU
+        SionnaRT  //!< Sionna RT
     } m_channelModel{ChannelModel::ThreeGpp};
 
     /**

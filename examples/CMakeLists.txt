@@ -37,6 +37,27 @@ foreach(
   )
 endforeach()
 
+check_deps(
+  nr_sionna_deps
+  PYTHON_PACKAGES
+  cppyy
+  sionna.rt
+  pybind11
+)
+if("${nr_sionna_deps}"
+   STREQUAL
+   ""
+   AND (NOT
+        WIN32)
+)
+  build_lib_example(
+    NAME cttc-nr-demo-sionna-rt
+    SOURCE_FILES cttc-nr-demo-sionna-rt.cc
+    LIBRARIES_TO_LINK ${libnr}
+                      ${libflow-monitor}
+  )
+endif()
+
 build_lib_example(
   NAME cttc-fh-compression
   SOURCE_FILES cttc-fh-compression.cc

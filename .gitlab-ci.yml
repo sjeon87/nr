@@ -159,6 +159,40 @@ per-commit-gcc-optimized-sanitizers:
   tags:
     - CTTC
 
+weekly-sionna:
+  stage: build
+  image: ubuntu:24.04
+  rules:
+    - if: $RELEASE == "weekly"
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      allow_failure: true
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+  before_script:
+    - apt update
+    - apt upgrade --yes
+    - DEBIAN_FRONTEND=noninteractive apt install --no-install-recommends --yes
+      ca-certificates
+      g++ ninja-build build-essential
+      git
+      libboost-all-dev
+      libeigen3-dev
+      libgsl-dev gsl-bin
+      python3 python3-dev python3-pip python3-venv
+    - python3 -m venv ns3env
+    - source ./ns3env/bin/activate
+    - pip install cmake==$CMAKE_VERSION sionna==1.2.0 sionna-rt==1.2.0 pybind11==2.11.1 cppyy==3.5.0
+  script:
+    - git clone -b $NS3_RELEASE_VERSION --depth=1 $NS3_REPOSITORY_URL
+    - ln -s ${PWD} ns-3-dev/contrib/nr
+    - pushd ns-3-dev
+    - ./ns3 configure -G Ninja --enable-python-bindings --enable-examples --filter-module-examples-and-tests=nr
+    - ./ns3 run cttc-nr-demo-sionna-rt
+    - popd
+  timeout: 3h
+  interruptible: true
+
 documentation:
   stage: documentation
   before_script:

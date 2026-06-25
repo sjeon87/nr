@@ -91,7 +91,9 @@ NrChannelHelper::GetTypeId()
                                 NrChannelHelper::ChannelModel::NYU,
                                 "NYU",
                                 NrChannelHelper::ChannelModel::TwoRay,
-                                "TwoRay"));
+                                "TwoRay",
+                                NrChannelHelper::ChannelModel::SionnaRT,
+                                "SionnaRT"));
     return tid;
 }
 
@@ -127,8 +129,13 @@ NrChannelHelper::CreateChannel(uint8_t flags)
         {
             channelObject = spectrumLossModel;
         }
-        // Set the attributes of the channel model assuming both possible channel models
-        channelObject->SetAttributeFailSafe("Scenario", StringValue(GetScenario()));
+
+        // Set the attributes of the channel model assuming both possible channel models exclude
+        // Sionna RT channel model.
+        if (m_channelModel != ChannelModel::SionnaRT)
+        {
+            channelObject->SetAttributeFailSafe("Scenario", StringValue(GetScenario()));
+        }
         channelObject->SetAttributeFailSafe("ChannelConditionModel",
                                             PointerValue(channelConditionModel));
         NS_LOG_DEBUG("Spectrum loss model: " << spectrumLossModel->GetInstanceTypeId().GetName());
@@ -211,14 +218,15 @@ std::tuple<TypeId, TypeId, TypeId>
 NrChannelHelper::GetBandTypeIdInfo() const
 {
     auto currentChannel =
-        (m_channelModel == ChannelModel::TwoRay) ? ChannelModel::ThreeGpp : m_channelModel;
+        (m_channelModel == ChannelModel::TwoRay || (m_channelModel == ChannelModel::SionnaRT))
+            ? ChannelModel::ThreeGpp
+            : m_channelModel;
     if (m_supportedCombinations.find(std::make_tuple(currentChannel, m_scenario)) ==
         m_supportedCombinations.end())
     {
         NS_ABORT_MSG(
             "The combination of propagation, channel model and condition is not supported.");
     }
-
     auto propagationTypeId = GetPropagationTypeId();
     auto channelConditionTypeId = GetConditionTypeId();
     auto phasedSpectrumTypeId = GetChannelModelTypeId();
@@ -281,7 +289,9 @@ NrChannelHelper::GetPropagationTypeId() const
 {
     // FTR uses the same propagation model as 3GPP
     auto currentModel =
-        (m_channelModel == ChannelModel::TwoRay) ? ChannelModel::ThreeGpp : m_channelModel;
+        (m_channelModel == ChannelModel::TwoRay || (m_channelModel == ChannelModel::SionnaRT))
+            ? ChannelModel::ThreeGpp
+            : m_channelModel;
     static std::map<std::pair<ChannelModel, Scenario>, std::pair<TypeId, TypeId>> lookupTable{
         {{ChannelModel::ThreeGpp, Scenario::RMa},
          {ThreeGppRmaPropagationLossModel::GetTypeId(),
@@ -348,15 +358,19 @@ NrChannelHelper::AssignChannelsToBands(
                 if (phasedArrayChannel)
                 {
                     auto matrixChannel = phasedArrayChannel->GetObject<MatrixBasedChannelModel>();
-                    matrixChannel->SetAttributeFailSafe("Frequency",
-                                                        DoubleValue(bwp->m_centralFrequency));
+                    if (matrixChannel)
+                    {
+                        matrixChannel->SetAttributeFailSafe("Frequency",
+                                                            DoubleValue(bwp->m_centralFrequency));
+                        // Set the bandwidth of the matrix-based channel model in case of NYUSIM
+                        // channel model
+                        matrixChannel->SetAttributeFailSafe("RfBandwidth",
+                                                            DoubleValue(bwp->m_channelBandwidth));
+                    }
                     phasedArrayChannel->SetAttributeFailSafe("Frequency",
                                                              DoubleValue(bwp->m_centralFrequency));
-                    // Set the bandwidth of the matrix-based channel model in case of NYUSIM
-                    // channel model
-                    matrixChannel->SetAttributeFailSafe("RfBandwidth",
-                                                        DoubleValue(bwp->m_channelBandwidth));
                 }
+
                 // Set the frequency of the spectrum propagation loss model if it exists
                 auto nonPhasedArrayChannel = spectrumChannel->GetSpectrumPropagationLossModel();
                 if (nonPhasedArrayChannel)
