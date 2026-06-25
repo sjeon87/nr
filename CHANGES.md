@@ -48,6 +48,14 @@ the cracks, unfortunately.  If you, as a user, can suggest improvements
 to this file based on your experience, please contribute a patch or drop
 us a note on ns-developers mailing list.
 
+## Changes for 5G-LENA NR-v5
+
+### Changes to build system
+- The ``cttc-nr-demo-sionna-rt`` example is built only when Sionna RT dependencies are detected and the platform is not Windows.
+
+### Changed Behavior
+- Added the ``cttc-nr-demo-sionna-rt`` example to demonstrate an end-to-end NR deployment using ``NrChannelHelper`` with the Sionna RT channel model.
+
 ## Changes from NR-v4.1.1 to v4.2
 
 ### New API:

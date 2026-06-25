@@ -46,6 +46,7 @@
 #include "ns3/nr-ue-rrc.h"
 #include "ns3/nr-wraparound-utils.h"
 #include "ns3/pointer.h"
+#include "ns3/spectrum-channel.h"
 #include "ns3/three-gpp-channel-model.h"
 #include "ns3/three-gpp-propagation-loss-model.h"
 #include "ns3/three-gpp-spectrum-propagation-loss-model.h"
@@ -1564,8 +1565,8 @@ NrHelper::DoAssignStreamsToChannelObjects(Ptr<NrSpectrumPhy> phy, int64_t curren
             phy->GetSpectrumChannel()->GetPropagationLossModel());
     if (!propagationLossModel)
     {
-        currentStream +=
-            phy->GetSpectrumChannel()->GetPropagationLossModel()->AssignStreams(currentStream);
+        // Non-3GPP channel configurations, such as Sionna RT, may not install a scalar
+        // PropagationLossModel. There are no 3GPP channel stream objects to assign on this path.
         return currentStream - initialStream;
     }
 

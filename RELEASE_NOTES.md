@@ -15,6 +15,15 @@ http://www.nsnam.org including tutorials: https://www.nsnam.org/documentation/
 Consult the file CHANGES.md for more detailed information about changed
 API and behavior across releases.
 
+Release NR-dev
+--------------
+
+New user-visible features
+-------------------------
+- Added the ``cttc-nr-demo-sionna-rt`` example, which runs an end-to-end NR
+  deployment with ``NrChannelHelper`` configured to use the Sionna RT channel
+  model. The example exposes Sionna RT scene and path-solver parameters on the
+  command line and is built only when Sionna RT dependencies are available.
 
 Release NR-v4.2
 ---------------

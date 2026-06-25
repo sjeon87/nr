@@ -3081,6 +3081,39 @@ is mapped to a single CC, so the total UE traffic can be aggregated.
 The complete details of the simulation script are provided in
 https://cttc-lena.gitlab.io/nr/html/cttc-nr-demo_8cc.html
 
+cttc-nr-demo-sionna-rt.cc
+=========================
+The program ``examples/cttc-nr-demo-sionna-rt`` extends the basic
+``cttc-nr-demo`` scenario with the Sionna RT channel model. It is intended as
+an entry point for users who want to run an end-to-end NR simulation while
+obtaining the radio channel from Sionna RT ray tracing instead of the default
+3GPP stochastic channel model.
+
+The example uses the ``GridScenarioHelper`` to create a configurable grid
+deployment with one or more gNBs and UEs. By default, it creates one gNB and
+two UEs, configures one operational band at 28 GHz, and installs two UDP
+traffic flows mapped to NR bearers. The ``doubleOperationalBand`` command-line
+option enables a second operational band, following the same bandwidth-part
+mapping style as ``cttc-nr-demo``.
+
+The channel is selected through ``NrChannelHelper`` by setting
+``ChannelModel`` to ``SionnaRT`` and configuring
+``SionnaRtSpectrumPropagationLossModel`` as the phased-array spectrum
+propagation loss model. The example exposes Sionna RT scene and path-solver
+parameters on the command line, including ``Scenario``, ``maxDepth``, ``los``,
+``specularReflection``, ``diffuseReflection``, ``diffraction``,
+``edgeDiffraction``, ``refraction``, and ``syntheticArray``.  Scene rendering
+output can be configured with ``outputFileName``, ``outputFileDirectory``,
+``cameraPosition``, and ``cameraLookAt``.
+
+The example is built only when Sionna RT dependencies are available and the
+platform is not Windows. See the Sionna-RT installation chapter in the ns-3
+manual for installation instructions.  It can be run with:
+
+.. sourcecode:: bash
+
+   ./ns3 run cttc-nr-demo-sionna-rt
+
 lena-lte-comparison (initially s3-scenario.cc)
 ==============================================
 
