@@ -246,7 +246,15 @@ NrNetDevice::Receive(Ptr<Packet> p)
     }
     else
     {
-        NS_ABORT_MSG("Unknown IP type");
+        // The packet handed up here is neither IPv4 nor IPv6. In a correct stack this
+        // never happens, but a incorrectly reassembled RLC-UM SDU (e.g. a segment concatenated
+        // across an undetected discontinuity during fast-channel/handover loss) can
+        // surface a non-IP buffer. A real UE's IP layer simply discards a packet with an
+        // unrecognized version field; aborting the whole simulation over one corrupt
+        // data-plane SDU is too strict, so drop and trace it instead.
+        NS_LOG_WARN("Dropping " << p->GetSize() << " bytes with unrecognized IP version on "
+                                << m_macaddress << " (malformed or incorrectly reassembled SDU)");
+        m_dropTrace(p);
     }
 }
 

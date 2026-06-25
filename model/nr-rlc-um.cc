@@ -817,6 +817,18 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
             break;
 
         case WAITING_SI_SF:
+            if (!m_keepS0)
+            {
+                // Inconsistent state: mid-SDU (WAITING_SI_SF) yet the held first segment is
+                // gone. With stale partials now discarded on t-Reordering expiry this should
+                // not occur, but guard regardless so a continuation segment is never appended
+                // onto a missing/garbage head. Drop this PDU's segments and resynchronise to a
+                // fresh SDU boundary instead of dereferencing a null S0.
+                NS_LOG_WARN("Dropping orphaned RLC-UM continuation: no held S0 in WAITING_SI_SF");
+                m_sdusBuffer.clear();
+                m_reassemblingState = WAITING_S0_FULL;
+                break;
+            }
             switch (framingInfo)
             {
             case (NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::LAST_BYTE):
@@ -1244,6 +1256,22 @@ NrRlcUm::ExpireReorderingTimer()
     NS_LOG_LOGIC("New VR(UR) = " << m_vrUr);
 
     ReassembleSnInterval(oldVrUr, m_vrUr);
+
+    // t-Reordering expiry means the missing segment(s) at the front of the reordering
+    // window are given up on. Per TS 38.322 (5.1.2.2.4 / 5.2.2.2), any RLC SDU that can
+    // no longer be fully reassembled must be discarded. If a partially-reassembled SDU is
+    // still held (WAITING_SI_SF, i.e. S0 is kept waiting for its continuation) after the
+    // above in-window reassembly, its continuation was among the lost SNs and will never
+    // arrive: drop it and resynchronise. Leaving it held lets it survive until the 10-bit
+    // SN wraps (~1024 PDUs), after which an unrelated later segment aliases as the awaited
+    // continuation and is concatenated onto the stale head, delivering a corrupt (non-IP)
+    // SDU to upper layers (observed as the "Unknown IP type" abort during fast handovers).
+    if (m_reassemblingState == WAITING_SI_SF)
+    {
+        NS_LOG_LOGIC("Discarding partially reassembled SDU stranded by t-Reordering expiry");
+        m_keepS0 = nullptr;
+        m_reassemblingState = WAITING_S0_FULL;
+    }
 
     if (m_vrUh > m_vrUr)
     {
