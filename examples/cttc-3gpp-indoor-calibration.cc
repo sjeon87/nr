@@ -55,7 +55,6 @@ using namespace ns3;
  *
  * - UE positions
  * - gNB positions
- * - distances of UEs from the gNBs to which they are attached
  *
  * The file names are created by default in the root project directory if not
  * configured differently by setting resultsDirPath parameter of the Run()
@@ -361,7 +360,6 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
     std::string filenameRssi = BuildFileNameString(resultsDirPath, "rssi", tag);
     std::string filenameUePositions = BuildFileNameString(resultsDirPath, "ue-positions", tag);
     std::string filenameGnbPositions = BuildFileNameString(resultsDirPath, "gnb-positions", tag);
-    std::string filenameDistances = BuildFileNameString(resultsDirPath, "distances", tag);
 
     m_outSinrFile.open(filenameSinr.c_str());
     m_outSinrFile.setf(std::ios_base::fixed);
