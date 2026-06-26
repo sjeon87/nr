@@ -54,7 +54,7 @@ NrRlcUm::GetTypeId()
                           MakeUintegerChecker<uint32_t>())
             .AddAttribute("ReorderingTimer",
                           "Value of the t-Reordering timer (See section 7.3 of 3GPP TS 36.322)",
-                          TimeValue(MilliSeconds(100)),
+                          TimeValue(MilliSeconds(25)),
                           MakeTimeAccessor(&NrRlcUm::m_reorderingTimerValue),
                           MakeTimeChecker())
             .AddAttribute(
@@ -810,8 +810,14 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
                 /**
                  * ERROR: Transition not possible
                  */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
+                NS_ASSERT_MSG(
+                    false,
+                    "INTERNAL ERROR: Transition not possible. FI = "
+                        << (uint32_t)framingInfo << "\n"
+                        << "HINT: Possible duplicate SN detected. "
+                        << "This may occur if t-Reordering is too large, allowing a new PDU "
+                        << "with the same SN to arrive before the previous one is fully processed. "
+                        << "Consider reducing the t-Reordering value.");
                 break;
             }
             break;
@@ -882,8 +888,14 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
                 /**
                  * ERROR: Transition not possible
                  */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
+                NS_ASSERT_MSG(
+                    false,
+                    "INTERNAL ERROR: Transition not possible. FI = "
+                        << (uint32_t)framingInfo << "\n"
+                        << "HINT: Possible duplicate SN detected. "
+                        << "This may occur if t-Reordering is too large, allowing a new PDU "
+                        << "with the same SN to arrive before the previous one is fully processed. "
+                        << "Consider reducing the t-Reordering value.");
                 break;
             }
             break;
@@ -990,8 +1002,14 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
                 /**
                  * ERROR: Transition not possible
                  */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
+                NS_ASSERT_MSG(
+                    false,
+                    "INTERNAL ERROR: Transition not possible. FI = "
+                        << (uint32_t)framingInfo << "\n"
+                        << "HINT: Possible duplicate SN detected. "
+                        << "This may occur if t-Reordering is too large, allowing a new PDU "
+                        << "with the same SN to arrive before the previous one is fully processed. "
+                        << "Consider reducing the t-Reordering value.");
                 break;
             }
             break;
@@ -1108,8 +1126,14 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
                 /**
                  * ERROR: Transition not possible
                  */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
+                NS_ASSERT_MSG(
+                    false,
+                    "INTERNAL ERROR: Transition not possible. FI = "
+                        << (uint32_t)framingInfo << "\n"
+                        << "HINT: Possible duplicate SN detected. "
+                        << "This may occur if t-Reordering is too large, allowing a new PDU "
+                        << "with the same SN to arrive before the previous one is fully processed. "
+                        << "Consider reducing the t-Reordering value.");
                 break;
             }
             break;
