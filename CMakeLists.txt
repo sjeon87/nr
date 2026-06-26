@@ -20,6 +20,21 @@ else()
   set(eigen_tests)
 endif()
 
+# AI scheduler core. These classes only use the NotifyCb/NotifyCbMsg callback
+# abstraction and have no dependency on the opengym or ai modules, so they are
+# always built as part of nr. The transport-specific environments below bind to
+# them: the OpenGym env (opengym) and the ns3-ai message-interface bridge (ai).
+set(ai_sched_core_sources
+    model/nr-mac-scheduler-ofdma-ai.cc
+    model/nr-mac-scheduler-tdma-ai.cc
+    model/nr-mac-scheduler-ue-info-ai.cc
+)
+set(ai_sched_core_headers
+    model/nr-mac-scheduler-ofdma-ai.h
+    model/nr-mac-scheduler-tdma-ai.h
+    model/nr-mac-scheduler-ue-info-ai.h
+)
+
 set(opengym_sources)
 set(opengym_headers)
 set(opengym_tests)
@@ -30,15 +45,9 @@ if(opengym
 )
   set(opengym_sources
       model/nr-mac-scheduler-ai-ns3-gym-env.cc
-      model/nr-mac-scheduler-ofdma-ai.cc
-      model/nr-mac-scheduler-tdma-ai.cc
-      model/nr-mac-scheduler-ue-info-ai.cc
   )
   set(opengym_headers
       model/nr-mac-scheduler-ai-ns3-gym-env.h
-      model/nr-mac-scheduler-ofdma-ai.h
-      model/nr-mac-scheduler-tdma-ai.h
-      model/nr-mac-scheduler-ue-info-ai.h
   )
   set(opengym_tests
       test/nr-test-scheduler-ai.cc
@@ -48,8 +57,32 @@ if(opengym
   )
 endif()
 
+# ns3-ai message-interface bridge: built only when the ai module is actually
+# enabled (ns3-all-enabled-modules, not merely requested), so nr still links
+# when ai is present in the tree but skipped, e.g. without pybind11.
+set(ai_msg_sources)
+set(ai_msg_headers)
+set(ai_msg_libraries)
+if(ai
+   IN_LIST
+   ns3-all-enabled-modules
+)
+  set(ai_msg_sources
+      model/nr-mac-scheduler-ai-ns3-msg-interface-env.cc
+  )
+  set(ai_msg_headers
+      model/nr-mac-scheduler-ai-ns3-msg-interface-env.h
+  )
+  set(ai_msg_libraries
+      ${libai}
+  )
+endif()
+
 set(source_files
     ${eigen_sources}
+    ${ai_sched_core_sources}
+    ${opengym_sources}
+    ${ai_msg_sources}
     helper/beamforming-helper-base.cc
     helper/cc-bwp-helper.cc
     helper/file-scenario-helper.cc
@@ -240,6 +273,9 @@ set(source_files
 )
 
 set(header_files
+    ${ai_sched_core_headers}
+    ${opengym_headers}
+    ${ai_msg_headers}
     helper/beamforming-helper-base.h
     helper/cc-bwp-helper.h
     helper/file-scenario-helper.h
@@ -611,6 +647,7 @@ build_lib(
     ${libcsma}
     ${libconfig-store}
     ${opengym_libraries}
+    ${ai_msg_libraries}
   TEST_SOURCES ${test_sources}
   GENERATE_EXPORT_HEADER
 )
