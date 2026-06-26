@@ -1617,6 +1617,13 @@ class NR_EXPORT NrGnbRrc : public Object
      * bearers into one bucket. Used only when the PerBearerUlLcg attribute is
      * enabled.
      *
+     * The UL BSR reports buffered data per Logical Channel Group (3GPP TS 38.321
+     * section 6.1.3.1). The standard permits 8 LCGs (0..7), but nr module's Short BSR
+     * (NrMacShortBsrCe) carries only 4 (0..3). With LCG 0 reserved for SRBs,
+     * exactly 3 LCGs remain for DRBs, hence the 1..3 range. DRB LCIDs are 1..32
+     * (TS 38.321 section 6.2.1). A UE's 4th DRB therefore aliases onto its 1st DRB's
+     * LCG (at most 3 DRBs per UE are distinguished in UL).
+     *
      * @param flow the QoS characteristics of the flow
      * @param lcid the logical channel id of the bearer
      *

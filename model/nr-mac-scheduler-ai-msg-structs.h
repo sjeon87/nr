@@ -38,6 +38,12 @@ namespace ns3
  */
 
 /// Maximum number of bearers (logical channels) reported per UE.
+///
+/// Set to 4 to match this module's UL Buffer Status Report ceiling: the Short
+/// BSR (NrMacShortBsrCe) carries only 4 Logical Channel Groups (0..3), so the
+/// gNB cannot distinguish more than 4 per-UE buffers in the uplink (3GPP TS
+/// 38.321 section 6.1.3.1). Reporting more per-UE bearers than the BSR can resolve in
+/// UL would be meaningless, so the observation array is bounded to the same 4.
 static constexpr uint32_t MAX_LCS_PER_UE = 4;
 
 /**
@@ -47,11 +53,10 @@ static constexpr uint32_t MAX_LCS_PER_UE = 4;
  * Python agent can see how each of a UE's traffic streams is doing rather
  * than only an aggregate. One of these is filled per active bearer of the UE.
  *
- * Downlink: all fields are valid; they come from the gNB-side RLC buffer reports.
+ * Downlink: all fields are valid and they come from the gNB-side RLC buffer reports.
  * Uplink: only the static QoS fields (lcId, fiveQI, priority,
- * resourceType, delayBudgetMs) and bsr are meaningful; bsr is the per-LCG
- * Buffer Status Report size (quantized to Short-BSR levels) and holDelay is
- * always 0 because the standard BSR does not carry head-of-line delay.
+ * resourceType, delayBudgetMs) and bsr are meaningful.
+ * holDelay is always 0 because the standard BSR does not carry head-of-line delay.
  *
  */
 struct NrSchedulerLcObservation
@@ -62,7 +67,7 @@ struct NrSchedulerLcObservation
     uint8_t fiveQI;         //!< 5G QoS Identifier (QoS class) of this bearer
     uint8_t priority;       //!< QoS priority level associated with the 5QI
     uint8_t resourceType;   //!< Resource type of the 5QI (non-GBR, GBR or DC-GBR)
-    float bsr;              //!< Bytes waiting in this bearer (UL: quantized per-LCG BSR size)
+    float bsr;              //!< Bytes waiting in this bearer 
 };
 
 /**

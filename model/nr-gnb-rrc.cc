@@ -226,7 +226,9 @@ NrUeManager::ConfigureSrb0()
         // Initialise the rest of lcinfo structure even if CCCH (LCID 0) is pre-configured, and only
         // m_rnti and lcid will be used from passed lcinfo structure. See FF LTE MAC Scheduler
         // Iinterface Specification v1.11, 4.3.4 logicalChannelConfigListElement
-        lcinfo.lcGroup = 0;
+        lcinfo.lcGroup = 0; // SRBs are always mapped to LCG 0; this reservation
+                            // frees LCGs 1..3 for the opt-in per-bearer DRB
+                            // mapping (see GetLogicalChannelGroupPerBearer)
         lcinfo.fiveQi = 5; // Arbitrary 5QI to route UE RRC UL messages through BWP manager
         lcinfo.resourceType = 0;
         lcinfo.mbrUl = 0;
@@ -281,7 +283,9 @@ NrUeManager::ConfigureSrb1()
         NrGnbCmacSapProvider::LcInfo lcinfo;
         lcinfo.rnti = m_rnti;
         lcinfo.lcId = lcid;
-        lcinfo.lcGroup = 0; // all SRBs always mapped to LCG 0
+        lcinfo.lcGroup = 0; // all SRBs always mapped to LCG 0; this reservation
+                            // frees LCGs 1..3 for the opt-in per-bearer DRB
+                            // mapping (see GetLogicalChannelGroupPerBearer)
         lcinfo.fiveQi =
             NrQosFlow::GBR_CONV_VOICE; // not sure why the FF API requires a CQI even for SRBs...
         lcinfo.resourceType = 1;       // GBR resource type
@@ -2119,7 +2123,10 @@ NrGnbRrc::GetTypeId()
                           "If true, map each data radio bearer to its own Logical Channel "
                           "Group so the UL Buffer Status Report carries per-bearer buffer "
                           "sizes (for per-bearer UL observations in the AI scheduler), "
-                          "instead of the stock GBR/non-GBR LCG mapping.",
+                          "instead of the stock GBR/non-GBR LCG mapping. The UL BSR reports "
+                          "buffered data per LCG (3GPP TS 38.321 section 6.1.3.1); this module's "
+                          "Short BSR (NrMacShortBsrCe) carries only 4 LCGs (0..3) and LCG 0 "
+                          "is reserved for SRBs, so at most 3 DRBs per UE are distinguished.",
                           BooleanValue(false),
                           MakeBooleanAccessor(&NrGnbRrc::m_perBearerUlLcg),
                           MakeBooleanChecker())
@@ -3678,11 +3685,29 @@ NrGnbRrc::GetLogicalChannelGroup(NrQosFlow flow)
 uint8_t
 NrGnbRrc::GetLogicalChannelGroupPerBearer(NrQosFlow flow, uint8_t lcid)
 {
-    // Per-bearer LCG mapping : each DRB gets its own
-    // LCG (1-3) so the UL BSR reports per-bearer buffer sizes instead of
-    // lumping all GBR (or all non-GBR) bearers into a single LCG bucket. LCG 0
-    // is reserved for SRBs. This is opt-in via the PerBearerLcg attribute and
-    // leaves the stock GetLogicalChannelGroup() mapping untouched.
+    // Per-bearer LCG mapping : each DRB gets its own Logical Channel Group
+    // so the UL BSR reports per-bearer buffer sizes instead of
+    // lumping all GBR (or all non-GBR) bearers into a single LCG
+    // bucket. This is opt-in via the PerBearerUlLcg attribute and leaves the
+    // stock GetLogicalChannelGroup() mapping untouched.
+    //
+    // Assumptions and standards :
+    //  - The UL BSR reports buffered data per Logical Channel Group, not per
+    //    logical channel (3GPP TS 38.321 section 6.1.3.1). Giving each DRB its own LCG
+    //    is therefore what makes per-bearer UL buffer state visible at the gNB.
+    //  - The standard allows 8 LCGs, IDs 0..7 (3GPP TS 38.321 section 6.1.3.1;
+    //    LogicalChannelConfig.logicalChannelGroup INTEGER (0..7) in TS 38.331).
+    //    However, nr module's UL Short BSR (NrMacShortBsrCe) is an LTE-derived
+    //    simplification that carries only 4 LCGs, IDs 0..3 (its four
+    //    m_bufferSizeLevel_0..3 fields).
+    //  - SRBs are pinned to LCG 0 (see ConfigureSrb0/ConfigureSrb1), so only
+    //    LCGs 1, 2, 3 remain for DRBs => 3 distinct DRB groups => "% 3".
+    //  - DRB LCIDs run 1..32 (TS 38.321 section 6.2.1, Tables 6.2.1-1/-2), and in this
+    //    module LCID == DRBID, so "lcid - 1" indexes DRBs from 0.
+    //    "+ 1" shifts the result past the SRB-reserved LCG 0.
+    //
+    // Limitation: with only 3 DRB LCGs, a UE's 4th DRB aliases onto its 1st
+    // DRB's LCG, so at most 3 DRBs per UE get distinct UL BSR buckets.
     return 1 + ((lcid - 1) % 3);
 }
 
