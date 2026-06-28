@@ -1,5 +1,5 @@
-// Copyright (c) 2024 University of Moratuwa
-// Copyright (c) 2024 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
+// Copyright (c) 2026 University of Moratuwa
+// Copyright (c) 2026 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
 //
 // SPDX-License-Identifier: GPL-2.0-only
 //
