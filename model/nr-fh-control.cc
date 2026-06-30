@@ -225,6 +225,7 @@ NrFhControl::GetFunctionalSplit() const
 void
 NrFhControl::SetErrorModelType(std::string errorModelType)
 {
+    NS_LOG_FUNCTION(this);
     m_errorModelType = errorModelType;
 
     if (m_errorModelType == "ns3::NrEesmIrT1" || m_errorModelType == "ns3::NrEesmCcT1")
@@ -511,6 +512,7 @@ NrFhControl::DoGetDoesAllocationFit(uint16_t bwpId,
 uint8_t
 NrFhControl::DoGetMaxMcsAssignable(uint16_t bwpId, uint32_t reg, uint32_t rnti, uint8_t dlRank)
 {
+    NS_LOG_FUNCTION(this);
     uint16_t numOfActiveBwps =
         GetNumberActiveBwps(); // considers only active BWPs with data in queue
     NS_ASSERT_MSG(numOfActiveBwps > 0, "No Active BWPs, sth is wrong");
@@ -562,6 +564,7 @@ NrFhControl::DoGetMaxMcsAssignable(uint16_t bwpId, uint32_t reg, uint32_t rnti, 
 uint32_t
 NrFhControl::DoGetMaxRegAssignable(uint16_t bwpId, uint32_t mcs, uint32_t rnti, uint8_t dlRank)
 {
+    NS_LOG_FUNCTION(this);
     uint32_t modulationOrder =
         m_mcsTable == 1 ? nrEesmT1.m_mcsMTable->at(mcs) : nrEesmT2.m_mcsMTable->at(mcs);
 
@@ -714,6 +717,7 @@ NrFhControl::DoNotifyEndSlot(uint16_t bwpId, SfnSf currentSlot)
 uint64_t
 NrFhControl::GetFhThr(const FhThrParams& params) const
 {
+    NS_LOG_FUNCTION(this);
     double thr = 0;
     uint16_t numerology = m_fhPhySapUser.at(params.m_bwpId)->GetNumerology();
 
