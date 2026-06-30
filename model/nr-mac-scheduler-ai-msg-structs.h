@@ -78,9 +78,10 @@ struct NrSchedulerLcObservation
  * vector length).
  *
  * The lc array holds up to MAX_LCS_PER_UE of the UE's active bearers, sorted
- * most-urgent-first: GBR/DC-GBR bearers first, then non-GBR bearers ranked by
- * (1 + holDelay) / delayBudget / priority. Bearers beyond MAX_LCS_PER_UE are
- * dropped, and only the first numLcs entries are valid. The agent still emits
+ * most-urgent-first: GBR/DC-GBR bearers first, then non-GBR bearers, each group
+ * ranked by ascending 3GPP Priority Level (TS 23.501 section 5.7.3.3), ties
+ * broken by deadline proximity (holDelay / delayBudget). Bearers beyond
+ * MAX_LCS_PER_UE are dropped, and only the first numLcs entries are valid. The agent still emits
  * a single scheduling weight per UE, because the NR scheduler allocates
  * resources per UE, distributing an assigned transport block among the UE's
  * bearers remains the job of the configured LC algorithm.

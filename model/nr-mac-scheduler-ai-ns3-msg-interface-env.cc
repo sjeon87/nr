@@ -30,17 +30,39 @@ namespace
 /// A second env would share the same shared-memory channel and corrupt the handshake.
 bool g_envInstanceExists = false;
 
-/// Urgency metric for a non-GBR bearer: (1 + holDelay) / delayBudget / priority.
-/// Higher is more urgent. Mirrors the NR QoS scheduler's per-LC metric.
-/// A priority of 0 (unset) is treated as the least urgent (100), and a missing
-/// delay budget is clamped so the division stays well-defined.
-double
-NonGbrUrgency(const NrMacSchedulerLC* lc)
+/// Sort key for ordering bearers by 3GPP Priority Level (TS 23.501 section
+/// 5.7.3.3): the lowest value is the highest priority, so smaller sorts first.
+/// A priority of 0 (unset) is mapped to the maximum so it ranks last.
+uint16_t
+PriorityKey(const NrMacSchedulerLC* lc)
 {
-    const double priority = (lc->m_priority == 0) ? 100.0 : static_cast<double>(lc->m_priority);
+    return (lc->m_priority == 0) ? std::numeric_limits<uint16_t>::max() : lc->m_priority;
+}
+
+/// Deadline-proximity tie-break for bearers of equal Priority Level: how close
+/// the head-of-line packet is to its Packet Delay Budget (TS 23.501 section
+/// 5.7.3.4), as holDelay / delayBudget. Larger is more urgent. The inputs are
+/// standardized; only their combination is implementation-defined. A missing
+/// delay budget is clamped so the ratio stays well-defined.
+double
+DeadlineProximity(const NrMacSchedulerLC* lc)
+{
     const int64_t dbMs = (lc->m_delayBudget > Time(0)) ? lc->m_delayBudget.GetMilliSeconds() : 1;
-    return (1.0 + static_cast<double>(lc->m_rlcTransmissionQueueHolDelay)) /
-           static_cast<double>(dbMs) / priority;
+    return static_cast<double>(lc->m_rlcTransmissionQueueHolDelay) / static_cast<double>(dbMs);
+}
+
+/// Order two bearers most-urgent-first: ascending Priority Level (TS 23.501
+/// section 5.7.3.3), ties broken by descending deadline proximity.
+bool
+MoreUrgent(const NrMacSchedulerLC* a, const NrMacSchedulerLC* b)
+{
+    const uint16_t pa = PriorityKey(a);
+    const uint16_t pb = PriorityKey(b);
+    if (pa != pb)
+    {
+        return pa < pb;
+    }
+    return DeadlineProximity(a) > DeadlineProximity(b);
 }
 
 /// Clamp a delay budget (Time) to the uint16_t milliseconds field of the struct.
@@ -137,20 +159,20 @@ NrMacSchedulerAiNs3MsgInterfaceEnv::NotifyCurrentIteration(
             }
         }
 
-        // Most-urgent-first order (lc[] ordering): GBR/DC-GBR first by
-        // ascending priority, then non-GBR by descending urgency metric.
-        // GBR/Delay-critical-GBR bearers rank ahead of Non-GBR by their Resource
-        // Type (3GPP TS 23.501 section 5.7.3.1). Within the GBR group the sort is
+        // Most-urgent-first order (lc[] ordering): GBR/DC-GBR first, then
+        // non-GBR, each group sorted by ascending Priority Level. GBR and
+        // DC-GBR bearers rank ahead of non-GBR by their Resource
+        // Type (3GPP TS 23.501 section 5.7.3.2). Within each group the sort is
         // ascending Priority Level because, per 3GPP TS 23.501 section 5.7.3.3,
         // the lowest Priority Level value corresponds to the highest priority.
-        // The non-GBR urgency metric (NonGbrUrgency) is an internal heuristic
-        // mirroring the NR QoS scheduler, not a 3GPP-defined ordering.
-        std::sort(gbrLcs.begin(), gbrLcs.end(), [](NrMacSchedulerLC* a, NrMacSchedulerLC* b) {
-            return a->m_priority < b->m_priority;
-        });
-        std::sort(nonGbrLcs.begin(), nonGbrLcs.end(), [](NrMacSchedulerLC* a, NrMacSchedulerLC* b) {
-            return NonGbrUrgency(a) > NonGbrUrgency(b);
-        });
+        // This matches the NR QoS scheduler, which ranks non-GBR by Priority
+        // Level. Bearers of equal priority are tie-broken by deadline proximity
+        // (head-of-line delay over Packet Delay Budget, 3GPP TS 23.501 section
+        // 5.7.3.4) so that, when more than MAX_LCS_PER_UE bearers are active,
+        // truncation keeps the most deadline-critical of the tied bearers. The
+        // sort is stable for reproducibility.
+        std::stable_sort(gbrLcs.begin(), gbrLcs.end(), MoreUrgent);
+        std::stable_sort(nonGbrLcs.begin(), nonGbrLcs.end(), MoreUrgent);
 
         std::vector<NrMacSchedulerLC*> ordered;
         ordered.reserve(gbrLcs.size() + nonGbrLcs.size());

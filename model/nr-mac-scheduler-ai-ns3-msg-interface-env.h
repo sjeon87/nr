@@ -44,8 +44,8 @@ namespace ns3
  *
  * The per-bearer QoS fields exposed in each observation (fiveQI, priority,
  * resourceType, delayBudgetMs) are the standardized 5QI QoS characteristics of
- * 3GPP TS 23.501 section 5.7 (Table 5.7.4-1): see section 5.7.2 (5QI),
- * 5.7.3.1 (Resource Type: Non-GBR / GBR / Delay-critical GBR), 5.7.3.3
+ * 3GPP TS 23.501 section 5.7 (Table 5.7.4-1): see section 5.7.2.1 (5QI),
+ * 5.7.3.2 (Resource Type: Non-GBR / GBR / Delay-critical GBR), 5.7.3.3
  * (Priority Level) and 5.7.3.4 (Packet Delay Budget). The CQI is the wideband
  * Channel Quality Indicator of 3GPP TS 38.214 section 5.2.2.1.
  *
