@@ -282,7 +282,7 @@ class NR_EXPORT NrFhControl : public Object
      *        fit in the available FH bandwidth.
      *
      * @param bwpId the BWP ID
-     * @param rnti the allocated MCS
+     * @param mcs the allocated MCS
      * @param nRegs the number of allocated REGs (1 REGs = 1 RB (12 subcarriers) x 1 symbol)
      * @param dlRank the DL rank (number of MIMO layers)
      * @param numSym the number of allocated OFDM symbols
