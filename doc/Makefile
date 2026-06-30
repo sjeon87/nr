@@ -57,27 +57,33 @@ IMAGES_SEQDIAG = \
 	$(FIGURES)/rach/mac-random-access-noncontention.seqdiag \
 	$(FIGURES)/rrc/rrc-connection-establishment.seqdiag \
 	$(FIGURES)/rrc/rrc-connection-reconfiguration.seqdiag \
+	$(FIGURES)/rrc/x2-handover.seqdiag \
+	$(FIGURES)/pdcp/pdcp_handover.seqdiag \
+	$(FIGURES)/rrc/bwp-same-cell-switch.seqdiag \
+	$(FIGURES)/epc/attach.seqdiag \
+	$(FIGURES)/epc/handover.seqdiag \
+	$(FIGURES)/epc/release.seqdiag \
+	$(FIGURES)/epc/s1ap.seqdiag \
+	$(FIGURES)/epc/s11.seqdiag \
+	$(FIGURES)/epc/s5.seqdiag \
+	$(FIGURES)/epc/x2ap.seqdiag \
+	$(FIGURES)/epc/interfaces-overview.seqdiag \
+	$(FIGURES)/nas/qos-flow-activation.seqdiag \
 
 IMAGES_DOT = \
     $(FIGURES)/rrc/nr-ue-rrc-states.dot \
     $(FIGURES)/rrc/nr-gnb-rrc-states.dot \
+    $(FIGURES)/rlc/rlc_am_arq.dot \
+    $(FIGURES)/pdcp/pdcp_data_flow.dot \
+    $(FIGURES)/rrc/nr-ue-rlf.dot \
+    $(FIGURES)/rrc/bwp-same-cell-switch-fsm.dot \
+    $(FIGURES)/nas/nr-nas-states.dot \
+    $(FIGURES)/fh/functional-splits.dot \
+    $(FIGURES)/channel/channel-condition.dot \
 
 
 IMAGES_NOBUILD = \
     $(FIGURES_NOBUILD)/csi-test-fsm.png \
-    ${IMAGES_DOT:.dot=.png} \
-    ${IMAGES_DOT:.dot=.pdf} \
-    ${IMAGES_SEQDIAG:.seqdiag=.png} \
-    ${IMAGES_SEQDIAG:.seqdiag=.pdf} \
-    ${IMAGES_DOT:.dot=.png} \
-    ${IMAGES_DOT:.dot=.pdf} \
-    ${IMAGES_SEQDIAG:.seqdiag=.png} \
-    ${IMAGES_SEQDIAG:.seqdiag=.pdf} \
-    $(FIGURES)/1x1_1x2_chan_d_fer.png \
-	$(FIGURES)/2x2_chan_d_fer.png \
-	$(FIGURES)/protocol-stack.png \
-	$(FIGURES)/scenario-simple.png \
-	$(FIGURES)/end-to-end.png \
 
 IMAGES_BUILD = \
 	${IMAGES_DIA:.dia=.eps} \
@@ -85,17 +91,24 @@ IMAGES_BUILD = \
 	${IMAGES_DIA:.dia=.pdf} \
 	${IMAGES_EPS:.eps=.png} \
 	${IMAGES_EPS:.eps=.pdf} \
-	${IMAGES_SEQDIAG:.seqdiag=.png}
+	${IMAGES_SEQDIAG:.seqdiag=.png} \
+	${IMAGES_SEQDIAG:.seqdiag=.pdf} \
+	${IMAGES_SEQDIAG:.seqdiag=.svg} \
+	${IMAGES_DOT:.dot=.png} \
+	${IMAGES_DOT:.dot=.pdf}
 
 
 
 IMAGES = $(IMAGES_NOBUILD) $(IMAGES_BUILD)
 
-RESCALE = ../../../utils/rescale-pdf.sh
+RESCALE = ./rescale-pdf.sh
 
 %.eps : %.dia; $(DIA) -t eps $< -e $@
 %.png : %.dia; $(DIA) -t png $< -e $@
 %.png : %.seqdiag; $(SEQDIAG) -Tpng --no-transparency -o $@ $<
+%.svg : %.seqdiag
+	$(SEQDIAG) -Tsvg -o $@ $<
+	@python3 fix-svg-size.py $@
 %.png : %.dot; $(DOT) -Tpng -o$@ $<
 %.png : %.eps; $(CONVERT) $< $@
 %.pdf : %.seqdiag
