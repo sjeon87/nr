@@ -607,11 +607,15 @@ NrGnbPhy::SetN2Delay(uint32_t delay)
 }
 
 bool
-NrGnbPhy::DoesFhAllocationFit(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank) const
+NrGnbPhy::DoesFhAllocationFit(uint16_t bwpId,
+                              uint32_t mcs,
+                              uint32_t nRegs,
+                              uint8_t dlRank,
+                              uint8_t numSym) const
 {
     NS_LOG_FUNCTION(this);
     NS_ASSERT(m_nrFhPhySapProvider);
-    return m_nrFhPhySapProvider->DoesAllocationFit(bwpId, mcs, nRegs, dlRank);
+    return m_nrFhPhySapProvider->DoesAllocationFit(bwpId, mcs, nRegs, dlRank, numSym);
 }
 
 BeamId
@@ -1148,7 +1152,8 @@ NrGnbPhy::HandleFhDropping()
             if (DoesFhAllocationFit(GetBwpId(),
                                     dci->m_mcs,
                                     rbgAssigned * dci->m_numSym,
-                                    dci->m_rank) == 0)
+                                    dci->m_rank,
+                                    dci->m_numSym) == 0)
             {
                 NS_LOG_DEBUG("Dropping DCI " << *dci << " because it does not fit in FH BW");
                 indexesToDelete.push_back(index); // Add index to the list
@@ -2187,6 +2192,23 @@ NrGnbPhy::AssignStreams(int64_t stream)
     int64_t assigned = GetSpectrumPhy()->AssignStreams(stream);
     m_fhRng->SetStream(stream + assigned);
     return assigned + 1;
+}
+
+uint16_t
+NrGnbPhy::GetNumAntennaPorts() const
+{
+    auto gnbAnt = DynamicCast<NrGnbNetDevice>(m_netDevice)
+                      ->GetPhy(0)
+                      ->GetSpectrumPhy()
+                      ->GetAntenna()
+                      ->GetObject<PhasedArrayModel>();
+
+    if (gnbAnt == nullptr)
+    {
+        return 1;
+    }
+
+    return gnbAnt->GetNumPorts();
 }
 
 } // namespace ns3

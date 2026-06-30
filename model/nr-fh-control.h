@@ -31,7 +31,9 @@ class NrFhSchedSapProvider;
  * This class is used to simulate a limited-capacity fronthaul (FH) link based
  * on the FhCapacity (m_fhCapacity) set by the user, and to apply FH control
  * methods (m_fhControlMethod) in order to restrict user allocations, if they do
- * not fit in the available FH capacity. Functional split 7.2x is assumed.
+ * not fit in the available FH capacity. In addition, the class supports the analysis
+ * of multiple functional splits (FunctionalSplit), including FS 6, FS 7.3, FS 7.2,
+ * and FS 7.1. FS 7.2x is assumed by default unless another split is explicitly configured.
  *
  * Notice that for each gNB a NrFhControl instance is created, therefore, in
  * case that there are more than 1 BWPs defined, the FH link, and consequently
@@ -135,7 +137,7 @@ class NR_EXPORT NrFhControl : public Object
      *        one of its UEs has data.
      * @param capacity The fronthaul capacity (in Mbps)
      */
-    void SetCellFhCapacity(uint32_t capacity);
+    void SetCellFhCapacity(uint64_t capacity);
 
     /**
      * @brief Set the overhead for dynamic modulation compression
@@ -171,6 +173,56 @@ class NR_EXPORT NrFhControl : public Object
      *
      */
     void SetFhNumerology(uint16_t bwpId, uint16_t num);
+
+    /**
+     * @brief Different functional splits (FS) options
+     */
+    enum FunctionalSplit
+    {
+        FS_6,
+        FS_7_3,
+        FS_7_2,
+        FS_7_1,
+    };
+
+    /**
+     * @brief Set the functional split number.
+     * @param fs The functional split type
+     */
+    void SetFunctionalSplit(FunctionalSplit fs);
+
+    struct FhThrParams
+    {
+        uint16_t m_bwpId;
+        uint32_t m_mcs;
+        uint32_t m_nRegs;
+        uint8_t m_dlRank;
+        uint32_t m_numSym;
+        uint16_t m_antennaPorts;
+
+        FhThrParams(uint16_t bwpId,
+                    uint32_t mcs,
+                    uint32_t nRegs,
+                    uint8_t dlRank,
+                    uint32_t numSym,
+                    uint16_t antennaPorts)
+            : m_bwpId(bwpId),
+              m_mcs(mcs),
+              m_nRegs(nRegs),
+              m_dlRank(dlRank),
+              m_numSym(numSym),
+              m_antennaPorts(antennaPorts)
+        {
+        }
+    };
+
+    FhThrParams params{0, 0, 0, 0, 0, 0};
+
+    /**
+     * @brief Get the number of antenna ports.
+     * @return the number of antenna ports configured in the PHY
+     */
+    uint16_t GetNumAntennaPorts() const;
 
   private:
     /**
@@ -230,13 +282,18 @@ class NR_EXPORT NrFhControl : public Object
      *        fit in the available FH bandwidth.
      *
      * @param bwpId the BWP ID
-     * @param rnti the allocated MCS
+     * @param mcs the allocated MCS
      * @param nRegs the number of allocated REGs (1 REGs = 1 RB (12 subcarriers) x 1 symbol)
      * @param dlRank the DL rank (number of MIMO layers)
+     * @param numSym the number of allocated OFDM symbols
      *
      * @return true if the current allocation can fit, false if not
      */
-    bool DoGetDoesAllocationFit(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank);
+    bool DoGetDoesAllocationFit(uint16_t bwpId,
+                                uint32_t mcs,
+                                uint32_t nRegs,
+                                uint8_t dlRank,
+                                uint8_t numSym);
 
     /**
      * @brief Returns the maximum MCS that can be assigned to a
@@ -289,16 +346,20 @@ class NR_EXPORT NrFhControl : public Object
     void DoNotifyEndSlot(uint16_t bwpId, SfnSf currentSlot);
 
     /**
-     * @brief Returns the FH throughput associated to a specific allocation.
+     * @brief Returns the FH throughput associated with a specific allocation.
      *
-     * @param bwpId the BWP ID
-     * @param mcs the allocated MCS
-     * @param nRegs the number of allocated REGs (1 REGs = 1 RB (12 subcarriers) x 1 symbol)
-     * @param dlRank the DL rank (number of MIMO layers)
+     * @param params Structure containing the allocation information:
+     *        - bwpId: BWP identifier.
+     *        - mcs: Allocated MCS.
+     *        - nRegs: Number of allocated REGs
+     *                 (1 REG = 1 RB (12 subcarriers) × 1 symbol).
+     *        - dlRank: DL rank (number of MIMO layers).
+     *        - numSym: Number of allocated symbols.
+     *        - antennaPorts: Number of antenna ports.
      *
-     * @return the calculated FH throughput
+     * @return The calculated FH throughput.
      */
-    uint64_t GetFhThr(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank) const;
+    uint64_t GetFhThr(const FhThrParams& params) const;
 
     /**
      * @brief Returns the number of all active BWPs, i.e., BWPs with new data
@@ -327,6 +388,12 @@ class NR_EXPORT NrFhControl : public Object
      */
     uint8_t GetMaxMcs(uint8_t mcsTable, uint16_t modOrder) const;
 
+    /**
+     * @brief Get the functional split option number.
+     * @return the functional split number/type
+     */
+    FunctionalSplit GetFunctionalSplit() const;
+
     uint16_t m_physicalCellId; //!< Physical cell ID to which the NrFhControl instance belongs to.
 
     // FH Control - PHY SAP
@@ -338,8 +405,9 @@ class NR_EXPORT NrFhControl : public Object
         m_fhSchedSapUser;                       //!< FH Control - PHY SAP User (per bwpId)
     NrFhSchedSapProvider* m_fhSchedSapProvider; //!< FH Control -  SCHED SAP Provider
 
+    enum FunctionalSplit m_funcSplit; //!< Functional Split option
     enum FhControlMethod m_fhControlMethod;
-    uint32_t m_fhCapacity{
+    uint64_t m_fhCapacity{
         1000}; //!< the available FH capacity (in Mbps) for DL and UL (full-duplex FH link)
     uint8_t m_overheadDyn{32};    //!< the overhead (OH) for dynamic adaptation (in bits)
     uint8_t m_mcsTable{2};        //!< the MCS table
@@ -381,6 +449,13 @@ class NR_EXPORT NrFhControl : public Object
 
     NrEesmT1 nrEesmT1; //!< MCS table 1
     NrEesmT2 nrEesmT2; //!< MCS table 2
+
+    // Parameters to calculate different Functional Split (FS) capacities
+    uint32_t m_prDl = 150e6;   //!< Peak DL user data rate (PR)
+    uint32_t m_crDl = 5e6;     //!< DL control data rate (CR)
+    uint32_t m_bwDlRef = 20e6; //!< Reference downlink bandwidth in Hz
+    uint32_t m_RankDlRef = 2;  //!< Reference DL MIMO rank (number of layers)
+    uint32_t m_MDlRef = 6;     //!< Reference modulation order (bits per symbol)
 };
 
 } // end namespace ns3

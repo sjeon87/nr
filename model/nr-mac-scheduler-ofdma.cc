@@ -148,7 +148,10 @@ NrMacSchedulerOfdma::ShouldScheduleUeBasedOnFronthaul(
         GetUe(*schedInfoIt)->m_dlMcs,
         GetUe(*schedInfoIt)->m_rnti,
         GetUe(*schedInfoIt)->m_dlRank); // maxAssignable is in REGs
-    // set a minimum of the maxAssignable equal to 5 RBGs
+
+    // Set a minimum of the maxAssignable equal to 5 RBGs
+    // In some FS studies, this line was omitted to allow for smaller
+    // allocations that fit in the FhCap.
     maxAssignable = std::max(maxAssignable, 5 * resourcesAssignable);
 
     // the minimum allocation is one resource in freq, containing rbgAssignable
@@ -340,7 +343,8 @@ NrMacSchedulerOfdma::DeallocateResourcesDueToFronthaulConstraint(
             if (DoesFhAllocationFit(GetBwpId(),
                                     GetUe(schedInfoIt)->GetDlMcs(),
                                     numAssignedResourcesToUe,
-                                    GetUe(schedInfoIt)->m_dlRank) == 0)
+                                    GetUe(schedInfoIt)->m_dlRank,
+                                    beamSym) == 0)
             {
                 // remove allocation if the UE does not fit in the available FH
                 // capacity

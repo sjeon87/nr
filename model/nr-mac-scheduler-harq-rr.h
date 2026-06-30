@@ -66,8 +66,10 @@ class NR_EXPORT NrMacSchedulerHarqRr : public Object
      * @param fn the function
      */
     void InstallDoesFhAllocationFitFn(
-        const std::function<bool(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank)>&
+        const std::function<
+            bool(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank, uint8_t numSym)>&
             fn);
+
     /**
      * @brief Install a function to retrieve whether the allocation
      *        fits when FH Control is enabled
@@ -142,7 +144,11 @@ class NR_EXPORT NrMacSchedulerHarqRr : public Object
      * @brief Get from sched if the allocation fits when FH Control is enabled
      * @return whether the allocation fits
      */
-    bool GetDoesFhAllocationFit(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank) const;
+    bool GetDoesFhAllocationFit(uint16_t bwpId,
+                                uint32_t mcs,
+                                uint32_t nRegs,
+                                uint8_t dlRank,
+                                uint8_t numSym) const;
 
   private:
     /**
@@ -155,7 +161,11 @@ class NR_EXPORT NrMacSchedulerHarqRr : public Object
     std::function<uint16_t()> m_getCellId;         //!< Function to retrieve cell id
     std::function<uint16_t()> m_getBwInRbg;        //!< Function to retrieve bw in rbg
     std::function<uint8_t()> m_getFhControlMethod; //!< Function to retrieve the FH Control Method
-    std::function<bool(uint16_t bwpId, uint32_t mcs, uint32_t nRegs, uint8_t dlRank)>
+    std::function<bool(uint16_t bwpId,
+                       uint32_t mcs,
+                       uint32_t nRegs,
+                       uint8_t dlRank,
+                       uint8_t numSym)>
         m_getDoesAllocationFit; //!< Function to retrieve if allocation fits
     std::function<std::vector<DciInfoElementTdma>(const std::vector<DciInfoElementTdma>& dcis,
                                                   uint8_t& startingSymbol,
