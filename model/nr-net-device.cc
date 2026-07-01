@@ -92,14 +92,14 @@ void
 NrNetDevice::SetAddress(Address address)
 {
     NS_LOG_FUNCTION(this << address);
-    m_macaddress = Mac48Address::ConvertFrom(address);
+    m_macAddress = Mac48Address::ConvertFrom(address);
 }
 
 Address
 NrNetDevice::GetAddress() const
 {
     NS_LOG_FUNCTION(this);
-    return m_macaddress;
+    return m_macAddress;
 }
 
 bool
@@ -224,13 +224,13 @@ NrNetDevice::Receive(Ptr<Packet> p)
 
     if (m_receiveErrorModel && m_receiveErrorModel->IsCorrupt(p))
     {
-        NS_LOG_INFO("Dropping " << p->GetSize() << " bytes on " << m_macaddress);
+        NS_LOG_INFO("Dropping " << p->GetSize() << " bytes on " << m_macAddress);
         m_dropTrace(p);
         return;
     }
     if (p->PeekHeader(ipv4Header) != 0)
     {
-        NS_LOG_INFO("Received " << p->GetSize() << " bytes on " << m_macaddress
+        NS_LOG_INFO("Received " << p->GetSize() << " bytes on " << m_macAddress
                                 << ". IPv4 packet from " << ipv4Header.GetSource() << " to "
                                 << ipv4Header.GetDestination());
         m_rxTrace(p);
@@ -238,7 +238,7 @@ NrNetDevice::Receive(Ptr<Packet> p)
     }
     else if (p->PeekHeader(ipv6Header) != 0)
     {
-        NS_LOG_INFO("Received " << p->GetSize() << " bytes on " << m_macaddress
+        NS_LOG_INFO("Received " << p->GetSize() << " bytes on " << m_macAddress
                                 << ". IPv6 packet from " << ipv6Header.GetSource() << " to "
                                 << ipv6Header.GetDestination());
         m_rxTrace(p);
@@ -246,7 +246,15 @@ NrNetDevice::Receive(Ptr<Packet> p)
     }
     else
     {
-        NS_ABORT_MSG("Unknown IP type");
+        // The packet handed up here is neither IPv4 nor IPv6. In a correct stack this
+        // never happens, but a incorrectly reassembled RLC-UM SDU (e.g. a segment concatenated
+        // across an undetected discontinuity during fast-channel/handover loss) can
+        // surface a non-IP buffer. A real UE's IP layer simply discards a packet with an
+        // unrecognized version field; aborting the whole simulation over one corrupt
+        // data-plane SDU is too strict, so drop and trace it instead.
+        NS_LOG_WARN("Dropping " << p->GetSize() << " bytes with unrecognized IP version on "
+                                << m_macAddress << " (malformed or incorrectly reassembled SDU)");
+        m_dropTrace(p);
     }
 }
 

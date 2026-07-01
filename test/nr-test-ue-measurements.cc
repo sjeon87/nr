@@ -77,150 +77,154 @@ RecvMeasurementReportCallback(NrUeMeasurementsTestCase* testcase,
 NrUeMeasurementsTestSuite::NrUeMeasurementsTestSuite()
     : TestSuite("nr-ue-measurements", Type::SYSTEM)
 {
-    // todo: all rsrq values must be updated when we start reporting them
+    // RSRQ expectations are the NR fully-loaded RSRQ: RSSI is the total received
+    // power over all 12 subcarriers per RB (NrSpectrumValueHelper::SUBCARRIERS_PER_RB),
+    // so a dominant cell reads RSRP / (12 * RSRP) = 1/12 ~ -10.8 dB. These differ from
+    // the legacy LTE placeholders (which assumed an unloaded cell, max RSRQ -3 dB) by a
+    // fixed 10*log10(12/2) = 7.78 dB for the dominant-cell cases.
     AddTestCase(new NrUeMeasurementsTestCase("d1=10, d2=10000",
                                              10.000000,
                                              10000.000000,
                                              -56.33,
                                              -116.33,
-                                             -3.01,
-                                             -63.01),
+                                             -10.7918,
+                                             -70.7918),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=20, d2=10000",
                                              20.000000,
                                              10000.000000,
                                              -62.35,
                                              -116.33,
-                                             -3.01,
-                                             -56.99),
+                                             -10.7918,
+                                             -64.7712),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=50, d2=10000",
                                              50.000000,
                                              10000.000000,
                                              -70.31,
                                              -116.33,
-                                             -3.010421,
-                                             -49.031021),
+                                             -10.7919,
+                                             -56.8125),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=100, d2=10000",
                                              100.000000,
                                              10000.000000,
                                              -76.33,
                                              -116.33,
-                                             -3.010783,
-                                             -43.010783),
+                                             -10.7923,
+                                             -50.7923),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=200, d2=10000",
                                              200.000000,
                                              10000.000000,
                                              -82.35,
                                              -116.33,
-                                             -3.012232,
-                                             -36.991632),
+                                             -10.7937,
+                                             -44.7731),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=100, d2=10000",
                                              100.000000,
                                              10000.000000,
                                              -76.33,
                                              -116.33,
-                                             -3.010783,
-                                             -43.010783),
+                                             -10.7923,
+                                             -50.7923),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=200, d2=10000",
                                              200.000000,
                                              10000.000000,
                                              -82.35,
                                              -116.33,
-                                             -3.012232,
-                                             -36.991632),
+                                             -10.7937,
+                                             -44.7731),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=500, d2=10000",
                                              500.000000,
                                              10000.000000,
                                              -90.32,
                                              -116.33,
-                                             -3.022359,
-                                             -29.042959),
+                                             -10.8035,
+                                             -36.8241),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=1000, d2=10000",
                                              1000.000000,
                                              10000.000000,
                                              -96.33,
                                              -116.33,
-                                             -3.058336,
-                                             -23.058336),
+                                             -10.8385,
+                                             -30.8385),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=2000, d2=10000",
                                              2000.000000,
                                              10000.000000,
                                              -102.35,
                                              -116.33,
-                                             -3.199337,
-                                             -17.178738),
+                                             -10.9758,
+                                             -24.9552),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=5000, d2=10000",
                                              5000.000000,
                                              10000.000000,
                                              -110.31,
                                              -116.33,
-                                             -4.075793,
-                                             -10.096393),
+                                             -11.8312,
+                                             -17.8518),
                 TestCase::Duration::QUICK);
     AddTestCase(new NrUeMeasurementsTestCase("d1=10000, d2=10000",
                                              10000.000000,
                                              10000.000000,
                                              -116.33,
                                              -116.33,
-                                             -6.257687,
-                                             -6.257687),
+                                             -13.9758,
+                                             -13.9758),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=20000, d2=10000",
                                              20000.000000,
                                              10000.000000,
                                              -122.35,
                                              -116.33,
-                                             -10.373365,
-                                             -4.352765),
+                                             -18.0562,
+                                             -12.0356),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=50000, d2=10000",
                                              50000.000000,
                                              10000.000000,
                                              -130.31,
                                              -116.33,
-                                             -17.605046,
-                                             -3.625645),
+                                             -25.2697,
+                                             -11.2903),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=100000, d2=10000",
                                              100000.000000,
                                              10000.000000,
                                              -136.33,
                                              -116.33,
-                                             -23.511071,
-                                             -3.511071),
+                                             -31.1725,
+                                             -11.1725),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=200000, d2=10000",
                                              200000.000000,
                                              10000.000000,
                                              -142.35,
                                              -116.33,
-                                             -29.502549,
-                                             -3.481949),
+                                             -37.1632,
+                                             -11.1426),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=500000, d2=10000",
                                              500000.000000,
                                              10000.000000,
                                              -150.31,
                                              -116.33,
-                                             -37.453160,
-                                             -3.473760),
+                                             -45.1136,
+                                             -11.1342),
                 TestCase::Duration::EXTENSIVE);
     AddTestCase(new NrUeMeasurementsTestCase("d1=1000000, d2=10000",
                                              1000000.000000,
                                              10000.000000,
                                              -156.33,
                                              -116.33,
-                                             -43.472589,
-                                             -3.472589),
+                                             -51.1330,
+                                             -11.1330),
                 TestCase::Duration::EXTENSIVE);
 }
 
@@ -385,8 +389,7 @@ NrUeMeasurementsTestCase::ReportUeMeasurements(uint16_t rnti,
                                               << m_rsrpDbmUeServingCell << " RSRQ " << rsrq
                                               << " thr " << m_rsrqDbUeServingCell);
             NS_TEST_ASSERT_MSG_EQ_TOL(rsrp, m_rsrpDbmUeServingCell, 0.2, "Wrong RSRP UE 1");
-            // todo: enable when we report RSRQ
-            // NS_TEST_ASSERT_MSG_EQ_TOL(rsrq, m_rsrqDbUeServingCell, 0.2, "Wrong RSRQ UE 1");
+            NS_TEST_ASSERT_MSG_EQ_TOL(rsrq, m_rsrqDbUeServingCell, 0.2, "Wrong RSRQ UE 1");
         }
         else
         {
@@ -394,8 +397,7 @@ NrUeMeasurementsTestCase::ReportUeMeasurements(uint16_t rnti,
                                                << m_rsrpDbmUeNeighborCell << " RSRQ " << rsrq
                                                << " thr " << m_rsrqDbUeNeighborCell);
             NS_TEST_ASSERT_MSG_EQ_TOL(rsrp, m_rsrpDbmUeNeighborCell, 0.2, "Wrong RSRP UE 2");
-            // todo: enable when we report RSRQ
-            // NS_TEST_ASSERT_MSG_EQ_TOL(rsrq, m_rsrqDbUeNeighborCell, 0.2, "Wrong RSRQ UE ");
+            NS_TEST_ASSERT_MSG_EQ_TOL(rsrq, m_rsrqDbUeNeighborCell, 0.2, "Wrong RSRQ UE 2");
         }
     }
 }

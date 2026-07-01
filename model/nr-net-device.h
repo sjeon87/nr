@@ -85,7 +85,7 @@ class NR_EXPORT NrNetDevice : public NetDevice
     virtual bool DoSend(Ptr<Packet> packet, const Address& dest, uint16_t protocolNumber) = 0;
 
   private:
-    Mac48Address m_macaddress;
+    Mac48Address m_macAddress;
     Ptr<Node> m_node;
     Ptr<ErrorModel> m_receiveErrorModel; ///< Error model for receive packet events
     mutable uint16_t m_mtu;

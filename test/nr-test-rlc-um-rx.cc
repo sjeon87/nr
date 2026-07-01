@@ -170,6 +170,70 @@ NrRlcUmTestCase::DoRun()
     }
 }
 
+/**
+ * @ingroup tests
+ *
+ * @brief Regression test for the RLC UM reassembly t-Reordering discard.
+ *
+ * Reproduces the condition that produced corrupt (non-IP) SDUs during fast handovers:
+ * a first SDU segment (S0) is received and kept (state WAITING_SI_SF) awaiting a
+ * continuation that is then lost. Per TS 38.322 (5.1.2.2.4 / 5.2.2.2) the un-completable
+ * partial SDU must be discarded when t-Reordering expires. Without that discard the stale
+ * S0 survives until the 10-bit SN wraps (~1024 PDUs), after which an unrelated later
+ * segment aliases as the awaited continuation and is concatenated onto the stale head,
+ * delivering a corrupt SDU upwards. This test asserts the discard happens.
+ */
+class NrRlcUmReorderingDiscardTestCase : public TestCase
+{
+  public:
+    NrRlcUmReorderingDiscardTestCase()
+        : TestCase("Test RLC UM RX: stranded partial SDU discarded on t-Reordering expiry")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmReorderingDiscardTestCase::DoRun()
+{
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    Ptr<NrTestPdcp> rxPdcp = CreateObject<NrTestPdcp>();
+    rlc->SetNrRlcSapUser(rxPdcp->GetNrRlcSapUser());
+
+    // Put the reassembler mid-SDU: a first segment (S0) has been received and is held,
+    // awaiting its continuation at SN = m_expectedSeqNumber (= VR(UR) = 200). That
+    // continuation is lost (not in m_rxBuffer) and a reordering gap is open.
+    rlc->m_keepS0 = Create<Packet>(40);
+    rlc->m_reassemblingState = NrRlcUm::WAITING_SI_SF;
+    rlc->m_windowSize = 512;
+    rlc->m_expectedSeqNumber = nr::SequenceNumber10(200);
+    rlc->m_vrUr = 200; // awaited (missing) SN
+    rlc->m_vrUx = 200;
+    rlc->m_vrUh = 200; // no further buffered SNs -> timer is not rescheduled
+
+    NS_TEST_ASSERT_MSG_EQ((int)rlc->m_reassemblingState,
+                          (int)NrRlcUm::WAITING_SI_SF,
+                          "precondition: reassembler holds a partial SDU");
+    NS_TEST_ASSERT_MSG_EQ((rlc->m_keepS0 != nullptr), true, "precondition: S0 is held");
+
+    // t-Reordering expiry: the missing continuation will never arrive.
+    rlc->ExpireReorderingTimer();
+
+    NS_TEST_ASSERT_MSG_EQ((int)rlc->m_reassemblingState,
+                          (int)NrRlcUm::WAITING_S0_FULL,
+                          "stranded partial SDU must reset the reassembly state on t-Reordering "
+                          "expiry");
+    NS_TEST_ASSERT_MSG_EQ((rlc->m_keepS0 == nullptr),
+                          true,
+                          "stranded partial SDU (S0) must be discarded on t-Reordering expiry");
+    NS_TEST_ASSERT_MSG_EQ(rxPdcp->GetDataReceived().size(),
+                          0,
+                          "no corrupt SDU may be delivered to PDCP when the partial SDU is "
+                          "discarded");
+}
+
 class NrRlcUmTestSuite : public TestSuite
 {
   public:
@@ -177,6 +241,7 @@ class NrRlcUmTestSuite : public TestSuite
         : TestSuite("nr-test-rlc-um-rx", Type::SYSTEM)
     {
         AddTestCase(new NrRlcUmTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmReorderingDiscardTestCase(), Duration::QUICK);
     }
 };
 

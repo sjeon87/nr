@@ -288,7 +288,8 @@ class CheckPrefix(BaseCheck):
                 last_dash = lcp.rfind("-")
                 if last_dash > 0:
                     common_segment = lcp[:last_dash]  # e.g., "nr-epc"
-                    candidate = common_segment + "-*"
+                    # Collapse the bare "nr-*" wildcard to the module prefix "nr".
+                    candidate = "nr" if common_segment == "nr" else common_segment + "-*"
                     if len(candidate) <= 40:
                         wildcard = [candidate]
 
@@ -332,7 +333,8 @@ class CheckPrefix(BaseCheck):
             "   1.Commits touching up to 3 distinct files should use their "
             "lowercase, extension-less names as the prefix, provided that the "
             "resulting prefix is at most 40 characters long. When those names "
-            "share a common prefix, a single '<common-prefix>-*' wildcard is also allowed.\n"
+            "share a common prefix, a single '<common-prefix>-*' wildcard is also allowed "
+            "(the bare 'nr-*' wildcard is collapsed to 'nr').\n"
             "   2.Commits touching more than 3 distinct files, or for which no "
             "filename-based prefix fits within 40 characters, should use their "
             "closest common parent directory as a prefix."
