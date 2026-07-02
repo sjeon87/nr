@@ -73,10 +73,10 @@ It is meant to be a compact, “at-a-glance” view, complementary to the detail
 | [Beam management (sweep/track)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#beamforming-model)          | ⚙️ Partial  | Simplified model; no SSB blocks                                                              |
 | **🟩 Supported channel models**                                                                                  |             |                                                                                              |
 | [3GPP TR 38.901](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-channel-helper)                         | ✅ Supported | UMi/UMa/RMa/InH/InF/V2V/NTN (**NR-v2.1**), O2I penetration loss; shadowing; fast fading      |
-| [Spatial consistency](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-channel-helper)                    | ⚙️ Ongoing  | 3GPP TR 38.901  Procedure A; temporal consistency                                            |
+| [Spatial consistency](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-channel-helper)                    | ✅ Supported | 3GPP TR 38.901  Procedure A; temporal consistency                                            |
 | [NYUSIM](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-channel-helper)                                 | ✅ Supported | NYU mmWave/THz channel; based on real NYU measurements (**NR-v4.0**)                         |
 | [Fluctuating Two-Ray (FTR)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-channel-helper)              | ✅ Supported | FTR model built on top of 3GPP pathloss/channel for fast abstraction; (**NR-v4.0**)          |
-| [Sionna Ray Tracing](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-channel-helper)                     | ⚙️ Ongoing  | Sionna-based channel model for the precise simulation of radio wave propagation              |
+| [Sionna Ray Tracing](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-channel-helper)                     | ✅ Supported | Sionna-based channel model for the precise simulation of radio wave propagation              |
 | [Legacy ns-3 non-spatial/Friis channel](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-channel-helper)  | ✅ Supported | ns-3 legacy non-spatial channel models; Ideal for large-scale simulations (**NR-v4.0**)      |
 
 ---
@@ -103,29 +103,29 @@ It is meant to be a compact, “at-a-glance” view, complementary to the detail
 | [Notching mask](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#ufa-aka-notching)                                            | ✅ Supported | UFA masks per-BWP and per-cell; configurable notched RBGs                                   |
 | [CC / BWP managers](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#bwp-manager)                                             | ✅ Supported | Multi-carrier; FDM of numerologies; CC/BWP routing                                          |
 | [Carrier Aggregation (CA)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#bwp-manager)                                      | ✅ Supported | Multiple CC/BWPs with flexible mapping                                                      |
-| [RACH](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#mac-layer)                                                            | ⚙️ Ongoing  | Contention-based for initial access; RA preamble, RAR, MSG3                                 |
+| [RACH](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#mac-layer)                                                            | ✅ Supported | Contention-based for initial access; RA preamble, RAR, MSG3                                 |
 | [Fronthaul Control](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#fronthaul-control)                                       | ✅ Supported | 7.2x split; Limited-capacity FH link; Dropping, Postponing, Optimize MCS/RBs; (**NR-v3.3**) |
 
 ---
 
 ### RLC / PDCP / RRC / Core
 
-| Feature                                                                                | Status      | Notes                                                         |
-|----------------------------------------------------------------------------------------|-------------|---------------------------------------------------------------|
+| Feature                                                                                | Status       | Notes                                                         |
+|----------------------------------------------------------------------------------------|--------------|---------------------------------------------------------------|
 | [RLC AM / UM / TM](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#rlc-layer)     | ✅ Supported | LTE-based                                                     |
 | [PDCP](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#pdcp-layer)                | ✅ Supported | Basic header compression                                      |
 | [5QI handling](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#qos-schedulers)    | ✅ Supported | QoS per flow; PDCP discard timer; RLC reordering window timer |
-| [SDAP](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#sdap-layer)                | ⚙️ Ongoing  | Maybe will be contributed soon                                |
-| [RRC](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#rrc-layer)                  | ⚙️ Ongoing  | Ideal RRC; Real RRC, RLF, Handover ongoing                    |
+| [SDAP](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#sdap-layer)                | ⚙️ Ongoing   | Maybe will be contributed soon                                |
+| [RRC](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#rrc-layer)                  | ✅ Supported | Ideal RRC; Real RRC, RLF, Handover ongoing                    |
 | [Multi-flow per UE](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#architecture) | ✅ Supported | Independent bearers                                           |
-| [EPC/5GC integration](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#epc-model)  | ⚙️ Partial  | Via LTE-EPC model                                             |
+| [EPC/5GC integration](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#epc-model)  | ✅ Supported | Via LTE-EPC model                                             |
 
 ---
 
 ### Application layer - Traffic Models
 
-| Feature                                                                                                                            | Status      | Notes                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| Feature                                                                                                                            | Status       | Notes                                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------|--------------|-----------------------------------------------------------------------|
 | [NGMN apps (FTP, video, gaming, VoIP)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#ngmn-mixed-and-3gpp-xr-traffic-models) | ✅ Supported | NGMN-based traffic generators; NGMN mixed traffic model (**NR-v2.4**) |
 | [3GPP XR (VR/AR/CG)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#ngmn-mixed-and-3gpp-xr-traffic-models)                   | ✅ Supported | 3GPP TR 38.838 XR traffic profiles; multi-flow XR models              |
 | [3GPP FTP (Model 1)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#ngmn-mixed-and-3gpp-xr-traffic-models)                   | ✅ Supported | 3GPP FTP Model 1; TR 36.814 (**NR-v1.2**)                             |
@@ -185,8 +185,8 @@ Sidelink and NR V2X extension documentation can be
 found [here](https://5g-lena.cttc.es/static/archive/NR_V2X_V0.1_doc.pdf) Section
 2.16. For the installation follow the [instructions](https://gitlab.com/cttc-lena/nr/-/blob/nr-v2x-dev/README.md).
 
-| Feature                          | Status          | Notes                                 |
-|----------------------------------|-----------------|---------------------------------------|
+| Feature                          | Status           | Notes                                  |
+|----------------------------------|------------------|----------------------------------------|
 | Broadcast                        | ✅ Supported     | Mode 4-like broadcast                 |
 | Out-of-coverage                  | ✅ Supported     | V2V communication, No gNB required    |
 | PSCCH/PSSCH                      | ✅ Supported     | Time multiplexing of PSCCH and PSSCH  |
@@ -222,12 +222,12 @@ README.md.
 The current NR-U code is compatible with 5G-LENA v1.2 and ns-3.35 (since July 2021). **Not under active development**,
 but it may get updated. (If interested in contributing, contact us.)
 
-| Feature                 | Status          | Notes                                                                       |
-|-------------------------|-----------------|-----------------------------------------------------------------------------|
+| Feature                 | Status          | Notes                                                                        |
+|-------------------------|-----------------|------------------------------------------------------------------------------|
 | LBT Cat 2/3/4           | ✅ Supported     | ETSI-compliant LBT; LBT after MAC; ED omnidirectional                       |
 | Channel Access Managers | ✅ Supported     | Per-BWP and per-node channel access; Modes: AlwaysOn, OnOff duty cycle, LBT |
-| Wi-Fi coexistence       | ⚙️ Experimental | Coexistence with ns-3 Wi-Fi                                                 |
-| Directional LBT         | ⚙️ Experimental | LBT with directional beams; null-space projected LBT and precoding          |
+| Wi-Fi coexistence       | ⚙️ Experimental | Coexistence with ns-3 Wi-Fi                                                  |
+| Directional LBT         | ⚙️ Experimental | LBT with directional beams; null-space projected LBT and precoding           |
 
 
 ---

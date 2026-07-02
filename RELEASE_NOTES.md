@@ -15,8 +15,60 @@ http://www.nsnam.org including tutorials: https://www.nsnam.org/documentation/
 Consult the file CHANGES.md for more detailed information about changed
 API and behavior across releases.
 
-Release NR-dev
+Release NR-v5.0
+---------------
+
+Availability
+------------
+July 3, 2026.
+
+Cite this version
+-----------------
+DOI: 10.5281/zenodo.21165297
+
+Supported platforms
+-------------------
+This release has been tested on the following platforms:
+- x86_64
+  - Arch Linux with g++-15 and clang-20.
+  - Ubuntu 22.04 with g++11 and 12 and clang-11 and 14.
+  - Ubuntu 23.04 with g++13.
+  - Ubuntu 25.10 (Questing Quokka) with g++15 and clang-20.
+- ARM
+  - Ubuntu 25.10 (Oracular Oriole) with g++15 and clang-20.
+  - MacOS Sequoia 15.4.1 with AppleClang 17.
+
+This release is compatible with ns-3.48.
+
+Important news
 --------------
+- FDD users should apply the ns-3 patch from merge request
+  https://gitlab.com/nsnam/ns-3-dev/-/merge_requests/2929, which solves an
+  important bug that could cause UEs in NLOS condition to receive 30 dB less
+  power (we measured up to a 1.4x decrease in the number of corrupted UL
+  transport blocks after applying it). TDD users are not affected.
+- Users are encouraged to apply the ns-3 patch from merge request
+  https://gitlab.com/nsnam/ns-3-dev/-/merge_requests/2883 for much faster
+  3GPP channel computations.
+- The NR module now builds on Windows: internal symbols are hidden and the
+  public API is exported through the new ``NR_EXPORT`` macro.
+- Major overhaul of the handover, RRC and radio-link-failure machinery:
+  inter-frequency and inter-numerology handovers, a same-cell primary-BWP
+  switch mechanism, Cell Individual Offset (CIO) handover biasing, msg3 HARQ
+  retransmissions, RRC real mode fixes, FDD support in the RLF/RRC procedures,
+  and much wider test coverage (X2 handover, inter-frequency handover, BWP
+  switch, RLF over RRC ideal/real in TDD and FDD).
+- The UE measurement chain was corrected: RSRP is averaged in the linear
+  domain (fixing reports stuck at range 0 in multi-cell scenarios with data
+  traffic), the RSRP reporting range mapping was updated to 5G-NR, RSRQ is now
+  interference-aware, and the beam-scan and SRS channel-estimation models of
+  the beamforming algorithms were fixed.
+- The fronthaul control model now supports selecting the functional split
+  (FS 6, 7.1, 7.2 and 7.3), with per-split fronthaul throughput computations.
+- The documentation was heavily extended: new per-layer design chapters (PHY,
+  MAC, RLC, PDCP, SDAP, RRC, NAS, EPC and the S1/S5/S11/X2 interfaces),
+  sequence diagrams and state machines generated from committed sources, and
+  traffic-pattern figures generated from simulation runs.
 
 New user-visible features
 -------------------------
@@ -24,6 +76,58 @@ New user-visible features
   deployment with ``NrChannelHelper`` configured to use the Sionna RT channel
   model. The example exposes Sionna RT scene and path-solver parameters on the
   command line and is built only when Sionna RT dependencies are available.
+- Added the ``gsoc-leo-demo-example`` NTN example (GSoC 2025), integrating LEO
+  satellite mobility with the 3GPP NTN channel and propagation models, with
+  representative direct-to-mobile, VSAT and backhaul deployment presets.
+- Added a same-cell primary-BWP switch mechanism driven by per-carrier RSRP
+  measurements (``NrUeRrc::BwpSwitchHysteresis``).
+- Added inter-frequency handover support with the corresponding measurement
+  configuration, and inter-numerology handover continuity.
+- Added Cell Individual Offset (CIO/CRE) support for handover biasing,
+  including negative offsets (TR 36.839 Set 5).
+- Added msg3 HARQ retransmissions (``NrMacSchedulerNs3::Msg3MaxRetx``).
+- Added the option to declare RLF on RLC-AM maximum retransmissions
+  (``NrUeRrc::RlcMaxRetxTriggersRlf``, TS 38.331 Section 5.3.10.3).
+- Added fronthaul functional split selection (``NrFhControl::FunctionalSplit``)
+  and fronthaul capacity handling for full-duplex fronthaul links.
+- Unified RNG stream assignment behind ``NrHelper::AssignStreams()`` for
+  reproducible simulations.
+
+Bugs fixed
+----------
+- Fixed the code block segmentation count in NrAmc::CalculateTbSize: the
+  number of code blocks was computed with an integer division truncated
+  before applying ceil (TS 38.212 Section 5.2.2 mandates a real-valued
+  division), undercounting the code block CRC overhead and over-estimating
+  the usable transport block size.
+- Fixed UE RSRP measurement overflow (sample counter wrap) and dB-domain
+  averaging corruption, which produced out-of-range RSRP values and permanently
+  stalled A3-triggered handovers in multi-cell scenarios with data traffic.
+- Fixed RLC-UM reassembly delivering corrupt SDUs after t-Reordering expiry,
+  the RLC-UM PDCP discard being a no-op, and invalid framing-info transitions
+  (#272).
+- Fixed the receive-side zenith step in the ideal and realistic beam scans
+  (#276).
+- Fixed the realistic beamforming SRS channel estimation to match the
+  documented reference model (time-domain filtering gain and total error
+  variance).
+- Fixed a DL HARQ symAvail double-count underflow (#278).
+- Fixed a heap overflow in the HARQ round-robin beam ordering.
+- Fixed the RA-preamble sentinel so idle UEs do not match stray RARs.
+- Fixed the radio environment map helper to use the origin antenna element
+  type when copying antennas (#274).
+- Fixed X2 status serialization/deserialization, the X2 interfaces setup, and
+  the RRC bandwidth ASN.1 (de)serialization (FR1/FR2 CHOICE encoding).
+- Fixed non-deterministic behavior from unstable sorts and standard shuffles
+  (#250).
+- Fixed the outdoor UE speed being stuck at the indoor value in the hexagonal
+  grid scenario helper.
+- Fixed endless rescheduling of delayed measurement reports and handovers.
+
+Known issues
+------------
+In general, known issues are tracked on the project tracker available
+at https://gitlab.com/cttc-lena/nr/-/issues
 
 Release NR-v4.2
 ---------------
