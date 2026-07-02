@@ -71,7 +71,7 @@ NrRlcUm::GetTypeId()
                           UintegerValue(0),
                           MakeUintegerAccessor(&NrRlcUm::m_discardTimerMs),
                           MakeUintegerChecker<uint32_t>())
-            .AddAttribute("OutOfOfOrderDelivery",
+            .AddAttribute("OutOfOrderDelivery",
                           "Whether to deliver RLC SDUs out of order without waiting for a "
                           "reordering timer to expire",
                           BooleanValue(false),
@@ -102,7 +102,7 @@ NrRlcUm::DoTransmitPdcpPdu(Ptr<Packet> p)
     {
         if (m_enablePdcpDiscarding)
         {
-            // discart the packet
+            // discard the packet
             uint32_t headOfLineDelayInMs = 0;
             uint32_t discardTimerMs =
                 (m_discardTimerMs > 0) ? m_discardTimerMs : m_packetDelayBudgetMs;
@@ -120,6 +120,12 @@ NrRlcUm::DoTransmitPdcpPdu(Ptr<Packet> p)
                 NS_LOG_DEBUG("m_packetDelayBudgetMs    = " << m_packetDelayBudgetMs);
                 NS_LOG_DEBUG("packet size     = " << p->GetSize());
                 m_txDropTrace(p);
+
+                // The packet has been discarded, so do not store it in the Tx buffer.
+                // A Buffer Status Report is still issued below to reflect the current state.
+                DoTransmitBufferStatusReport();
+                m_bsrTimer.Cancel();
+                return;
             }
         }
 
@@ -506,6 +512,10 @@ NrRlcUm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
     }
     else
     {
+        NS_ASSERT_MSG(m_rxBuffer.count(seqNumber.GetValue()) == 0,
+                      "INTERNAL ERROR: PDU with SN=" << seqNumber.GetValue()
+                                                     << " already exists in the RX buffer.");
+
         NS_LOG_LOGIC("Place PDU in the reception buffer");
         m_rxBuffer[seqNumber.GetValue()] = rxPduParams.p;
     }
@@ -755,10 +765,13 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
                 break;
 
             case (NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::LAST_BYTE):
+                // An in-sequence continuation may be received in WAITING_S0_FULL when the
+                // held first segment was discarded on t-Reordering expiry. Recover as in
+                // the loss path: drop the orphaned continuation and resynchronise.
                 m_reassemblingState = WAITING_S0_FULL;
 
                 /**
-                 * Discard SI or SN
+                 * Discard SN
                  */
                 m_sdusBuffer.pop_front();
 
@@ -894,8 +907,12 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
                 /**
                  * ERROR: Transition not possible
                  */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
+                NS_ASSERT_MSG(false,
+                              "INTERNAL ERROR: We are in the WAITING_SI_SF state and no packet "
+                              "loss has occurred, "
+                              "so the received RLC PDU is expected to have FI = 10 (2) or FI = 11 "
+                              "(3), not FI = "
+                                  << (uint32_t)framingInfo);
                 break;
             }
             break;
@@ -1182,10 +1199,10 @@ NrRlcUm::ReassembleSnInterval(nr::SequenceNumber10 lowSeqNumber, nr::SequenceNum
     {
         NS_LOG_LOGIC("reassembleSn < highSeqNumber");
         auto it = m_rxBuffer.find(reassembleSn.GetValue());
-        NS_LOG_LOGIC("it->first  = " << it->first);
-        NS_LOG_LOGIC("it->second = " << it->second);
         if (it != m_rxBuffer.end())
         {
+            NS_LOG_LOGIC("it->first  = " << it->first);
+            NS_LOG_LOGIC("it->second = " << it->second);
             NS_LOG_LOGIC("SN = " << it->first);
 
             // Reassemble RLC SDUs and deliver the PDCP PDU to upper layer

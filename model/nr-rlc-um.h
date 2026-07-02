@@ -90,6 +90,10 @@ class NR_EXPORT NrRlcUm : public NrRlc
                                   ///<  RLC UM RX verification
     /// Grant the t-Reordering discard regression test access to private reassembly state
     friend class NrRlcUmReorderingDiscardTestCase;
+    /// Grant the PDCP discard regression test access to private transmit buffer state
+    friend class NrRlcUmTxPdcpDiscardTestCase;
+    /// Grant the ReassembleSnInterval gap regression test access to private reception state
+    friend class NrRlcUmReassembleGapTestCase;
     uint32_t m_maxTxBufferSize; ///< maximum transmit buffer status
     uint32_t m_txBufferSize;    ///< transmit buffer size
 
