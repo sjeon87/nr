@@ -9,7 +9,7 @@
 # to True.
 
 # We support from 10 to the latest version. Check if everything builds fine
-# under debug, default, and optimized, on Linux.
+# under debug, default, and release, on Linux.
 
 .weekly-build-gcc-base:
   extends: .base-build
@@ -56,11 +56,11 @@ weekly-build-gcc-11-default:
     COMPILER: g++-11
     LIBGSL: libgsl27
 
-weekly-build-gcc-11-optimized:
+weekly-build-gcc-11-release:
   extends: .weekly-build-gcc-base
   image: ubuntu:22.04
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: g++-11
     LIBGSL: libgsl27
 
@@ -81,11 +81,11 @@ weekly-build-gcc-12-default:
     COMPILER: g++-12
     LIBGSL: libgsl27
 
-weekly-build-gcc-12-optimized:
+weekly-build-gcc-12-release:
   extends: .weekly-build-gcc-base
   image: ubuntu:22.04
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: g++-12
     LIBGSL: libgsl27
 
@@ -106,29 +106,29 @@ weekly-build-gcc-13-default:
     COMPILER: g++-13
     LIBGSL: libgsl27
 
-weekly-build-gcc-13-optimized:
+weekly-build-gcc-13-release:
   extends: .weekly-build-gcc-base
   image: ubuntu:24.04
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: g++-13
     LIBGSL: libgsl27
 
-weekly-build-gcc-13-optimized-sanitizers:
+weekly-build-gcc-13-release-sanitizers:
   extends: .weekly-build-gcc-base
   image: ubuntu:24.04
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: g++-13
     EXTRAS: --enable-sanitizers
   tags:
     - CTTC
 
-weekly-build-gcc-13-optimized-noeigen:
+weekly-build-gcc-13-release-noeigen:
   extends: .weekly-build-gcc-base
   image: ubuntu:24.04
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: g++-13
     EXTRAS: --disable-eigen
 
@@ -174,10 +174,10 @@ weekly-build-gcc-rolling-default:
   variables:
     MODE: default
 
-weekly-build-gcc-rolling-optimized:
+weekly-build-gcc-rolling-release:
   extends: .weekly-build-gcc-ubuntu-rolling
   variables:
-    MODE: optimized
+    MODE: release
 
 weekly-regression-testing:
   image: ubuntu:rolling
@@ -189,7 +189,7 @@ weekly-regression-testing:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       when: manual
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: g++
     REGRESSION_TEST: "true"
   allow_failure: true
