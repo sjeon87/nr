@@ -16,10 +16,13 @@ FIGURES_NOBUILD = figures
 # specify dia figures from which .png and .pdf figures need to be built
 
 IMAGES_DIA = \
+    $(FIGURES)/nr-diagram.dia \
 	$(FIGURES)/ulpc/nr-clpc.dia \
 	$(FIGURES)/rbf-impl.dia \
-#	$(FIGURES)/*.dia
-
+    $(FIGURES)/sap-diagrams/nr-ue-data-plane.dia \
+    $(FIGURES)/sap-diagrams/nr-ue-ctrl-plane.dia \
+    $(FIGURES)/sap-diagrams/nr-gnb-ctrl-plane.dia \
+    $(FIGURES)/sap-diagrams/nr-gnb-data-plane.dia \
 
 # specify eps figures from which .png and .pdf figures need to be built
 
@@ -40,6 +43,8 @@ IMAGES_EPS = \
 	$(FIGURES)/snrs-r1-sh1-aoZ0-amGnb3GPP-amUe3GPP-scInH-ShoppingMall-sp3-bs0-ang10-gmWALL.eps\
 
 # rescale pdf figures as necessary
+$(FIGURES)/rach/mac-random-access-contention.pdf_width = 10cm
+$(FIGURES)/rach/mac-random-access-noncontention.pdf_width = 15cm
 #$(FIGURES)/lte-unlicensed-interference-test-scenario.pdf_width = 8cm
 #$(FIGURES)/legacy-snir.pdf_width = 10cm
 
@@ -48,26 +53,37 @@ IMAGES_SEQDIAG = \
 	$(FIGURES)/nr-ue-context-removal-from-epc.seqdiag \
 	$(FIGURES)/nr-ue-context-removal-from-gnb-stack.seqdiag \
 	$(FIGURES)/nr-ue-procedures-after-rlf.seqdiag \
-#	$(FIGURES)/figure-name.seqdiag \
-
+	$(FIGURES)/rach/mac-random-access-contention.seqdiag \
+	$(FIGURES)/rach/mac-random-access-noncontention.seqdiag \
+	$(FIGURES)/rrc/rrc-connection-establishment.seqdiag \
+	$(FIGURES)/rrc/rrc-connection-reconfiguration.seqdiag \
+	$(FIGURES)/rrc/x2-handover.seqdiag \
+	$(FIGURES)/pdcp/pdcp_handover.seqdiag \
+	$(FIGURES)/rrc/bwp-same-cell-switch.seqdiag \
+	$(FIGURES)/epc/attach.seqdiag \
+	$(FIGURES)/epc/handover.seqdiag \
+	$(FIGURES)/epc/release.seqdiag \
+	$(FIGURES)/epc/s1ap.seqdiag \
+	$(FIGURES)/epc/s11.seqdiag \
+	$(FIGURES)/epc/s5.seqdiag \
+	$(FIGURES)/epc/x2ap.seqdiag \
+	$(FIGURES)/epc/interfaces-overview.seqdiag \
+	$(FIGURES)/nas/qos-flow-activation.seqdiag \
 
 IMAGES_DOT = \
-#	$(FIGURES)/figure-name.dot \
+    $(FIGURES)/rrc/nr-ue-rrc-states.dot \
+    $(FIGURES)/rrc/nr-gnb-rrc-states.dot \
+    $(FIGURES)/rlc/rlc_am_arq.dot \
+    $(FIGURES)/pdcp/pdcp_data_flow.dot \
+    $(FIGURES)/rrc/nr-ue-rlf.dot \
+    $(FIGURES)/rrc/bwp-same-cell-switch-fsm.dot \
+    $(FIGURES)/nas/nr-nas-states.dot \
+    $(FIGURES)/fh/functional-splits.dot \
+    $(FIGURES)/channel/channel-condition.dot \
 
 
 IMAGES_NOBUILD = \
     $(FIGURES_NOBUILD)/csi-test-fsm.png \
-#	$(FIGURES)/fading_pedestrian.png \
-	${IMAGES_SEQDIAG:.seqdiag=.png} \
-	${IMAGES_SEQDIAG:.seqdiag=.pdf} \
-	${IMAGES_DOT:.dot=.png} \
-	${IMAGES_DOT:.dot=.pdf} \
-        $(FIGURES)/1x1_1x2_chan_d_fer.png \
-	$(FIGURES)/2x2_chan_d_fer.png \
-	$(FIGURES)/protocol-stack.png \
-	$(FIGURES)/scenario-simple.png \
-	$(FIGURES)/end-to-end.png \
-
 
 IMAGES_BUILD = \
 	${IMAGES_DIA:.dia=.eps} \
@@ -75,17 +91,24 @@ IMAGES_BUILD = \
 	${IMAGES_DIA:.dia=.pdf} \
 	${IMAGES_EPS:.eps=.png} \
 	${IMAGES_EPS:.eps=.pdf} \
-	${IMAGES_SEQDIAG:.seqdiag=.png}
+	${IMAGES_SEQDIAG:.seqdiag=.png} \
+	${IMAGES_SEQDIAG:.seqdiag=.pdf} \
+	${IMAGES_SEQDIAG:.seqdiag=.svg} \
+	${IMAGES_DOT:.dot=.png} \
+	${IMAGES_DOT:.dot=.pdf}
 
 
 
 IMAGES = $(IMAGES_NOBUILD) $(IMAGES_BUILD)
 
-RESCALE = ../../../utils/rescale-pdf.sh
+RESCALE = ./rescale-pdf.sh
 
 %.eps : %.dia; $(DIA) -t eps $< -e $@
 %.png : %.dia; $(DIA) -t png $< -e $@
 %.png : %.seqdiag; $(SEQDIAG) -Tpng --no-transparency -o $@ $<
+%.svg : %.seqdiag
+	$(SEQDIAG) -Tsvg -o $@ $<
+	@python3 fix-svg-size.py $@
 %.png : %.dot; $(DOT) -Tpng -o$@ $<
 %.png : %.eps; $(CONVERT) $< $@
 %.pdf : %.seqdiag
