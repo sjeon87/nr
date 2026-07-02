@@ -54,5 +54,5 @@ project = "NR Module"
 copyright = "2022-2026, Centre Tecnològic de Telecomunicacions de Catalunya (CTTC)"
 author = "OpenSim CTTC/CERCA"
 
-version = "4.2.0"
-release = "4.2.0"
+version = "5.0.0"
+release = "5.0.0"
