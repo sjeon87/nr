@@ -24,6 +24,7 @@ class SpectrumModel;
 class SpectrumValue;
 class RealisticBeamformingHelper;
 class NrRealisticBeamformingTestCase;
+class NrRealisticBeamformingSrsSinrTestCase;
 
 /**
  * @ingroup gnb-phy
@@ -50,6 +51,7 @@ class NR_EXPORT RealisticBeamformingAlgorithm : public Object
 {
     friend RealisticBeamformingHelper;
     friend NrRealisticBeamformingTestCase;
+    friend NrRealisticBeamformingSrsSinrTestCase;
 
   public:
     /*

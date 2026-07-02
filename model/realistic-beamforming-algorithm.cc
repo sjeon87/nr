@@ -458,7 +458,16 @@ RealisticBeamformingAlgorithm::GetEstimatedLongTermComponent(
                  << sAntenna << " uAntenna: " << uAntenna);
     NS_ABORT_IF(srsSinr == 0);
 
-    double varError = 1 / (srsSinr); // SINR the SINR from UL SRS reception
+    // The channel estimation error variance is 1 / (SINR * delta), where SINR is
+    // the SINR from UL SRS reception and delta is the gain obtained from
+    // time-domain filtering during the channel estimation, set to 9 dB according
+    // to the 3GPP analysis of SRS transmission (see [SigProc5G]).
+    static constexpr double deltaDb = 9.0;
+    const double delta = std::pow(10.0, deltaDb / 10.0);
+    const double varError = 1 / (srsSinr * delta);
+    // alpha is a scaling factor that maintains the normalization of the
+    // estimated channel, hEstimate = alpha * (h + error) (see [SigProc5G])
+    const double alpha = std::sqrt(1.0 / (1.0 + varError));
     auto numCluster = static_cast<uint8_t>(channelMatrix->m_channel.GetNumPages());
 
     UniformPlanarArray::ComplexVector estimatedlongTerm(numCluster);
@@ -470,13 +479,14 @@ RealisticBeamformingAlgorithm::GetEstimatedLongTermComponent(
             std::complex<double> rxSum(0, 0);
             for (uint16_t uIndex = 0; uIndex < uAntenna; uIndex++)
             {
-                // error is generated from the normal random variable with mean 0 and  variance
-                // varError*sqrt(1/2) for real/imaginary parts
+                // error is generated from the normal random variable with mean 0 and
+                // variance varError/2 for the real and imaginary parts, so that the
+                // complex error has total variance varError
                 std::complex<double> error =
-                    std::complex<double>(m_normalRandomVariable->GetValue(0, sqrt(0.5) * varError),
-                                         m_normalRandomVariable->GetValue(0, sqrt(0.5) * varError));
+                    std::complex<double>(m_normalRandomVariable->GetValue(0, 0.5 * varError),
+                                         m_normalRandomVariable->GetValue(0, 0.5 * varError));
                 std::complex<double> hEstimate =
-                    channelMatrix->m_channel(uIndex, sIndex, cIndex) + error;
+                    alpha * (channelMatrix->m_channel(uIndex, sIndex, cIndex) + error);
                 rxSum += std::conj(uW[uIndex]) * (hEstimate);
             }
             txSum = txSum + sW[sIndex] * rxSum;
