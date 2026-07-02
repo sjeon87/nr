@@ -1023,11 +1023,15 @@ class NR_EXPORT NrUePhy : public NrPhy
     /// Summary results of measuring a specific cell. Used for layer-1 filtering.
     struct NR_EXPORT UeMeasurementsElement
     {
-        double rsrpSum;  //!< Sum of RSRP sample values in linear unit.
-        uint8_t rsrpNum; //!< Number of RSRP samples.
+        double rsrpSum; //!< Sum of RSRP sample values in linear unit.
+        // The counters must be wide enough for a full filtering period: PSS
+        // arrives with every DL CTRL slot (e.g. every 0.5 ms at mu=1), i.e.
+        // hundreds of samples per cell per period. A uint8_t counter wraps and
+        // corrupts the average (this silently disabled handovers).
+        uint32_t rsrpNum; //!< Number of RSRP samples.
         // For the moment rsrq is not supported so set to 0
-        double rsrqSum;  //!< Sum of RSRQ sample values in linear unit.
-        uint8_t rsrqNum; //!< Number of RSRQ samples.
+        double rsrqSum;   //!< Sum of RSRQ sample values in linear unit.
+        uint32_t rsrqNum; //!< Number of RSRQ samples.
     };
 
     /**
