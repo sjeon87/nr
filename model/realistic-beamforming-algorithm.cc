@@ -331,7 +331,7 @@ RealisticBeamformingAlgorithm::GetBeamformingVectors()
             PhasedArrayModel::ComplexVector gnbW =
                 m_gnbSpectrumPhy->GetBeamManager()->GetCurrentBeamformingVector();
 
-            for (double rxZenith = 0; rxZenith < 180; rxZenith += txZenithStep)
+            for (double rxZenith = 0; rxZenith < 180; rxZenith += rxZenithStep)
             {
                 // Calculate beam elevation to center it into the middle of the wedge, and not at
                 // the start
