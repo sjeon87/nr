@@ -4,11 +4,14 @@
 
 #include "nr-test-entities.h"
 
+#include "ns3/boolean.h"
 #include "ns3/log.h"
 #include "ns3/nr-rlc-header.h"
 #include "ns3/nr-rlc-tag.h"
 #include "ns3/nr-rlc-um.h"
 #include "ns3/packet.h"
+#include "ns3/simulator.h"
+#include "ns3/uinteger.h"
 
 NS_LOG_COMPONENT_DEFINE("NrRlcUmTestCase");
 
@@ -278,6 +281,10 @@ NrRlcUmTestCase::DoRun()
     NS_LOG_INFO("Step 4.3: Calling DoReceivePdu with SN=511");
     NS_LOG_INFO("-----------------------------------------------------------------------------");
     rlc->DoReceivePdu(rxPduParams);
+
+    // Flush the event scheduled by the NrTestPdcp constructor, so that it does not
+    // outlive this test case and fire on a destroyed object in the next one.
+    Simulator::Destroy();
 }
 
 /**
@@ -342,6 +349,156 @@ NrRlcUmReorderingDiscardTestCase::DoRun()
                           0,
                           "no corrupt SDU may be delivered to PDCP when the partial SDU is "
                           "discarded");
+
+    // Flush the event scheduled by the NrTestPdcp constructor, so that it does not
+    // outlive this test case and fire on a destroyed object in the next one.
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Regression test for the PDCP discard path in NrRlcUm::DoTransmitPdcpPdu.
+ *
+ * When PDCP discarding is enabled and the head-of-line delay exceeds the discard
+ * timer, the incoming RLC SDU must be dropped (TxDrop trace fired) and, crucially,
+ * NOT stored in the transmission buffer. Before the fix the code fell through and
+ * still enqueued the "discarded" packet, making the discard a no-op and
+ * double-counting the drop statistics. This test asserts the packet is not stored.
+ */
+class NrRlcUmTxPdcpDiscardTestCase : public TestCase
+{
+  public:
+    NrRlcUmTxPdcpDiscardTestCase()
+        : TestCase("Test RLC UM TX: PDCP-discarded SDU is not enqueued in the Tx buffer")
+    {
+    }
+
+    /// Count of TxDrop trace invocations.
+    uint32_t m_dropCount{0};
+
+    /**
+     * TxDrop trace sink.
+     *
+     * @param p the dropped packet
+     */
+    void HandleTxDrop(Ptr<const Packet> p)
+    {
+        m_dropCount++;
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmTxPdcpDiscardTestCase::DoRun()
+{
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    rlc->SetAttribute("EnablePdcpDiscarding", BooleanValue(true));
+    rlc->SetAttribute("DiscardTimerMs", UintegerValue(10));
+
+    Ptr<NrTestMac> mac = CreateObject<NrTestMac>();
+    mac->SetRlcHeaderType(NrTestMac::UM_RLC_HEADER);
+    rlc->SetNrMacSapProvider(mac->GetNrMacSapProvider());
+    mac->SetNrMacSapUser(rlc->GetNrMacSapUser());
+    rlc->TraceConnectWithoutContext(
+        "TxDrop",
+        MakeCallback(&NrRlcUmTxPdcpDiscardTestCase::HandleTxDrop, this));
+
+    // t = 0 ms: first SDU is stored (Tx buffer is empty, so head-of-line delay is 0).
+    Simulator::Schedule(MilliSeconds(0), [rlc]() { rlc->DoTransmitPdcpPdu(Create<Packet>(100)); });
+
+    // t = 20 ms: head-of-line delay (20 ms) exceeds the 10 ms discard timer, so the
+    // second SDU must be discarded and must NOT be added to the Tx buffer.
+    Simulator::Schedule(MilliSeconds(20), [rlc]() { rlc->DoTransmitPdcpPdu(Create<Packet>(200)); });
+
+    Simulator::Run();
+
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_txBuffer.size(),
+                          1,
+                          "the discarded SDU must not be enqueued in the Tx buffer");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_txBufferSize,
+                          100,
+                          "the Tx buffer size must only account for the stored (first) SDU");
+    NS_TEST_ASSERT_MSG_EQ(m_dropCount,
+                          1,
+                          "the discarded SDU must fire the TxDrop trace exactly once");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Regression test for NrRlcUm::ReassembleSnInterval with a gap in the buffer.
+ *
+ * ReassembleSnInterval iterates over an SN interval that, by design, may contain
+ * missing SNs (holes left by losses). Before the fix, the two NS_LOG_LOGIC lines
+ * printing it->first / it->second were placed BEFORE the it != end() check,
+ * dereferencing m_rxBuffer.end() for every missing SN (undefined behaviour, tripping
+ * asserts in debug builds when logging is enabled). This test enables NrRlcUm logging
+ * and reassembles an interval with a hole to ensure gaps are skipped safely while the
+ * present SNs are reassembled and removed from the reception buffer.
+ */
+class NrRlcUmReassembleGapTestCase : public TestCase
+{
+  public:
+    NrRlcUmReassembleGapTestCase()
+        : TestCase("Test RLC UM RX: ReassembleSnInterval safely skips missing SNs")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmReassembleGapTestCase::DoRun()
+{
+    // Force the code path that used to dereference m_rxBuffer.end(): the NS_LOG_LOGIC
+    // lines only execute (and only crash) when the log component is enabled.
+    LogComponentEnable("NrRlcUm", (LogLevel)(LOG_LEVEL_ALL | LOG_PREFIX_ALL));
+
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    Ptr<NrTestPdcp> rxPdcp = CreateObject<NrTestPdcp>();
+    rlc->SetNrRlcSapUser(rxPdcp->GetNrRlcSapUser());
+
+    rlc->m_windowSize = 512;
+    rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
+
+    // Build two self-contained full-SDU PDUs at SN=5 and SN=7, leaving SN=6 as a gap.
+    auto makeFullSdu = [](uint16_t sn) {
+        Ptr<Packet> pdu = Create<Packet>(20);
+        NrRlcHeader h;
+        h.SetSequenceNumber(nr::SequenceNumber10(sn));
+        h.PushExtensionBit(NrRlcHeader::DATA_FIELD_FOLLOWS);
+        h.SetFramingInfo(NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE);
+        pdu->AddHeader(h);
+        return pdu;
+    };
+    rlc->m_rxBuffer[5] = makeFullSdu(5);
+    rlc->m_rxBuffer[7] = makeFullSdu(7);
+
+    // Reassemble the interval [5, 8): SN=6 is missing and must be skipped without any
+    // dereference of m_rxBuffer.end().
+    rlc->ReassembleSnInterval(nr::SequenceNumber10(5), nr::SequenceNumber10(8));
+
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_rxBuffer.count(5),
+                          0,
+                          "SN=5 must be reassembled and removed from the reception buffer");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_rxBuffer.count(7),
+                          0,
+                          "SN=7 must be reassembled and removed from the reception buffer");
+    // NrTestPdcp overwrites its buffer on each delivery, so it holds the last SDU only;
+    // a non-empty 20-byte payload confirms a full SDU was reassembled and delivered.
+    NS_TEST_ASSERT_MSG_EQ(rxPdcp->GetDataReceived().size(),
+                          20,
+                          "a full SDU must be reassembled and delivered to PDCP");
+
+    // Flush the event scheduled by the NrTestPdcp constructor, so that it does not
+    // outlive this test case and fire on a destroyed object in the next one.
+    Simulator::Destroy();
 }
 
 class NrRlcUmTestSuite : public TestSuite
@@ -352,6 +509,8 @@ class NrRlcUmTestSuite : public TestSuite
     {
         AddTestCase(new NrRlcUmTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcUmReorderingDiscardTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmTxPdcpDiscardTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmReassembleGapTestCase(), Duration::QUICK);
     }
 };
 
