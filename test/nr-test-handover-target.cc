@@ -387,7 +387,7 @@ NrHandoverTargetTestCase::DoRun()
                              .ueDevStream = 4000});
 
     // Run simulation
-    Simulator::Stop(Seconds(1));
+    Simulator::Stop(Seconds(2));
     Simulator::Run();
     Simulator::Destroy();
 }
