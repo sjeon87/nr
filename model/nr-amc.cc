@@ -136,7 +136,10 @@ NrAmc::CalculateTbSize(uint8_t mcs, uint8_t rank, uint32_t nprb) const
                                        mcs); // max size of a code block (including m_crcLen)
         if (tbSize > cbSize)                 // segmentation of the transport block occurs
         {
-            double C = ceil(tbSize / cbSize);
+            // TS 38.212 Section 5.2.2: the number of code blocks is
+            // C = ceil(B / (Kcb - L)); the division must be carried out in
+            // real arithmetic, as integer division truncates before ceil.
+            double C = std::ceil(static_cast<double>(tbSize) / cbSize);
             tbSize = payloadSize - static_cast<uint32_t>(
                                        C * m_crcLen); // subtract bits of m_crcLen used in code
                                                       // blocks, in case of code block segmentation

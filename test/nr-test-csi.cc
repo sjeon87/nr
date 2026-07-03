@@ -2,6 +2,21 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-test-csi.cc
+ *
+ * @brief Test suite (nr-test-csi) for CSI feedback processing and sub-band aware scheduling. It
+ * creates a victim gNB/UE pair plus an interfering pair whose transmissions cover the whole band
+ * or only its lower or upper half and toggle on and off during the run. A state machine driven
+ * by CSI feedback, scheduling and PHY traces asserts that sub-band CQIs degrade on the
+ * interfered part of the band, that the scheduler steers resource block allocations away from
+ * interfered RBGs, that the error rate stays bounded once the link adapts, and that the CQI
+ * recovers after the interferer stops. Cases sweep the CSI feedback sources (CSI-RS/CSI-IM,
+ * PDSCH MIMO, SISO), 3GPP 2-bit sub-band CQI clamping, and the MCS derivation policy used by the
+ * scheduler.
+ */
+
 #include "nr-test-csi.h"
 
 #include "ns3/application-container.h"

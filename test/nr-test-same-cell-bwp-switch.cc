@@ -2,6 +2,20 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-test-same-cell-bwp-switch.cc
+ *
+ * @brief Test suite `nr-same-cell-bwp-switch`: intra-cell primary bandwidth-part switching. A
+ * single gNB carries two BWPs on different carriers (2.8 and 3.5 GHz) that share one cellId, and
+ * a stationary UE configured with both BWPs camps on BWP A while a sustained downlink UDP flow
+ * runs. At 1 s the gNB's BWP-A transmit power is dropped so the UE's measured RSRP on BWP B
+ * overtakes BWP A. The test asserts that the UE switches its primary DL BWP to B while the
+ * serving cellId stays unchanged (no handover), that the gNB tracks the UE's new primary BWP, and
+ * that downlink data keeps flowing after the switch; both the ideal and the real RRC protocol are
+ * exercised.
+ */
+
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/isotropic-antenna-model.h"

@@ -200,7 +200,7 @@ documentation:
     - DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
     - apt-get install -y ccache g++ doxygen graphviz make imagemagick dia
       texlive texlive-font-utils latexmk texlive texlive-science texlive-formats-extra texlive-base
-      fonts-freefont-otf fonts-freefont-ttf git libeigen3-dev dvipng
+      fonts-freefont-otf fonts-freefont-ttf git libeigen3-dev libsqlite3-dev dvipng
       python3 python3-dev python3-pip python3-venv python3-sphinx python3-sphinx-rtd-theme python3-jinja2 python3-pygments
     - python3 -m venv ns3env
     - source ./ns3env/bin/activate

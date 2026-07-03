@@ -113,6 +113,50 @@ spell-check:
     - codespell -f -C0 ./
   timeout: 1h
 
+# Cyclomatic complexity and duplicate-block gate (lizard).
+#
+# The baseline is computed on the fly from a fresh checkout of the upstream
+# default branch ($CI_DEFAULT_BRANCH, i.e. master): there are no magic numbers
+# to maintain. The job fails only when the change raises the maximum
+# cyclomatic complexity or the number of duplicate code blocks above what that
+# branch already has. See tools/lizard/check-complexity.py for details.
+complexity:
+  stage: code-linting
+  image: alpine:latest
+  rules:
+    # Run in every merge-request pipeline whose changes (against the MR
+    # target branch) touch C++ sources.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - "**/*.cc"
+        - "**/*.h"
+        - "**/*.hpp"
+    # Always run when a pipeline is started manually from the web UI.
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    # Branch pipelines: only run when C++ sources change.
+    - changes:
+        - "**/*.cc"
+        - "**/*.h"
+        - "**/*.hpp"
+    # Any other pipeline: offer the job as an optional manual run that does
+    # not block the pipeline while waiting to be started.
+    - when: manual
+      allow_failure: true
+  before_script:
+    - apk update
+    - apk add git python3
+    - python3 -m venv .venv
+    - source ./.venv/bin/activate
+    - pip install lizard==1.23.0
+  script:
+    # Clone the upstream default branch once and reuse it as the baseline so we
+    # don't pay for a second clone inside the script.
+    - git clone --depth=1 --branch $CI_DEFAULT_BRANCH https://gitlab.com/cttc-lena/nr.git nr-baseline
+    - ./tools/lizard/check-complexity.py --baseline-dir nr-baseline
+    - rm -rf nr-baseline
+  timeout: 1h
+  interruptible: true
+
 # Clang-tidy
 clang-tidy-19:
   stage: code-linting

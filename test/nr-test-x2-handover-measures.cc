@@ -5,6 +5,20 @@
 // Author: Nicola Baldo <nbaldo@cttc.es>
 //         Manuel Requena <manuel.requena@cttc.es>/
 
+/**
+ * @ingroup test
+ * @file nr-test-x2-handover-measures.cc
+ *
+ * @brief Test suite `nr-x2-handover-measures`: measurement-driven X2 handovers along a row of
+ * gNBs. Each case deploys two to four gNBs on a line and one UE crossing them at 150 m/s with
+ * dedicated UDP or TCP bearers, using NrA2A4RsrpHandoverAlgorithm or NrA3RsrpHandoverAlgorithm to
+ * trigger handovers from UE measurement reports. A list of checkpoint events states which gNB
+ * must be serving the UE during each time window; at every checkpoint the test verifies
+ * consistent UE/gNB RRC state, cell identity, ARFCNs, bandwidths and bearer setup, and that each
+ * bearer delivered at least half the bytes expected in the preceding stats interval. Cases span
+ * both handover algorithms, ideal and real RRC, UDP and TCP traffic, and several topologies.
+ */
+
 #include "ns3/bulk-send-helper.h"
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"

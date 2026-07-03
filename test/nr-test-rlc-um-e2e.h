@@ -6,6 +6,17 @@
  * Author: Manuel Requena <manuel.requena@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-um-e2e.h
+ *
+ * @brief Declarations for the `nr-rlc-um-e2e` suite. NrRlcUmE2eTestCase runs bidirectional RRC
+ * PDU traffic between a gNB and a UE over real RLC UM entities on lossy SimpleChannel devices and
+ * asserts that, per direction, transmitted PDUs equal received PDUs plus counted device-level
+ * drops; it is parametrized by the RNG seed and the packet loss rate (0 to 1).
+ * NrRlcUmE2eTestSuite instantiates one case per loss rate and seed combination.
+ */
+
 #ifndef NR_TEST_RLC_UM_E2E_H
 #define NR_TEST_RLC_UM_E2E_H
 

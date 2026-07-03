@@ -6,6 +6,19 @@
  * Author: Manuel Requena <manuel.requena@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-am-transmitter.h
+ *
+ * @brief Declarations for the `nr-rlc-am-transmitter` suite. NrRlcAmTransmitterTestCase builds
+ * the transmitter-only topology (test PDCP <-> real NrRlcAm <-> test MAC connected via SAPs) and
+ * provides scheduled string comparisons of the data received by the MAC. Derived cases cover one
+ * SDU mapped to one PDU, segmentation of a single SDU into several PDUs, concatenation of several
+ * SDUs into a single PDU, the buffer status report primitive parameters, and the
+ * max-retransmission case in which a never-acknowledged PDU must raise the max-retx (RLF)
+ * indication exactly once.
+ */
+
 #ifndef NR_TEST_RLC_AM_TRANSMITTER_H
 #define NR_TEST_RLC_AM_TRANSMITTER_H
 

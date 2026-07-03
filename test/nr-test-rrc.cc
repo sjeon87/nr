@@ -9,6 +9,21 @@
  *              Biljana Bojovic <biljana.bojovic@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rrc.cc
+ *
+ * @brief Test suite `nr-rrc`: RRC connection establishment and release against a single gNB. Each
+ * case attaches a configurable number of UEs at staggered times, activates a configurable number
+ * of data radio bearers per UE, and later releases the connections; the parameter grid covers TDD
+ * and FDD, the ideal and real RRC protocol models, and gNBs that admit or reject connection
+ * requests. After each UE's expected connection time the test cross-checks UE-side and gNB-side
+ * RRC state, cell identity, ARFCNs, bandwidths and per-bearer identities for consistency. Error
+ * variants deploy four gNBs and teleport the UE into high interference at chosen instants so that
+ * RRC Connection Request, Setup or Setup Complete is lost, verifying the outcome under the real
+ * RRC protocol.
+ */
+
 #include "ns3/core-module.h"
 #include "ns3/isotropic-antenna-model.h"
 #include "ns3/mobility-module.h"

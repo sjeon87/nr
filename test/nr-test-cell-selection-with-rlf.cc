@@ -8,6 +8,21 @@
 //         rlf and reselection, and state machine checks. Originally nr-test-radio-link-failure)
 //
 
+/**
+ * @ingroup test
+ * @file nr-test-cell-selection-with-rlf.cc
+ *
+ * @brief Test suite (nr-cell-selection-with-rlf) covering initial cell selection followed by
+ * radio link failure (RLF) and reselection. One gNB and one UE are set up over the EPC with two
+ * dedicated QoS flows carrying bidirectional UDP traffic. The UE first camps and connects
+ * normally, is teleported 10 km away at 4 s so that out-of-sync indications accumulate and RLF
+ * is declared, and is teleported back at 6 s so that it reselects the cell and reconnects. The
+ * test asserts full attachment (RRC state CONNECTED_NORMALLY, matching UeManager state, cell ID,
+ * bandwidths, ARFCNs and bearer configuration on both sides) at 2 s and again at 8 s after the
+ * recovery, while tracking the RadioLinkFailure and PhySyncDetection traces. Currently only the
+ * ideal RRC variant is exercised.
+ */
+
 #include "nr-test-radio-link-failure.h"
 
 #include "ns3/core-module.h"

@@ -459,6 +459,7 @@ set(header_files
 set(test_sources
     ${eigen_tests}
     ${opengym_tests}
+    test/nr-amc-tb-size-test.cc
     test/nr-antenna-3gpp-model-conf.cc
     test/nr-cc-bwp-configuration.cc
     test/nr-channel-setup-test.cc

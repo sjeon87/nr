@@ -10,6 +10,20 @@
  *  NrQosFlowTagUdpClient) is by Nicola Baldo <nbaldo@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-epc-test-s1u-uplink.cc
+ *
+ * @brief Test suite for the EPC S1-U uplink data path. Each test case builds an EPC network with
+ * NrPointToPointEpcHelper in which each cell is emulated by a CSMA LAN (no NR devices), with an
+ * NrEpcTestRrc stub driving the S1 SAP of the NrEpcGnbApplication. Each UE runs a custom
+ * NrQosFlowTagUdpClient application that stamps every UDP packet with the NrQosFlowTag normally
+ * added by NrGnbNetDevice, so packets are tunneled over GTP-U through the gNB application to the
+ * core and delivered to a remote host. The test asserts that the remote host packet sink of each
+ * UE receives exactly the configured number of packets times the packet size in bytes, for one
+ * to three gNBs, multiple UEs per gNB, and packet sizes up to 15000 bytes (jumbo frames).
+ */
+
 #include "nr-test-entities.h"
 
 #include "ns3/arp-cache.h"

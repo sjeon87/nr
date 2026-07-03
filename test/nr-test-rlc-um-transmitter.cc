@@ -6,6 +6,18 @@
  * Author: Manuel Requena <manuel.requena@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-um-transmitter.cc
+ *
+ * @brief Test suite `nr-rlc-um-transmitter`: transmitter-side behavior of NrRlcUm in isolation.
+ * A test PDCP and a test MAC are wired to a real RLC UM entity through the RLC/MAC SAPs; the test
+ * PDCP sends SDUs and the test MAC grants transmission opportunities of controlled size and time,
+ * recording the PDUs it receives. Scheduled checks compare the received data against expected
+ * strings to verify one-SDU-to-one-PDU delivery, segmentation of one SDU into several PDUs,
+ * concatenation of several SDUs into one PDU, and the buffer status report primitive parameters.
+ */
+
 #include "nr-test-rlc-um-transmitter.h"
 
 #include "nr-test-entities.h"
