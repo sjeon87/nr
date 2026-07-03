@@ -239,8 +239,9 @@ documentation:
     # Export nr version for documentation
     - export NRVERSION="nr-`git describe --tags`"
     - mkdir -p public/manual
-    # Treat Sphinx warnings (missing figures, broken refs) as errors
-    - SPHINXSTRICT="-W --keep-going"
+    # Treat Sphinx warnings (missing figures, broken refs) as errors and
+    # stop the build at the first one
+    - SPHINXSTRICT="-W"
     # Build NR manual
     - pushd doc
     - make latexpdf SPHINXOPTS="$SPHINXSTRICT" && mv ./build/latex/nrmodule.pdf ../public/
@@ -252,6 +253,11 @@ documentation:
     - pushd tutorial
     - make latexpdf SPHINXOPTS="$SPHINXSTRICT" && mv ./build/latex/cttc-nr-demo-tutorial.pdf ../public/
     - popd
+    # Verify that the expected documentation outputs were actually generated
+    - test -s public/nrmodule.pdf
+    - test -s public/manual/nr-module.html
+    - test -s public/html/index.html
+    - test -s public/cttc-nr-demo-tutorial.pdf
     # Copy FEATURES.md to preview it 5G-LENA website in FEATURES section
     - pushd ns-3-dev/contrib/nr
     - cp FEATURES.md public/FEATURES.md
