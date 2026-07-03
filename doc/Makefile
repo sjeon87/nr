@@ -11,7 +11,6 @@ CONVERT = convert -density 250
 
 SOURCE = source
 FIGURES = $(SOURCE)/figures
-FIGURES_NOBUILD = figures
 
 # specify dia figures from which .png and .pdf figures need to be built
 
@@ -82,8 +81,7 @@ IMAGES_DOT = \
     $(FIGURES)/channel/channel-condition.dot \
 
 
-IMAGES_NOBUILD = \
-    $(FIGURES_NOBUILD)/csi-test-fsm.png \
+IMAGES_NOBUILD =
 
 IMAGES_BUILD = \
 	${IMAGES_DIA:.dia=.eps} \
@@ -157,11 +155,9 @@ help:
 clean:
 	-rm -rf $(BUILDDIR)/*
 	-rm -f $(IMAGES_BUILD)
-	-rm -f $(FIGURES)/csi-test-fsm.png
 
 copy-sources:  $(SOURCES)
 	@mkdir -p $(FIGURES)
-	@cp -r $(IMAGES_NOBUILD) $(FIGURES)
 	@mkdir -p $(BUILDDIR)/html/_static
 	@cp -r ./static/* $(BUILDDIR)/html/_static
 
