@@ -6,6 +6,20 @@
  * Author: Nicola Baldo <nbaldo@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-epc-e2e-data.cc
+ *
+ * @brief End-to-end EPC data plane test suite (nr-epc-e2e-data). Each test case builds a full
+ * NR plus EPC topology with NrHelper and NrPointToPointEpcHelper (ideal RRC, PHY error model
+ * disabled): gNBs placed on a grid, UEs scattered around each gNB, and a remote host behind the
+ * PGW. For every configured bearer a dedicated QoS flow is activated and UDP traffic is run in
+ * both downlink and uplink; the test then asserts that the PDCP statistics report the expected
+ * number of transmitted and received packets and that each packet sink received the expected
+ * number of bytes. Cases cover one to three gNBs, multiple UEs and bearers per UE, and packet
+ * sizes chosen to exercise RLC fragmentation and aggregation.
+ */
+
 #include "ns3/abort.h"
 #include "ns3/boolean.h"
 #include "ns3/config.h"

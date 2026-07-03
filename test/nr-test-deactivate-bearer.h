@@ -4,6 +4,20 @@
 // Authors: Gaurav Sathe <gaurav.sathe@tcs.com>
 //          Tom Henderson <thomas.henderson@nist.gov>
 
+/**
+ * @ingroup test
+ * @file nr-test-deactivate-bearer.h
+ *
+ * @brief Test suite (nr-test-deactivate-bearer) for dynamic QoS flow (data radio bearer)
+ * activation and deactivation. A single gNB and a nearby UE exchange IPv4 and IPv6 UDP traffic
+ * in both directions while dedicated QoS flows with different QoS rule precedences are activated
+ * and later deactivated at scheduled times. Using the RLC statistics calculator, the test
+ * compares the per-LCID received byte counts inside each time window against the expected
+ * traffic volume, asserting that traffic always rides the active flow with the lowest precedence
+ * rule and falls back to the remaining flows, and finally to the default bearer, as the flows
+ * are deactivated.
+ */
+
 #ifndef NR_TEST_DEACTIVATE_BEARER_H
 #define NR_TEST_DEACTIVATE_BEARER_H
 

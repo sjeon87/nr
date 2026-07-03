@@ -3,6 +3,22 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file cttc-nr-3gpp-calibration.cc
+ *
+ * @brief Core implementation of the NR outdoor calibration example, which reproduces with
+ * 5G-LENA the 3GPP system-level calibration scenarios (e.g. RP-180524). It deploys a hexagonal
+ * grid of tri-sector macro sites that can follow the reference configurations DenseA (UMa, 4 GHz,
+ * 200 m ISD), DenseB (UMa, 30 GHz), RuralA (RMa, 700 MHz, 1732 m ISD) and RuralB (RMa, 4 GHz),
+ * including MIMO variants, with 3GPP antenna elements, configurable uniform planar arrays, O2I
+ * penetration losses, random UE heights, indoor/outdoor UE speeds, and optional wraparound.
+ * Traffic is CBR/full-buffer UDP (trafficScenario 0-4) or 3GPP FTP Model 1, in DL or UL. A run
+ * fills a SQLite database with SINR, UE TX power, gNB RX power, slot and RB occupancy tables plus
+ * a FlowMonitor end-to-end table, from which the calibration KPIs (e.g. SINR and throughput CDFs)
+ * can be extracted; DL/UL radio environment maps can also be generated.
+ */
+
 #include "cttc-nr-3gpp-calibration.h"
 
 #include "cttc-nr-3gpp-calibration-utils-v1.h"

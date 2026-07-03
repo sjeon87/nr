@@ -2,6 +2,19 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-test-rrc-reestablishment.cc
+ *
+ * @brief Test suite `nr-rrc-reestablishment`: RRC connection reestablishment on/off behavior
+ * after radio link failure. A single gNB and a single UE run with the ideal RRC protocol and
+ * shortened N310/N311/T310 parameters; at 0.5 s the UE jumps 15 km away from the gNB so that a
+ * radio link failure is detected. With UseRrcReestablishment enabled, the recorded UE state
+ * history must include CONNECTED_PHY_PROBLEM (the reestablishment path); with it disabled,
+ * CONNECTED_PHY_PROBLEM must never appear and the UE must transition to IDLE_CELL_SEARCH
+ * directly.
+ */
+
 #include "ns3/config-store-module.h"
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"

@@ -8,6 +8,21 @@
 //              adapt lte-test-interference.cc to lte-ue-measurements.cc
 //         Budiarto Herman <budiarto.herman@magister.fi>
 
+/**
+ * @ingroup test
+ * @file nr-test-ue-measurements.cc
+ *
+ * @brief Implementation of the UE measurement test suites. `nr-ue-measurements` places two
+ * gNB/UE pairs at parametric distances and compares the RSRP/RSRQ reported by the UE PHY and
+ * carried in RRC measurement reports against precomputed reference values. The piecewise suites
+ * (`nr-ue-measurements-piecewise-1/2/3`) run one UE against one, two or three gNBs, teleporting
+ * the UE (or a gNB) between near and far positions, and assert that reports triggered by events
+ * A1-A5 arrive exactly at the expected times and carry the expected RSRP range values.
+ * `nr-ue-measurements-handover` switches the UE measurement configuration through a
+ * mid-simulation handover between two gNBs and verifies the reports produced under the target
+ * cell's configuration.
+ */
+
 #include "nr-test-ue-measurements.h"
 
 #include "ns3/boolean.h"

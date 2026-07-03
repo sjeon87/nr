@@ -2,6 +2,23 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file cttc-nr-3gpp-calibration-utils-v2.h
+ *
+ * @brief Declaration of the LenaV2Utils class, which encapsulates the whole 5G-LENA (NR module)
+ * configuration of the calibration example. Its SetLenaV2SimulatorParameters() creates the
+ * NrHelper/EPC and the spectrum/BWPs at the configured starting frequency, and sets the error
+ * model, scheduler (including optional sub-band CQI and MIMO PMI parameters), gNB/UE uniform
+ * planar arrays with 3GPP or isotropic elements, dual polarization and ports, the beamforming
+ * method (predefined beam toward a given sector/elevation, cell scan, or realistic BF), O2I and
+ * shadowing settings, uplink power control and wraparound support, then installs the per-sector
+ * gNB and UE devices. It also declares the callbacks feeding the SQLite writers: UE "DlDataSinr"
+ * to SinrOutputStats, UE "ReportPowerSpectralDensity" to PowerOutputStats (ueTxPower table), and
+ * gNB "SlotDataStats", "RBDataStats" and spectrum "RxDataTrace" to SlotOutputStats, RbOutputStats
+ * and PowerOutputStats (gnbRxPower table).
+ */
+
 #ifndef NR_3GPP_CALIBRATION_UTILS_V2_H
 #define NR_3GPP_CALIBRATION_UTILS_V2_H
 

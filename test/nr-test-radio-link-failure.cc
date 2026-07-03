@@ -10,6 +10,20 @@
 //                                          logic)
 //
 
+/**
+ * @ingroup test
+ * @file nr-test-radio-link-failure.cc
+ *
+ * @brief Implementation of the radio link failure suites (nr-rlf-tdd, nr-rlf-tdd-mixed,
+ * nr-rlf-tdd-flexible and nr-rlf-fdd), one suite per duplexing/pattern setup. Each case runs one
+ * or two gNBs, one UE carrying DL (and optionally UL) UDP traffic and 0-4 background UEs, with
+ * N310, N311 and T310 shortened; at 0.4 s the UE jumps 15 km away so out-of-sync indications
+ * accumulate and T310 expires. The test asserts the UE is still connected after the jump but
+ * before T310 expiry, that the RadioLinkFailure trace fires, and that the UE ends in
+ * IDLE_CELL_SEARCH (one gNB) or reconnected to the second gNB placed near the jump position (two
+ * gNBs), while background UEs stay connected with consistent UE/gNB RRC and bearer configuration.
+ */
+
 #include "nr-test-radio-link-failure.h"
 
 #include "ns3/core-module.h"

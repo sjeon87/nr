@@ -7,6 +7,20 @@
  *         Alexander Krotov <krotov@iitp.ru>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-handover-delay.cc
+ *
+ * @brief Test suite (nr-handover-delay) verifying X2 handover latency and the handover delay
+ * attributes. NrHandoverDelayTestCase places a UE halfway between two gNBs 1000 m apart,
+ * attaches it to the first one, and issues an explicit handover request at a configurable time;
+ * the RRC HandoverStart/HandoverEndOk traces on the UE and gNB sides must show that the handover
+ * completed and took less than a threshold (5 ms with ideal RRC, 20 ms with real RRC), for 1, 2
+ * and 4 component carriers. NrHandoverDelayApplyTestCase additionally configures the
+ * HandoverDecisionDelay and HandoverTriggeringDelay attributes and verifies that the handover
+ * still starts and completes with those extra delays applied.
+ */
+
 #include "ns3/boolean.h"
 #include "ns3/callback.h"
 #include "ns3/config.h"

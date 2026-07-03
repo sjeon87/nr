@@ -2,6 +2,19 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file system-scheduler-test.cc
+ *
+ * @brief Implementation of SystemSchedulerTest, the base system test case used by the
+ * nr-system-test-schedulers-* suites. It deploys one gNB and a configurable number of UEs per
+ * beam placed along up to four beam directions, with cell-scan beamforming, fixed MCS 28, and the
+ * scheduler type, numerology and bandwidth given by the constructor; per-UE 320 kbps UDP flows
+ * run in downlink and/or uplink for 400 ms. The test asserts that the aggregated received DL+UL
+ * throughput matches the offered rate within 5% and that every UE application achieved non-zero
+ * throughput, i.e. that the scheduler under test served all users in the requested directions.
+ */
+
 #include "system-scheduler-test.h"
 
 #include "ns3/antenna-module.h"

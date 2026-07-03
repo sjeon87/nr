@@ -7,6 +7,18 @@
  *         Nicola Baldo <nbaldo@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-am-e2e.h
+ *
+ * @brief Declarations for the `nr-rlc-am-e2e` suite. NrRlcAmE2eTestCase runs a gNB-to-UE flow of
+ * RRC SDUs over real RLC AM entities on lossy SimpleChannel devices and checks that AM
+ * retransmissions deliver every SDU; it is parametrized by the RngRun number, the downlink PDU
+ * loss rate (0 to 0.95) and whether the SDUs arrive spread over 10 s or in a 10 ms bulk.
+ * NrRlcAmE2eTestSuite instantiates one case per combination of loss rate, run number and arrival
+ * mode.
+ */
+
 #ifndef NR_TEST_RLC_AM_E2E_H
 #define NR_TEST_RLC_AM_E2E_H
 

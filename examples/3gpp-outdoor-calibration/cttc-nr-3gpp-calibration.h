@@ -2,6 +2,20 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file cttc-nr-3gpp-calibration.h
+ *
+ * @brief Declaration of the ns3::Parameters structure holding the full set of knobs of the NR
+ * outdoor calibration example (deployment geometry such as ISD and BS/UT heights, antenna array
+ * dimensions, ports and polarization, beamforming method, O2I penetration, UE mobility, MIMO,
+ * traffic model including 3GPP FTP M1, and REM generation), plus the entry points
+ * ChooseCalibrationScenario(), which overwrites those knobs with the 3GPP reference
+ * configurations (DenseA/DenseB/RuralA/RuralB and MIMO variants), and Nr3gppCalibration(), which
+ * runs the simulation. This header is shared with the cttc-nr-3gpp-calibration-user.cc main
+ * program that exposes the options on the command line.
+ */
+
 #include "ns3/nr-module.h"
 #include "ns3/nstime.h"
 

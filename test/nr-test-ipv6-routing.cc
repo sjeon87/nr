@@ -6,6 +6,19 @@
  * Author: Manoj Kumar Rana <manoj24.rana@gmail.com>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-ipv6-routing.cc
+ *
+ * @brief Test suite `nr-ipv6-routing-test`: end-to-end IPv6 routing over the NR EPC. The scenario
+ * has 3 UEs, 2 gNBs and a remote host; UE0 runs UDP echo clients towards servers on the remote
+ * host, on UE1 (attached to the same gNB) and on UE2 (attached to the other gNB). Traces at UE0's
+ * IPv6 layer and at the PGW (S1-U and TUN directions) record the traffic; the checker matches
+ * every echo reply received by UE0 to its request by packet UID, addresses and ports, requires
+ * equal request/reply counts, and verifies each packet crossed the PGW exactly once, i.e. that
+ * the followed route is not redundant.
+ */
+
 #include "ns3/config-store.h"
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"

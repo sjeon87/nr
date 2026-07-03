@@ -2,6 +2,17 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file rb-output-stats.h
+ *
+ * @brief Declaration of RbOutputStats, used by the lena-lte-comparison example to record the
+ * per-symbol resource block occupancy of every gNB into the SQLite output database (table
+ * "rbStats"). Fed by the NrGnbPhy "RBDataStats" trace, it stores one row per active RB with
+ * frame/subframe/slot, symbol index, RB index, and the BWP and cell IDs, keyed by RNG seed and
+ * run number. Samples are cached in memory and written to disk in batches.
+ */
+
 #ifndef RB_OUTPUT_STATS_H
 #define RB_OUTPUT_STATS_H
 

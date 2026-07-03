@@ -8,6 +8,21 @@
 //              adapt lte-test-interference.cc to lte-ue-measurements.cc
 //         Budiarto Herman <budiarto.herman@magister.fi>
 
+/**
+ * @ingroup test
+ * @file nr-test-ue-measurements.h
+ *
+ * @brief Declarations for the UE measurement test suites. NrUeMeasurementsTestCase checks the
+ * RSRP/RSRQ of serving and neighbour cells in a 2-gNB, 2-UE scenario against reference values
+ * computed for parametric UE-gNB distances. NrUeMeasurementsPiecewiseTestCase1/2/3 run one UE
+ * against one, two or three gNBs with piecewise position changes; each is parametrized by a
+ * ReportConfigEutra triggering configuration (events A1-A5) plus the lists of expected report
+ * times and RSRP values, which are verified whenever the gNB receives a measurement report.
+ * NrUeMeasurementsHandoverTestCase applies different source- and target-cell measurement
+ * configurations around a mid-simulation handover between two gNBs and checks the reports
+ * received afterwards.
+ */
+
 #ifndef NR_TEST_UE_MEASUREMENTS_H
 #define NR_TEST_UE_MEASUREMENTS_H
 

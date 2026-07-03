@@ -7,6 +7,20 @@
  * Author: Sachin Nayak <sachinnn@uw.edu>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-handover-failure.cc
+ *
+ * @brief Test suite (nr-handover-failure) verifying that X2 handover failures are detected and
+ * reported for different causes. Each test case attaches a UE to a source gNB and schedules a
+ * handover to a target gNB, then provokes a failure by constraining the random access
+ * configuration or the RRC timers: exceeding the maximum RACH preamble transmissions towards the
+ * target, leaving no non-contention preambles available at the target, or expiring the HANDOVER
+ * JOINING or HANDOVER LEAVING timeouts at different stages of the procedure (steered by the
+ * target gNB distance). Every scenario is run with both ideal and real RRC, and each case
+ * asserts that the corresponding handover failure trace fired during the simulation.
+ */
+
 #include "ns3/boolean.h"
 #include "ns3/callback.h"
 #include "ns3/config.h"

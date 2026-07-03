@@ -3,6 +3,20 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /**
+ * @ingroup test
+ * @file nr-test-rrc-state-transition.cc
+ *
+ * @brief Test suite `nr-rrc-state-transition`: RRC state machine progression on a single-gNB,
+ * single-UE topology with Friis propagation and isotropic antennas. The first case attaches the
+ * UE and records every UE RRC StateTransition trace event, asserting that the UE reaches
+ * CONNECTED_NORMALLY. The second case uses the ideal RRC protocol and, once the UE is connected,
+ * injects an RRC Connection Reconfiguration (without mobility control info) directly through the
+ * gNB RRC SAP, tracking the gNB's reception of the reconfiguration-complete reply; it asserts the
+ * UE connects and that the injected message exchange is processed via the SAPs, bypassing the
+ * physical channel.
+ */
+
+/**
  * @ingroup nr-test
  *
  * This test tracks RRC state transitions and MAC PDU delivery

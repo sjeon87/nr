@@ -2,6 +2,21 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file ul-scheduling-test.cc
+ *
+ * @brief Test suite `nr-ul-scheduling-test`: uplink SR/BSR/grant signalling while the link
+ * quality changes. A single UE moves away from the gNB along the Y axis and turns back
+ * mid-simulation, sending a 1250-byte UDP packet every 2 s; the two cases run with HARQ
+ * effectively disabled (1 HARQ process) and enabled (16 processes). The test hooks the UE MAC
+ * SR/BSR state-machine trace, the gNB UL scheduling trace and the gNB received-control-message
+ * trace, logging per-RNTI states and buffer sizes to result files under build/contrib/nr. It
+ * asserts that an SR is not retransmitted while HARQ retransmissions are still pending, that the
+ * UE does not remain stuck in the ACTIVE state with buffered data waiting for a grant, and that
+ * some packets are received by the end of the simulation.
+ */
+
 #include "ul-scheduling-test.h"
 
 #include "ns3/applications-module.h"

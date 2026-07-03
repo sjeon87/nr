@@ -2,6 +2,19 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file sinr-output-stats.h
+ *
+ * @brief Declaration of SinrOutputStats, used by the cttc-nr-3gpp-calibration example to record
+ * the SINR perceived by each UE into the SQLite output database (table "sinr"). Each row stores
+ * cell ID, BWP ID, RNTI and the average SINR, keyed by RNG seed and run number; it is fed by the
+ * NrUePhy "DlDataSinr" trace in 5G-LENA runs and by the LteUePhy "ReportCurrentCellRsrpSinr"
+ * trace in LENA baseline runs. From this table the SINR/geometry CDFs used to compare against
+ * the 3GPP calibration curves can be computed. Samples are cached in memory and written to disk
+ * in batches.
+ */
+
 #ifndef SINR_OUTPUT_STATS_H
 #define SINR_OUTPUT_STATS_H
 
