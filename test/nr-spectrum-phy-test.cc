@@ -2,6 +2,21 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-spectrum-phy-test.cc
+ *
+ * @brief Test suite (nr-spectrum-phy-test) checking that
+ * NrSpectrumPhy::SetNoisePowerSpectralDensity reconfigures the receiver noise correctly. Each
+ * SetNoisePsdTestCase connects a transmitting and a receiving NrSpectrumPhy through a
+ * MultiModelSpectrumChannel with a no-loss propagation model, transmits the same data frame
+ * twice, and changes the noise figure between the two receptions. The SNR values reported by the
+ * NrInterference "SnrPerProcessedChunk" trace must differ between the receptions, and each must
+ * match the analytically computed SNR (tx PSD over thermal noise PSD times the noise figure)
+ * within 10 percent. The suite sweeps bandwidths from 1.4 MHz to 1 GHz, several transmit powers
+ * and noise figure pairs, and numerologies 0 to 4.
+ */
+
 #include "nr-spectrum-phy-test.h"
 
 #include "ns3/beam-manager.h"

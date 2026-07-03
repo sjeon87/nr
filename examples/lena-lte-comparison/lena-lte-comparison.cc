@@ -2,6 +2,21 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file lena-lte-comparison.cc
+ *
+ * @brief Core implementation of the LENA (LTE) vs 5G-LENA (NR) comparison scenario. It builds a
+ * multi-cell 3GPP deployment (UMa, UMi or RMa) of tri-sector sites, laid out either on a
+ * hexagonal grid with a configurable number of rings or from a CSV file of tower coordinates, and
+ * runs it with the LTE module (LENA v1) or the NR module (5G-LENA) so that both simulators can be
+ * compared under identical conditions. Each UE exchanges CBR UDP traffic with a remote host, from
+ * full-buffer saturation down to a single-packet latency probe, in DL or UL. Results are written
+ * to a SQLite database (<outputDir>/<simTag>.db) with SINR, UE TX power, gNB RX power, slot and
+ * RB occupancy tables, plus a FlowMonitor end-to-end table ("e2e") with per-flow throughput,
+ * delay and jitter; a DL or UL radio environment map can also be generated in the 5G-LENA case.
+ */
+
 #include "lena-lte-comparison.h"
 
 #include "flow-monitor-output-stats.h"

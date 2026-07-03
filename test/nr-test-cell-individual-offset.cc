@@ -2,6 +2,19 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-test-cell-individual-offset.cc
+ *
+ * @brief Test suite for the Cell Individual Offset (CIO, cell range expansion) feature of
+ * NrUeRrc. The scenario places two gNBs 130 m apart and a single static UE much closer to the
+ * serving gNB, so the neighbour RSRP alone can never satisfy the A3 handover event. The same
+ * geometry is simulated twice: with CIO = 0 dB the test asserts that no handover happens and the
+ * UE remains on the serving cell, while with a large positive CIO configured for the neighbour
+ * the biased A3 measurement must trigger a handover to the weaker cell. Handover traces, the
+ * offset value stored in the UE RRC, and the final serving cell ID are checked in both runs.
+ */
+
 #include "ns3/boolean.h"
 #include "ns3/callback.h"
 #include "ns3/config.h"

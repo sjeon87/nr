@@ -2,6 +2,20 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file lena-v1-utils.cc
+ *
+ * @brief Implementation of the LenaV1Utils class, which encapsulates the LENA v1 (LTE module)
+ * configuration of the comparison scenario. SetLenaV1SimulatorParameters() creates the
+ * LteHelper/EPC and sets the 3GPP pathloss model matching the scenario (UMa/UMi/RMa), eNB and UE
+ * transmit power and noise figure, PF or RR scheduler, per-sector EARFCNs implementing the
+ * overlapping or non-overlapping frequency reuse, isotropic (calibration) or cosine sectorized
+ * antennas, and installs the per-sector eNB and UE devices. It also connects the LteUePhy
+ * "ReportCurrentCellRsrpSinr" trace to SinrOutputStats and the "ReportPowerSpectralDensity" trace
+ * to PowerOutputStats, so that LTE runs populate the same SQLite tables as the NR runs.
+ */
+
 #include "lena-v1-utils.h"
 
 #include "lena-v2-utils.h"

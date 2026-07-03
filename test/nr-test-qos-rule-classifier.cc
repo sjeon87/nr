@@ -8,6 +8,19 @@
  *   Manuel Requena <manuel.requena@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-qos-rule-classifier.cc
+ *
+ * @brief Unit test suite `nr-qos-rule-classifier` for NrQosRuleClassifier. Each case builds a UDP
+ * packet with a crafted IPv4 or IPv4-mapped IPv6 header (source/destination address, ports and
+ * TOS/traffic class) and classifies it, in a given direction, against classifiers populated with
+ * QoS rules whose packet filters combine address masks/prefixes, port ranges and TOS values. It
+ * asserts that Classify() returns the expected rule identifier for matching packets and no value
+ * (nullopt) when no rule should match. The same rule configurations are exercised with both IPv4
+ * and IPv4-mapped IPv6 addressing.
+ */
+
 #include "ns3/ipv4-header.h"
 #include "ns3/ipv4-l3-protocol.h"
 #include "ns3/ipv6-header.h"

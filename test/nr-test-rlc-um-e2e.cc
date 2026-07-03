@@ -6,6 +6,19 @@
  * Author: Manuel Requena <manuel.requena@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-um-e2e.cc
+ *
+ * @brief Test suite `nr-rlc-um-e2e`: end-to-end accounting over RLC UM under packet loss. Using
+ * NrSimpleHelper, a gNB and a UE with real NrRlcUm entities exchange 100-byte RRC SDUs in both
+ * directions (each side transmits every 10 ms for 10 s) over SimpleChannel devices, with the test
+ * MACs granting randomly-timed transmission opportunities and RateErrorModel instances dropping
+ * packets in each direction at rates from 0% to 100%. Since UM does not retransmit, the test
+ * asserts for downlink and uplink separately that the transmitted RRC PDUs equal the received
+ * PDUs plus the drops counted at the device level. Cases sweep the loss rate and the RNG seed.
+ */
+
 #include "nr-test-rlc-um-e2e.h"
 
 #include "nr-simple-helper.h"

@@ -7,6 +7,19 @@
  *
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-handover-target.cc
+ *
+ * @brief Test suite `nr-handover-target`: verifies that handover algorithms select the correct
+ * target cell when several candidates are available. Each case builds a rectangular grid of
+ * micro-cell gNBs (2x2 or 3x2, 130 m apart) over an NR EPC with a single stationary UE attached
+ * to a given source cell, and at 0.5 s "shuts down" that cell by lowering its TX power to 1 dBm.
+ * The configured algorithm (NrA2A4RsrpHandoverAlgorithm or NrA3RsrpHandoverAlgorithm) must then
+ * react: the HandoverStart trace is checked to fire after the shutdown with the expected source
+ * and target cell IDs, and teardown asserts that a handover actually occurred.
+ */
+
 #include "ns3/boolean.h"
 #include "ns3/callback.h"
 #include "ns3/config.h"

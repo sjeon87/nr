@@ -6,6 +6,17 @@
  * Author: Manuel Requena <manuel.requena@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-um-transmitter.h
+ *
+ * @brief Declarations for the `nr-rlc-um-transmitter` suite. NrRlcUmTransmitterTestCase builds
+ * the transmitter-only topology (test PDCP <-> real NrRlcUm <-> test MAC connected via SAPs) and
+ * provides scheduled string comparisons of the data received by the MAC. Derived cases cover one
+ * SDU mapped to one PDU, segmentation of a single SDU into several PDUs, concatenation of several
+ * SDUs into a single PDU, and the buffer status report primitive parameters.
+ */
+
 #ifndef NR_TEST_RLC_UM_TRANSMITTER_H
 #define NR_TEST_RLC_UM_TRANSMITTER_H
 

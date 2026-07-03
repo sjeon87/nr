@@ -2,6 +2,21 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-um-rx.cc
+ *
+ * @brief Test suite `nr-test-rlc-um-rx`: white-box regression tests of the NrRlcUm reception and
+ * transmission buffers, driving an NrRlcUm instance wired to test PDCP/MAC entities with
+ * hand-crafted PDUs and pre-set state variables. The cases verify that buffered SNs are
+ * reassembled (and removed) before VR(UR) advances so no PDU is left outside the reception
+ * window, including at 10-bit SN wrap-around; that a stranded partial SDU is discarded on
+ * t-Reordering expiry so no corrupt SDU is delivered to PDCP; that an SDU discarded by the PDCP
+ * discard timer fires the TxDrop trace once and is not enqueued in the Tx buffer; and that
+ * ReassembleSnInterval skips missing SNs safely with logging enabled while reassembling and
+ * delivering the SNs that are present.
+ */
+
 #include "nr-test-entities.h"
 
 #include "ns3/boolean.h"

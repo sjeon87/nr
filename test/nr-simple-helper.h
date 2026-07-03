@@ -7,6 +7,19 @@
  * (Based on nr-helper.h)
  */
 
+/**
+ * @ingroup test
+ * @file nr-simple-helper.h
+ *
+ * @brief Test support helper, not a test suite. NrSimpleHelper is a stripped-down substitute for
+ * NrHelper that builds a minimal protocol stack for RLC testing: on one gNB node and one UE node
+ * it instantiates NrTestRrc, NrPdcp, an NrRlcUm or NrRlcAm entity and an NrTestMac, wires them
+ * together through their SAPs, and connects the two sides with NrSimpleNetDevice objects over a
+ * SimpleChannel instead of the real NR PHY/MAC. It also exposes the usual RLC/PDCP trace and
+ * stats enabling methods. It is used by the RLC UM and AM end-to-end test suites
+ * (nr-test-rlc-um-e2e.cc and nr-test-rlc-am-e2e.cc).
+ */
+
 #ifndef NR_SIMPLE_HELPER_H
 #define NR_SIMPLE_HELPER_H
 

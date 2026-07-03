@@ -10,6 +10,19 @@
  * 5G-LENA)
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-cell-selection.cc
+ *
+ * @brief Test suite (nr-cell-selection) for the initial cell selection procedure executed by
+ * NrUeRrc in IDLE state at the beginning of the simulation. The scenario deploys four cells (two
+ * of them CSG) and six UEs whose positions, CSG membership, checkpoint times and expected
+ * serving cells are given as test vectors. The simulation runs with the EPC and ideal RRC; UE
+ * state transitions and the InitialCellSelectionEndOk/EndError traces are recorded, and at each
+ * UE checkpoint the test asserts that the UE is attached to one of its expected cells and has
+ * reached the CONNECTED_NORMALLY state.
+ */
+
 #include "nr-test-cell-selection.h"
 
 #include "ns3/boolean.h"

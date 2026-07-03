@@ -2,6 +2,20 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-test-handover-scenarios.cc
+ *
+ * @brief Test suite (nr-handover-scenarios) covering the main X2 handover and radio link failure
+ * paths of the RRC state machines, each executed with both ideal and real RRC. The success case
+ * attaches a UE to a source gNB, moves it toward the target, triggers a handover request, and
+ * asserts the UE traverses CONNECTED_HANDOVER and ends CONNECTED_NORMALLY on the target cell.
+ * The failure and RLF reestablishment cases move the UE out of range or hand it over to an
+ * unreachable target and assert that RLF is detected (CONNECTED_PHY_PROBLEM appears in the
+ * recorded state history), that the UE falls back to idle cell search/start, and whether the
+ * subsequent connection reestablishment succeeds or fails during initial access.
+ */
+
 #include "ns3/boolean.h"
 #include "ns3/config.h"
 #include "ns3/core-module.h"

@@ -7,6 +7,18 @@
  *
  */
 
+/**
+ * @ingroup test
+ * @file nr-simple-spectrum-phy.cc
+ *
+ * @brief Test support class, not a test suite. NrSimpleSpectrumPhy is a bare-bones SpectrumPhy
+ * that can be attached to a spectrum channel to observe transmissions: instead of demodulating,
+ * its StartRx() exports the received power spectral density of NR data frames through the
+ * "RxStart" trace source. When a non-zero cell ID is configured only signals from that cell are
+ * traced, letting test scripts verify per-cell transmitted spectra (e.g. frequency reuse or
+ * power allocation checks) without instantiating a full NR receiver.
+ */
+
 #include "nr-simple-spectrum-phy.h"
 
 #include "ns3/antenna-model.h"

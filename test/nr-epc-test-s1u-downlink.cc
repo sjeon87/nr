@@ -6,6 +6,19 @@
  * Author: Nicola Baldo <nbaldo@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-epc-test-s1u-downlink.cc
+ *
+ * @brief Test suite for the EPC S1-U downlink data path. Each test case builds an EPC network
+ * with NrPointToPointEpcHelper in which the NR radio is replaced by one CSMA LAN per cell: the
+ * gNB CSMA device stands in for the NR device and an NrEpcTestRrc stub drives the S1 SAP of the
+ * NrEpcGnbApplication. A remote host sends UDP packets to each UE through the PGW and the S1-U
+ * GTP-U tunnel, and the test asserts that every UE packet sink receives exactly the configured
+ * number of packets times the packet size in bytes. The cases cover one to three gNBs, multiple
+ * UEs per gNB, and packet sizes up to 15000 bytes (jumbo frames).
+ */
+
 #include "nr-test-entities.h"
 
 #include "ns3/boolean.h"

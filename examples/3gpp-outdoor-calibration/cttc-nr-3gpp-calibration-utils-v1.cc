@@ -2,6 +2,20 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file cttc-nr-3gpp-calibration-utils-v1.cc
+ *
+ * @brief Implementation of the LenaV1Utils class, used when the calibration example is run with
+ * the LENA v1 (LTE module) simulator as a baseline. SetLenaV1SimulatorParameters() creates the
+ * LteHelper/EPC and sets the 3GPP pathloss model matching the scenario, the configurable gNB/UE
+ * transmit powers and noise figures, optional shadowing, PF or RR scheduler, and the per-sector
+ * EARFCN assignment derived from the configured starting frequency, then installs the per-sector
+ * eNB and UE devices. It also connects the LteUePhy "ReportCurrentCellRsrpSinr" trace to
+ * SinrOutputStats and the "ReportPowerSpectralDensity" trace to PowerOutputStats, so LTE runs
+ * fill the same SQLite tables as the NR runs.
+ */
+
 #include "cttc-nr-3gpp-calibration-utils-v1.h"
 
 #include "cttc-nr-3gpp-calibration-utils-v2.h"

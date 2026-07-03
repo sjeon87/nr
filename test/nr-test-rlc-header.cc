@@ -7,6 +7,18 @@
  *         Nicola Baldo <nbaldo@cttc.es> (actual test)
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-header.cc
+ *
+ * @brief Unit test suite `nr-rlc-header`: serialization and deserialization of the RLC AM STATUS
+ * PDU header. Each case builds an NrRlcAmHeader control PDU with a given ACK SN and list of NACK
+ * SNs, adds it to a packet and compares the serialized bytes against a precomputed hex test
+ * vector. The header is then removed from the packet and the test asserts that the deserialized
+ * ACK SN matches and that the NACK list is recovered exactly, with neither missing nor spurious
+ * entries.
+ */
+
 #include "ns3/log.h"
 #include "ns3/nr-rlc-am-header.h"
 #include "ns3/packet.h"

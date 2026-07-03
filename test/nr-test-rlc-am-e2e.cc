@@ -7,6 +7,20 @@
  *         Nicola Baldo <nbaldo@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-rlc-am-e2e.cc
+ *
+ * @brief Test suite `nr-rlc-am-e2e`: end-to-end delivery over RLC AM under packet loss. Using
+ * NrSimpleHelper, a gNB and a UE stack of test RRC/PDCP entities around real NrRlcAm entities are
+ * connected through SimpleChannel devices; the gNB RRC generates 1000 SDUs of 100 bytes
+ * (continuous or bulk arrival) while the test MACs issue periodic fixed-size transmission
+ * opportunities and a RateErrorModel drops downlink PDUs at rates from 0% to 95%. After a
+ * loss-dependent settling time the test asserts that transmitted RLC PDUs equal received plus
+ * dropped ones, and that AM retransmissions recovered every loss so all RRC SDUs are delivered.
+ * Cases sweep the loss rate, the RngRun value and the SDU arrival pattern.
+ */
+
 #include "nr-test-rlc-am-e2e.h"
 
 #include "nr-simple-helper.h"

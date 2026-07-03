@@ -4,6 +4,20 @@
 //
 // Author: Nicola Baldo <nbaldo@cttc.es>
 
+/**
+ * @ingroup test
+ * @file nr-test-x2-handover.cc
+ *
+ * @brief Test suite `nr-x2-handover`: manually triggered X2 handovers between two gNBs. The
+ * NoOpHandoverAlgorithm is installed and handovers are requested explicitly from a scripted event
+ * list (forward/backward sequences for one to three UEs, each with 0-2 dedicated bearers),
+ * teleporting the UE between the gNBs around each event; the grid of cases covers the TDMA RR and
+ * PF schedulers, ideal and real RRC, and handover requests that are admitted or rejected by the
+ * target. After each event the test verifies the UE is connected to the expected gNB with
+ * consistent UE/gNB RRC and bearer configuration, and at the end asserts that no bearer data was
+ * lost, the UDP clients being paused during handover transitions.
+ */
+
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/isotropic-antenna-model.h"

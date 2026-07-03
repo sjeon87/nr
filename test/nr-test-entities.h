@@ -6,6 +6,20 @@
  * Author: Manuel Requena <manuel.requena@cttc.es>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-entities.h
+ *
+ * @brief Test support entities, not a test suite. NrTestRrc and NrTestPdcp sit on top of a PDCP
+ * or RLC entity through the standard SAPs, generate SDUs of configurable size and interarrival
+ * time, and record tx/rx PDU and byte counters plus the received payload for test assertions.
+ * NrTestMac is a loopback MAC that grants transmission opportunities to the RLC under test and
+ * can forward PDUs to a peer MAC, directly or through an NrSimpleNetDevice on a SimpleChannel.
+ * NrEpcTestRrc implements the S1 SAP user needed to drive NrEpcGnbApplication without a real
+ * RRC. These classes are used by the RLC UM/AM transmitter, receiver and end-to-end test suites
+ * and by the EPC S1-U data path tests.
+ */
+
 #ifndef NR_TEST_ENTITIES_H
 #define NR_TEST_ENTITIES_H
 

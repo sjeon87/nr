@@ -2,6 +2,20 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-test-inter-freq-handover.cc
+ *
+ * @brief Test suite `nr-inter-freq-handover`: connected-mode handover between two gNBs operating
+ * on different carrier frequencies (2.8 and 3.5 GHz), optionally with different numerologies. A
+ * single UE with one bandwidth part per carrier starts on gNB0 and moves towards gNB1 while a
+ * downlink UDP flow runs; each gNB registers the other's ARFCN as a neighbour measurement
+ * frequency so the A3-RSRP algorithm can trigger an X2 handover to the cross-frequency cell. The
+ * test asserts that at least one handover completes onto the other-ARFCN cell and that downlink
+ * data flowed before the handover and keeps flowing (sustained) on the target cell afterwards.
+ * All four combinations of ideal/real RRC and same/inter numerology are exercised.
+ */
+
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/isotropic-antenna-model.h"

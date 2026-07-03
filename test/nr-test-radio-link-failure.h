@@ -6,6 +6,20 @@
 // Author: Vignesh Babu <ns3-dev@esk.fraunhofer.de>
 //
 
+/**
+ * @ingroup test
+ * @file nr-test-radio-link-failure.h
+ *
+ * @brief Declarations for the radio link failure tests. NrRadioLinkFailureTestCase simulates one
+ * or two gNBs plus a UE that jumps far away mid-simulation to provoke out-of-sync indications and
+ * T310 expiry; it is parametrized by the RRC protocol model (ideal or real), the
+ * duplexing/pattern setup (TDD DL/UL, TDD mixed, TDD all-flexible or FDD), node counts and
+ * positions, the number of unaffected background UEs and whether uplink traffic is enabled.
+ * NrRadioLinkFailureTestSuite is instantiated once per duplexing setup, each instance generating
+ * the cases of that setup for every RRC model, gNB count and background-UE count, so the suites
+ * can run in parallel test-runner processes.
+ */
+
 #ifndef NR_TEST_RADIO_LINK_FAILURE_H
 #define NR_TEST_RADIO_LINK_FAILURE_H
 

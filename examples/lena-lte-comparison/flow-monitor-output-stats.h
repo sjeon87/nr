@@ -2,6 +2,18 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup examples
+ * @file flow-monitor-output-stats.h
+ *
+ * @brief Declaration of FlowMonitorOutputStats, used by the lena-lte-comparison example to dump
+ * the end-to-end FlowMonitor results into the SQLite output database. For every flow it stores
+ * TX/RX packets and bytes, offered rate, throughput, mean delay and mean jitter in a table (named
+ * "e2e" by the example), keyed by RNG seed and run number so that re-running the same seed/run
+ * pair replaces the old rows. A human-readable summary with the per-flow and mean
+ * throughput/delay figures is also written to a text file.
+ */
+
 #ifndef FLOW_MONITOR_OUTPUT_STATS_H
 #define FLOW_MONITOR_OUTPUT_STATS_H
 

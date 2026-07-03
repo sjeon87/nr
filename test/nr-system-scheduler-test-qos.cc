@@ -2,6 +2,20 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+/**
+ * @ingroup test
+ * @file nr-system-scheduler-test-qos.cc
+ *
+ * @brief System test for the QoS NR MAC schedulers (nr-system-test-schedulers-qos). Each
+ * SystemSchedulerTestQos case creates one gNB and a set of UEs split into two groups whose UDP
+ * flows carry 5QIs of different priority (NGBR_LOW_LAT_EMBB and GBR_CONV_VOICE), with the
+ * higher-priority traffic in saturation. After running downlink and/or uplink traffic over the
+ * full NR + EPC stack, the aggregate throughput of each group is measured at the UDP servers and
+ * the test asserts that the throughput ratio matches the 5QI priority ratio (100-P1)/(100-P2)
+ * within a 10 percent tolerance. Cases cover the TDMA and OFDMA QoS schedulers, downlink and
+ * uplink, 2 and 4 UEs per gNB, and numerologies 0 and 1.
+ */
+
 #include "nr-system-scheduler-test-qos.h"
 
 #include "ns3/antenna-module.h"

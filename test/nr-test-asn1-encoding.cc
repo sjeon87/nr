@@ -6,6 +6,20 @@
  * Author: Lluis Parcerisa <lparcerisa@cttc.cat>
  */
 
+/**
+ * @ingroup test
+ * @file nr-test-asn1-encoding.cc
+ *
+ * @brief Test suite (nr-test-asn1-encoding) for the ASN.1 encoding and decoding of the NR RRC
+ * messages implemented in nr-rrc-header.h. Each test case populates one RRC message type
+ * (connection request, setup, setup complete, reconfiguration and its complete, handover
+ * preparation info, the connection reestablishment family, connection reject, or measurement
+ * report) with representative values, serializes the corresponding header into a packet,
+ * deserializes it into a fresh header instance, and asserts field-by-field equality between the
+ * original and the decoded content. Additional round-trip cases sweep the DL/UL bandwidth values
+ * and enum leaves carried in SCellToAddMod to verify they survive the encode/decode cycle.
+ */
+
 #include "ns3/boolean.h"
 #include "ns3/double.h"
 #include "ns3/enum.h"
