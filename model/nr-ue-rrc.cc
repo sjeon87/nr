@@ -2450,6 +2450,15 @@ NrUeRrc::SaveUeMeasurements(uint16_t cellId,
 {
     NS_LOG_FUNCTION(this << cellId << +componentCarrierId << rsrp << rsrq << useLayer3Filtering);
 
+    // A non-finite RSRP (e.g. -inf dBm from a zero-power sample) would poison
+    // the Layer-3 filter below permanently: F = (1-a)F + aM stays -inf for
+    // every subsequent finite M. Ignore such degenerate measurements.
+    if (!std::isfinite(rsrp))
+    {
+        NS_LOG_WARN(this << " ignoring non-finite RSRP measurement of cell " << cellId);
+        return;
+    }
+
     // Cell<->BWP bookkeeping: remember which carrier this cell was measured on,
     // so a later broadcast (MIB) from this cell can be routed to the BWP that
     // is actually tuned to its carrier (see GetCellBwpId / DoRecvMIB).

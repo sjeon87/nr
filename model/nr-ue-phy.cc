@@ -1595,10 +1595,17 @@ NrUePhy::ReceivePss(uint16_t cellId, const Ptr<SpectrumValue>& p)
         nRB++;
     }
 
-    // measure instantaneous RSRP now (in dBm)
-    double rsrp = 10 * log10(1000 * (sum / static_cast<double>(nRB)));
+    // Instantaneous RSRP in linear mW per RE. A zero-power sample (e.g. a fully
+    // nulled beamforming cross-link) carries no detectable PSS: skip it rather
+    // than store it, since its dB value (-inf) would poison every average and
+    // Layer-3 filter it enters downstream.
+    double rsrp = 1000.0 * (sum / static_cast<double>(nRB));
+    if (rsrp <= 0.0)
+    {
+        return;
+    }
 
-    NS_LOG_DEBUG("RSRP value updated: " << rsrp << " dBm"
+    NS_LOG_DEBUG("RSRP value updated: " << 10 * log10(rsrp) << " dBm"
                                         << " for Cell Id: " << cellId << " RNTI: " << m_rnti);
 
     // store RSRP measurements
@@ -1613,7 +1620,7 @@ NrUePhy::ReceivePss(uint16_t cellId, const Ptr<SpectrumValue>& p)
         newEl.rsrqNum = 0;
 
         NS_LOG_DEBUG("New RSRP entry for Cell Id: " << cellId << " RNTI: " << m_rnti
-                                                    << " RSRP: " << newEl.rsrpSum << " dBm"
+                                                    << " RSRP: " << newEl.rsrpSum << " mW"
                                                     << " number of entries: " << +newEl.rsrpNum);
 
         m_ueMeasurementsMap.insert(std::pair<uint16_t, UeMeasurementsElement>(cellId, newEl));
@@ -1625,7 +1632,7 @@ NrUePhy::ReceivePss(uint16_t cellId, const Ptr<SpectrumValue>& p)
 
         NS_LOG_DEBUG("Update RSRP entry for Cell Id: "
                      << cellId << " RNTI: " << m_rnti
-                     << " RSRP Sum: " << (*itMeasMap).second.rsrpSum << " dBm"
+                     << " RSRP Sum: " << (*itMeasMap).second.rsrpSum << " mW"
                      << " number of entries: " << +((*itMeasMap).second.rsrpNum));
     }
 }
@@ -1661,7 +1668,8 @@ NrUePhy::ReportUeMeasurements()
             servingIt->second.rsrpNum > 0)
         {
             const double pssServingRsrp =
-                servingIt->second.rsrpSum / static_cast<double>(servingIt->second.rsrpNum);
+                10 *
+                log10(servingIt->second.rsrpSum / static_cast<double>(servingIt->second.rsrpNum));
             const double offset = pssServingRsrp - genieServingIt->second;
             for (auto it = m_ueMeasurementsMap.begin(); it != m_ueMeasurementsMap.end();)
             {
@@ -1681,7 +1689,7 @@ NrUePhy::ReportUeMeasurements()
                     continue;
                 }
                 UeMeasurementsElement el;
-                el.rsrpSum = kv.second + offset;
+                el.rsrpSum = std::pow(10.0, (kv.second + offset) / 10.0); // dBm -> linear mW
                 el.rsrpNum = 1;
                 el.rsrqSum = 0;
                 el.rsrqNum = 0;
@@ -1708,8 +1716,8 @@ NrUePhy::ReportUeMeasurements()
     {
         if (kv.second.rsrpNum > 0)
         {
-            const double a = kv.second.rsrpSum / static_cast<double>(kv.second.rsrpNum); // dBm
-            rssiPerReLin += std::pow(10.0, (a - 30.0) / 10.0);
+            // rsrpSum is linear mW; convert the average to W
+            rssiPerReLin += kv.second.rsrpSum / static_cast<double>(kv.second.rsrpNum) / 1000.0;
         }
     }
 
@@ -1720,7 +1728,11 @@ NrUePhy::ReportUeMeasurements()
         double avg_rsrq = 0;
         if ((*it).second.rsrpNum != 0)
         {
-            avg_rsrp = (*it).second.rsrpSum / static_cast<double>((*it).second.rsrpNum);
+            // Samples are accumulated in linear power so that occasional
+            // deep-null sidelobe samples (PSS received while the gNB's analog
+            // beam points at another UE) do not dominate the average the way
+            // they would in a dB-domain mean.
+            avg_rsrp = 10 * log10((*it).second.rsrpSum / static_cast<double>((*it).second.rsrpNum));
             // RSRQ = SUBCARRIERS_PER_RB * RSRP / RSSI (per RE): this cell's RS power relative
             // to the total received power (all cells + noise). Interference-aware -- a strong
             // cell in a crowded/interfered zone scores low. (Previously hardcoded to 0 dB.)
