@@ -40,7 +40,8 @@ The rest of this document is organized into five major chapters:
 2. **Design:**  Describes the models developed for ns-3 extension to support NR features and procedures.
 3. **Usage:**  Documents how users may run and extend the NR test scenarios.
 4. **Validation:**  Documents how the models and scenarios have been verified and validated by test programs.
-5. **Open Issues and Future Work:**  Describes topics for which future work on model or scenario enhancements is recommended, or for which questions on interpretations of standards documents may be listed.
+5. **Open Issues and Future Work:**  Points to the issue tracker where known open issues are reported, and to the list of pending and ongoing features maintained in ``FEATURES.md``.
+6. **References:**  Lists the bibliographic references used throughout this document.
 
 
 Design
@@ -90,6 +91,13 @@ Validation
 
 Open issues and future work
 ---------------------------
+
+Known open issues of the 'NR' module are tracked in the issue tracker of the 'NR' GitLab repository: https://gitlab.com/cttc-lena/nr/-/issues. Please refer to it for the list of currently open issues, and use it to report any new issue you may find.
+
+Regarding future work, the list of supported, partially supported, and planned features of the 'NR' module is maintained in the ``FEATURES.md`` file, located at the root directory of the 'NR' repository and available online at the 5G-LENA website: https://5g-lena.cttc.es/features/. That file provides an at-a-glance view of the status of each feature, organized per layer, together with the calibration and testing framework, and the extensions built on top of the 'NR' module (Sidelink and NR-V2X, O-RAN, and NR-U). It also contains the planned roadmap with the pending and ongoing enhancements.
+
+References
+----------
 
 .. [mmwave-module] NYU WIRELESS, University of Padova. "ns-3 module for simulating mmwave-based cellular systems". Available at https://github.com/nyuwireless/ns3-mmwave.
 
