@@ -4,7 +4,7 @@
 
 # NR3 CI script for MacOS
 
-# Check if everything builds fine under debug, default, and optimized, on MacOS.
+# Check if everything builds fine under debug, default, and release, on MacOS.
 
 .build-macos-base:
   extends: .base-build
@@ -33,8 +33,8 @@ scheduled-macos-default:
     MODE: default
     COMPILER: clang++
 
-scheduled-macos-optimized:
+scheduled-macos-release:
   extends: .build-macos-base
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: clang++

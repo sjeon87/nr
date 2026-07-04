@@ -29,7 +29,7 @@ variables:
 # Defines the steps to run the tests
 # Inherit with "extends: .base-build" and remember to set
 # the following variables: COMPILER (g++, clang++, ...) and
-# MODE (debug, release, optimized)
+# MODE (debug, default, release)
 .base-build:
   stage: build
   script:
@@ -47,7 +47,7 @@ variables:
     - if [ "$MODE" != "debug" ] && [ "$REGRESSION_TEST" != "true" ] && [ "`./utils/ccache-miss-rate.py`" != "0" ]; then
         ./test.py --no-build --verbose-failed -f TAKES_FOREVER;
       fi
-    - if [ "$REGRESSION_TEST" == "true" ] && [ "$MODE" == "optimized" ]; then
+    - if [ "$REGRESSION_TEST" == "true" ] && [ "$MODE" == "release" ]; then
       ./contrib/nr/examples/3gpp-outdoor-calibration/test-outdoor-calibration.py;
       fi
     - ccache -s
@@ -55,7 +55,7 @@ variables:
     - popd
     - rm -rf ns-3-dev
   cache:
-    # Use separate key for each (debug/optimized/release) jobs because
+    # Use separate key for each (debug/default/release) jobs because
     # they run in parallel and will otherwise overwrite each other
     # cache when they upload the cache archive at the end of the job,
     # resulting in only the cache for the last finished configuration
@@ -108,16 +108,16 @@ per-commit-clang-debug:
     MODE: debug
     COMPILER: clang++
 
-per-commit-clang-optimized:
+per-commit-clang-release:
   extends: .base-per-commit-compile
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: clang++
 
-per-commit-clang-optimized-libc++:
+per-commit-clang-release-libc++:
   extends: .base-per-commit-compile
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: clang++
     FLAGS: -stdlib=libc++
 
@@ -135,14 +135,14 @@ per-commit-gcc-default:
   tags:
     - CTTC
 
-per-commit-gcc-optimized-no-lte:
+per-commit-gcc-release-no-lte:
   extends: .base-per-commit-compile
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: g++
     EXTRAS: --disable-module=lte
 
-per-commit-gcc-optimized-sanitizers:
+per-commit-gcc-release-sanitizers:
   extends: .base-per-commit-compile
   # Sanitizers only need to re-run on C++ source changes, not CMake changes.
   rules:
@@ -153,7 +153,7 @@ per-commit-gcc-optimized-sanitizers:
         - "**/*.cc"
         - "**/*.h"
   variables:
-    MODE: optimized
+    MODE: release
     COMPILER: g++
     EXTRAS: --enable-sanitizers
   tags:

@@ -51,11 +51,11 @@ weekly-build-clang-17-default:
     CLANG: 17
     MODE: default
 
-weekly-build-clang-17-optimized:
+weekly-build-clang-17-release:
   extends: .weekly-build-clang-ubuntu24.04
   variables:
     CLANG: 17
-    MODE: optimized
+    MODE: release
 
 # CLANG rolling
 .weekly-build-clang-ubuntu-rolling:
@@ -100,7 +100,7 @@ weekly-build-clang-rolling-default:
   variables:
     MODE: default
 
-weekly-build-clang-rolling-optimized:
+weekly-build-clang-rolling-release:
   extends: .weekly-build-clang-ubuntu-rolling
   variables:
-    MODE: optimized
+    MODE: release

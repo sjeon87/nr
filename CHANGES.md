@@ -48,13 +48,48 @@ the cracks, unfortunately.  If you, as a user, can suggest improvements
 to this file based on your experience, please contribute a patch or drop
 us a note on ns-developers mailing list.
 
-## Changes for 5G-LENA NR-v5
+## Changes from NR-v4.2 to v5.0
 
-### Changes to build system
-- The ``cttc-nr-demo-sionna-rt`` example is built only when Sionna RT dependencies are detected and the platform is not Windows.
+### New API:
+- Add ``NrHelper::AssignStreams()`` taking a single parameter structure (EPC, gNB/UE nodes and devices, and their base streams), unifying and replacing the previous scattered RNG stream assignment so that simulations are reproducible across runs. See commit 2e444dfa.
+- Add a same-cell primary-BWP switch mechanism: the UE RRC measures RSRP per carrier and can switch its primary BWP within the serving cell, controlled by the new ``NrUeRrc::BwpSwitchHysteresis`` attribute, with a ``BwpManagerUe`` callback exposing the UE primary BWP index. See commits 15d565e7, 363afad1, 02499113 and 4daf7d08.
+- Add ``NrGnbRrc::HandoverDecisionDelay`` and ``NrGnbRrc::HandoverTriggeringDelay`` attributes to model the handover decision and triggering latencies.
+- Add the ``NrGnbNetDevice::NrHandoverAlgorithm`` attribute to configure the handover algorithm per device.
+- Add Cell Individual Offset (CIO) support for handover biasing (cell range expansion), including a ``Hysteresis`` attribute on ``NrA3RsrpHandoverAlgorithm`` and a signed A3 offset to support negative CIO values (TR 36.839 Set 5). See commits 4735ccfc and 590741fe.
+- Add msg3 (UL RRC Connection Request) HARQ retransmission, controlled by the new ``NrMacSchedulerNs3::Msg3MaxRetx`` attribute. See commit 0da21153.
+- Add ``NrUePhy::Qin`` and ``NrUePhy::Qout`` attributes to configure the radio-link-monitoring in-sync/out-of-sync thresholds.
+- Add the ``NrUeRrc::RlcMaxRetxTriggersRlf`` attribute (default false) to declare RLF when RLC-AM reaches its maximum retransmissions, per TS 38.331 Section 5.3.10.3. See commit 0c1e88ed.
+- Add the ``NrFhControl::FunctionalSplit`` attribute to select the fronthaul functional split (``FS_6``, ``FS_7_3``, ``FS_7_2`` -- the default -- and ``FS_7_1``), with the corresponding per-split fronthaul throughput computation. See commits a48d380f and 4554c34f.
+- Add the ``NrGnbPhy::TestDropRachPreambles`` attribute (testing support).
+- Public API classes are now annotated with the ``NR_EXPORT`` macro, and internal symbols are hidden, to support building the module on Windows. See commit 5aa128de.
+
+### Changes to Existing API
+- The ``NumRbPerRbg`` attribute was moved from ``NrGnbMac`` to ``NrHelper``. See commit f3b5e3ed.
+- The ``RbOverhead`` attribute was moved from ``NrGnbPhy`` to ``NrHelper`` and is applied at setup time only. See commit 4f40bd6c.
+- The misspelled ``NrRlcUm::OutOfOfOrderDelivery`` attribute was renamed to ``OutOfOrderDelivery``.
 
 ### Changed Behavior
-- Added the ``cttc-nr-demo-sionna-rt`` example to demonstrate an end-to-end NR deployment using ``NrChannelHelper`` with the Sionna RT channel model.
+- NrAmc::CalculateTbSize now computes the number of code blocks with a real-valued division before applying ceil, as mandated by TS 38.212 Section 5.2.2; the integer division previously truncated the ratio, undercounting the code blocks and their CRC overhead, so transport blocks slightly larger than a code block now yield a marginally smaller usable TB size.
+- UE RSRP is now accumulated in linear mW and converted to dBm only when reporting, the measurement sample counters were widened to 32 bits, zero-power PSS samples are skipped, and the RRC layer-3 filter ignores non-finite values. This fixes measurement corruption (reports stuck at reporting range 0) in multi-cell scenarios with data traffic; reported RSRP values in windows mixing different signal levels are slightly higher than before. See commit 6691525f.
+- The RSRP reporting range mapping was updated from LTE to 5G-NR. See commit b6462ad0.
+- The UE RSRQ measurement is now interference-aware (RSSI built from noise plus inter-cell interference). See commit f08b3c06.
+- The ideal (cell scan) and realistic beamforming algorithms now scan the receive-side beams with the receive-side zenith step; previously the transmit-side step was used, incorrectly scanning the UE codebook whenever the two arrays had a different number of rows (fixes #276).
+- The realistic beamforming SRS channel estimation now applies the documented time-domain filtering gain (Delta = 9 dB) and the normalization factor alpha, and draws the complex error with the documented total variance. See commit fea12c41.
+- RLC-UM no longer delivers corrupt SDUs after t-Reordering expiry (stranded partial SDUs are discarded and the reassembly window is resynchronized), and the PDCP discard path actually drops the expired SDU instead of only tracing it. See commits 391f6bb9 and 070c7076 (and fixes #272).
+- Handover: added inter-frequency and inter-numerology handover support (measurements, data-plane continuity and BWP re-tuning), the QoS flow ID is copied to the target on handover, X2-U data received outside the forwarding window is tolerated, and the endless rescheduling of delayed reports and handovers was fixed.
+- Radio link failure: buffers, interference matrices, cell ID and CSI reporting are properly reset after RLF, RLF reselection works across numerologies, and FDD operation was added to the RLF and RRC tests.
+- Initial cell selection now scans all configured BWPs, a forced camping request overrides an in-progress cell selection, and the UE listens with numerology zero by default.
+- Scheduler: unstable sorts were replaced by stable ones and ``std::shuffle`` by the ns-3 shuffle for cross-platform reproducibility (fixes #250), transmission opportunities are assigned to control logical channels before data, MAC subheader overheads are accounted in buffer estimates, minimum control/data allocation sizes are enforced, and signaling messages are prioritized and not segmented.
+- MIB/SIB1 transmissions are deferred to DL-capable slots, SIB1 parameters can be reconfigured via RRC, and the MIB numerology is routed per-carrier by ARFCN.
+- Fixed a DL HARQ ``symAvail`` double-count underflow (fixes #278), a heap overflow in the HARQ round-robin beam ordering, and the RA-preamble sentinel so idle UEs do not match stray RARs.
+- The radio environment map helper now uses the origin antenna element type when copying antennas (fixes #274).
+- Messages are routed between BWPs using the ARFCN, and the signaling radio bearers are installed in the MAC/PHY stacks of all BWPs.
+
+### Changes to build system
+- This release is compatible with ns-3.48, and the minimum CMake version was bumped to 3.25.2 to match ns-3. See commits 5152ffa9 and fe00e81c.
+- The module builds on Windows: internal symbols are hidden and the public API is exported through ``NR_EXPORT``. See commit 5aa128de.
+- The ``cttc-nr-demo-sionna-rt`` example is built only when Sionna RT dependencies are detected and the platform is not Windows.
+- The documentation build generates the figure artifacts from their committed ``.dia``/``.seqdiag``/``.dot`` sources instead of shipping generated images, is self-contained (no ns-3 source tree required), and the CI documentation job stops at the first Sphinx error and verifies that the expected outputs were generated.
 
 ## Changes from NR-v4.1.1 to v4.2
 
