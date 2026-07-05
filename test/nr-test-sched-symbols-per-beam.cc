@@ -87,6 +87,11 @@ class TestSchedSymPerBeamSapUser : public NrMacSchedSapUser
         return 1;
     }
 
+    uint32_t GetNumRbsInLastRbg() const override
+    {
+        return 1;
+    }
+
     uint8_t GetNumHarqProcess() const override
     {
         return 20;

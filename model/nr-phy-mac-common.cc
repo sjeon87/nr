@@ -334,20 +334,20 @@ CountUsedSymbolsFromVarAllocTtiRange(uint8_t startSym,
 }
 
 int
-NumRbsPerRbg(int numRbs)
+NumRbsPerRbg(int numRbs, bool rbgSizeConfig2)
 {
     NS_ABORT_MSG_IF(numRbs <= 0, "Number of RBs should be bigger than 0");
     if (numRbs <= 36)
     {
-        return 2;
+        return rbgSizeConfig2 ? 4 : 2;
     }
     if (numRbs <= 72)
     {
-        return 4;
+        return rbgSizeConfig2 ? 8 : 4;
     }
     if (numRbs <= 144)
     {
-        return 8;
+        return rbgSizeConfig2 ? 16 : 8;
     }
     return 16;
 }

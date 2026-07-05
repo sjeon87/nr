@@ -297,6 +297,14 @@ class NR_EXPORT NrPhy : public Object
     uint32_t GetRbNum() const;
 
     /**
+     * @brief Get the number of resource block groups the bandwidth is split
+     * into, including a possibly smaller last RBG when the number of resource
+     * blocks is not a multiple of the RBG size
+     * @return the number of RBGs
+     */
+    uint32_t GetRbgNum() const;
+
+    /**
      * @brief Retrieve the channel bandwidth, in Hz
      * @return the channel bandwidth in Hz
      */

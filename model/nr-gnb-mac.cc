@@ -22,6 +22,7 @@
 #include "nr-phy-mac-common.h"
 #include "nr-radio-bearer-tag.h"
 
+#include "ns3/boolean.h"
 #include "ns3/log.h"
 #include "ns3/spectrum-model.h"
 #include "ns3/uinteger.h"
@@ -253,6 +254,7 @@ class NrMacMemberMacSchedSapUser : public NrMacSchedSapUser
     void SchedConfigInd(const struct SchedConfigIndParameters& params) override;
     Ptr<const SpectrumModel> GetSpectrumModel() const override;
     uint32_t GetNumRbPerRbg() const override;
+    uint32_t GetNumRbsInLastRbg() const override;
     uint8_t GetNumHarqProcess() const override;
     uint16_t GetBwpId() const override;
     uint16_t GetCellId() const override;
@@ -288,6 +290,12 @@ uint32_t
 NrMacMemberMacSchedSapUser::GetNumRbPerRbg() const
 {
     return m_mac->GetNumRbPerRbg();
+}
+
+uint32_t
+NrMacMemberMacSchedSapUser::GetNumRbsInLastRbg() const
+{
+    return m_mac->GetNumRbsInLastRbg();
 }
 
 uint8_t
@@ -458,7 +466,15 @@ NrGnbMac::GetTypeId()
                           "How many time T300 timer can expire on the same cell",
                           UintegerValue(1),
                           MakeUintegerAccessor(&NrGnbMac::SetConnEstFailCount),
-                          MakeUintegerChecker<uint8_t>(1, 4));
+                          MakeUintegerChecker<uint8_t>(1, 4))
+            .AddAttribute("RbgSizeConfig2",
+                          "Selects the RBG size column of TS 38.214 Table 5.1.2.2.1-1 "
+                          "(rbg-Size field of PDSCH-Config, TS 38.331): "
+                          "false = config1, true = config2. "
+                          "Ignored when NumRbPerRbg forces a specific RBG size.",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrGnbMac::m_rbgSizeConfig2),
+                          MakeBooleanChecker());
     return tid;
 }
 
@@ -528,6 +544,18 @@ uint32_t
 NrGnbMac::GetNumRbPerRbg() const
 {
     return m_numRbPerRbg;
+}
+
+uint32_t
+NrGnbMac::GetNumRbsInLastRbg() const
+{
+    return m_numRbsInLastRbg;
+}
+
+bool
+NrGnbMac::GetRbgSizeConfig2() const
+{
+    return m_rbgSizeConfig2;
 }
 
 void
@@ -1364,15 +1392,17 @@ NrGnbMac::DoConfigureMac(uint16_t ulBandwidth, uint16_t dlBandwidth)
     uint8_t numRbsPerRbg = GetNumRbPerRbg();
     if (numRbsPerRbg == 0)
     {
-        SetNumRbPerRbg(nr::NumRbsPerRbg(bw_in_rb));
+        SetNumRbPerRbg(nr::NumRbsPerRbg(bw_in_rb, m_rbgSizeConfig2));
         numRbsPerRbg = GetNumRbPerRbg();
     }
-    // todo: Account for last RBG with less than numRbsPerRbg.
-    // uint16_t bw_in_rbg = (bw_in_rb + numRbsPerRbg - 1) / numRbsPerRbg;
-    // We cannot do that now because we do not handle bandwidths that are not aligned with the RBG
-    // size elsewhere in the code. So we end up discarding the last RBs here.
-    uint16_t bw_in_rbg = bw_in_rb / numRbsPerRbg;
+    NS_ASSERT_MSG(GetNumRbPerRbg() > 0, "Number of RBs per RBG should be set at this point");
+
+    // Account for last RBG with less than numRbsPerRbg
+    uint16_t bw_in_rbg = (bw_in_rb + numRbsPerRbg - 1) / numRbsPerRbg;
     m_bandwidthInRbg = bw_in_rbg;
+    // Store size of last smaller RBG so we can fixup computations at scheduler later
+    m_numRbsInLastRbg = bw_in_rb % numRbsPerRbg;
+    m_numRbsInLastRbg = (m_numRbsInLastRbg == 0) ? numRbsPerRbg : m_numRbsInLastRbg;
 
     NS_LOG_DEBUG("Mac configured. Attributes:"
                  << std::endl

@@ -485,6 +485,12 @@ NrUePhy::SetNumRbPerRbg(uint32_t numRbPerRbg)
 }
 
 void
+NrUePhy::SetRbgSizeConfig2(bool rbgSizeConfig2)
+{
+    m_rbgSizeConfig2 = rbgSizeConfig2;
+}
+
+void
 NrUePhy::SetPattern(const std::string& pattern)
 {
     NS_LOG_FUNCTION(this);
@@ -525,7 +531,11 @@ NrUePhy::SetPattern(const std::string& pattern)
 uint32_t
 NrUePhy::GetNumRbPerRbg() const
 {
-    return m_numRbPerRbg;
+    if (m_numRbPerRbg > 0)
+    {
+        return m_numRbPerRbg;
+    }
+    return nr::NumRbsPerRbg(GetRbNum(), m_rbgSizeConfig2);
 }
 
 void
@@ -1176,9 +1186,9 @@ NrUePhy::DlData(const std::shared_ptr<DciInfoElementTdma>& dci)
 
     Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
 
-    if (GetRbNum() != dci->m_rbgBitmask.size())
+    if (GetRbgNum() != dci->m_rbgBitmask.size())
     {
-        NS_LOG_DEBUG("Mismatching number of RBs and RBG bitmask");
+        NS_LOG_DEBUG("Mismatching number of RBGs and RBG bitmask");
         return varTtiDuration;
     }
 
@@ -1217,7 +1227,7 @@ NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma>& dci)
     NS_LOG_FUNCTION(this);
     Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
 
-    if (GetRbNum() != dci->m_rbgBitmask.size())
+    if (GetRbgNum() != dci->m_rbgBitmask.size())
     {
         return varTtiDuration;
     }

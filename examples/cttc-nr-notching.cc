@@ -315,6 +315,8 @@ main(int argc, char* argv[])
     Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
     nrHelper->SetBeamformingHelper(idealBeamformingHelper);
     nrHelper->SetEpcHelper(nrEpcHelper);
+    // The notched masks in this example are expressed with one RB per RBG
+    nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(1));
     nrEpcHelper->SetAttribute("S1uLinkDelay", TimeValue(MilliSeconds(0)));
     if (enableOfdma)
     {

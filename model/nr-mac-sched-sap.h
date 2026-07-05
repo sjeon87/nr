@@ -231,6 +231,12 @@ class NR_EXPORT NrMacSchedSapUser
     virtual uint32_t GetNumRbPerRbg() const = 0;
 
     /**
+     * @brief Get the number of RB in the last RBG
+     * @return Number of RB in last RBG
+     */
+    virtual uint32_t GetNumRbsInLastRbg() const = 0;
+
+    /**
      * @brief Get the number of HARQ process
      * @return the number of HARQ processes
      */

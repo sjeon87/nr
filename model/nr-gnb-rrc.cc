@@ -913,8 +913,8 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
         targetComponentCarrier->GetMac()->GetUlCtrlSyms();
     result.mobilityControlInfo.servingCellConfigCommon.tddPattern =
         targetComponentCarrier->GetPhy()->GetPattern();
-    result.mobilityControlInfo.servingCellConfigCommon.rbgSize =
-        targetComponentCarrier->GetPhy()->GetNumRbPerRbg();
+    result.mobilityControlInfo.servingCellConfigCommon.rbgSizeConfig2 =
+        targetComponentCarrier->GetMac()->GetRbgSizeConfig2();
 
     if (m_caSupportConfigured && m_rrc->m_numberOfComponentCarriers > 1)
     {
@@ -2665,7 +2665,7 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
         sib1.servingCellConfigCommon.ulCtrlSymsNum = it.second->GetMac()->GetUlCtrlSyms();
         sib1.servingCellConfigCommon.symbolsPerSlot = it.second->GetPhy()->GetSymbolsPerSlot();
         sib1.servingCellConfigCommon.tddPattern = it.second->GetPhy()->GetPattern();
-        sib1.servingCellConfigCommon.rbgSize = it.second->GetPhy()->GetNumRbPerRbg();
+        sib1.servingCellConfigCommon.rbgSizeConfig2 = it.second->GetMac()->GetRbgSizeConfig2();
         m_sib1.push_back(sib1);
         m_cphySapProvider.at(it.first)->SetSystemInformationBlockType1(sib1);
     }

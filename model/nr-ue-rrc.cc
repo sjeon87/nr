@@ -1365,7 +1365,7 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
                                     targetScc.symbolsPerSlot,
                                     targetScc.numerology,
                                     targetScc.tddPattern,
-                                    targetScc.rbgSize);
+                                    targetScc.rbgSizeConfig2);
                 if (ulBwp != dlBwp)
                 {
                     ReconfigureFromSib1(ulBwp,
@@ -1375,7 +1375,7 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
                                         targetScc.symbolsPerSlot,
                                         targetScc.numerology,
                                         "F",
-                                        targetScc.rbgSize);
+                                        targetScc.rbgSizeConfig2);
                 }
                 SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
                 SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
@@ -1867,7 +1867,7 @@ NrUeRrc::EvaluateCellForSelection()
                             m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
                             m_lastSib1.servingCellConfigCommon.numerology,
                             m_lastSib1.servingCellConfigCommon.tddPattern,
-                            m_lastSib1.servingCellConfigCommon.rbgSize);
+                            m_lastSib1.servingCellConfigCommon.rbgSizeConfig2);
 
         if (ulBwpIndex != dlBwpIndex)
         {
@@ -1878,7 +1878,7 @@ NrUeRrc::EvaluateCellForSelection()
                                 m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
                                 m_lastSib1.servingCellConfigCommon.numerology,
                                 "F",
-                                m_lastSib1.servingCellConfigCommon.rbgSize);
+                                m_lastSib1.servingCellConfigCommon.rbgSizeConfig2);
         }
         m_cmacSapProvider.at(ulBwpIndex)->RegisterToGnb(m_cellId);
         if (ulBwpIndex != dlBwpIndex)
@@ -4112,7 +4112,7 @@ NrUeRrc::ReconfigureFromSib1(const uint8_t bwpId,
                              const uint32_t symPerSlot,
                              const uint16_t numerology,
                              const std::string& tddPattern,
-                             const uint8_t numRbsPerRbg)
+                             const bool rbgSizeConfig2)
 {
     NS_LOG_FUNCTION(this << "IMSI " << m_imsi << ", cellId " << m_cellId << ", primary UL "
                          << GetPrimaryUlIndex() << ", primary DL " << GetPrimaryDlIndex());
@@ -4122,6 +4122,6 @@ NrUeRrc::ReconfigureFromSib1(const uint8_t bwpId,
     m_cphySapProvider.at(bwpId)->SetSymbolsPerSlot(symPerSlot);
     m_cphySapProvider.at(bwpId)->SetNumerology(numerology);
     m_cphySapProvider.at(bwpId)->SetPattern(tddPattern);
-    m_cphySapProvider.at(bwpId)->SetNumRbPerRbg(numRbsPerRbg);
+    m_cphySapProvider.at(bwpId)->SetRbgSizeConfig2(rbgSizeConfig2);
 }
 } // namespace ns3

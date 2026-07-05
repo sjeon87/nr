@@ -732,6 +732,13 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
      */
     uint64_t GetNumRbPerRbg() const;
 
+    /**
+     * @brief Private function that is used to get the number of resource
+     * blocks in the last resource block group.
+     * @return Returns the number of RBs in the last RBG
+     */
+    uint64_t GetNumRbsInLastRbg() const;
+
   protected:
     Ptr<NrAmc> m_dlAmc; //!< AMC pointer
     Ptr<NrAmc> m_ulAmc; //!< AMC pointer

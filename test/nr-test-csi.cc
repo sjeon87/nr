@@ -572,6 +572,8 @@ NrCsiTestCase::DoRun()
     Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
     nrHelper->SetBeamformingHelper(idealBeamformingHelper);
     nrHelper->SetEpcHelper(nrEpcHelper);
+    // The interference patterns of this test are expressed with one RB per RBG
+    nrHelper->SetAttribute("NumRbPerRbg", UintegerValue(1));
     /**
      * Prepare spectrum. Prepare one operational band, containing
      * one component carrier, and a single bandwidth part

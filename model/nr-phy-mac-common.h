@@ -862,8 +862,16 @@ uint8_t CountUsedSymbolsFromVarAllocTtiRange(uint8_t startSym,
                                              std::deque<VarTtiAllocInfo>::iterator begin,
                                              std::deque<VarTtiAllocInfo>::iterator end);
 
-// TS 38.214 nominal RBG size P for RA Type 0.
-int NumRbsPerRbg(int numRbs);
+/**
+ * Nominal RBG size P for resource allocation Type 0,
+ * according to TS 38.214 Table 5.1.2.2.1-1.
+ *
+ * @param numRbs Bandwidth part size, in number of resource blocks.
+ * @param rbgSizeConfig2 True selects the Configuration 2 column of the table,
+ * false selects Configuration 1 (rbg-Size field of PDSCH-Config, TS 38.331).
+ * @return The number of RBs per RBG.
+ */
+int NumRbsPerRbg(int numRbs, bool rbgSizeConfig2 = false);
 } // namespace nr
 
 NR_EXPORT std::ostream& operator<<(std::ostream& os, const DciInfoElementTdma& item);
