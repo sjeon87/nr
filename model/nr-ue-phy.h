@@ -328,7 +328,7 @@ class NR_EXPORT NrUePhy : public NrPhy
      *
      * @param [in] cellId
      * @param [in] rnti
-     * @param [in] sinr
+     * @param [in] sinr Linear SINR (not dB), averaged over the allocated RBs
      * @param [in] bwpId
      */
     typedef void (*DlDataSinrTracedCallback)(uint16_t, uint16_t, double, uint16_t);
@@ -1057,8 +1057,9 @@ class NR_EXPORT NrUePhy : public NrPhy
     double m_alphaCovMat = {0.1};                 //!< Moving average alpha parameter
     uint8_t m_csiImDuration = {1}; //!< Duration of CSI-IM is enabled, see NrHelper for enabling it
     /**
-     * The `DlDataSinr` trace source (DlDataSinrTracedCallback). Trace information regarding
-     * average SINR (see TS 36.214). Exporting cell ID, RNTI, SINR and BWP id.
+     * The `DlDataSinr` trace source (DlDataSinrTracedCallback): effective DL data SINR used for
+     * CQI/CSI feedback, reported as a linear ratio (not dB) averaged over the allocated RBs.
+     * Exports cell ID, RNTI, SINR and BWP id.
      */
     TracedCallback<uint16_t, uint16_t, double, uint16_t> m_dlDataSinrTrace;
     /**
