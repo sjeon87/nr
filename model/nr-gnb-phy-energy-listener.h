@@ -7,10 +7,9 @@
 //
 // 3GPP References:
 //   TR 38.864 V18.1.0 (2023-03): Section 5.1 - Energy consumption model for BS
-//   TR 38.840 V16.0.0 (2019-06): Section 8   - UE energy consumption evaluation
 
-#ifndef NR_PHY_ENERGY_LISTENER_H
-#define NR_PHY_ENERGY_LISTENER_H
+#ifndef NR_GNB_PHY_ENERGY_LISTENER_H
+#define NR_GNB_PHY_ENERGY_LISTENER_H
 
 #include "ns3/object.h"
 #include "ns3/ptr.h"
@@ -21,30 +20,30 @@ namespace ns3
 {
 
 // Forward declarations
-class NrUePhy;
 class NrGnbPhy;
-class NrUeEnergyModel;
 class NrGnbEnergyModel;
 
 
 /**
  * @ingroup nr
- * @brief Callback bridge between NR PHY layer events and the NR energy models.
+ * @brief Callback bridge between NR gNB PHY layer events and the gNB energy model.
  *
- * This class is the decoupling layer between the simulation's PHY event
- * stream and the energy model state machines. It subscribes to trace
- * sources on NrUePhy and NrGnbPhy, extracts the dynamic scaling factors
- * (sa, sf, sp) required by the 3GPP TR 38.864 power formula, and forwards
- * energy model state-change calls to NrUeEnergyModel and NrGnbEnergyModel.
+ * This class is the decoupling layer between the gNB's PHY event stream and the
+ * gNB energy model state machine. It subscribes to trace sources on NrGnbPhy,
+ * extracts the dynamic scaling factors (sa, sf, sp) required by the 3GPP
+ * TR 38.864 power formula, and forwards energy model state-change calls to
+ * NrGnbEnergyModel.
  *
  * Design rationale:
  *   - This class must NOT be aware of the energy formula internals.
  *     It only knows: "event occurred, extract parameters, notify model."
  *   - It must be usable both with and without an energy model installed
  *     (if no model is attached, callbacks are no-ops).
+ *   - It has a single responsibility: the gNB side of the mapping. The UE side
+ *     lives in a separate listener.
  *
  */
-class NrPhyEnergyListener : public Object
+class NrGnbPhyEnergyListener : public Object
 {
   public:
     /**
@@ -54,26 +53,13 @@ class NrPhyEnergyListener : public Object
     static TypeId GetTypeId();
 
     /**
-     * @brief NrPhyEnergyListener constructor
+     * @brief NrGnbPhyEnergyListener constructor
      */
-    NrPhyEnergyListener();
+    NrGnbPhyEnergyListener();
     /**
-     * @brief ~NrPhyEnergyListener
+     * @brief ~NrGnbPhyEnergyListener
      */
-    ~NrPhyEnergyListener() override;
-
-    /**
-     * @brief Attach this listener to a UE PHY instance.
-     *
-     * Subscribes to the following trace sources on phy:
-     *   - SlotIndication     - fires each slot start
-     *   - PhyRxCtrlEndOk     - PDCCH successfully decoded (state -> PDCCH_ONLY or PDCCH_PDSCH)
-     *   - PhyTxEnd           - UL transmission completed (state -> back to PDCCH or sleep)
-     *   - DlHarqFeedback     - HARQ ACK/NACK for state tracking
-     *
-     * @param phy Pointer to the NrUePhy on the UE node.
-     */
-    void SetUePhy(Ptr<NrUePhy> phy);
+    ~NrGnbPhyEnergyListener() override;
 
     /**
      * @brief Attach this listener to a gNB PHY instance.
@@ -85,20 +71,13 @@ class NrPhyEnergyListener : public Object
      *
      * @param phy Pointer to the NrGnbPhy on the gNB node.
      */
-    void SetGnbPhy(Ptr<NrGnbPhy> phy);
-
-
-    /**
-     * @brief Connect the UE energy model that this listener will drive.
-     * @param model Pointer to the NrUeEnergyModel instance.
-     */
-    void SetUeEnergyModel(Ptr<NrUeEnergyModel> model);
+    void SetPhy(Ptr<NrGnbPhy> phy);
 
     /**
      * @brief Connect the gNB energy model that this listener will drive.
      * @param model Pointer to the NrGnbEnergyModel instance.
      */
-    void SetGnbEnergyModel(Ptr<NrGnbEnergyModel> model);
+    void SetEnergyModel(Ptr<NrGnbEnergyModel> model);
 
     /**
      * @brief Get the most recently computed DL bandwidth utilization sf.
@@ -144,18 +123,6 @@ class NrPhyEnergyListener : public Object
 
   private:
     /**
-     * @brief Called each time a new slot starts (UE side).
-     *
-     * Responsibilities:
-     *   1. Determine UE DRX state from MAC DRX timer state.
-     *   2. Set UE energy model state to PDCCH_ONLY if in DRX ON.
-     *   3. Set UE energy model state to MICRO_SLEEP/LIGHT_SLEEP if in DRX OFF.
-     *
-     * @param sfnSf The current system frame / slot number.
-     */
-    void UeSlotIndicationCallback(const SfnSf& sfnSf);
-
-    /**
      * @brief Called each time a new slot starts (gNB side).
      *
      * Responsibilities:
@@ -166,20 +133,7 @@ class NrPhyEnergyListener : public Object
      *
      * @param sfnSf The current system frame / slot number.
      */
-    void GnbSlotIndicationCallback(const SfnSf& sfnSf);
-
-    /**
-     * @brief Called when PDCCH decoding succeeds on the UE.
-     *
-     * Transitions UE energy model:
-     *   - If DCI has DL grant: state -> NR_UE_PDCCH_PDSCH 
-     *   - If DCI has UL grant: state will transition to NR_UE_UL_TX at grant time
-     *   - Otherwise:           state -> NR_UE_PDCCH_ONLY 
-     *
-     * @param hasDownlinkGrant True if the decoded DCI contains a PDSCH grant.
-     * @param hasUplinkGrant True if the decoded DCI contains a PUSCH grant.
-     */
-    void UePdcchDecodeSuccessCallback(bool hasDownlinkGrant, bool hasUplinkGrant);
+    void SlotIndicationCallback(const SfnSf& sfnSf);
 
     /**
      * @brief Called when a DL packet burst is sent by the gNB.
@@ -189,7 +143,7 @@ class NrPhyEnergyListener : public Object
      *
      * @param allocatedRbs Number of DL resource blocks allocated in this TTI.
      */
-    void GnbDlBurstSentCallback(uint32_t allocatedRbs);
+    void DlBurstSentCallback(uint32_t allocatedRbs);
 
     /**
      * @brief Called when a UL burst reception completes at the gNB.
@@ -198,28 +152,7 @@ class NrPhyEnergyListener : public Object
      *
      * @param allocatedRbs Number of UL resource blocks in this TTI.
      */
-    void GnbUlReceiveCallback(uint32_t allocatedRbs);
-
-    /**
-     * @brief Called when UL transmission starts on the UE.
-     *
-     * Transitions UE energy model state to NR_UE_UL_TX.
-     * Power depends on Tx power level:
-     *   - If txPowerDbm <= 0 dBm  -> UlPower0dBm
-     *   - If txPowerDbm > 0 dBm   -> interpolate or use UlPower23dBm
-     *   Source: TR 38.840 Table 18.
-     *
-     * @param txPowerDbm Current UL transmission power in dBm.
-     */
-    void UeUlTxStartCallback(double txPowerDbm);
-
-    /**
-     * @brief Called when UL transmission ends on the UE.
-     *
-     * Transitions UE energy model state back from NR_UE_UL_TX to
-     * NR_UE_PDCCH_ONLY or NR_UE_MICRO_SLEEP depending on DRX state.
-     */
-    void UeUlTxEndCallback();
+    void UlReceiveCallback(uint32_t allocatedRbs);
 
     /**
      * @brief Recompute m_lastSp from the gNB's current Tx power.
@@ -227,12 +160,10 @@ class NrPhyEnergyListener : public Object
      * sp = currentTxPower_lin / referenceTxPower_lin. Tx power can change at
      * runtime, so this is called per slot rather than computed once.
      */
-    void RefreshGnbSp();
+    void RefreshSp();
 
-    Ptr<NrUePhy> m_uePhy;           //!< Attached UE PHY (may be null)
-    Ptr<NrGnbPhy> m_gnbPhy;         //!< Attached gNB PHY (may be null)
-    Ptr<NrUeEnergyModel> m_ueModel; //!< Attached UE energy model (may be null)
-    Ptr<NrGnbEnergyModel> m_gnbModel; //!< Attached gNB energy model (may be null)
+    Ptr<NrGnbPhy> m_phy;             //!< Attached gNB PHY (may be null)
+    Ptr<NrGnbEnergyModel> m_model;   //!< Attached gNB energy model (may be null)
 
     double m_lastDlSf; //!< Last DL sf computed: allocated_RBs / total_RBs
     double m_lastUlSf; //!< Last UL sf computed
@@ -246,4 +177,4 @@ class NrPhyEnergyListener : public Object
 
 } // namespace ns3
 
-#endif // NR_PHY_ENERGY_LISTENER_H
+#endif // NR_GNB_PHY_ENERGY_LISTENER_H

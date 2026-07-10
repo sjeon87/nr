@@ -126,6 +126,7 @@ set(source_files
     model/nr-gnb-energy-model.cc
     model/nr-gnb-mac.cc
     model/nr-gnb-net-device.cc
+    model/nr-gnb-phy-energy-listener.cc
     model/nr-gnb-phy.cc
     model/nr-gnb-rrc.cc
     model/nr-handover-algorithm.cc
@@ -329,6 +330,7 @@ set(header_files
     model/nr-gnb-energy-model.h
     model/nr-gnb-mac.h
     model/nr-gnb-net-device.h
+    model/nr-gnb-phy-energy-listener.h
     model/nr-gnb-phy.h
     model/nr-gnb-rrc.h
     model/nr-handover-algorithm.h
@@ -503,6 +505,7 @@ set(test_sources
     test/nr-test-ipv6-routing.cc
     test/nr-test-l2sm-eesm.cc
     test/nr-test-notching.cc
+    test/nr-test-gnb-phy-energy-listener.cc
     test/nr-test-numerology-delay.cc
     test/nr-test-phy.cc
     test/nr-test-phy-energy-listener.cc
