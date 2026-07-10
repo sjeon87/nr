@@ -214,6 +214,7 @@ set(source_files
     model/nr-ue-energy-model.cc
     model/nr-ue-mac.cc
     model/nr-ue-net-device.cc
+    model/nr-ue-phy-energy-listener.cc
     model/nr-ue-phy.cc
     model/nr-ue-power-control.cc
     model/nr-ue-rrc.cc
@@ -434,6 +435,7 @@ set(header_files
     model/nr-ue-energy-model.h
     model/nr-ue-mac.h
     model/nr-ue-net-device.h
+    model/nr-ue-phy-energy-listener.h
     model/nr-ue-phy.h
     model/nr-ue-power-control.h
     model/nr-ue-rrc.h
@@ -533,6 +535,7 @@ set(test_sources
     test/ul-scheduling-test.cc
     utils/traffic-generators/test/traffic-generator-test.cc
     test/nr-test-hexagonal-grid-scenario-helper.cc
+    test/nr-test-ue-phy-energy-listener.cc
     test/nr-test-ue-measurements.cc
     test/nr-test-radio-link-failure.cc
     test/nr-test-rrc-reestablishment.cc
