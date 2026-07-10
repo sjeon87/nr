@@ -25,8 +25,7 @@ class NrUePhy;
 class NrGnbPhy;
 class NrUeEnergyModel;
 class NrGnbEnergyModel;
-class NrMacSchedulerNs3;
-class NrUeMac;
+
 
 /**
  * @ingroup nr
@@ -88,17 +87,6 @@ class NrPhyEnergyListener : public Object
      */
     void SetGnbPhy(Ptr<NrGnbPhy> phy);
 
-    /**
-     * @brief Attach the gNB MAC scheduler (source of sf = allocated/total RBs).
-     * @param scheduler Pointer to the NrMacSchedulerNs3 on the gNB.
-     */
-    void SetScheduler(Ptr<NrMacSchedulerNs3> scheduler);
-
-    /**
-     * @brief Attach the UE MAC (source of DRX state transitions).
-     * @param mac Pointer to the NrUeMac on the UE node.
-     */
-    void SetUeMac(Ptr<NrUeMac> mac);
 
     /**
      * @brief Connect the UE energy model that this listener will drive.

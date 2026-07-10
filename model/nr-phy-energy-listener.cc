@@ -10,8 +10,6 @@
 //   TR 38.840 V16.0.0 (2019-06): Section 8.1 - UE power state event triggers
 
 #include "nr-phy-energy-listener.h"
-#include "nr-ue-mac.h"
-#include "nr-mac-scheduler-ns3.h"
 #include "nr-ue-phy.h"
 #include "nr-gnb-phy.h"
 #include "nr-ue-energy-model.h"
@@ -84,23 +82,6 @@ NrPhyEnergyListener::SetGnbPhy(Ptr<NrGnbPhy> phy)
     //     MakeCallback(&NrPhyEnergyListener::GnbDlBurstSentCallback, this));
 }
 
-void
-NrPhyEnergyListener::SetScheduler(Ptr<NrMacSchedulerNs3> scheduler)
-{
-    NS_LOG_FUNCTION(this << scheduler);
-    NS_ASSERT_MSG(scheduler, "NrMacSchedulerNs3 pointer must not be null");
-    m_scheduler = scheduler;
-    // TODO Week 7: connect scheduler trace source for per-TTI sf extraction.
-}
-
-void
-NrPhyEnergyListener::SetUeMac(Ptr<NrUeMac> mac)
-{
-    NS_LOG_FUNCTION(this << mac);
-    NS_ASSERT_MSG(mac, "NrUeMac pointer must not be null");
-    m_ueMac = mac;
-    // TODO Week 6: connect NrUeMac DRX state trace source.
-}
 
 void
 NrPhyEnergyListener::SetUeEnergyModel(Ptr<NrUeEnergyModel> model)
@@ -126,8 +107,6 @@ NrPhyEnergyListener::DoDispose()
     m_gnbPhy = nullptr;
     m_ueModel = nullptr;
     m_gnbModel = nullptr;
-    m_scheduler = nullptr;
-    m_ueMac = nullptr;
     Object::DoDispose();
 }
 
@@ -205,7 +184,7 @@ NrPhyEnergyListener::UeSlotIndicationCallback(const SfnSf& sfnSf)
 {
     // TODO Week 6 (stub here in Week 3):
     //
-    // Query DRX state from NrUeMac (attached via NrUePhy pointer):
+    // Query DRX state:
     //   If DRX_ON:  m_ueModel->ChangeState(NR_UE_PDCCH_ONLY)
     //   If DRX_OFF (long cycle): m_ueModel->ChangeState(NR_UE_LIGHT_SLEEP)
     //               or DEEP_SLEEP based on remaining inactive period vs. T_deep
