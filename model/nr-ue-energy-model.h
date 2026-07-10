@@ -20,7 +20,7 @@ namespace ns3
  * @ingroup nr
  * @brief Placeholder for the TR 38.840 UE energy model (Week 4).
  *
- * Minimal stub so that NrPhyEnergyListener has a complete type to hold and
+ * Minimal stub so that NrUePhyEnergyListener has a complete type to hold and
  * drive. The UE power-state machine, scaling rules, and energy accounting
  * are added in a later milestone.
  */

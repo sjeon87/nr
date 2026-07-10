@@ -20,7 +20,7 @@ namespace ns3
  * @ingroup nr
  * @brief Placeholder for the TR 38.864 gNB energy model (Week 5).
  *
- * Minimal stub so that NrPhyEnergyListener has a complete type to hold and
+ * Minimal stub so that NrGnbPhyEnergyListener has a complete type to hold and
  * drive. The gNB power-state machine, DL/UL power formulas, and symbol-level
  * energy accounting are added in a later milestone.
  */

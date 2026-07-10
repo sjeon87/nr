@@ -179,7 +179,6 @@ set(source_files
     model/nr-pdcp-header.cc
     model/nr-pdcp-tag.cc
     model/nr-pdcp.cc
-    model/nr-phy-energy-listener.cc
     model/nr-phy-mac-common.cc
     model/nr-phy-tag.cc
     model/nr-phy.cc
@@ -394,7 +393,6 @@ set(header_files
     model/nr-pdcp-sap.h
     model/nr-pdcp-tag.h
     model/nr-pdcp.h
-    model/nr-phy-energy-listener.h
     model/nr-phy-mac-common.h
     model/nr-phy-sap.h
     model/nr-phy-tag.h
@@ -510,7 +508,6 @@ set(test_sources
     test/nr-test-gnb-phy-energy-listener.cc
     test/nr-test-numerology-delay.cc
     test/nr-test-phy.cc
-    test/nr-test-phy-energy-listener.cc
     test/nr-test-resource-assignment-matrix.cc
     test/nr-test-rlc-am-e2e.cc
     test/nr-test-rlc-am-transmitter.cc
