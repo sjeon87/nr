@@ -140,7 +140,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 Release NR-v4.2
 ---------------
@@ -224,7 +224,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 
 Release NR-v4.1.1
@@ -283,7 +283,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 Release NR-v4.1
 ---------------
@@ -351,7 +351,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 Release NR-v4.0
 ---------------
@@ -432,7 +432,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 
 Release NR-v3.3
@@ -495,7 +495,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 
 Release NR-v3.2
@@ -563,7 +563,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 
 Release NR-v3.1
@@ -643,7 +643,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 Release NR-v3.0
 ----------------
@@ -690,7 +690,7 @@ digital precoding and in which a more accurate model for the inter-stream
 interference calculation is considered. The new MIMO is flexible and can be easily
 extended for more streams/ranks/ports.
 
-- The current MIMO implementation requires Eigen3 library (https://eigen.tuxfamily.org/).
+- The current MIMO implementation requires Eigen3 library (https://libeigen.gitlab.io).
 
 - When creating an MR, 5G-LENA users will be able to use CI/CD minutes belonging
 to the NR module project.
@@ -730,7 +730,7 @@ None.
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 
 Release NR-v2.6
@@ -791,7 +791,7 @@ Bugs fixed
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 
 
@@ -853,7 +853,7 @@ None.
 Known issues
 ------------
 In general, known issues are tracked on the project tracker available
-at https://gitlab.com/cttc-lena/nr/-/issues
+at https://gitlab.com/cttc-lena/nr/-/work_items
 
 
 
