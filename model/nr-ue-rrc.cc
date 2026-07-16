@@ -3787,8 +3787,12 @@ NrUeRrc::StartConnection()
 
     // Covers raResponseWindow (up to 40 slots) + contentionResolutionTimer
     // (up to 64 ms) + processing margin.
-    // 120 ms is safe for FR1. 20 ms is safe for FR2.
-    if (m_lastSib1.servingCellConfigCommon.numerology >= 3)
+    // 120 ms is safe for FR1. 20 ms is safe for FR2. A force-camped UE never
+    // acquires SIB1 (IDLE_WAIT_MIB camps straight on the cell, as an explicit
+    // camp request needs no cell evaluation), so without a decoded numerology
+    // fall back to the FR1-safe duration: a longer lock than needed merely
+    // defers another BWP, a shorter one reopens the race the lock closes.
+    if (m_hasReceivedSib1 && m_lastSib1.servingCellConfigCommon.numerology >= 3)
     {
         m_rachLockDuration = MilliSeconds(20);
     }
