@@ -20,7 +20,7 @@ using namespace ns3;
 
 /**
  * @ingroup examples
- * @file realistic-beamforming.cc
+ * @file cttc-realistic-beamforming.cc
  * @brief Simulation script for the realistic beamforming evaluation.
  * Simulation allows to configure various parameters out of which the
  * most important are:

@@ -23,7 +23,7 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE("NrUplinkPowerControlTestCase");
 
 /**
- * @file nr-test-uplink-power-control.cc
+ * @file nr-uplink-power-control-test.cc
  * @ingroup test
  *
  * @brief Test suite for NrUplinkPowerControlTestCase.
@@ -36,7 +36,7 @@ class NrUplinkPowerControlTestSuite : public TestSuite
 };
 
 /**
- * @file nr-test-uplink-power-control.cc
+ * @file nr-uplink-power-control-test.cc
  * @ingroup test
  *
  * @brief NR uplink power control test case. Tests PUSCH and PUCCH

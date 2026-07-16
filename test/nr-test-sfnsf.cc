@@ -6,7 +6,7 @@
 #include "ns3/test.h"
 
 /**
- * @file test-sfnsf.cc
+ * @file nr-test-sfnsf.cc
  * @ingroup test
  *
  * @brief Unit-testing for the frame/subframe/slot numbering, along with the
