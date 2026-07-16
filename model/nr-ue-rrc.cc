@@ -307,6 +307,25 @@ NrUeRrc::GetTypeId()
                 TimeValue(MilliSeconds(0)),
                 MakeTimeAccessor(&NrUeRrc::m_tr36839HoFailureMinT310Elapsed),
                 MakeTimeChecker())
+            .AddAttribute(
+                "MibWaitReselectTimeout",
+                "Fallback for a force-camped UE that never decodes its target cell's MIB "
+                "(e.g. the assigned cell is far and its broadcast is drowned by a closer "
+                "co-channel neighbour, leaving the UE stuck in IDLE_WAIT_MIB forever). When "
+                "non-zero, if no MIB arrives within this time the UE reselects the strongest "
+                "cell it has measured and re-camps, mimicking idle-mode cell reselection. "
+                "0 ms disables the fallback (legacy behaviour: wait indefinitely for the "
+                "assigned cell).",
+                TimeValue(MilliSeconds(0)),
+                MakeTimeAccessor(&NrUeRrc::m_mibWaitReselectTimeout),
+                MakeTimeChecker())
+            .AddAttribute(
+                "MibWaitReselectMaxAttempts",
+                "Maximum number of cells a UE tries when MibWaitReselectTimeout is enabled, "
+                "before giving up initial cell acquisition.",
+                UintegerValue(8),
+                MakeUintegerAccessor(&NrUeRrc::m_mibWaitReselectMaxAttempts),
+                MakeUintegerChecker<uint32_t>(1))
             .AddTraceSource("MibReceived",
                             "trace fired upon reception of Master Information Block",
                             MakeTraceSourceAccessor(&NrUeRrc::m_mibReceivedTrace),
@@ -928,6 +947,23 @@ NrUeRrc::DoStartCellSelection()
 }
 
 void
+NrUeRrc::CampOnGnb(uint16_t cellId, uint32_t arfcn)
+{
+    m_cellId = cellId;
+    m_initDlArfcn = arfcn;
+    TrackCellArfcn(cellId, arfcn);
+    auto bwpId = GetArfcnBwpId(arfcn);
+    SetPrimaryDlIndex(bwpId);
+    m_cphySapProvider.at(bwpId)->SetNumerology(0);
+    m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
+    m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
+    if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
+    {
+        m_cmacSapProvider.at(GetPrimaryDlIndex())->RegisterToGnb(m_cellId);
+    }
+}
+
+void
 NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 {
     NS_LOG_FUNCTION(this << m_imsi << " ,cellId " << cellId << ",arfcn " << arfcn);
@@ -944,19 +980,13 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
         NS_LOG_INFO("force-camp overrides in-progress cell selection " << ToString(m_state));
         [[fallthrough]];
     case IDLE_START: {
-        m_cellId = cellId;
-        m_initDlArfcn = arfcn;
-        TrackCellArfcn(cellId, arfcn);
-        auto bwpId = GetArfcnBwpId(arfcn);
-        SetPrimaryDlIndex(bwpId);
-        m_cphySapProvider.at(bwpId)->SetNumerology(0);
-        m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
-        m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
-        if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
-        {
-            m_cmacSapProvider.at(GetPrimaryDlIndex())->RegisterToGnb(m_cellId);
-        }
+        CampOnGnb(cellId, arfcn);
         SwitchToState(IDLE_WAIT_MIB);
+        // Start a fresh reselection sequence: if this cell's MIB never arrives,
+        // MibWaitReselect() re-camps on the strongest measured neighbour.
+        m_mibWaitAttempts = 0;
+        m_mibCampTried.clear();
+        ArmMibWaitReselect();
     }
     break;
 
@@ -1067,6 +1097,7 @@ NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId,
     {
     case IDLE_WAIT_MIB:
         // manual attachment
+        m_mibWaitTimeoutEvent.Cancel(); // the camped cell answered; stop reselection
         SwitchToState(IDLE_CAMPED_NORMALLY);
         break;
 
@@ -1680,6 +1711,70 @@ NrUeRrc::SynchronizeToStrongestCell()
         SwitchToState(IDLE_WAIT_MIB_SIB1);
     }
 } // end of void NrUeRrc::SynchronizeToStrongestCell ()
+
+void
+NrUeRrc::ArmMibWaitReselect()
+{
+    if (m_mibWaitReselectTimeout.IsZero())
+    {
+        return; // fallback disabled
+    }
+    m_mibWaitTimeoutEvent.Cancel();
+    m_mibWaitTimeoutEvent =
+        Simulator::Schedule(m_mibWaitReselectTimeout, &NrUeRrc::MibWaitReselect, this);
+}
+
+void
+NrUeRrc::MibWaitReselect()
+{
+    if (m_state != IDLE_WAIT_MIB)
+    {
+        return; // the MIB arrived (or the UE moved on); nothing to rescue
+    }
+
+    if (++m_mibWaitAttempts > m_mibWaitReselectMaxAttempts)
+    {
+        NS_LOG_WARN("IMSI " << m_imsi << " gave up initial cell acquisition after "
+                            << (m_mibWaitAttempts - 1) << " MIB-wait reselection attempts");
+        return;
+    }
+
+    // Never retry the cell we are currently (and unsuccessfully) camped on.
+    m_mibCampTried.insert(m_cellId);
+
+    // Pick the strongest measured cell we have not tried yet.
+    uint16_t bestCell = 0;
+    double bestRsrp = -std::numeric_limits<double>::infinity();
+    uint32_t bestArfcn = 0;
+    for (const auto& [cellId, meas] : m_storedMeasValues)
+    {
+        if (m_mibCampTried.count(cellId) || meas.carrierFreq == 0)
+        {
+            continue;
+        }
+        if (meas.rsrp > bestRsrp)
+        {
+            bestRsrp = meas.rsrp;
+            bestCell = cellId;
+            bestArfcn = meas.carrierFreq;
+        }
+    }
+
+    if (bestCell == 0)
+    {
+        // No untried measured cell yet (PSS measurements may still be accumulating);
+        // look again after another interval.
+        ArmMibWaitReselect();
+        return;
+    }
+
+    NS_LOG_INFO("IMSI " << m_imsi << " MIB-wait reselect: cell " << m_cellId << " -> " << bestCell
+                        << " (rsrp " << bestRsrp << " dBm, arfcn " << bestArfcn << ")");
+
+    // Re-camp on the stronger cell and stay in IDLE_WAIT_MIB, waiting for its MIB.
+    CampOnGnb(bestCell, bestArfcn);
+    ArmMibWaitReselect();
+}
 
 std::size_t
 NrUeRrc::GetArfcnBwpId(uint32_t arfcn) const
