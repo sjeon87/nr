@@ -8,7 +8,7 @@
 
 /**
  * @ingroup test
- * @file test-nr-spectrum-phy.h
+ * @file nr-spectrum-phy-test.h
  *
  * @brief This test sets two times noise figure and checks if this setting is applied
  * correctly to connected classes of SpectrumPhy, i.e. SpectrumModel, SpectrumValue,

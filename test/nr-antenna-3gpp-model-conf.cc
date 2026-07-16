@@ -18,7 +18,7 @@ using namespace ns3;
 
 /**
  * @ingroup test
- * @file test-antenna-3gpp-model-conf.cc
+ * @file nr-antenna-3gpp-model-conf.cc
  *
  * @brief This test case checks if the throughput/SINR/MCS
  * obtained is as expected for the configured antenna model and for

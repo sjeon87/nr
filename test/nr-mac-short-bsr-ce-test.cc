@@ -6,7 +6,7 @@
 #include "ns3/test.h"
 
 /**
- * @file test-nr-mac-vs-header.cc
+ * @file nr-mac-short-bsr-ce-test.cc
  * @ingroup test
  * @brief Unit-testing for the variable-size MAC header, DL and UL
  *

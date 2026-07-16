@@ -20,7 +20,7 @@
 using namespace ns3;
 
 /**
- * @file test-timings.cc
+ * @file nr-test-timings.cc
  * @ingroup test
  *
  * @brief Check numerology timings. The test, that is run for every numerology,

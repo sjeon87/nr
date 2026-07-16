@@ -23,7 +23,7 @@
 #include "ns3/uinteger.h"
 
 /**
- * @file nr-ideal-beamforming-test
+ * @file nr-ideal-beamforming-test.cc
  * @ingroup test
  *
  * @brief Tests ideal beamforming

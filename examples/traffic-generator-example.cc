@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /**
- * @file traffic-generator.cc
+ * @file traffic-generator-example.cc
  * @ingroup examples
  * @brief Traffic generator example
  */

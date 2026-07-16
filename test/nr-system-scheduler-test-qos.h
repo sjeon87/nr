@@ -14,7 +14,7 @@ namespace ns3
 class Packet;
 
 /**
- * @file system-scheduler-test-qos.h
+ * @file nr-system-scheduler-test-qos.h
  * @ingroup test
  *
  * @brief This test case checks if the throughput obtained is as expected for
