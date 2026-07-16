@@ -232,7 +232,7 @@ documentation:
     - git clone -b $NS3_RELEASE_VERSION --depth=1 $NS3_REPOSITORY_URL
     - ln -s ${PWD} ns-3-dev/contrib/nr
     - pushd ns-3-dev
-    - ./ns3 configure
+    - ./ns3 configure --enable-examples --enable-tests --filter-module-examples-and-tests=nr
     - ./ns3 build nr-print-introspected-doxygen
     - ./ns3 run nr-print-introspected-doxygen --no-build --quiet > contrib/nr/doc/introspected-doxygen.h
     - popd
