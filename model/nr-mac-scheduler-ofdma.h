@@ -203,12 +203,35 @@ class NR_EXPORT NrMacSchedulerOfdma : public NrMacSchedulerTdma
      * @param beamSym Symbols per beam to be deallocated
      * @param assignedResources Reference to total assigned resources
      * @param availableRbgs Reference vector of available RBGs for scheduling
+     * @param isDl True to deallocate DL resources, false to deallocate UL resources
      */
     static void DeallocateCurrentResourceFromUe(std::shared_ptr<NrMacSchedulerUeInfo> currentUe,
                                                 const uint32_t& currentRbg,
                                                 const uint32_t beamSym,
                                                 FTResources& assignedResources,
-                                                std::vector<bool>& availableRbgs);
+                                                std::vector<bool>& availableRbgs,
+                                                const bool isDl = true);
+    /**
+     * @brief Reap the resources of the UE with the smallest TBS, in case that TBS is
+     * below the minimum required to create a DCI (10 bytes in DL, 12 bytes in UL, as
+     * enforced by CreateDlDci and CreateUlDci), returning them to remainingRbgSet so
+     * that they can be redistributed to the other UEs of the same beam. Without this,
+     * when the active UEs outnumber the schedulable resources and all of them are at
+     * a low MCS, every allocation is discarded at DCI creation and the cell starves.
+     * @param ueVector Reference to the vector of UEs of the beam being scheduled
+     * @param remainingRbgSet Reference to set of available RBGs to be scheduled
+     * @param beamSym Number of symbols per beam to be scheduled
+     * @param assignedResources Reference to total assigned resources
+     * @param availableRbgs Mask of available RBGs
+     * @param isDl True to reap DL resources, false to reap UL resources
+     * @return true if a UE was reaped and scheduling should be retried, false otherwise
+     */
+    bool ReapStarvedUeResources(std::vector<UePtrAndBufferReq>& ueVector,
+                                std::set<uint32_t>& remainingRbgSet,
+                                const uint32_t beamSym,
+                                FTResources& assignedResources,
+                                std::vector<bool>& availableRbgs,
+                                const bool isDl) const;
     /**
      * @brief Try to schedule the best RBG out of remainingRbgSet to an UE referenced by
      * schedInfoIt, for beamSym symbols, then update the list of assignedResources and availableRbgs

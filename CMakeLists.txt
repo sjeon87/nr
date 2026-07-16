@@ -478,6 +478,7 @@ set(test_sources
     test/nr-simple-spectrum-phy.cc
     test/nr-spectrum-phy-test.cc
     test/nr-system-test-configurations.cc
+    test/nr-system-test-scheduler-many-ues.cc
     test/nr-system-test-schedulers-ofdma-mr.cc
     test/nr-system-test-schedulers-ofdma-pf.cc
     test/nr-system-test-schedulers-ofdma-rr.cc
