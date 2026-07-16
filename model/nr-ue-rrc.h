@@ -658,6 +658,38 @@ class NR_EXPORT NrUeRrc : public Object
     void SynchronizeToStrongestCell();
 
     /**
+     * @brief Tune the UE to a cell and register with its MAC.
+     *
+     * Points the primary DL BWP at the given cell/ARFCN (numerology, PHY
+     * synchronization) and registers the UE MAC to the cell. Shared by the
+     * force-camp path (DoForceCampedOnGnb) and the MIB-wait reselection fallback
+     * (MibWaitReselect). Does not change the RRC state.
+     *
+     * @param cellId cell to camp on.
+     * @param arfcn ARFCN of the cell's carrier.
+     */
+    void CampOnGnb(uint16_t cellId, uint32_t arfcn);
+
+    /**
+     * @brief Arm (or re-arm) the MIB-wait reselection timer.
+     *
+     * When #m_mibWaitReselectTimeout is non-zero, schedules MibWaitReselect() to
+     * fire after that interval. Used to rescue a force-camped UE that never
+     * decodes its target cell's MIB. A no-op when the timeout is zero (disabled).
+     */
+    void ArmMibWaitReselect();
+
+    /**
+     * @brief MIB-wait timeout handler: reselect the strongest measured cell.
+     *
+     * If the UE is still in IDLE_WAIT_MIB, reselects the strongest cell it has
+     * measured (excluding cells already tried) and re-camps on it, then re-arms
+     * the timer. Mimics idle-mode cell reselection so a UE force-camped on an
+     * unreachable cell is not stuck waiting for a MIB indefinitely.
+     */
+    void MibWaitReselect();
+
+    /**
      * @brief Performs cell selection evaluation to the current serving cell.
      *
      * @warning This function is a part of the *initial cell selection* procedure,
@@ -1635,6 +1667,19 @@ class NR_EXPORT NrUeRrc : public Object
      * Maximum expected duration of one full RACH procedure.
      */
     Time m_rachLockDuration{MilliSeconds(120)};
+
+    // IDLE_WAIT_MIB reselection fallback
+    /** If non-zero, a force-camped UE that receives no MIB within this time
+     *  reselects the strongest measured cell (0 = disabled, wait forever). */
+    Time m_mibWaitReselectTimeout{Seconds(0)};
+    /** Maximum number of cells tried during MIB-wait reselection. */
+    uint32_t m_mibWaitReselectMaxAttempts{8};
+    /** Pending MIB-wait reselection timer. */
+    EventId m_mibWaitTimeoutEvent;
+    /** MIB-wait reselection attempts made since the current camp started. */
+    uint32_t m_mibWaitAttempts{0};
+    /** Cells already tried during the current MIB-wait reselection sequence. */
+    std::set<uint16_t> m_mibCampTried;
     /**
      * @brief Clears the RACH (Random Access Channel) lock state for the UE
      *

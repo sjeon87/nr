@@ -548,6 +548,7 @@ set(test_sources
     test/nr-test-tr36839-handover-failure.cc
     test/nr-test-handover-metrics-guards.cc
     test/nr-test-handover-target-admission.cc
+    test/nr-test-mib-wait-reselection.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover
