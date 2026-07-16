@@ -9,7 +9,7 @@
 
 /**
  * @ingroup nr-test
- * @file nr-test-phy.h
+ * @file nr-test-phy.cc
  *
  * @brief This test suite contains tests for NrPhy, NrUePhy and NrGnbPhy.
  */
