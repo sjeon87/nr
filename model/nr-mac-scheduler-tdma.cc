@@ -218,6 +218,80 @@ NrMacSchedulerTdma::AssignRBGTDMA(uint32_t symAvail,
         }
     }
 
+    // Reap allocations too small to produce a valid TB (CreateDlDci/CreateUlDci
+    // discard DCIs below the minimum TBS) and redistribute their symbols to
+    // other below-minimum UEs, one symbol at a time, so that at least some of
+    // them cross the minimum. Without this, when the active UEs outnumber the
+    // available symbols and all of them are at a low MCS, every allocation is
+    // discarded and the cell starves indefinitely.
+    const uint32_t minTbs = type == "DL" ? 10 : 12;
+    GetFirst GetUe;
+    auto isStarved = [&](const UePtrAndBufferReq& ue) {
+        return !GetRBGFn(GetUe(ue)).empty() && GetTBSFn(GetUe(ue)) < minTbs;
+    };
+    while (true)
+    {
+        SortUeVector(&ueVector, GetCompareFn);
+        std::vector<UePtrAndBufferReq*> starved;
+        for (auto& ue : ueVector)
+        {
+            if (isStarved(ue))
+            {
+                starved.push_back(&ue);
+            }
+        }
+        // A single starved UE has no other starved UE to reap from
+        if (starved.size() < 2)
+        {
+            break;
+        }
+        // Concentrate symbols on the highest-priority starved UE: reap one
+        // symbol at a time from the lowest-priority starved UEs until the
+        // receiver crosses the minimum TBS. The receiver is kept fixed for the
+        // whole round, so each round either unstarves it or exhausts the
+        // donors, and the loop always terminates (a floating receiver/donor
+        // pair can otherwise ping-pong a symbol back and forth forever).
+        auto& receiver = *starved.front();
+        auto& receiverRbgs = GetRBGFn(GetUe(receiver));
+        auto& receiverSyms = GetSymFn(GetUe(receiver));
+        bool receiverUnstarved = false;
+        for (auto donorIt = starved.rbegin();
+             donorIt != std::prev(starved.rend()) && !receiverUnstarved;)
+        {
+            auto& donor = **donorIt;
+            auto& donorRbgs = GetRBGFn(GetUe(donor));
+            auto& donorSyms = GetSymFn(GetUe(donor));
+            if (donorRbgs.size() < numOfAssignableRbgs || donorSyms.size() < numOfAssignableRbgs)
+            {
+                ++donorIt;
+                continue;
+            }
+            const std::size_t donorRbgsKept = donorRbgs.size() - numOfAssignableRbgs;
+            const std::size_t donorSymsKept = donorSyms.size() - numOfAssignableRbgs;
+            receiverRbgs.insert(receiverRbgs.end(),
+                                donorRbgs.end() - numOfAssignableRbgs,
+                                donorRbgs.end());
+            receiverSyms.insert(receiverSyms.end(),
+                                donorSyms.end() - numOfAssignableRbgs,
+                                donorSyms.end());
+            donorRbgs.resize(donorRbgsKept);
+            donorSyms.resize(donorSymsKept);
+            NS_LOG_DEBUG("Reaped 1 " << type << " symbol from starved UE " << GetUe(donor)->m_rnti
+                                     << " and reassigned it to starved UE "
+                                     << GetUe(receiver)->m_rnti);
+            SuccessfulAssignmentFn(receiver, FTResources(numOfAssignableRbgs, 1), assigned);
+            SuccessfulAssignmentFn(donor, FTResources(numOfAssignableRbgs, 1), assigned);
+            receiverUnstarved = GetTBSFn(GetUe(receiver)) >= minTbs;
+        }
+        if (!receiverUnstarved)
+        {
+            // Not enough reapable symbols to unstarve even the highest-priority
+            // UE; the remaining sub-minimum allocations get discarded by
+            // CreateDlDci/CreateUlDci as before
+            break;
+        }
+    }
+
     // Count the number of assigned symbol of each beam.
     NrMacSchedulerTdma::BeamSymbolMap ret;
     for (const auto& el : activeUe)

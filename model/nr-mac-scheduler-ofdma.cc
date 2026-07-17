@@ -189,10 +189,11 @@ NrMacSchedulerOfdma::DeallocateCurrentResourceFromUe(
     const uint32_t& currentRbg,
     const uint32_t beamSym,
     FTResources& assignedResources,
-    std::vector<bool>& availableRbgs)
+    std::vector<bool>& availableRbgs,
+    const bool isDl)
 {
-    auto& assignedRbgs = currentUe->m_dlRBG;
-    auto& assignedSymbols = currentUe->m_dlSym;
+    auto& assignedRbgs = isDl ? currentUe->m_dlRBG : currentUe->m_ulRBG;
+    auto& assignedSymbols = isDl ? currentUe->m_dlSym : currentUe->m_ulSym;
 
     assignedRbgs.resize(assignedRbgs.size() - beamSym);
     assignedSymbols.resize(assignedSymbols.size() - beamSym);
@@ -203,6 +204,86 @@ NrMacSchedulerOfdma::DeallocateCurrentResourceFromUe(
     // We zero symbols allocated in case number of RBGs reaches 0
     assignedResources.m_sym = assignedResources.m_rbg == 0 ? 0 : assignedResources.m_sym;
     availableRbgs.at(currentRbg) = true;
+}
+
+bool
+NrMacSchedulerOfdma::ReapStarvedUeResources(std::vector<UePtrAndBufferReq>& ueVector,
+                                            std::set<uint32_t>& remainingRbgSet,
+                                            const uint32_t beamSym,
+                                            FTResources& assignedResources,
+                                            std::vector<bool>& availableRbgs,
+                                            const bool isDl) const
+{
+    // The minimum TBS to create a DCI, as enforced by CreateDlDci and CreateUlDci
+    const uint32_t minTbs = isDl ? 10 : 12;
+    auto tbsOf = [isDl](const UePtrAndBufferReq& u) {
+        return isDl ? u.first->m_dlTbSize : u.first->m_ulTbSize;
+    };
+    auto rbgsOf = [isDl](const UePtrAndBufferReq& u) -> auto& {
+        return isDl ? u.first->m_dlRBG : u.first->m_ulRBG;
+    };
+
+    // Sort UEs by decreasing TBS, so the worst-off ones end up at the back
+    std::stable_sort(ueVector.begin(), ueVector.end(), [&tbsOf](const auto& a, const auto& b) {
+        return tbsOf(a) > tbsOf(b);
+    });
+
+    // The reap candidate is the smallest-TBS UE that holds an allocation:
+    // the last UE with a non-empty allocation in the sorted vector.
+    // UEs without any allocation have nothing to reap and are skipped.
+    auto starvedIt = ueVector.end();
+    for (auto it = ueVector.begin(); it != ueVector.end(); ++it)
+    {
+        if (!rbgsOf(*it).empty())
+        {
+            starvedIt = it;
+        }
+    }
+    if (starvedIt == ueVector.end() || tbsOf(*starvedIt) >= minTbs)
+    {
+        return false;
+    }
+
+    // In case there is, reap its resources and redistribute to other UEs at same beam.
+    auto& ue = *starvedIt;
+    auto& assignedRbgs = rbgsOf(ue);
+    while (!assignedRbgs.empty())
+    {
+        auto reapedRbg = assignedRbgs.back();
+        DeallocateCurrentResourceFromUe(ue.first,
+                                        reapedRbg,
+                                        beamSym,
+                                        assignedResources,
+                                        availableRbgs,
+                                        isDl);
+        remainingRbgSet.emplace(reapedRbg);
+    }
+    // Update metrics
+    if (isDl)
+    {
+        AssignedDlResources(ue, FTResources(beamSym, beamSym), assignedResources);
+    }
+    else
+    {
+        AssignedUlResources(ue, FTResources(beamSym, beamSym), assignedResources);
+    }
+
+    // After all resources were reaped, update statistics
+    for (auto& uev : ueVector)
+    {
+        if (isDl)
+        {
+            NotAssignedDlResources(uev, FTResources(beamSym, beamSym), assignedResources);
+        }
+        else
+        {
+            NotAssignedUlResources(uev, FTResources(beamSym, beamSym), assignedResources);
+        }
+    }
+
+    // Remove UE from allocation vector (it won't receive more resources in this round)
+    ueVector.erase(starvedIt);
+    return true;
 }
 
 uint32_t
@@ -485,40 +566,14 @@ NrMacSchedulerOfdma::AssignDLRBG(uint32_t symAvail, const ActiveUeMap& activeDl)
             // or the remaining RBGs do not improve TBS of UEs (prevRemaining ==
             // remainingRbgSet.size()).
 
-            // Now we need to check if there is a UE with less than the minimal TBS.
-            std::stable_sort(ueVector.begin(), ueVector.end(), [](auto a, auto b) {
-                GetFirst GetUe;
-                return GetUe(a)->m_dlTbSize > GetUe(b)->m_dlTbSize;
-            });
-
-            // In case there is, reap its resources and redistribute to other UEs at same beam.
-            if (!ueVector.empty() && ueVector.back().first->m_dlTbSize < 10)
-            {
-                auto& ue = ueVector.back();
-                while (!ue.first->m_dlRBG.empty())
-                {
-                    auto reapedRbg = ue.first->m_dlRBG.back();
-                    DeallocateCurrentResourceFromUe(ue.first,
-                                                    reapedRbg,
-                                                    beamSym,
-                                                    assignedResources,
-                                                    availableRbgs);
-                    remainingRbgSet.emplace(reapedRbg);
-                }
-                // Update DL metrics
-                AssignedDlResources(ue, FTResources(beamSym, beamSym), assignedResources);
-
-                // After all resources were reaped, update statistics
-                for (auto& uev : ueVector)
-                {
-                    NotAssignedDlResources(uev, FTResources(beamSym, beamSym), assignedResources);
-                }
-
-                // Remove UE from allocation vector (it won't receive more resources in this round)
-                ueVector.pop_back();
-                continue;
-            }
-            reapingResources = false;
+            // Reap the resources of UEs whose TBS is below the minimum required
+            // to create a DCI, and redistribute them to other UEs at same beam.
+            reapingResources = ReapStarvedUeResources(ueVector,
+                                                      remainingRbgSet,
+                                                      beamSym,
+                                                      assignedResources,
+                                                      availableRbgs,
+                                                      true);
         }
         if (m_nrFhSchedSapProvider)
         {
@@ -580,7 +635,7 @@ NrMacSchedulerOfdma::AssignULRBG(uint32_t symAvail, const ActiveUeMap& activeUl)
         std::vector<UePtrAndBufferReq> ueVector;
         FTResources assigned(0, 0);
 
-        const std::vector<bool> availableRbgs = GetUlBitmask();
+        std::vector<bool> availableRbgs = GetUlBitmask();
         std::set<uint32_t> remainingRbgSet;
         for (size_t i = 0; i < availableRbgs.size(); i++)
         {
@@ -602,69 +657,82 @@ NrMacSchedulerOfdma::AssignULRBG(uint32_t symAvail, const ActiveUeMap& activeUl)
             BeforeUlSched(ue, FTResources(beamSym * beamSym, beamSym));
         }
 
-        while (!remainingRbgSet.empty())
+        bool reapingResources = true;
+        while (reapingResources)
         {
-            if (m_activeUlAi)
+            while (!remainingRbgSet.empty())
             {
-                CallNotifyUlFn(ueVector);
-            }
-            GetFirst GetUe;
-            SortUeVector(&ueVector, std::bind(&NrMacSchedulerOfdma::GetUeCompareUlFn, this));
-            auto schedInfoIt = ueVector.begin();
-
-            // Ensure fairness: pass over UEs which already has enough resources to transmit
-            while (schedInfoIt != ueVector.end())
-            {
-                uint32_t bufQueueSize = schedInfoIt->second;
-                if (GetUe(*schedInfoIt)->m_ulTbSize >= std::max(bufQueueSize, 12U))
+                if (m_activeUlAi)
                 {
-                    std::advance(schedInfoIt, 1);
+                    CallNotifyUlFn(ueVector);
                 }
-                else
+                GetFirst GetUe;
+                SortUeVector(&ueVector, std::bind(&NrMacSchedulerOfdma::GetUeCompareUlFn, this));
+                auto schedInfoIt = ueVector.begin();
+
+                // Ensure fairness: pass over UEs which already has enough resources to transmit
+                while (schedInfoIt != ueVector.end())
+                {
+                    uint32_t bufQueueSize = schedInfoIt->second;
+                    if (GetUe(*schedInfoIt)->m_ulTbSize >= std::max(bufQueueSize, 12U))
+                    {
+                        std::advance(schedInfoIt, 1);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                // In the case that all the UE already have their requirements fulfilled,
+                // then stop the beam processing and pass to the next
+                if (schedInfoIt == ueVector.end())
                 {
                     break;
                 }
-            }
 
-            // In the case that all the UE already have their requirements fulfilled,
-            // then stop the beam processing and pass to the next
-            if (schedInfoIt == ueVector.end())
-            {
-                break;
-            }
+                auto assignedRbg = remainingRbgSet.begin();
+                // Assign 1 RBG for each available symbols for the beam,
+                // and then update the count of available resources
+                auto& assignedRbgs = GetUe(*schedInfoIt)->m_ulRBG;
+                auto existingRbgs = assignedRbgs.size();
+                assignedRbgs.resize(assignedRbgs.size() + beamSym);
+                std::fill(assignedRbgs.begin() + existingRbgs, assignedRbgs.end(), *assignedRbg);
+                assigned.m_rbg++;
 
-            auto assignedRbg = remainingRbgSet.begin();
-            // Assign 1 RBG for each available symbols for the beam,
-            // and then update the count of available resources
-            auto& assignedRbgs = GetUe(*schedInfoIt)->m_ulRBG;
-            auto existingRbgs = assignedRbgs.size();
-            assignedRbgs.resize(assignedRbgs.size() + beamSym);
-            std::fill(assignedRbgs.begin() + existingRbgs, assignedRbgs.end(), *assignedRbg);
-            assigned.m_rbg++;
+                auto& assignedSymbols = GetUe(*schedInfoIt)->m_ulSym;
+                auto existingSymbols = assignedSymbols.size();
+                assignedSymbols.resize(assignedSymbols.size() + beamSym);
+                std::iota(assignedSymbols.begin() + existingSymbols, assignedSymbols.end(), 0);
+                assigned.m_sym = beamSym;
 
-            auto& assignedSymbols = GetUe(*schedInfoIt)->m_ulSym;
-            auto existingSymbols = assignedSymbols.size();
-            assignedSymbols.resize(assignedSymbols.size() + beamSym);
-            std::iota(assignedSymbols.begin() + existingSymbols, assignedSymbols.end(), 0);
-            assigned.m_sym = beamSym;
+                remainingRbgSet.erase(
+                    assignedRbg); // Resources are RBG, so they do not consider the beamSym
 
-            remainingRbgSet.erase(
-                assignedRbg); // Resources are RBG, so they do not consider the beamSym
+                // Update metrics
+                NS_LOG_DEBUG("Assigned " << assigned.m_rbg << " UL RBG, spanned over " << beamSym
+                                         << " SYM, to UE " << GetUe(*schedInfoIt)->m_rnti);
+                AssignedUlResources(*schedInfoIt, FTResources(beamSym, beamSym), assigned);
 
-            // Update metrics
-            NS_LOG_DEBUG("Assigned " << assigned.m_rbg << " UL RBG, spanned over " << beamSym
-                                     << " SYM, to UE " << GetUe(*schedInfoIt)->m_rnti);
-            AssignedUlResources(*schedInfoIt, FTResources(beamSym, beamSym), assigned);
-
-            // Update metrics for the unsuccessful UEs (who did not get any resource in this
-            // iteration)
-            for (auto& ue : ueVector)
-            {
-                if (GetUe(ue)->m_rnti != GetUe(*schedInfoIt)->m_rnti)
+                // Update metrics for the unsuccessful UEs (who did not get any resource in this
+                // iteration)
+                for (auto& ue : ueVector)
                 {
-                    NotAssignedUlResources(ue, FTResources(beamSym, beamSym), assigned);
+                    if (GetUe(ue)->m_rnti != GetUe(*schedInfoIt)->m_rnti)
+                    {
+                        NotAssignedUlResources(ue, FTResources(beamSym, beamSym), assigned);
+                    }
                 }
             }
+
+            // Reap the resources of UEs whose TBS is below the minimum required
+            // to create a DCI, and redistribute them to other UEs at same beam.
+            reapingResources = ReapStarvedUeResources(ueVector,
+                                                      remainingRbgSet,
+                                                      beamSym,
+                                                      assigned,
+                                                      availableRbgs,
+                                                      false);
         }
     }
 
