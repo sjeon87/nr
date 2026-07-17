@@ -119,7 +119,10 @@ spell-check:
 # default branch ($CI_DEFAULT_BRANCH, i.e. master): there are no magic numbers
 # to maintain. The job fails only when the change raises the maximum
 # cyclomatic complexity or the number of duplicate code blocks above what that
-# branch already has. See tools/lizard/check-complexity.py for details.
+# branch already has. Duplicate blocks are only counted when they involve a
+# file the change actually touches, so pre-existing duplication elsewhere in
+# the module never blocks an unrelated MR. See
+# tools/lizard/check-complexity.py for details.
 complexity:
   stage: code-linting
   image: alpine:latest
