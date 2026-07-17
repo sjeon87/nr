@@ -26,7 +26,11 @@ Two metrics are gated:
 * ``max_ccn``      -- the highest cyclomatic complexity number (CCN) of any
                       single function across the analysed sources.
 * ``duplicates``   -- the number of duplicate code blocks reported by lizard's
-                      ``-Eduplicate`` extension.
+                      ``-Eduplicate`` extension. Only blocks that involve at
+                      least one *touched* file (a file that differs from, or
+                      does not exist in, the baseline checkout) are counted,
+                      on both sides of the comparison, so pre-existing
+                      duplication in untouched files never gates a change.
 
 By default the master copy is fetched with a shallow ``git clone`` into a
 temporary directory that is removed when the script exits. CI clones it once
@@ -48,6 +52,7 @@ Options of note::
 import argparse
 import csv
 import io
+import re
 import subprocess
 import sys
 import tempfile
@@ -141,25 +146,224 @@ def measure_max_ccn(root: Path) -> int:
     return max_ccn
 
 
-def measure_duplicates(root: Path) -> int:
-    """Count duplicate code blocks reported by lizard's duplicate extension.
+def touched_files(root: Path, baseline_root: Path) -> set:
+    """Find the analysed source files under ``root`` that differ from baseline.
+
+    A file counts as touched when it does not exist in the baseline checkout
+    or its content differs from the baseline copy.
+
+    @param root Root of the working tree being gated.
+    @param baseline_root Root of the baseline checkout to compare against.
+    @return Set of file paths relative to ``root`` (as Path objects).
+    """
+    extensions = {".cc", ".h", ".hpp"}
+    touched = set()
+    for source_dir in SOURCE_DIRS:
+        base = root / source_dir
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*"):
+            if not path.is_file() or path.suffix not in extensions:
+                continue
+            rel = path.relative_to(root)
+            baseline_path = baseline_root / rel
+            if not baseline_path.is_file() or baseline_path.read_bytes() != path.read_bytes():
+                touched.add(rel)
+    return touched
+
+
+def preamble_length(path: Path, cache: dict = {}) -> int:
+    """Count the leading boilerplate lines of a source file.
+
+    The preamble is the run of lines at the very top of the file made up of
+    comments (license header), blank lines, and preprocessor directives
+    (includes, header guards, macro definitions with line continuations). It
+    ends at the first line of actual code.
+
+    @param path File to inspect.
+    @param cache Per-path memoization dict (default instance is shared).
+    @return Number of preamble lines (0 when the file cannot be read).
+    """
+    if path in cache:
+        return cache[path]
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        cache[path] = 0
+        return 0
+    count = 0
+    in_block_comment = False
+    in_continuation = False
+    for line in lines:
+        stripped = line.strip()
+        if in_block_comment:
+            count += 1
+            if "*/" in stripped:
+                in_block_comment = False
+            continue
+        if in_continuation:
+            count += 1
+            in_continuation = stripped.endswith("\\")
+            continue
+        if not stripped or stripped.startswith("//"):
+            count += 1
+            continue
+        if stripped.startswith("#"):
+            count += 1
+            in_continuation = stripped.endswith("\\")
+            continue
+        if stripped.startswith("/*"):
+            count += 1
+            in_block_comment = "*/" not in stripped
+            continue
+        break
+    cache[path] = count
+    return count
+
+
+# Lines that make up the class-registration boilerplate every ns-3 class
+# repeats: namespace opening, NS_LOG_COMPONENT_DEFINE/NS_OBJECT_ENSURE_REGISTERED,
+# and the head of GetTypeId() up to the TypeId construction chain. Blocks made
+# only of these lines are structural noise, not fixable duplication.
+REGISTRATION_LINE_RES = [
+    re.compile(r"^namespace \w+$"),
+    re.compile(r"^\{$"),
+    re.compile(r"^\}( // namespace \w+)?$"),
+    re.compile(r"^NS_LOG_COMPONENT_DEFINE\(.*\);$"),
+    re.compile(r"^NS_OBJECT_ENSURE_REGISTERED\(.*\);$"),
+    re.compile(r"^TypeId$"),
+    re.compile(r"^[\w:<>]+::GetTypeId\(\)$"),
+    re.compile(r"^static TypeId tid =.*$"),
+    re.compile(r"^TypeId\(\".*$"),
+    re.compile(r"^\.(SetParent|SetGroupName|AddConstructor|AddAttribute|AddTraceSource)\b.*$"),
+    re.compile(r"^\".*$"),
+    re.compile(r"^(Make\w+(Accessor|Checker)|\w+Value)\(.*$"),
+    re.compile(r"^return tid;$"),
+]
+
+
+def is_registration_boilerplate(path: Path, start: int, end: int) -> bool:
+    """Check whether a line range only contains class-registration boilerplate.
+
+    See REGISTRATION_LINE_RES. Comments, blank lines, and preprocessor
+    directives inside the range are also allowed, since lizard skips them when
+    matching duplicates anyway.
+
+    @param path File the range refers to.
+    @param start First line of the range (1-based, inclusive).
+    @param end Last line of the range (1-based, inclusive).
+    @return True when every line in the range is boilerplate, False otherwise
+            (including when the file cannot be read).
+    """
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return False
+    in_block_comment = False
+    in_continuation = False
+    for line in lines[start - 1 : end]:
+        stripped = line.strip()
+        if in_block_comment:
+            if "*/" in stripped:
+                in_block_comment = False
+            continue
+        if in_continuation:
+            in_continuation = stripped.endswith("\\")
+            continue
+        if not stripped or stripped.startswith("//"):
+            continue
+        if stripped.startswith("#"):
+            in_continuation = stripped.endswith("\\")
+            continue
+        if stripped.startswith("/*"):
+            in_block_comment = "*/" not in stripped
+            continue
+        if not any(regex.match(stripped) for regex in REGISTRATION_LINE_RES):
+            return False
+    return True
+
+
+def find_duplicate_blocks(root: Path, touched: set = None) -> list:
+    """Collect duplicate code blocks reported by lizard's duplicate extension.
+
+    Each "Duplicate block:" entry lists the locations of the duplicated code.
+    When ``touched`` is given, only blocks with at least one location inside a
+    touched file are kept; otherwise every block is kept. Blocks that lie
+    entirely within their files' leading preamble (license header, includes;
+    see preamble_length) are always dropped.
 
     @param root Directory whose SOURCE_DIRS subfolders are analysed.
-    @return Number of "Duplicate block:" entries lizard reports.
+    @param touched Optional set of root-relative Paths to filter blocks by.
+    @return List of blocks, each a list of "file:start ~ end" location strings.
     """
     output = run_lizard(["-Eduplicate"], root)
-    return sum(1 for line in output.splitlines() if line.strip() == "Duplicate block:")
+    resolved_root = root.resolve()
+    blocks = []
+    block_locations = None
+    location = re.compile(r"^(.*):(\d+)\s*~\s*(\d+)\s*$")
+
+    def block_matches() -> bool:
+        if touched is None:
+            return True
+        for raw in block_locations:
+            try:
+                rel = Path(location.match(raw).group(1)).resolve().relative_to(resolved_root)
+            except ValueError:
+                continue
+            if rel in touched:
+                return True
+        return False
+
+    def block_is_preamble() -> bool:
+        for raw in block_locations:
+            match = location.match(raw)
+            if int(match.group(3)) > preamble_length(Path(match.group(1))):
+                return False
+        return True
+
+    def block_is_registration() -> bool:
+        for raw in block_locations:
+            match = location.match(raw)
+            if not is_registration_boilerplate(
+                Path(match.group(1)), int(match.group(2)), int(match.group(3))
+            ):
+                return False
+        return True
+
+    def flush() -> None:
+        if (
+            block_locations
+            and block_matches()
+            and not block_is_preamble()
+            and not block_is_registration()
+        ):
+            blocks.append(block_locations)
+
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped == "Duplicate block:":
+            if block_locations is not None:
+                flush()
+            block_locations = []
+            continue
+        if block_locations is not None and location.match(stripped):
+            block_locations.append(stripped)
+    if block_locations is not None:
+        flush()
+    return blocks
 
 
-def measure(root: Path) -> dict:
+def measure(root: Path, touched: set = None) -> dict:
     """Measure both gated metrics for the sources under ``root``.
 
     @param root Directory whose SOURCE_DIRS subfolders are analysed.
+    @param touched Optional set of root-relative Paths restricting which files
+                   duplicate blocks may involve (max_ccn is always global).
     @return Dict mapping metric name to its current integer value.
     """
     return {
         KEY_MAX_CCN: measure_max_ccn(root),
-        KEY_DUPLICATES: measure_duplicates(root),
+        KEY_DUPLICATES: len(find_duplicate_blocks(root, touched)),
     }
 
 
@@ -225,9 +429,9 @@ def main() -> int:
     args = parser.parse_args()
 
     root = module_root()
-    current = measure(root)
 
     if args.show:
+        current = measure(root)
         for key in METRIC_KEYS:
             print(f"{key}={current[key]}")
         return 0
@@ -238,17 +442,24 @@ def main() -> int:
         baseline_root = Path(args.baseline_dir).resolve()
         if not baseline_root.is_dir():
             sys.exit(f"error: --baseline-dir '{baseline_root}' is not a directory.")
-        baseline = measure(baseline_root)
+        touched = touched_files(root, baseline_root)
+        current_blocks = find_duplicate_blocks(root, touched)
+        current = {KEY_MAX_CCN: measure_max_ccn(root), KEY_DUPLICATES: len(current_blocks)}
+        baseline = measure(baseline_root, touched)
         baseline_desc = str(baseline_root)
     else:
         with tempfile.TemporaryDirectory(prefix="nr-lizard-baseline-") as tmp:
             dest = Path(tmp) / "nr-baseline"
             print(f"Cloning baseline '{args.baseline_ref}' from {args.baseline_url} ...")
             clone_baseline(args.baseline_url, args.baseline_ref, dest)
-            baseline = measure(dest)
+            touched = touched_files(root, dest)
+            current_blocks = find_duplicate_blocks(root, touched)
+            current = {KEY_MAX_CCN: measure_max_ccn(root), KEY_DUPLICATES: len(current_blocks)}
+            baseline = measure(dest, touched)
         baseline_desc = f"{args.baseline_url}@{args.baseline_ref}"
 
     print(f"Baseline: {baseline_desc}")
+    print(f"Touched files considered for duplicate blocks: {len(touched)}")
     failed = False
     for key in METRIC_KEYS:
         cur = current[key]
@@ -257,6 +468,14 @@ def main() -> int:
         print(f"{key}: current={cur} baseline={base} -> {status}")
         if cur > base:
             failed = True
+
+    if current_blocks:
+        print("\nDuplicate blocks involving touched files:")
+        root_prefix = str(root.resolve()).replace("\\", "/") + "/"
+        for block in current_blocks:
+            print("  Duplicate block:")
+            for loc in block:
+                print(f"    {loc.replace(root_prefix, '', 1)}")
 
     if failed:
         print()
