@@ -914,6 +914,12 @@ NrTimingsTest::DoRun()
 
     InternetStackHelper internet;
     internet.Install(ueNode);
+    // The UE is a host, not a router: without this, the synthetic test packet (whose
+    // default IPv4 header addresses are not local to the UE) enters the forwarding path
+    // and, since ns-3.49, a no-route forwarding failure answers with an ICMP net
+    // unreachable that echoes through the EPC and back over the air, perturbing the
+    // exact message timings this test checks.
+    ueNode->GetObject<Ipv4>()->SetAttribute("IpForward", BooleanValue(false));
     nrHelper->AssignStreams({.ueNodes = ueNode, .ueNodeStream = 1000});
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
