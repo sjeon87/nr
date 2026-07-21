@@ -2178,7 +2178,7 @@ NrHelper::IsMimoFeedbackEnabled() const
     {
         return false;
     }
-    if ((m_csiFeedbackFlags == CQI_PDSCH_MIMO) ||
+    if ((m_csiFeedbackFlags == CQI_PDSCH_MIMO) || (m_csiFeedbackFlags == CQI_CSI_RS) ||
         (m_csiFeedbackFlags == (CQI_PDSCH_MIMO | CQI_CSI_RS)) ||
         (m_csiFeedbackFlags == (CQI_PDSCH_MIMO | CQI_CSI_RS | CQI_CSI_IM)) ||
         (m_csiFeedbackFlags == (CQI_CSI_RS | CQI_CSI_IM)))
