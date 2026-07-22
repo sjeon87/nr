@@ -48,9 +48,14 @@ the cracks, unfortunately.  If you, as a user, can suggest improvements
 to this file based on your experience, please contribute a patch or drop
 us a note on ns-developers mailing list.
 
-## Changes since NR-v5.0
+## Changes from NR-v5.0 to v5.1
+
+### New API:
+- Add ``NrUeMac::GetRachConfig()`` to inspect the RACH configuration currently applied to a UE MAC.
 
 ### Changed Behavior
+- Handover now applies the target cell's RACH configuration (carried in the handover command) to the UE MAC; previously the MAC kept whatever RACH configuration the source cell's SIB2 had installed, or none at all when the primary UL moved to a BWP that never decoded system information. Covered by the new ``nr-handover-rach-config`` test suite.
+- A UE forced to camp without decoding SIB1 now uses the FR1-safe RACH lock duration instead of reading an uninitialized numerology.
 - The TDMA schedulers and the OFDMA uplink scheduling now reap allocations whose transport block size is below the minimum required to create a DCI (10 bytes in downlink, 12 bytes in uplink) and redistribute those resources among the other below-minimum UEs, mirroring the reaping already performed by the OFDMA downlink scheduling. Previously, when the number of simultaneously active UEs was greater than or equal to the schedulable resources in a slot and the UEs were still at the initial MCS 0, every UE received an allocation too small to transmit, all the DCIs were silently discarded, and the cell starved indefinitely (no data implies no CSI feedback, which implies the MCS never left 0). The `nr-system-test-scheduler-many-ues` test suite covers this scenario with 100 UEs.
 
 ## Changes from NR-v4.2 to v5.0
