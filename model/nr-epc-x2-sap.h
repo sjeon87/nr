@@ -65,9 +65,9 @@ class NR_EXPORT NrEpcX2Sap
      */
     struct NR_EXPORT ErabAdmittedItem
     {
-        uint16_t erabId;    ///< E-RAB ID
-        uint32_t ulGtpTeid; ///< uplink GTP TEID
-        uint32_t dlGtpTeid; ///< downlink GTP TEID
+        uint16_t erabId{0};    ///< E-RAB ID
+        uint32_t ulGtpTeid{0}; ///< uplink GTP TEID
+        uint32_t dlGtpTeid{0}; ///< downlink GTP TEID
     };
 
     /**
