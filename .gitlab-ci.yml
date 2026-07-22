@@ -159,6 +159,98 @@ per-commit-gcc-release-sanitizers:
   tags:
     - CTTC
 
+# MemorySanitizer catches reads of uninitialized memory, a defect class that is
+# invisible to the address/leak/undefined sanitizers job and that valgrind only
+# partially reports (it stays silent when uninitialized bytes are merely copied
+# or serialized rather than branched on). MSan requires every linked C++
+# library to be instrumented, so the job first builds an MSan-instrumented
+# libc++/libc++abi matching the clang version (cached across runs) and compiles
+# ns-3 and nr against it. The fast unwinder avoids the sanitizer re-entering
+# the unwinder on report, and dtor poisoning is disabled to mute a known
+# use-after-dtor report in the ns-3 wifi static teardown. Note for runner
+# configuration: MSan may re-exec with ASLR disabled via
+# personality(ADDR_NO_RANDOMIZE), which the default Docker seccomp profile
+# blocks; the runner must be privileged or use a seccomp profile allowing it
+# (verified locally with gitlab-ci-local --privileged).
+weekly-clang-msan:
+  stage: build
+  image: archlinux
+  rules:
+    - if: $RELEASE == "weekly"
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      allow_failure: true
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+  before_script:
+    - pacman-key --init
+    - pacman -Sy
+    - pacman -S --noconfirm archlinux-keyring
+    - pacman -Su --noconfirm base-devel clang llvm ninja ccache git python curl
+    - python3 -m venv ns3env
+    - source ./ns3env/bin/activate
+    - pip install cmake==$CMAKE_VERSION
+  script:
+    # Canary for the runner capability described above: setarch -R uses the
+    # same personality(ADDR_NO_RANDOMIZE) syscall MSan falls back to when its
+    # shadow mapping collides with ASLR. A failure here does not necessarily
+    # doom the job (hosts with vm.mmap_rnd_bits <= 28 rarely need the re-exec),
+    # so warn loudly instead of aborting.
+    - setarch $(uname -m) -R true
+      || echo "WARNING - this runner blocks personality(ADDR_NO_RANDOMIZE); if MemorySanitizer later aborts with 'unable to disable ASLR', run this job on a privileged runner, allow the syscall in the seccomp profile, or set vm.mmap_rnd_bits=28 on the runner host"
+    # Build an MSan-instrumented libc++ matching the installed clang
+    - LLVM_VERSION=$(clang --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    - if [ ! -e msan-libcxx/lib/libunwind.so ]; then
+        curl -sLO https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/llvm-project-$LLVM_VERSION.src.tar.xz &&
+        tar xf llvm-project-$LLVM_VERSION.src.tar.xz &&
+        cmake -G Ninja -S llvm-project-$LLVM_VERSION.src/runtimes -B llvm-msan-build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind"
+          -DLLVM_USE_SANITIZER=MemoryWithOrigins
+          -DCMAKE_INSTALL_PREFIX=${PWD}/msan-libcxx &&
+        ninja -C llvm-msan-build install-cxx install-cxxabi install-unwind &&
+        rm -rf llvm-project-$LLVM_VERSION.src llvm-project-$LLVM_VERSION.src.tar.xz llvm-msan-build;
+      fi
+    - MSAN_LIBCXX=${PWD}/msan-libcxx
+    - git clone -b $NS3_RELEASE_VERSION --depth=1 $NS3_REPOSITORY_URL
+    - mkdir -p $CCACHE_BASEDIR_VALUE
+    - export CCACHE_BASEDIR=${PWD}
+    - export CCACHE_DIR=${PWD}/$CCACHE_BASEDIR_VALUE
+    - ln -s ${PWD} ns-3-dev/contrib/nr
+    - pushd ns-3-dev
+    # The sanitizer flags are passed straight to CMake because the ns3 wrapper
+    # filters -fsanitize from the CXXFLAGS/LDFLAGS environment variables, and
+    # the clang stdlib workaround probes are pre-seeded because they link
+    # without the MSan runtime and would spuriously fail
+    - CXX=clang++ ./ns3 configure -d default -GNinja --enable-examples --enable-tests --enable-asserts --filter-module-examples-and-tests="nr" --
+      -DCLANG_STDLIBCPP_WORKS=FALSE -DCLANG_LIBCPP_WORKS=TRUE
+      -DCMAKE_CXX_FLAGS="-stdlib=libc++ -nostdinc++ -isystem $MSAN_LIBCXX/include/c++/v1 -fsanitize=memory -fsanitize-memory-track-origins"
+      -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++ -fsanitize=memory -L$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_LIBCXX/lib"
+      -DCMAKE_SHARED_LINKER_FLAGS="-stdlib=libc++ -fsanitize=memory -L$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_LIBCXX/lib"
+    - ./ns3 build
+    - export MSAN_OPTIONS=strict_memcmp=0:fast_unwind_on_fatal=1:fast_unwind_on_malloc=1:poison_in_dtor=0
+    - for suite in nr-cell-selection nr-cell-selection-with-rlf nr-handover-delay
+        nr-handover-failure nr-handover-rach-config nr-handover-scenarios
+        nr-handover-target nr-inter-freq-handover nr-rlf-fdd nr-rlf-tdd
+        nr-rlf-tdd-flexible nr-rlf-tdd-mixed nr-rrc nr-ue-measurements
+        nr-x2-handover nr-x2-handover-measures nr-epc-e2e-data; do
+        ./build/utils/ns3-dev-test-runner-default --suite=$suite --stop-on-failure || exit 1;
+      done
+    - popd
+    - rm -rf ns-3-dev
+  cache:
+    key: "msan-$CI_JOB_NAME"
+    paths:
+      - $CCACHE_BASEDIR_VALUE/
+      - msan-libcxx/
+  variables:
+    CCACHE_BASEDIR_VALUE: ns-3-ccache-storage
+  timeout: 9h
+  interruptible: true
+  tags:
+    - CTTC
+
 weekly-sionna:
   stage: build
   image: ubuntu:24.04
