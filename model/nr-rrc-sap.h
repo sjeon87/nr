@@ -607,6 +607,12 @@ class NR_EXPORT NrRrcSap
         // separate carrier with its own numerology.
         uint8_t ulNumerology;
 
+        // ARFCN of the cell's UL carrier (frequencyInfoUL in TS 38.331). Equal
+        // to the carrier's own ARFCN for TDD; points to the dedicated UL-only
+        // carrier for FDD, letting the UE derive its primary UL BWP without
+        // manual configuration.
+        uint32_t ulCarrierFreq;
+
         uint8_t symbolsPerSlot; // 14 (normal CP), 12 (extended CP)
 
         // DL/UL control symbols (approx. downlinkSymbolsNum/uplinkSymbolsNum from TDD pattern)

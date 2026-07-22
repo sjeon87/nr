@@ -759,6 +759,9 @@ NrRrcAsn1Header::SerializeServingCellConfigCommon(
     // ulNumerology: SubcarrierSpacing (0..5) of the UL carrier
     SerializeInteger(servingCellConfigCommon.ulNumerology, 0, 5);
 
+    // ulCarrierFreq: ARFCN of the UL carrier
+    SerializeInteger((int)servingCellConfigCommon.ulCarrierFreq, 0, MAX_ARFCN);
+
     // symbolsPerSlot: 12 (extended CP) or 14 (normal CP)
     SerializeInteger(servingCellConfigCommon.symbolsPerSlot, 0, 14);
 
@@ -3828,6 +3831,9 @@ NrRrcAsn1Header::DeserializeServingCellConfigCommon(
 
     bIterator = DeserializeInteger(&n, 0, 5, bIterator);
     servingCellConfigCommon->ulNumerology = static_cast<uint8_t>(n);
+
+    bIterator = DeserializeInteger(&n, 0, MAX_ARFCN, bIterator);
+    servingCellConfigCommon->ulCarrierFreq = static_cast<uint32_t>(n);
 
     bIterator = DeserializeInteger(&n, 0, 14, bIterator);
     servingCellConfigCommon->symbolsPerSlot = static_cast<uint8_t>(n);

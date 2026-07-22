@@ -2129,6 +2129,14 @@ NrUeRrc::EvaluateCellForSelection()
         // currently setup
         auto bwpId = GetArfcnBwpId(m_initDlArfcn);
         SetPrimaryDlIndex(bwpId);
+        // The cell advertises its UL carrier in SIB1; when it differs from the
+        // camped (DL) carrier this is an FDD cell and the primary UL BWP must
+        // move to the carrier the cell actually receives on
+        const uint32_t sib1UlArfcn = m_lastSib1.servingCellConfigCommon.ulCarrierFreq;
+        if (sib1UlArfcn != 0 && sib1UlArfcn != m_initDlArfcn)
+        {
+            SetPrimaryUlIndex(GetArfcnBwpId(sib1UlArfcn));
+        }
         // Align the active BWP PHY numerology with the cell we are about to camp
         // on. The RNTI is unknown at this point (it is assigned by random access),
         // so it must not be touched here.
@@ -2154,9 +2162,10 @@ NrUeRrc::EvaluateCellForSelection()
                                 m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
                                 m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
                                 m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
-                                m_lastSib1.servingCellConfigCommon.numerology,
+                                m_lastSib1.servingCellConfigCommon.ulNumerology,
                                 "F",
                                 m_lastSib1.servingCellConfigCommon.rbgSize);
+            m_cphySapProvider.at(ulBwpIndex)->SynchronizeWithGnb(m_cellId, sib1UlArfcn);
         }
         m_cmacSapProvider.at(ulBwpIndex)->RegisterToGnb(m_cellId);
         if (ulBwpIndex != dlBwpIndex)

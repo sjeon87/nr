@@ -884,18 +884,6 @@ NrUeManager::GetRadioResourceConfigForHandoverPreparationInfo()
     return BuildRadioResourceConfigDedicated();
 }
 
-/**
- * @brief Check whether a TDD pattern describes an UL-only (FDD uplink) carrier
- * @param pattern the slot pattern string (e.g. "UL|UL|UL|")
- * @return true if the pattern contains no DL-capable slot
- */
-static bool
-IsPatternUlOnly(const std::string& pattern)
-{
-    return pattern.find('D') == std::string::npos && pattern.find('F') == std::string::npos &&
-           pattern.find('S') == std::string::npos;
-}
-
 NrRrcSap::RrcConnectionReconfiguration
 NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrierId)
 {
@@ -911,7 +899,7 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
     auto ulComponentCarrier = targetComponentCarrier;
     for (auto& it : m_rrc->m_componentCarrierPhyConf)
     {
-        if (IsPatternUlOnly(it.second->GetPhy()->GetPattern()))
+        if (!it.second->GetPhy()->HasDlSlot())
         {
             ulComponentCarrier = it.second;
             break;
@@ -939,6 +927,8 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
         targetComponentCarrier->GetPhy()->GetNumerology();
     result.mobilityControlInfo.servingCellConfigCommon.ulNumerology =
         ulComponentCarrier->GetPhy()->GetNumerology();
+    result.mobilityControlInfo.servingCellConfigCommon.ulCarrierFreq =
+        ulComponentCarrier->GetArfcn();
     result.mobilityControlInfo.servingCellConfigCommon.symbolsPerSlot =
         targetComponentCarrier->GetPhy()->GetSymbolsPerSlot();
     result.mobilityControlInfo.servingCellConfigCommon.dlCtrlSymsNum =
@@ -2737,14 +2727,14 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
     m_ueMeasConfig.haveSmeasure = false;
     m_ueMeasConfig.haveSpeedStatePars = false;
 
-    // The UL numerology advertised in SIB1: that of the cell's dedicated
-    // UL-only carrier if it has one (FDD), otherwise that of the carrier itself
-    std::optional<uint8_t> fddUlNumerology;
+    // The UL carrier advertised in SIB1: a DL-only carrier points at the cell's
+    // dedicated UL-only carrier (FDD); any UL-capable carrier points at itself
+    Ptr<BandwidthPartGnb> fddUlCarrier;
     for (const auto& it : ccPhyConf)
     {
-        if (IsPatternUlOnly(it.second->GetPhy()->GetPattern()))
+        if (!it.second->GetPhy()->HasDlSlot())
         {
-            fddUlNumerology = it.second->GetPhy()->GetNumerology();
+            fddUlCarrier = it.second;
             break;
         }
     }
@@ -2769,8 +2759,16 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
         sib1.cellSelectionInfo.qQualMin = -34;          // not used, set as minimum value
         sib1.cellSelectionInfo.qRxLevMin = m_qRxLevMin; // set as minimum value
         sib1.servingCellConfigCommon.numerology = it.second->GetPhy()->GetNumerology();
-        sib1.servingCellConfigCommon.ulNumerology =
-            fddUlNumerology.value_or(it.second->GetPhy()->GetNumerology());
+        if (!it.second->GetPhy()->HasUlSlot() && fddUlCarrier)
+        {
+            sib1.servingCellConfigCommon.ulNumerology = fddUlCarrier->GetPhy()->GetNumerology();
+            sib1.servingCellConfigCommon.ulCarrierFreq = fddUlCarrier->GetArfcn();
+        }
+        else
+        {
+            sib1.servingCellConfigCommon.ulNumerology = it.second->GetPhy()->GetNumerology();
+            sib1.servingCellConfigCommon.ulCarrierFreq = it.second->GetArfcn();
+        }
         sib1.servingCellConfigCommon.dlCtrlSymsNum = it.second->GetMac()->GetDlCtrlSyms();
         sib1.servingCellConfigCommon.ulCtrlSymsNum = it.second->GetMac()->GetUlCtrlSyms();
         sib1.servingCellConfigCommon.symbolsPerSlot = it.second->GetPhy()->GetSymbolsPerSlot();
@@ -3209,7 +3207,7 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
     uint8_t ulComponentCarrierId = componentCarrierId;
     for (auto& it : m_componentCarrierPhyConf)
     {
-        if (IsPatternUlOnly(it.second->GetPhy()->GetPattern()))
+        if (!it.second->GetPhy()->HasDlSlot())
         {
             ulComponentCarrierId = it.first;
             break;
