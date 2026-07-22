@@ -388,9 +388,12 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                  UintegerValue(bwpIdForLowLat));
 
-    // Ue routing between QoS flow and bandwidth part
+    // Ue routing between QoS flow and bandwidth part. Whatever the direction of
+    // the application traffic, the UE transmits this flow on the uplink, which
+    // in FDD is BWP 1 (BWP 0 is the DL-only carrier)
+    uint32_t ueBwpIdForLowLat = (operationMode == "FDD") ? 1 : bwpIdForLowLat;
     nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                UintegerValue(bwpIdForLowLat));
+                                                UintegerValue(ueBwpIdForLowLat));
 
     /*
      * We have configured the attributes we needed. Now, install and get the pointers
@@ -787,6 +790,10 @@ main(int argc, char* argv[])
     }
 
     Time simTime = MilliSeconds(simTimeMs);
+    // The applications start at 400 ms and stop 400 ms before the end of the
+    // simulation, and need time to transfer anything in between
+    NS_ABORT_MSG_IF(simTime <= MilliSeconds(800),
+                    "simTimeMs must be larger than 800 ms so the applications can run");
 
     std::cout << "\n  Traffic configuration selected is: " << trafficTypeConf << std::endl;
 
@@ -1942,13 +1949,11 @@ main(int argc, char* argv[])
         }
         outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
     }
+    // Only flows that received packets contributed a delay sample
+    delayValues.resize(cont);
+    NS_ABORT_MSG_IF(delayValues.empty(), "No flow received any packet during the simulation");
     std::stable_sort(delayValues.begin(), delayValues.end());
-    // for (uint32_t i = 0; i < stats.size(); i++)
-    //   {
-    //     std::cout << delayValues[i] << " ";
-    //   }
-    // double FiftyTileFlowDelay = (delayValues[stats.size()/2] + delayValues[stats.size()/2 -1])/2;
-    double FiftyTileFlowDelay = delayValues[stats.size() / 2];
+    double FiftyTileFlowDelay = delayValues[delayValues.size() / 2];
     // Make sure that traffic was actually transmitted
     NS_ASSERT(averageUpt != 0.0 && averageFlowThroughput != 0.0 && averageFlowDelay != 0.0);
     outFile << "\n\n  Mean flow throughput: " << averageFlowThroughput / stats.size() << " Mbps\n";
