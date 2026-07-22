@@ -28,6 +28,17 @@ BwpManagerUe::~BwpManagerUe()
 }
 
 void
+BwpManagerUe::DoDispose()
+{
+    NS_LOG_FUNCTION(this);
+    // This callback captures a Ptr to the UE RRC, which in turn holds callbacks capturing this
+    // manager. Release it to break the reference cycle.
+    m_getPrimaryUlFn = nullptr;
+    m_algorithm = nullptr;
+    NrSimpleUeComponentCarrierManager::DoDispose();
+}
+
+void
 BwpManagerUe::SetBwpManagerAlgorithm(const Ptr<BwpManagerAlgorithm>& algorithm)
 {
     NS_LOG_FUNCTION(this);
@@ -114,7 +125,26 @@ void
 BwpManagerUe::SetOutputLink(uint32_t sourceBwp, uint32_t outputBwp)
 {
     NS_LOG_FUNCTION(this);
-    m_outputLinks.insert(std::make_pair(sourceBwp, outputBwp));
+    m_outputLinks[sourceBwp] = outputBwp;
+    m_explicitOutputLinks.insert(sourceBwp);
+}
+
+void
+BwpManagerUe::SetDefaultOutputLink(uint32_t sourceBwp, uint32_t outputBwp)
+{
+    NS_LOG_FUNCTION(this);
+    if (m_explicitOutputLinks.find(sourceBwp) == m_explicitOutputLinks.end())
+    {
+        m_outputLinks[sourceBwp] = outputBwp;
+    }
+}
+
+void
+BwpManagerUe::ClearOutputLinks()
+{
+    NS_LOG_FUNCTION(this);
+    m_outputLinks.clear();
+    m_explicitOutputLinks.clear();
 }
 
 uint8_t
