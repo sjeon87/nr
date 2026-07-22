@@ -65,7 +65,9 @@ cell's numerology, TDD pattern and control-symbol layout. Two pieces make this w
 First, the target cell's broadcast PHY configuration (``ServingCellConfigCommon``) is
 carried in the handover command (``RrcConnectionReconfiguration`` mobility control info),
 so the UE configures the target BWP from the target cell rather than from the source
-cell's last-decoded SIB1. Second, while connected (or mid-handover) the UE keeps every
+cell's last-decoded SIB1. The handover command also carries the target cell's RACH
+configuration, which the UE applies to the MAC of its primary UL BWP before starting the
+non-contention random access towards the target. Second, while connected (or mid-handover) the UE keeps every
 candidate BWP tuned and can overhear a neighbour cell's periodic MIB on another carrier.
 A MIB is a per-cell broadcast, so it is *routed to the BWP that is actually tuned to the
 originating cell's carrier* rather than applied to whichever BWP happens to be primary.

@@ -161,6 +161,12 @@ class NR_EXPORT NrUeMac : public Object
     NrUeCmacSapProvider* GetUeCmacSapProvider();
 
     /**
+     * @brief Get the RACH configuration currently applied to this MAC
+     * @return the RACH configuration
+     */
+    NrUeCmacSapProvider::RachConfig GetRachConfig() const;
+
+    /**
      * @brief Get the Mac SAP provider (AKA the MAC representation for the RLC)
      * @return the Mac SAP provider (AKA the MAC representation for the RLC)
      */
@@ -541,10 +547,10 @@ class NR_EXPORT NrUeMac : public Object
         m_macUeStateMachine;
 
     void StartWaitingForRaResponse();
-    bool m_rachConfigured = false;                ///< is RACH configured?
-    NrUeCmacSapProvider::RachConfig m_rachConfig; ///< RACH configuration
-    uint8_t m_preambleTransmissionCounter{0};     ///< preamble transmission counter
-    EventId m_noRaResponseReceivedEvent;          ///< no RA response received event ID
+    bool m_rachConfigured = false;                  ///< is RACH configured?
+    NrUeCmacSapProvider::RachConfig m_rachConfig{}; ///< RACH configuration
+    uint8_t m_preambleTransmissionCounter{0};       ///< preamble transmission counter
+    EventId m_noRaResponseReceivedEvent;            ///< no RA response received event ID
 };
 
 } // namespace ns3

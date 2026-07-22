@@ -1279,6 +1279,12 @@ NrUeMac::DoConfigureRach(NrUeCmacSapProvider::RachConfig rc)
     m_rachConfigured = true;
 }
 
+NrUeCmacSapProvider::RachConfig
+NrUeMac::GetRachConfig() const
+{
+    return m_rachConfig;
+}
+
 void
 NrUeMac::DoStartContentionBasedRandomAccessProcedure()
 {
