@@ -1396,6 +1396,24 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
             NS_ASSERT_MSG(
                 mci.haveRachConfigDedicated,
                 "handover is only supported with non-contention-based random access procedure");
+
+            // Apply the target cell's RACH parameters, which the handover command
+            // carries for this purpose. The UL BWP being handed over to need never
+            // have decoded the target's SIB2 (an inter-frequency handover moves the
+            // primary onto a BWP that saw no system information at all), so without
+            // this its MAC would size the RA response window, and bound the preamble
+            // retransmissions, from whatever its RACH configuration happened to hold.
+            NrUeCmacSapProvider::RachConfig rc;
+            rc.numberOfRaPreambles =
+                mci.radioResourceConfigCommon.rachConfigCommon.preambleInfo.numberOfRaPreambles;
+            rc.preambleTransMax =
+                mci.radioResourceConfigCommon.rachConfigCommon.raSupervisionInfo.preambleTransMax;
+            rc.raResponseWindowSize = mci.radioResourceConfigCommon.rachConfigCommon
+                                          .raSupervisionInfo.raResponseWindowSize;
+            rc.connEstFailCount =
+                mci.radioResourceConfigCommon.rachConfigCommon.txFailParam.connEstFailCount;
+            m_cmacSapProvider.at(GetPrimaryUlIndex())->ConfigureRach(rc);
+
             m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(mci.targetPhysCellId);
             m_cmacSapProvider.at(GetPrimaryUlIndex())
                 ->StartNonContentionBasedRandomAccessProcedure(
@@ -3787,8 +3805,12 @@ NrUeRrc::StartConnection()
 
     // Covers raResponseWindow (up to 40 slots) + contentionResolutionTimer
     // (up to 64 ms) + processing margin.
-    // 120 ms is safe for FR1. 20 ms is safe for FR2.
-    if (m_lastSib1.servingCellConfigCommon.numerology >= 3)
+    // 120 ms is safe for FR1. 20 ms is safe for FR2. A force-camped UE never
+    // acquires SIB1 (IDLE_WAIT_MIB camps straight on the cell, as an explicit
+    // camp request needs no cell evaluation), so without a decoded numerology
+    // fall back to the FR1-safe duration: a longer lock than needed merely
+    // defers another BWP, a shorter one reopens the race the lock closes.
+    if (m_hasReceivedSib1 && m_lastSib1.servingCellConfigCommon.numerology >= 3)
     {
         m_rachLockDuration = MilliSeconds(20);
     }

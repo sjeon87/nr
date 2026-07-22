@@ -15,6 +15,19 @@ http://www.nsnam.org including tutorials: https://www.nsnam.org/documentation/
 Consult the file CHANGES.md for more detailed information about changed
 API and behavior across releases.
 
+Release NR-v5.1 (under development)
+------------------------------------
+
+Bugs fixed
+----------
+- Fixed the handover command not applying the target cell's RACH configuration
+  to the UE MAC, which sized the RA response window and bounded the preamble
+  retransmissions from the source cell's (or no) configuration. Covered by the
+  new ``nr-handover-rach-config`` test suite.
+- Fixed a read of an uninitialized numerology in ``NrUeRrc::StartConnection()``
+  when the UE was forced to camp without decoding SIB1; the FR1-safe RACH lock
+  duration is now used.
+
 Release NR-v5.0
 ---------------
 
