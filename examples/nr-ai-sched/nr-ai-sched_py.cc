@@ -8,8 +8,8 @@
 // contrib/nr/model/nr-mac-scheduler-ai-msg-structs.h so a Python agent can read
 // observations and write actions in shared memory with zero serialization.
 
+#include "ns3/ai-module.h"
 #include "ns3/nr-mac-scheduler-ai-msg-structs.h"
-#include <ns3/ai-module.h>
 
 #include <iostream>
 #include <pybind11/pybind11.h>
