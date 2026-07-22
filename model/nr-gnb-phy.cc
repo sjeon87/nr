@@ -1052,8 +1052,14 @@ void
 NrGnbPhy::DoStartSlot()
 {
     NS_LOG_FUNCTION(this);
-    NS_ASSERT(m_ctrlMsgs.empty()); // This assert has to be re-evaluated for NR-U.
-                                   // We can have messages before we weren't able to tx them before.
+    // This assert has to be re-evaluated for NR-U.
+    // We can have messages before we weren't able to tx them before.
+    // Messages encoded at this very instant are fine: another BWP's PHY may have
+    // just routed them here (e.g., a RAR from the UL carrier of an FDD cell,
+    // whose slot boundary coincides with this one), and they will be transmitted
+    // during the slot that is starting. Only messages older than a slot indicate
+    // that a previous slot failed to transmit them.
+    NS_ASSERT(m_ctrlMsgs.empty() || m_ctrlMsgsEncodedAt >= Simulator::Now() - GetSlotPeriod());
 
     uint64_t currentSlotN = m_currentSlot.Normalize() % m_tddPattern.size();
 

@@ -646,6 +646,8 @@ class NR_EXPORT NrPhy : public Object
 
     uint32_t m_raPreambleId{255};                //!< Preamble ID (255 = none sent; valid IDs 0..63)
     std::list<Ptr<NrControlMessage>> m_ctrlMsgs; //!< CTRL messages to be sent
+    Time m_ctrlMsgsEncodedAt{Seconds(0)}; //!< Time at which the oldest queued CTRL message was
+                                          //!< encoded
 
     std::vector<LteNrTddSlotType> m_tddPattern = {F, F, F, F, F, F, F, F, F, F}; //!< Pattern
 
