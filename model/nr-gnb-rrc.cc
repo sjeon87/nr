@@ -34,6 +34,8 @@
 #include "ns3/pointer.h"
 #include "ns3/simulator.h"
 
+#include <optional>
+
 namespace ns3
 {
 
@@ -882,6 +884,18 @@ NrUeManager::GetRadioResourceConfigForHandoverPreparationInfo()
     return BuildRadioResourceConfigDedicated();
 }
 
+/**
+ * @brief Check whether a TDD pattern describes an UL-only (FDD uplink) carrier
+ * @param pattern the slot pattern string (e.g. "UL|UL|UL|")
+ * @return true if the pattern contains no DL-capable slot
+ */
+static bool
+IsPatternUlOnly(const std::string& pattern)
+{
+    return pattern.find('D') == std::string::npos && pattern.find('F') == std::string::npos &&
+           pattern.find('S') == std::string::npos;
+}
+
 NrRrcSap::RrcConnectionReconfiguration
 NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrierId)
 {
@@ -890,16 +904,28 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
     NrRrcSap::RrcConnectionReconfiguration result = BuildRrcConnectionReconfiguration();
 
     auto targetComponentCarrier = m_rrc->m_componentCarrierPhyConf.at(componentCarrierId);
+    // An FDD cell receives uplink on a dedicated UL-only carrier rather than on
+    // the (DL) primary one, and the UE has no other way to learn it: it never
+    // read this cell's system information. Point the UL parts of the handover
+    // command at that carrier, if there is one.
+    auto ulComponentCarrier = targetComponentCarrier;
+    for (auto& it : m_rrc->m_componentCarrierPhyConf)
+    {
+        if (IsPatternUlOnly(it.second->GetPhy()->GetPattern()))
+        {
+            ulComponentCarrier = it.second;
+            break;
+        }
+    }
     result.haveMobilityControlInfo = true;
     result.mobilityControlInfo.targetPhysCellId = targetComponentCarrier->GetCellId();
     result.mobilityControlInfo.haveCarrierFreq = true;
     result.mobilityControlInfo.carrierFreq.dlCarrierFreq = targetComponentCarrier->GetArfcn();
-    result.mobilityControlInfo.carrierFreq.ulCarrierFreq = targetComponentCarrier->GetArfcn();
+    result.mobilityControlInfo.carrierFreq.ulCarrierFreq = ulComponentCarrier->GetArfcn();
     result.mobilityControlInfo.haveCarrierBandwidth = true;
     result.mobilityControlInfo.carrierBandwidth.dlBandwidth =
         targetComponentCarrier->GetDlBandwidth();
-    result.mobilityControlInfo.carrierBandwidth.ulBandwidth =
-        targetComponentCarrier->GetUlBandwidth();
+    result.mobilityControlInfo.carrierBandwidth.ulBandwidth = ulComponentCarrier->GetUlBandwidth();
 
     // Carry the target cell's broadcast PHY configuration in the handover
     // command so the UE re-tunes its target BWP to the *target* numerology,
@@ -911,6 +937,8 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
     result.mobilityControlInfo.haveServingCellConfigCommon = true;
     result.mobilityControlInfo.servingCellConfigCommon.numerology =
         targetComponentCarrier->GetPhy()->GetNumerology();
+    result.mobilityControlInfo.servingCellConfigCommon.ulNumerology =
+        ulComponentCarrier->GetPhy()->GetNumerology();
     result.mobilityControlInfo.servingCellConfigCommon.symbolsPerSlot =
         targetComponentCarrier->GetPhy()->GetSymbolsPerSlot();
     result.mobilityControlInfo.servingCellConfigCommon.dlCtrlSymsNum =
@@ -2709,6 +2737,18 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
     m_ueMeasConfig.haveSmeasure = false;
     m_ueMeasConfig.haveSpeedStatePars = false;
 
+    // The UL numerology advertised in SIB1: that of the cell's dedicated
+    // UL-only carrier if it has one (FDD), otherwise that of the carrier itself
+    std::optional<uint8_t> fddUlNumerology;
+    for (const auto& it : ccPhyConf)
+    {
+        if (IsPatternUlOnly(it.second->GetPhy()->GetPattern()))
+        {
+            fddUlNumerology = it.second->GetPhy()->GetNumerology();
+            break;
+        }
+    }
+
     m_sib1.clear();
     m_sib1.reserve(ccPhyConf.size());
     for (const auto& it : ccPhyConf)
@@ -2729,6 +2769,8 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
         sib1.cellSelectionInfo.qQualMin = -34;          // not used, set as minimum value
         sib1.cellSelectionInfo.qRxLevMin = m_qRxLevMin; // set as minimum value
         sib1.servingCellConfigCommon.numerology = it.second->GetPhy()->GetNumerology();
+        sib1.servingCellConfigCommon.ulNumerology =
+            fddUlNumerology.value_or(it.second->GetPhy()->GetNumerology());
         sib1.servingCellConfigCommon.dlCtrlSymsNum = it.second->GetMac()->GetDlCtrlSyms();
         sib1.servingCellConfigCommon.ulCtrlSymsNum = it.second->GetMac()->GetUlCtrlSyms();
         sib1.servingCellConfigCommon.symbolsPerSlot = it.second->GetPhy()->GetSymbolsPerSlot();
@@ -3161,8 +3203,20 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
     Ptr<NrUeManager> ueManager = GetUeManager(rnti);
     ueManager->SetSource(req.sourceCellId, req.oldGnbUeX2apId);
     ueManager->SetImsi(req.mmeUeS1apId);
+    // The handover random access arrives on the cell's UL carrier, so the
+    // non-contention preamble must be reserved on that carrier's MAC (which
+    // differs from the target CC's for FDD)
+    uint8_t ulComponentCarrierId = componentCarrierId;
+    for (auto& it : m_componentCarrierPhyConf)
+    {
+        if (IsPatternUlOnly(it.second->GetPhy()->GetPattern()))
+        {
+            ulComponentCarrierId = it.first;
+            break;
+        }
+    }
     NrGnbCmacSapProvider::AllocateNcRaPreambleReturnValue anrcrv =
-        m_cmacSapProvider.at(componentCarrierId)->AllocateNcRaPreamble(rnti);
+        m_cmacSapProvider.at(ulComponentCarrierId)->AllocateNcRaPreamble(rnti);
     if (!anrcrv.valid)
     {
         NS_LOG_INFO(

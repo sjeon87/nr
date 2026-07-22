@@ -602,6 +602,11 @@ class NR_EXPORT NrRrcSap
     {
         uint8_t numerology; // SubcarrierSpacing (0..5)
 
+        // SubcarrierSpacing of the cell's UL carrier. Equal to numerology for
+        // TDD or intra-carrier FDD; differs when the cell receives uplink on a
+        // separate carrier with its own numerology.
+        uint8_t ulNumerology;
+
         uint8_t symbolsPerSlot; // 14 (normal CP), 12 (extended CP)
 
         // DL/UL control symbols (approx. downlinkSymbolsNum/uplinkSymbolsNum from TDD pattern)

@@ -563,6 +563,11 @@ NrHelper::InstallSingleUeDevice(
     ccmUe->SetNumberOfComponentCarriers(ueCcMap.size());
     DynamicCast<BwpManagerUe>(ccmUe)->SetGetPrimaryUlFn(
         [rrc]() { return rrc->GetPrimaryUlIndex(); });
+    Ptr<BwpManagerUe> bwpManagerUe = DynamicCast<BwpManagerUe>(ccmUe);
+    rrc->SetUpdateBwpOutputLinkFn([bwpManagerUe](uint32_t sourceBwp, uint32_t outputBwp) {
+        bwpManagerUe->SetDefaultOutputLink(sourceBwp, outputBwp);
+    });
+    rrc->SetClearBwpOutputLinksFn([bwpManagerUe]() { bwpManagerUe->ClearOutputLinks(); });
 
     if (m_useIdealRrc)
     {

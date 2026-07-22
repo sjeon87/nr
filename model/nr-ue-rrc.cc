@@ -194,6 +194,10 @@ NrUeRrc::DoDispose()
     m_cmacSapProvider.erase(m_cmacSapProvider.begin(), m_cmacSapProvider.end());
     m_cmacSapProvider.clear();
     m_drbMap.clear();
+    // These callbacks capture a Ptr to the BWP manager, which in turn holds a callback capturing
+    // this RRC. Release them to break the reference cycle.
+    m_updateBwpOutputLinkFn = nullptr;
+    m_clearBwpOutputLinksFn = nullptr;
 }
 
 TypeId
@@ -682,6 +686,7 @@ NrUeRrc::SetPrimaryUlIndex(uint16_t ulIndex)
 {
     NS_LOG_FUNCTION(this << +ulIndex);
     m_primaryUlIndex = ulIndex;
+    SyncBwpOutputLinks();
 }
 
 uint16_t
@@ -691,10 +696,34 @@ NrUeRrc::GetPrimaryUlIndex() const
 }
 
 void
+NrUeRrc::SetUpdateBwpOutputLinkFn(std::function<void(uint32_t, uint32_t)> fn)
+{
+    m_updateBwpOutputLinkFn = std::move(fn);
+    SyncBwpOutputLinks();
+}
+
+void
+NrUeRrc::SyncBwpOutputLinks()
+{
+    if (!m_updateBwpOutputLinkFn)
+    {
+        return;
+    }
+    // Outgoing messages sourced on the primary DL BWP leave through the primary
+    // UL BWP, which itself routes to itself. Applying this on every primary
+    // index change overwrites links belonging to a previous serving cell whose
+    // UL/DL carrier pairing differed (e.g. a handover between FDD cells with
+    // inverted carrier roles).
+    m_updateBwpOutputLinkFn(GetPrimaryDlIndex(), GetPrimaryUlIndex());
+    m_updateBwpOutputLinkFn(GetPrimaryUlIndex(), GetPrimaryUlIndex());
+}
+
+void
 NrUeRrc::SetPrimaryDlIndex(uint16_t dlIndex)
 {
     NS_LOG_FUNCTION(this << +dlIndex);
     m_primaryDlIndex = dlIndex;
+    SyncBwpOutputLinks();
 }
 
 uint16_t
@@ -1521,15 +1550,30 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
                                         targetScc.dlCtrlSymsNum,
                                         targetScc.ulCtrlSymsNum,
                                         targetScc.symbolsPerSlot,
-                                        targetScc.numerology,
+                                        targetScc.ulNumerology,
                                         "F",
                                         targetScc.rbgSize);
+                }
+                // The output links describe the previous cell's UL/DL carrier
+                // pairing; drop them before pointing the primaries at the new
+                // cell's carriers
+                if (m_clearBwpOutputLinksFn)
+                {
+                    m_clearBwpOutputLinksFn();
                 }
                 SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
                 SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
             }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.dlCarrierFreq);
+            if (GetPrimaryUlIndex() != GetPrimaryDlIndex())
+            {
+                // The UL PHY must also resync to the target cell, or it keeps
+                // filtering on the source cell ID and never sees the target's
+                // RAR during the handover random access
+                m_cphySapProvider.at(GetPrimaryUlIndex())
+                    ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.ulCarrierFreq);
+            }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SetDlBandwidth(mci.carrierBandwidth.dlBandwidth);
             if (GetPrimaryUlIndex() != GetPrimaryDlIndex())
@@ -1938,8 +1982,12 @@ NrUeRrc::SwitchPrimaryBwpSameCell(std::size_t targetBwpId)
                                                  << " on serving cell=" << m_cellId);
 
     // Re-point the primary DL (and UL when they coincide) and re-bind the RNTI
-    // on the new PHY/MAC so the data plane follows the new primary BWP.
-    const bool ulFollowsDl = (GetPrimaryUlIndex() == GetPrimaryDlIndex());
+    // on the new PHY/MAC so the data plane follows the new primary BWP. The UL
+    // does not follow the DL onto a DL-only BWP (e.g., the DL carrier of an FDD
+    // pair): the cell keeps receiving on its usual UL carrier.
+    auto ulCapableIt = m_bwpUlCapable.find(targetBwpId);
+    const bool targetUlCapable = ulCapableIt == m_bwpUlCapable.end() || ulCapableIt->second;
+    const bool ulFollowsDl = (GetPrimaryUlIndex() == GetPrimaryDlIndex()) && targetUlCapable;
     SetPrimaryDlIndex(targetBwpId);
     if (ulFollowsDl)
     {
@@ -4471,6 +4519,10 @@ NrUeRrc::ReconfigureFromSib1(const uint8_t bwpId,
     NS_LOG_FUNCTION(this << "IMSI " << m_imsi << ", cellId " << m_cellId << ", primary UL "
                          << GetPrimaryUlIndex() << ", primary DL " << GetPrimaryDlIndex());
     NrDeviceRegistry::SetUeTargetCell(cellId, m_imsi);
+    // A BWP can host the primary UL only if its pattern has UL-capable slots
+    m_bwpUlCapable[bwpId] = tddPattern.find('U') != std::string::npos ||
+                            tddPattern.find('F') != std::string::npos ||
+                            tddPattern.find('S') != std::string::npos;
     m_cphySapProvider.at(bwpId)->SetDlCtrlSyms(dlCtrlSym);
     m_cphySapProvider.at(bwpId)->SetUlCtrlSyms(ulCtrlSym);
     m_cphySapProvider.at(bwpId)->SetSymbolsPerSlot(symPerSlot);

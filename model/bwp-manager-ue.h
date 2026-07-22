@@ -12,6 +12,8 @@
 
 #include "ns3/nr-export.h"
 
+#include <unordered_set>
+
 namespace ns3
 {
 
@@ -88,8 +90,33 @@ class NR_EXPORT BwpManagerUe : public NrSimpleUeComponentCarrierManager
      * @param outputBwp ... will get routed in this bandwidth part.
      *
      * Call it for each mapping you want to install.
+     *
+     * Mappings installed through this method are explicit: they are never
+     * overwritten by the automatically derived primary DL/UL BWP pair links
+     * (@see SetDefaultOutputLink).
      */
     void SetOutputLink(uint32_t sourceBwp, uint32_t outputBwp);
+
+    /**
+     * @brief Set a mapping between two BWP, unless one was explicitly configured.
+     * @param sourceBwp The messages that comes from this value...
+     * @param outputBwp ... will get routed in this bandwidth part.
+     *
+     * Used for mappings derived automatically from the primary DL/UL BWP pair,
+     * which must not override mappings explicitly installed with SetOutputLink()
+     * (e.g., the pairing of secondary FDD carriers in mixed TDD/FDD setups).
+     */
+    void SetDefaultOutputLink(uint32_t sourceBwp, uint32_t outputBwp);
+
+    /**
+     * @brief Remove all output link mappings, explicit or not.
+     *
+     * Output links express the UL/DL carrier pairing of a serving cell, so
+     * they are dropped when the UE moves to a different cell: the new cell's
+     * configuration (primary pair sync or dedicated RRC config) installs the
+     * links appropriate for it.
+     */
+    void ClearOutputLinks();
 
     /**
      * @brief Set a callback function to retrieve the primary uplink index.
@@ -104,6 +131,7 @@ class NR_EXPORT BwpManagerUe : public NrSimpleUeComponentCarrierManager
     void SetGetPrimaryUlFn(std::function<uint8_t()> fn);
 
   protected:
+    void DoDispose() override;
     void DoTransmitBufferStatusReport(
         NrMacSapProvider::BufferStatusReportParameters params) override;
     std::vector<NrUeCcmRrcSapProvider::LcsConfig> DoAddLc(
@@ -124,6 +152,8 @@ class NR_EXPORT BwpManagerUe : public NrSimpleUeComponentCarrierManager
     std::unordered_map<uint8_t, NrQosFlow::FiveQi> m_lcToFlowMap; //!< Map from LCID to QoS flow ID
 
     std::unordered_map<uint32_t, uint32_t> m_outputLinks; //!< Mapping between BWP.
+    std::unordered_set<uint32_t>
+        m_explicitOutputLinks; //!< Sources of mappings installed with SetOutputLink
     std::function<uint8_t()>
         m_getPrimaryUlFn; //!< Callback to retrieve primary UL BWP index from RRC
 };
