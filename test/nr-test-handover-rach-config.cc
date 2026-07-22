@@ -184,10 +184,6 @@ NrHandoverRachConfigTestCase::DoRun()
         band2 = ccBwpCreator.CreateOperationBandContiguousCc(bandConf2);
         channelHelper->AssignChannelsToBands({band, band2});
         allBwps = CcBwpCreator::GetAllBwps({band, band2});
-        // The UE starts on the source gNB, whose UL is the first BWP (2.4 GHz)
-        // and whose DL is the second (2.7 GHz)
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(0));
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryDlIndex", UintegerValue(1));
         // Only the primary component carrier (index 0) broadcasts MIB/SIB, so
         // each gNB must have its DL carrier first: 2.7 GHz for the source gNB,
         // 2.4 GHz for the target
@@ -240,16 +236,11 @@ NrHandoverRachConfigTestCase::DoRun()
         NrHelper::GetGnbPhy(gnbDevs.Get(0), 0)->SetAttribute("Numerology", UintegerValue(1));
         NrHelper::GetGnbPhy(gnbDevs.Get(0), 1)->SetAttribute("Pattern", StringValue(ulPattern));
         NrHelper::GetGnbPhy(gnbDevs.Get(0), 1)->SetAttribute("Numerology", UintegerValue(0));
-        NrHelper::GetBwpManagerGnb(gnbDevs.Get(0))->SetOutputLink(1, 0);
 
         NrHelper::GetGnbPhy(gnbDevs.Get(1), 0)->SetAttribute("Pattern", StringValue(dlPattern));
         NrHelper::GetGnbPhy(gnbDevs.Get(1), 0)->SetAttribute("Numerology", UintegerValue(2));
         NrHelper::GetGnbPhy(gnbDevs.Get(1), 1)->SetAttribute("Pattern", StringValue(ulPattern));
         NrHelper::GetGnbPhy(gnbDevs.Get(1), 1)->SetAttribute("Numerology", UintegerValue(3));
-        NrHelper::GetBwpManagerGnb(gnbDevs.Get(1))->SetOutputLink(1, 0);
-
-        // UE routing towards the source gNB: DL BWP 1 (2.7 GHz) pairs with UL BWP 0 (2.4 GHz)
-        NrHelper::GetBwpManagerUe(ueDev)->SetOutputLink(1, 0);
     }
 
     // Give the target gNB a RACH configuration entirely distinct from the source's
