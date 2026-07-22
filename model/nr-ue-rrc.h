@@ -1060,8 +1060,10 @@ class NR_EXPORT NrUeRrc : public Object
         std::map<uint8_t, NrRrcSap::MeasObjectToAddMod> measObjectList;     ///< measure object list
         std::map<uint8_t, NrRrcSap::ReportConfigToAddMod> reportConfigList; ///< report config list
         NrRrcSap::QuantityConfig quantityConfig;                            ///< quantity config
-        double aRsrp;                                                       ///< RSRP
-        double aRsrq;                                                       ///< RSRQ
+        // Layer-3 filter coefficients; 1.0 (no filtering, F_n = M_n) until a
+        // measurement configuration with a quantityConfig is applied
+        double aRsrp{1.0}; ///< RSRP
+        double aRsrq{1.0}; ///< RSRQ
     };
 
     /**
