@@ -13,6 +13,10 @@ The ``NrRrcSap::SystemInformationBlockType1`` (SIB1) message has also been
 updated to include the 5G-NR ``ServingCellConfigCommon`` field, which contains:
 
 * the numerology of the downlink BWP
+* the numerology of the uplink carrier
+* the ARFCN of the uplink carrier (the equivalent of ``frequencyInfoUL`` in [TS38331]_): for a TDD
+  carrier it points at the carrier itself, while for an FDD cell it points at the dedicated
+  UL-only carrier
 * the number of symbols per slot
 * the number of downlink control symbols
 * the number of uplink control symbols
@@ -22,6 +26,10 @@ updated to include the 5G-NR ``ServingCellConfigCommon`` field, which contains:
 This information allows the simulator to configure the initial DL BWP and perform initial cell selection automatically.
 As a result, UEs can now be placed directly into the simulation and will connect automatically to a nearby cell.
 In case of radio link failure, they will also search for a new cell to reconnect to.
+For FDD cells, the advertised uplink carrier also lets the UE derive its primary UL BWP (and the
+corresponding bandwidth-part routing) at cell selection, so no manual ``PrimaryUlIndex`` or
+``SetOutputLink()`` configuration is needed; ``NrHelper::AttachToGnb()`` performs the equivalent
+derivation from the gNB configuration when the attachment bypasses system information decoding.
 
 Handover, inter-numerology and bandwidth parts
 ==============================================
@@ -65,9 +73,15 @@ cell's numerology, TDD pattern and control-symbol layout. Two pieces make this w
 First, the target cell's broadcast PHY configuration (``ServingCellConfigCommon``) is
 carried in the handover command (``RrcConnectionReconfiguration`` mobility control info),
 so the UE configures the target BWP from the target cell rather than from the source
-cell's last-decoded SIB1. The handover command also carries the target cell's RACH
-configuration, which the UE applies to the MAC of its primary UL BWP before starting the
-non-contention random access towards the target. Second, while connected (or mid-handover) the UE keeps every
+cell's last-decoded SIB1. The handover command also carries the target cell's UL carrier
+(frequency, bandwidth and numerology) and its RACH configuration: the UE re-targets its
+primary UL BWP to the carrier the target cell receives on, re-synchronizes that BWP's PHY
+to the target cell, and applies the target RACH configuration to the corresponding MAC.
+This supports handover between FDD cells whose UL/DL carrier roles are inverted with
+respect to each other, exercised (with a different numerology on each of the four
+carriers) by the ``nr-handover-rach-config`` test suite. On the target gNB side, the
+non-contention preamble is reserved on the MAC of the carrier where the random access
+actually arrives, which for FDD is the UL-only carrier rather than the primary one. Second, while connected (or mid-handover) the UE keeps every
 candidate BWP tuned and can overhear a neighbour cell's periodic MIB on another carrier.
 A MIB is a per-cell broadcast, so it is *routed to the BWP that is actually tuned to the
 originating cell's carrier* rather than applied to whichever BWP happens to be primary.

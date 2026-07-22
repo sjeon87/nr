@@ -98,9 +98,9 @@ Note there are not limitations in the implementation of the TDD pattern size and
 
 FDD model
 #########
-In the 'NR' module, FDD duplexing is modeled through the usage of two paired bandwidth parts, where one is dedicated to transmitting DL data and control, and the other for the transmission of the UL data and control. The user would configure each bandwidth part with a DL-only (or UL-only) pattern, and then configure a linking between the two bandwidth parts for the correct routing of the control messages. As an example, the HARQ feedback for a DL transmission will be uploaded through the UL-only bandwidth part, but it applies to the DL-only bandwidth part: the configuration is needed for correctly routing that message from one bandwidth part to the other.
+In the 'NR' module, FDD duplexing is modeled through the usage of two paired bandwidth parts, where one is dedicated to transmitting DL data and control, and the other for the transmission of the UL data and control. The user configures each bandwidth part with a DL-only (or UL-only) pattern; the linking between the two bandwidth parts for the correct routing of the control messages is then derived automatically (the cell advertises its UL carrier in SIB1, and the UE derives its primary UL bandwidth part and routing from it). As an example, the HARQ feedback for a DL transmission will be uploaded through the UL-only bandwidth part, but it applies to the DL-only bandwidth part: the linking is needed for correctly routing that message from one bandwidth part to the other. Setups with several carrier pairs can still install the mapping manually through ``SetOutputLink()``.
 
-This FDD model supports the pairing only between bandwidth parts configured with the same numerology.
+The paired bandwidth parts may be configured with different numerologies; the control-plane procedures (random access, RRC signalling and handover) across such a pairing are exercised by the ``nr-handover-rach-config`` test suite.
 
 How the time looks like in both schemes
 #######################################
