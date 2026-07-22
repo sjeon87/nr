@@ -94,6 +94,13 @@ class NR_EXPORT BwpManagerGnb : public NrRrComponentCarrierManager
     void SetOutputLink(uint32_t sourceBwp, uint32_t outputBwp);
 
     /**
+     * @brief Check whether an output mapping is installed for a BWP
+     * @param sourceBwp the source BWP
+     * @return true if SetOutputLink was called for sourceBwp
+     */
+    bool HasOutputLink(uint32_t sourceBwp) const;
+
+    /**
      * @brief Override the BWP a given UE's downlink traffic is scheduled on.
      *
      * For same-cell BWP switching: when a UE moves its primary serving BWP, the

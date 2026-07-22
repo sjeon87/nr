@@ -260,6 +260,25 @@ NrGnbNetDevice::ConfigureCell()
     NS_ASSERT_MSG(!m_isCellConfigured, "ConfigureCell() has already been called");
     NS_ASSERT_MSG(!m_ccMap.empty(), "Component carrier map is empty");
     m_isCellConfigured = true;
+
+    // Route the outgoing (DL) messages of any UL-only carrier through the
+    // cell's first DL-capable carrier, unless an explicit mapping was
+    // configured (mixed TDD/FDD carrier aggregation setups pair them manually)
+    auto bwpManager = DynamicCast<BwpManagerGnb>(m_componentCarrierManager);
+    auto dlCcIt = std::find_if(m_ccMap.begin(), m_ccMap.end(), [](const auto& cc) {
+        return cc.second->GetPhy()->HasDlSlot();
+    });
+    if (bwpManager && dlCcIt != m_ccMap.end())
+    {
+        for (const auto& cc : m_ccMap)
+        {
+            if (!cc.second->GetPhy()->HasDlSlot() && !bwpManager->HasOutputLink(cc.first))
+            {
+                bwpManager->SetOutputLink(cc.first, dlCcIt->first);
+            }
+        }
+    }
+
     m_rrc->ConfigureCell(m_ccMap);
     m_handoverAlgorithm->Initialize();
 }

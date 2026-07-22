@@ -184,6 +184,12 @@ BwpManagerGnb::SetOutputLink(uint32_t sourceBwp, uint32_t outputBwp)
     m_outputLinks[sourceBwp] = outputBwp;
 }
 
+bool
+BwpManagerGnb::HasOutputLink(uint32_t sourceBwp) const
+{
+    return m_outputLinks.contains(sourceBwp);
+}
+
 void
 BwpManagerGnb::DoTransmitBufferStatusReport(NrMacSapProvider::BufferStatusReportParameters params)
 {
