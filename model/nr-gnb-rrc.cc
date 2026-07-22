@@ -1257,7 +1257,16 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
         break;
 
     default:
-        NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
+        // Any other (already-active) state receiving a fresh RRC Connection Request
+        // means an RLF'd UE re-selected this cell and re-attached before the gNB
+        // released its context -- e.g. mid-reconfiguration (CONNECTION_RECONFIGURATION)
+        // or during a handover path switch (HANDOVER_PATH_SWITCH), typically via the
+        // TR 36.839 too-late-handover RLF. As in HANDOVER_JOINING, ignore it:
+        // re-admitting would re-run S1 InitialContextSetup for an already-known UE and
+        // drift the bearer (QFI) allocation. The state's own timeout / RLF cleanup
+        // releases this context and the UE re-attaches cleanly.
+        NS_LOG_INFO("Ignoring RRC Connection Request in state " << ToString(m_state) << " for RNTI "
+                                                                << m_rnti);
         break;
     }
 }
