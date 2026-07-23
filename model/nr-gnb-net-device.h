@@ -196,6 +196,7 @@ class NR_EXPORT NrGnbNetDevice : public NrNetDevice
 
     void DoDispose() override;
     bool DoSend(Ptr<Packet> packet, const Address& dest, uint16_t protocolNumber) override;
+    void ForwardUnclassifiedUp(Ptr<Packet> p) override;
 
   private:
     Ptr<NrGnbRrc> m_rrc;

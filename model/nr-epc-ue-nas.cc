@@ -10,6 +10,8 @@
 
 #include "ns3/abort.h"
 #include "ns3/fatal-error.h"
+#include "ns3/ipv4-l3-protocol.h"
+#include "ns3/ipv6-l3-protocol.h"
 #include "ns3/log.h"
 #include "ns3/nr-epc-helper.h"
 #include "ns3/simulator.h"
@@ -62,7 +64,7 @@ NrEpcUeNas::DoDispose()
     // Both refer back to the NrUeNetDevice owning this NAS. Release them to break the reference
     // cycle.
     m_device = nullptr;
-    m_forwardUpCallback = MakeNullCallback<void, Ptr<Packet>>();
+    m_forwardUpCallback = MakeNullCallback<void, Ptr<Packet>, uint16_t>();
 }
 
 TypeId
@@ -124,7 +126,7 @@ NrEpcUeNas::GetAsSapUser()
 }
 
 void
-NrEpcUeNas::SetForwardUpCallback(Callback<void, Ptr<Packet>> cb)
+NrEpcUeNas::SetForwardUpCallback(Callback<void, Ptr<Packet>, uint16_t> cb)
 {
     NS_LOG_FUNCTION(this);
     m_forwardUpCallback = cb;
@@ -197,16 +199,29 @@ NrEpcUeNas::Send(Ptr<Packet> packet, uint16_t protocolNumber)
     switch (m_state)
     {
     case ACTIVE: {
-        auto qfi = m_qosRuleClassifier.Classify(packet, NrQosRule::UPLINK, protocolNumber);
+        std::optional<uint8_t> qfi;
+        if (protocolNumber == Ipv4L3Protocol::PROT_NUMBER ||
+            protocolNumber == Ipv6L3Protocol::PROT_NUMBER)
+        {
+            qfi = m_qosRuleClassifier.Classify(packet, NrQosRule::UPLINK, protocolNumber);
+        }
+        else if (auto it = m_unstructuredQfiByProtocol.find(protocolNumber);
+                 it != m_unstructuredQfiByProtocol.end())
+        {
+            qfi = it->second;
+        }
+        else
+        {
+            NS_LOG_WARN(this << " no unstructured session for protocol " << protocolNumber
+                             << ", discarding packet");
+        }
+
         if (!qfi.has_value())
         {
             return false;
         }
-        else
-        {
-            m_asSapProvider->SendData(packet, qfi.value());
-            return true;
-        }
+        m_asSapProvider->SendData(packet, qfi.value());
+        return true;
     }
     break;
 
@@ -234,10 +249,14 @@ NrEpcUeNas::DoNotifyConnectionFailed()
 }
 
 void
-NrEpcUeNas::DoRecvData(Ptr<Packet> packet)
+NrEpcUeNas::DoRecvData(Ptr<Packet> packet, uint8_t qfi)
 {
-    NS_LOG_FUNCTION(this << packet);
-    m_forwardUpCallback(packet);
+    NS_LOG_FUNCTION(this << packet << qfi);
+    // An unstructured session names its protocol, unreadable from the packet itself.
+    // An IP session reports zero, leaving the protocol to be read from the packet.
+    auto it = m_unstructuredProtocolByQfi.find(qfi);
+    uint16_t protocolNumber = (it != m_unstructuredProtocolByQfi.end()) ? it->second : 0;
+    m_forwardUpCallback(packet, protocolNumber);
 }
 
 void
@@ -248,6 +267,8 @@ NrEpcUeNas::DoNotifyConnectionReleased()
     // remove all rules
     NS_LOG_INFO("Clearing all QosRules from classifier");
     m_qosRuleClassifier.Clear();
+    m_unstructuredQfiByProtocol.clear();
+    m_unstructuredProtocolByQfi.clear();
     // restore the QoS flow list to be activated for the next RRC connection
     m_qosFlowsToBeActivatedList = m_qosFlowsToBeActivatedListForReconnection;
 
@@ -261,6 +282,20 @@ NrEpcUeNas::DoActivateQosFlow(NrQosFlow flow, Ptr<NrQosRule> rule)
 
     auto qfi = rule->GetQfi();
     NS_LOG_INFO("NAS " << m_imsi << " activated QoS flow with QFI " << +qfi);
+
+    if (rule->GetPduSessionType() == NrPduSessionType::UNSTRUCTURED)
+    {
+        // The payload is unstructured, so the flow is keyed by the protocol the session
+        // carries rather than by packet filters.
+        auto protocolNumber = rule->GetProtocolNumber();
+        NS_ABORT_MSG_IF(m_unstructuredQfiByProtocol.contains(protocolNumber),
+                        "an unstructured session for protocol "
+                            << protocolNumber << " is already active on IMSI " << m_imsi);
+        m_unstructuredQfiByProtocol[protocolNumber] = qfi;
+        m_unstructuredProtocolByQfi[qfi] = protocolNumber;
+        return;
+    }
+
     m_qosRuleClassifier.Add(rule, qfi);
 }
 
@@ -270,6 +305,12 @@ NrEpcUeNas::DoDeactivateQosFlow(uint8_t qfi)
     NS_LOG_FUNCTION(this << qfi);
     NS_LOG_INFO("NAS " << m_imsi << " deactivated QoS flow with QFI " << +qfi);
     m_qosRuleClassifier.Delete(qfi);
+
+    if (auto it = m_unstructuredProtocolByQfi.find(qfi); it != m_unstructuredProtocolByQfi.end())
+    {
+        m_unstructuredQfiByProtocol.erase(it->second);
+        m_unstructuredProtocolByQfi.erase(it);
+    }
 }
 
 NrEpcUeNas::State

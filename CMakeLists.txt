@@ -487,6 +487,7 @@ set(test_sources
     test/nr-system-test-schedulers-tdma-mr.cc
     test/nr-system-test-schedulers-tdma-pf.cc
     test/nr-system-test-schedulers-tdma-rr.cc
+    test/nr-test-unstructured-session.cc
     test/nr-system-test-schedulers-random.cc
     test/nr-test-asn1-encoding.cc
     test/nr-test-deactivate-bearer.cc

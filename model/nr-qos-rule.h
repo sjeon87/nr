@@ -21,11 +21,37 @@ namespace ns3
 {
 
 /**
+ * The type of a PDU session, as defined in 3GPP TS 23.501, Section 5.6.1.
+ *
+ * The type determines how the payload of the session is interpreted: the IP
+ * types carry IPv4 and/or IPv6 datagrams, which are classified by inspecting
+ * their headers, whereas UNSTRUCTURED carries the data of a single network
+ * layer protocol that the network does not parse. ETHERNET is listed for
+ * completeness and is not modeled yet.
+ *
+ * The numeric values match the PDU session type value field of the PDU session
+ * type information element (3GPP TS 24.501, Table 9.11.4.11.1).
+ */
+enum class NrPduSessionType : uint8_t
+{
+    IPV4 = 1,
+    IPV6 = 2,
+    IPV4V6 = 3,
+    UNSTRUCTURED = 4,
+    ETHERNET = 5
+};
+
+/**
  * This class implements the model for a 5G NR QoS rule
  * which is the set of all packet filters associated with a
  * data radio bearer, a precedence value (ranging from
  * 1-255) and a QoS Flow Identifier (QFI) ranging from
  * 1-64.
+ *
+ * The rule also carries the type of the PDU session it belongs to. An IP
+ * session is classified by matching its packet filters against the IP header
+ * of each packet. An unstructured session carries a single network layer
+ * protocol, named by GetProtocolNumber(), and has no packet filters.
  */
 class NR_EXPORT NrQosRule : public SimpleRefCount<NrQosRule>
 {
@@ -38,6 +64,19 @@ class NR_EXPORT NrQosRule : public SimpleRefCount<NrQosRule>
      * @return a newly created QoS rule that will match any traffic
      */
     static Ptr<NrQosRule> Default();
+
+    /**
+     * Creates a QoS rule for an unstructured PDU session carrying a single
+     * network layer protocol. The rule holds no packet filter, since the
+     * payload is unstructured and the session itself identifies the protocol. The
+     * QFI is initialized to zero (an invalid value that must be later set to a
+     * value between 1-64) and the precedence is initialized to 255.
+     *
+     * @param protocolNumber the network layer protocol number carried by the session
+     *
+     * @return a newly created QoS rule for an unstructured session
+     */
+    static Ptr<NrQosRule> Unstructured(uint16_t protocolNumber);
 
     /**
      * Indicates the direction of the traffic that is to be classified.
@@ -223,14 +262,45 @@ class NR_EXPORT NrQosRule : public SimpleRefCount<NrQosRule>
      */
     uint8_t GetQfi() const;
 
+    /**
+     * Set the type of the PDU session the QoS rule belongs to
+     * @param pduSessionType the PDU session type
+     */
+    void SetPduSessionType(NrPduSessionType pduSessionType);
+
+    /**
+     * Get the type of the PDU session the QoS rule belongs to
+     * @return the PDU session type
+     */
+    NrPduSessionType GetPduSessionType() const;
+
+    /**
+     * Set the network layer protocol carried by an unstructured PDU session
+     * @param protocolNumber the network layer protocol number
+     */
+    void SetProtocolNumber(uint16_t protocolNumber);
+
+    /**
+     * Get the network layer protocol carried by an unstructured PDU session.
+     * The value is meaningless for the IP session types, which carry the
+     * protocol in the packets themselves.
+     *
+     * @return the network layer protocol number
+     */
+    uint16_t GetProtocolNumber() const;
+
   private:
     std::list<PacketFilter> m_filters; ///< packet filter list
     uint8_t m_numFilters;              ///< number of packet filters applied to this QoS rule
     uint8_t m_precedence;              ///< precedence of the QoS rule
     uint8_t m_qfi;                     ///< QFI of the QoS rule
+    NrPduSessionType m_pduSessionType; ///< type of the PDU session the rule belongs to
+    uint16_t m_protocolNumber;         ///< network layer protocol of an unstructured session
 };
 
 NR_EXPORT std::ostream& operator<<(std::ostream& os, const NrQosRule::Direction& d);
+
+NR_EXPORT std::ostream& operator<<(std::ostream& os, const NrPduSessionType& t);
 
 } // namespace ns3
 

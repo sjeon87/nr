@@ -413,6 +413,23 @@ class NR_EXPORT NrHelper : public Object
     uint8_t ActivateDedicatedQosFlow(Ptr<NetDevice> ueDevice, NrQosFlow flow, Ptr<NrQosRule> rule);
 
     /**
+     * Activate an unstructured PDU session on a given UE device, carrying a single
+     * network layer protocol whose payload the network does not parse.
+     *
+     * The session must be activated before the UE connects, and the device through
+     * which it reaches the external network is obtained from the EPC helper with
+     * GetUnstructuredSessionDevice(), using the returned QFI.
+     *
+     * @param ueDevice the UE device
+     * @param protocolNumber the network layer protocol carried by the session
+     * @param flow the QoS characteristics of the flow to be activated
+     * @returns QoS flow ID
+     */
+    uint8_t ActivateUnstructuredQosFlow(Ptr<NetDevice> ueDevice,
+                                        uint16_t protocolNumber,
+                                        NrQosFlow flow);
+
+    /**
      *  @brief Manually trigger dedicated flow de-activation at specific simulation time
      *  @param ueDevice the UE on which dedicated flow to be de-activated must be of the type
      * NrUeNetDevice

@@ -67,6 +67,7 @@ NrEpcGnbApplication::DoDispose()
     NS_LOG_FUNCTION(this);
     m_nrSocket = nullptr;
     m_nrSocket6 = nullptr;
+    m_nrSocketUnstructured = nullptr;
     m_s1uSocket = nullptr;
     delete m_s1SapProvider;
     delete m_s1apSapGnb;
@@ -74,18 +75,22 @@ NrEpcGnbApplication::DoDispose()
 
 NrEpcGnbApplication::NrEpcGnbApplication(Ptr<Socket> nrSocket,
                                          Ptr<Socket> nrSocket6,
+                                         Ptr<Socket> nrSocketUnstructured,
                                          uint16_t cellId)
     : m_nrSocket(nrSocket),
       m_nrSocket6(nrSocket6),
+      m_nrSocketUnstructured(nrSocketUnstructured),
       m_gtpuUdpPort(2152), // fixed by the standard
       m_s1SapUser(nullptr),
       m_s1apSapMme(nullptr),
       m_cellId(cellId)
 {
-    NS_LOG_FUNCTION(this << nrSocket << nrSocket6 << cellId);
+    NS_LOG_FUNCTION(this << nrSocket << nrSocket6 << nrSocketUnstructured << cellId);
 
     m_nrSocket->SetRecvCallback(MakeCallback(&NrEpcGnbApplication::RecvFromNrSocket, this));
     m_nrSocket6->SetRecvCallback(MakeCallback(&NrEpcGnbApplication::RecvFromNrSocket, this));
+    m_nrSocketUnstructured->SetRecvCallback(
+        MakeCallback(&NrEpcGnbApplication::RecvFromNrSocket, this));
     m_s1SapProvider = new NrMemberEpcGnbS1SapProvider<NrEpcGnbApplication>(this);
     m_s1apSapGnb = new NrMemberEpcS1apSapGnb<NrEpcGnbApplication>(this);
 }
@@ -258,14 +263,8 @@ void
 NrEpcGnbApplication::RecvFromNrSocket(Ptr<Socket> socket)
 {
     NS_LOG_FUNCTION(this);
-    if (m_nrSocket6)
-    {
-        NS_ASSERT(socket == m_nrSocket || socket == m_nrSocket6);
-    }
-    else
-    {
-        NS_ASSERT(socket == m_nrSocket);
-    }
+    NS_ASSERT(socket == m_nrSocket || (m_nrSocket6 && socket == m_nrSocket6) ||
+              (m_nrSocketUnstructured && socket == m_nrSocketUnstructured));
     Ptr<Packet> packet = socket->Recv();
 
     NrQosFlowTag tag;
@@ -342,6 +341,9 @@ NrEpcGnbApplication::SendToNrSocket(Ptr<Packet> packet, uint16_t rnti, uint8_t q
     packet->CopyData(&ipType, 1);
     ipType = (ipType >> 4) & 0x0f;
 
+    // All three sockets are node-local and feed the same handler, which routes by the
+    // tag above, not by the socket. The version nibble only steers IP to its socket.
+    // Unstructured payload takes the third, whatever its first byte looks like.
     int sentBytes;
     if (ipType == 0x04)
     {
@@ -355,7 +357,8 @@ NrEpcGnbApplication::SendToNrSocket(Ptr<Packet> packet, uint16_t rnti, uint8_t q
     }
     else
     {
-        NS_ABORT_MSG("NrEpcGnbApplication::SendToNrSocket - Unknown IP type...");
+        NS_LOG_INFO("Forward packet from gNB's S1-U to NR stack via unstructured socket.");
+        sentBytes = m_nrSocketUnstructured->Send(packet);
     }
 
     NS_ASSERT(sentBytes > 0);

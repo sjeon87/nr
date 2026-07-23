@@ -210,6 +210,16 @@ class NR_EXPORT NrUeNetDevice : public NrNetDevice
      */
     uint16_t GetArfcnBwpId(uint32_t arfcn) const;
 
+    /**
+     * @brief Hand a packet received from the NAS up the stack.
+     *
+     * @param p the packet
+     * @param protocolNumber the network layer protocol of the unstructured PDU
+     *        session the packet arrived on, or zero when it arrived on an IP
+     *        session and its protocol is to be read from the packet itself
+     */
+    void Receive(Ptr<Packet> p, uint16_t protocolNumber);
+
   protected:
     // inherited from Object
     void DoInitialize() override;

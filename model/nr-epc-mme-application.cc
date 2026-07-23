@@ -7,7 +7,9 @@
 #include "nr-epc-mme-application.h"
 
 #include "nr-epc-gtpc-header.h"
+#include "nr-qos-rule.h"
 
+#include "ns3/abort.h"
 #include "ns3/log.h"
 
 #include <map>
@@ -96,6 +98,8 @@ NrEpcMmeApplication::AddFlow(uint64_t imsi, Ptr<NrQosRule> rule, NrQosFlow flow)
     NS_ASSERT_MSG(it != m_ueInfoMap.end(), "could not find any UE with IMSI " << imsi);
     NS_ASSERT_MSG(it->second->flowCounter < 64,
                   "too many flows already! " << it->second->flowCounter);
+    NS_ABORT_MSG_IF(rule->GetPduSessionType() == NrPduSessionType::ETHERNET,
+                    "Ethernet PDU sessions are not modeled yet");
     FlowInfo flowInfo;
     // Assign QFI: QFI 1 for default flow, then QFI 3+ for dedicated flows (QFI 2 is reserved for
     // sidelink)

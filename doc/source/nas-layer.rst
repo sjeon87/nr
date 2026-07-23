@@ -96,6 +96,31 @@ packet is dropped, otherwise it is forwarded with ``SendData(packet, qfi)`` down
 Downlink packets delivered up by the Access Stratum are handed to the IP stack through the
 ``m_forwardUpCallback``.
 
+Unstructured PDU sessions
+=========================
+Besides IP, the NAS can carry an **unstructured** PDU session ([TS23501]_, Section 5.6.1): a session
+whose payload is a single non-IP network-layer protocol that the network does not parse. The IP path
+above is unchanged, and the unstructured path runs beside it.
+
+Activation reuses ``ActivateQosFlow``, but with a rule built by
+``NrQosRule::Unstructured(protocolNumber)`` that holds no packet filter. Rather than being added to
+the classifier, the flow is recorded in two maps, ``m_unstructuredQfiByProtocol`` and
+``m_unstructuredProtocolByQfi``, keyed by the protocol and by the QFI.
+
+On the **uplink**, ``Send(packet, protocolNumber)`` dispatches by protocol. An IPv4 or IPv6 packet
+goes through the classifier as before, any other protocol is looked up in
+``m_unstructuredQfiByProtocol`` and sent on the matching QFI, and an unknown protocol is dropped with
+a warning rather than aborting.
+
+On the **downlink** the payload is not IP, so the protocol cannot be read from the packet. The NAS
+recovers it from the session the packet arrived on: ``NrAsSapUser::RecvData`` now carries the QFI of
+that flow, and ``m_unstructuredProtocolByQfi`` maps it back to the protocol number handed up to the
+node. An IP session reports a QFI absent from the map, so its protocol keeps being read from the
+packet, exactly as before.
+
+Both maps are cleared alongside the classifier on per-flow deactivation (``DoDeactivateQosFlow``) and
+on connection release (``DoNotifyConnectionReleased``).
+
 QoS-flow deactivation
 =====================
 NR adds an explicit teardown path that LTE did not have: the Access Stratum can ask the NAS to drop a
@@ -119,7 +144,8 @@ Service interfaces
 * Towards RRC it uses the **Access-Stratum SAP**: it holds a ``NrAsSapProvider*`` (calls *into* RRC:
   ``StartCellSelection``, ``Connect``, ``SendData``, ...) and exports a ``NrAsSapUser`` (callbacks
   *from* RRC: ``NotifyConnectionSuccessful``, ``NotifyConnectionFailed``,
-  ``NotifyConnectionReleased``, ``RecvData`` and, new in NR, ``DeactivateQosFlow``).
+  ``NotifyConnectionReleased``, ``RecvData`` (carrying the flow QFI in NR) and, new in NR,
+  ``DeactivateQosFlow``).
 * Towards the IP stack there is no templated SAP; coupling is the public API (``Send``,
   ``ActivateQosFlow``, ``Connect``, ``Disconnect``) plus the ``m_forwardUpCallback`` used to deliver
   received packets upward.

@@ -51,8 +51,14 @@ us a note on ns-developers mailing list.
 ## Changes from NR-v5.1 to v5.2
 
 ### New API:
+- Add unstructured PDU session support (3GPP TS 23.501 Section 5.6.1), carrying a single non-IP network-layer protocol whose payload the network does not parse. This adds the ``NrPduSessionType`` enum, the ``NrQosRule::Unstructured()`` factory, ``NrHelper::ActivateUnstructuredQosFlow()``, and the ``NrEpcHelper::ActivateUnstructuredQosFlow()`` and ``NrEpcHelper::GetUnstructuredSessionDevice()`` methods. Such a session needs no address on the UE and is reached from the external network through a device of its own on the PGW.
+
+### Changes to Existing API
+- ``NrAsSapUser::RecvData()`` now takes the QoS Flow ID of the flow the packet arrived on as a second parameter, so that the UE can recover the network-layer protocol of an unstructured PDU session on the downlink. Callers of the previous single-argument form must pass the QFI, or zero for an IP session, whose protocol is read from the packet itself.
+- The ``NrEpcGnbApplication`` constructor now takes an additional ``Ptr<Socket>`` for unstructured PDU sessions, inserted between the ``nrSocket6`` and ``cellId`` parameters.
 
 ### Changed Behavior
+- ``NrHelper::AttachToGnb()`` now activates the default IP QoS flow only for a UE that has an IPv4 or IPv6 stack. A UE reaching the network over an unstructured PDU session alone has no IP stack and gets no default flow. Previously, the default flow was always activated whenever the EPC was used.
 
 ## Changes from NR-v5.0 to v5.1
 

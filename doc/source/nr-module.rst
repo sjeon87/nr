@@ -169,7 +169,9 @@ References
 
 .. [Maleki2023] Marjan Maleki, Juening Jin and Martin Haardt. "Low Complexity PMI Selection for BICM-MIMO Rate Maximization in 5G New Radio Systems". 2023 31st European Signal Processing Conference (EUSIPCO). doi: 10.23919/EUSIPCO58844.2023.10290121.
 
-.. [TS24501] 3GPP. "TS 24.501, Non-Access-Stratum (NAS) protocol for 5G System (5GS)", V19.4.0, 2025.
+.. [TS23501] 3GPP. "TS 23.501, System architecture for the 5G System (5GS)", V20.2.0, 2026.
+
+.. [TS24501] 3GPP. "TS 24.501, Non-Access-Stratum (NAS) protocol for 5G System (5GS)", V20.0.0, 2026.
 
 .. [TS37324] 3GPP TS 37.324, "Evolved Universal Terrestrial Radio Access (E-UTRA) and NR; Service Data Adaptation Protocol (SDAP) specification".
 

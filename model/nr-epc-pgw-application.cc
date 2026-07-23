@@ -39,8 +39,29 @@ NrEpcPgwApplication::NrUeInfo::AddFlow(uint8_t qfi, uint32_t teid, Ptr<NrQosRule
     NS_LOG_FUNCTION(this << (uint16_t)qfi << teid << rule);
     m_teidByFlowIdMap[qfi] = teid;
     NS_LOG_INFO("Add entry to TEID: " << teid << " by flow ID: " << +qfi << " map");
+
+    if (rule->GetPduSessionType() == NrPduSessionType::UNSTRUCTURED)
+    {
+        // The payload is unstructured: the session is reached through its own device
+        // rather than by classifying packets.
+        NS_LOG_INFO("Unstructured session for QFI: " << +qfi << ", not classified");
+        m_unstructuredQfis.insert(qfi);
+        return;
+    }
+
     m_qosRuleClassifier.Add(rule, qfi);
     NS_LOG_INFO("Add QosRule entry to classifier for QFI: " << +qfi);
+}
+
+std::optional<uint32_t>
+NrEpcPgwApplication::NrUeInfo::GetTeidByQfi(uint8_t qfi) const
+{
+    auto it = m_teidByFlowIdMap.find(qfi);
+    if (it == m_teidByFlowIdMap.end())
+    {
+        return std::nullopt;
+    }
+    return it->second;
 }
 
 void
@@ -48,8 +69,12 @@ NrEpcPgwApplication::NrUeInfo::RemoveFlow(uint8_t qfi)
 {
     NS_LOG_FUNCTION(this << (uint16_t)qfi);
     auto it = m_teidByFlowIdMap.find(qfi);
-    bool found = m_qosRuleClassifier.Delete(qfi);
-    if (!found)
+    if (m_unstructuredQfis.erase(qfi))
+    {
+        // An unstructured flow was never added to the classifier.
+        NS_LOG_INFO("Removed unstructured flow with QFI: " << +qfi);
+    }
+    else if (!m_qosRuleClassifier.Delete(qfi))
     {
         NS_LOG_WARN("Could not remove entry in classifier for QFI: " << +qfi);
     }
@@ -365,6 +390,17 @@ NrEpcPgwApplication::DoRecvCreateSessionRequest(Ptr<Packet> packet)
 
         ueit->second->AddFlow(flowContext.qfi, teid, flowContext.rule);
 
+        if (flowContext.rule->GetPduSessionType() == NrPduSessionType::UNSTRUCTURED)
+        {
+            // Bind the egress device declared for this session to its tunnel, so an
+            // uplink packet reaches the device without being inspected.
+            auto sessionIt = m_unstructuredSessionByUe.find({imsi, flowContext.qfi});
+            NS_ASSERT_MSG(sessionIt != m_unstructuredSessionByUe.end(),
+                          "no egress device for the unstructured session of IMSI "
+                              << imsi << " QFI " << +flowContext.qfi);
+            m_unstructuredSessionByTeid[teid] = sessionIt->second;
+        }
+
         NrGtpcCreateSessionResponseMessage::FlowContextCreated flowContextOut;
         flowContextOut.fteid.interfaceType = NrGtpcHeader::S5_PGW_GTPU;
         flowContextOut.fteid.teid = teid;
@@ -465,6 +501,12 @@ NrEpcPgwApplication::DoRecvDeleteFlowResponse(Ptr<Packet> packet)
     {
         // Remove de-activated flow contexts from PGW side
         NS_LOG_INFO("PGW removing flow " << (uint16_t)qfi << " of IMSI " << imsi);
+        // Clear the unstructured session's own state, keyed by TEID, before
+        // RemoveFlow() erases the TEID that finds it.
+        if (auto teid = ueit->second->GetTeidByQfi(qfi); teid.has_value())
+        {
+            RemoveUnstructuredSession(imsi, qfi, teid.value());
+        }
         ueit->second->RemoveFlow(qfi);
     }
 }
@@ -474,6 +516,20 @@ NrEpcPgwApplication::SendToTunDevice(Ptr<Packet> packet, uint32_t teid)
 {
     NS_LOG_FUNCTION(this << packet << teid);
     NS_LOG_LOGIC("packet size: " << packet->GetSize() << " bytes");
+
+    // The tunnel identifies the session. An unstructured one has no address to route on, so it
+    // is delivered through its own device, with the protocol it was established for.
+    if (auto it = m_unstructuredSessionByTeid.find(teid); it != m_unstructuredSessionByTeid.end())
+    {
+        NS_LOG_LOGIC("Send to the device of the unstructured session of TEID " << teid);
+        auto device = it->second.device;
+        device->Receive(packet,
+                        it->second.protocolNumber,
+                        device->GetAddress(),
+                        device->GetAddress(),
+                        NetDevice::PACKET_HOST);
+        return;
+    }
 
     uint8_t ipType;
     packet->CopyData(&ipType, 1);
@@ -490,7 +546,10 @@ NrEpcPgwApplication::SendToTunDevice(Ptr<Packet> packet, uint32_t teid)
     }
     else
     {
-        NS_ABORT_MSG("Unknown IP type");
+        NS_LOG_WARN("Discarding a packet of TEID " << teid
+                                                   << " with an unrecognized IP version on an IP "
+                                                      "session");
+        return;
     }
 
     m_tunDevice->Receive(packet,
@@ -550,6 +609,68 @@ NrEpcPgwApplication::SetUeAddress6(uint64_t imsi, Ipv6Address ueAddr)
     NS_ASSERT_MSG(ueit != m_ueInfoByImsiMap.end(), "unknown IMSI " << imsi);
     m_ueInfoByAddrMap6[ueAddr] = ueit->second;
     ueit->second->SetUeAddr6(ueAddr);
+}
+
+void
+NrEpcPgwApplication::AddUnstructuredSession(uint64_t imsi,
+                                            uint8_t qfi,
+                                            uint16_t protocolNumber,
+                                            Ptr<VirtualNetDevice> device)
+{
+    NS_LOG_FUNCTION(this << imsi << qfi << protocolNumber << device);
+    auto ueit = m_ueInfoByImsiMap.find(imsi);
+    NS_ASSERT_MSG(ueit != m_ueInfoByImsiMap.end(), "unknown IMSI " << imsi);
+
+    m_unstructuredSessionByUe[{imsi, qfi}] = {device, protocolNumber};
+    device->SetSendCallback(
+        MakeCallback(&NrEpcPgwApplication::RecvFromUnstructuredDevice, this).Bind(imsi, qfi));
+}
+
+void
+NrEpcPgwApplication::RemoveUnstructuredSession(uint64_t imsi, uint8_t qfi, uint32_t teid)
+{
+    NS_LOG_FUNCTION(this << imsi << +qfi << teid);
+    auto it = m_unstructuredSessionByUe.find({imsi, qfi});
+    if (it == m_unstructuredSessionByUe.end())
+    {
+        // Not an unstructured session: nothing of ours to release.
+        return;
+    }
+
+    // Drop the callback, so a late packet out of the device is not delivered onto a
+    // released tunnel. The device stays on the PGW node, which never releases it.
+    it->second.device->SetSendCallback(
+        MakeNullCallback<bool, Ptr<Packet>, const Address&, const Address&, uint16_t>());
+    m_unstructuredSessionByTeid.erase(teid);
+    m_unstructuredSessionByUe.erase(it);
+}
+
+bool
+NrEpcPgwApplication::RecvFromUnstructuredDevice(uint64_t imsi,
+                                                uint8_t qfi,
+                                                Ptr<Packet> packet,
+                                                const Address& source,
+                                                const Address& dest,
+                                                uint16_t protocolNumber)
+{
+    NS_LOG_FUNCTION(this << imsi << qfi << packet);
+
+    auto ueit = m_ueInfoByImsiMap.find(imsi);
+    NS_ASSERT_MSG(ueit != m_ueInfoByImsiMap.end(), "unknown IMSI " << imsi);
+
+    // The device belongs to one session, which names the UE and the flow. Nothing
+    // is read from the packet: its payload is unstructured.
+    auto teid = ueit->second->GetTeidByQfi(qfi);
+    if (!teid.has_value())
+    {
+        NS_LOG_WARN("No flow with QFI " << +qfi << " established for IMSI " << imsi
+                                        << ", discarding packet");
+        return true;
+    }
+
+    NS_LOG_LOGIC("Send to the SGW over the tunnel of TEID " << teid.value());
+    SendToS5uSocket(packet, ueit->second->GetSgwAddr(), teid.value());
+    return true;
 }
 
 } // namespace ns3
