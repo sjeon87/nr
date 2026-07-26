@@ -1506,6 +1506,28 @@ class NR_EXPORT NrUeRrc : public Object
         Seconds(0)}; ///< time of this UE's last successful handover (HandoverEndOk);
                      ///< Seconds(0) means it has not handed over yet
 
+    // Mobility State Estimation (TR 36.839 / TS 36.331 5.5.6.2, TS 36.304 5.2.4.3). When
+    // enabled, the UE counts its recent handovers over a sliding window to classify itself
+    // as Normal/Medium/High mobility and scales the measurement time-to-trigger accordingly,
+    // so a fast UE does not chase a small cell's transient peak (or fails to hand over in time).
+    bool m_mseEnable{false};             ///< enable Mobility State Estimation
+    Time m_mseCountWindow{Seconds(1)};   ///< sliding window over which handovers are counted
+    Time m_mseHystNormal{Seconds(1)};    ///< keep the elevated state at least this long
+    uint32_t m_mseThreshMedium{2};       ///< handover count for Medium mobility
+    uint32_t m_mseThreshHigh{4};         ///< handover count for High mobility
+    double m_mseSfMedium{1.0};           ///< TTT scale factor in Medium mobility
+    double m_mseSfHigh{1.0};             ///< TTT scale factor in High mobility
+    std::list<Time> m_mseHandoverTimes;  ///< completion times of recent handovers
+    double m_mseTttScaleFactor{1.0};     ///< current TTT scale factor (Normal = 1.0)
+    Time m_mseElevatedUntil{Seconds(0)}; ///< hysteresis: hold >= current elevated state until here
+    double m_mseFixedScale{
+        0.0}; ///< if >0, apply this TTT scale from t=0 (bypass handover counting)
+    /// Re-estimate the mobility state from recent handover count and update the TTT scale factor.
+    void UpdateMobilityState();
+    /// Current time-to-trigger scale factor: the fixed override if set, else the mobility-state
+    /// estimate (MseEnable), else 1.0.
+    double GetTttScale();
+
     RadioLinkFailureCause m_rlfCause{
         RLF_NONE}; ///< cause of the most recent CONNECTED_PHY_PROBLEM entry
     /**
