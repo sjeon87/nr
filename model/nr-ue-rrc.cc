@@ -27,6 +27,7 @@
 #include "ns3/object-factory.h"
 #include "ns3/object-map.h"
 #include "ns3/simulator.h"
+#include "ns3/uinteger.h"
 
 #include <cmath>
 #include <iostream>
@@ -307,6 +308,58 @@ NrUeRrc::GetTypeId()
                 TimeValue(MilliSeconds(0)),
                 MakeTimeAccessor(&NrUeRrc::m_tr36839HoFailureMinT310Elapsed),
                 MakeTimeChecker())
+            .AddAttribute("MseEnable",
+                          "Enable Mobility State Estimation (TS 36.331 5.5.6.2 / TS 36.304 "
+                          "5.2.4.3): count recent handovers to classify the UE mobility state and "
+                          "scale the measurement time-to-trigger, so a fast UE does not chase a "
+                          "small cell's transient peak (nor fail to hand over in time).",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrUeRrc::m_mseEnable),
+                          MakeBooleanChecker())
+            .AddAttribute("MseCountWindow",
+                          "Sliding window over which handovers are counted for mobility-state "
+                          "estimation.",
+                          TimeValue(Seconds(1)),
+                          MakeTimeAccessor(&NrUeRrc::m_mseCountWindow),
+                          MakeTimeChecker())
+            .AddAttribute("MseHystNormal",
+                          "Minimum time the UE keeps an elevated (Medium/High) mobility state "
+                          "before it may drop back down.",
+                          TimeValue(Seconds(1)),
+                          MakeTimeAccessor(&NrUeRrc::m_mseHystNormal),
+                          MakeTimeChecker())
+            .AddAttribute("MseThreshMedium",
+                          "Handover count within MseCountWindow at/above which the UE is Medium "
+                          "mobility.",
+                          UintegerValue(2),
+                          MakeUintegerAccessor(&NrUeRrc::m_mseThreshMedium),
+                          MakeUintegerChecker<uint32_t>())
+            .AddAttribute("MseThreshHigh",
+                          "Handover count within MseCountWindow at/above which the UE is High "
+                          "mobility.",
+                          UintegerValue(4),
+                          MakeUintegerAccessor(&NrUeRrc::m_mseThreshHigh),
+                          MakeUintegerChecker<uint32_t>())
+            .AddAttribute("MseSfMedium",
+                          "Time-to-trigger scale factor applied in Medium mobility (TS 36.331 "
+                          "uses 0.25..1.0; a value >1 lengthens TTT to resist small-cell churn).",
+                          DoubleValue(1.0),
+                          MakeDoubleAccessor(&NrUeRrc::m_mseSfMedium),
+                          MakeDoubleChecker<double>(0.0))
+            .AddAttribute("MseSfHigh",
+                          "Time-to-trigger scale factor applied in High mobility.",
+                          DoubleValue(1.0),
+                          MakeDoubleAccessor(&NrUeRrc::m_mseSfHigh),
+                          MakeDoubleChecker<double>(0.0))
+            .AddAttribute(
+                "MseFixedScale",
+                "If >0, apply this fixed time-to-trigger scale factor from t=0 (bypassing "
+                "handover-count classification). Models a known-speed cohort: a fast UE "
+                "gets the longer TTT immediately, so it does not chase a small cell's "
+                "transient peak on its very first handover.",
+                DoubleValue(0.0),
+                MakeDoubleAccessor(&NrUeRrc::m_mseFixedScale),
+                MakeDoubleChecker<double>(0.0))
             .AddAttribute(
                 "MibWaitReselectTimeout",
                 "Fallback for a force-camped UE that never decodes its target cell's MIB "
@@ -850,6 +903,11 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
             ->NotifyConnectionSuccessful(); // RA successful during handover
         m_handoverEndOkTrace(m_imsi, m_cellId, m_rnti);
         m_lastHoSuccessTime = Simulator::Now();
+        if (m_mseEnable)
+        {
+            m_mseHandoverTimes.push_back(Simulator::Now());
+            UpdateMobilityState();
+        }
     }
     break;
 
@@ -3457,11 +3515,13 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
             PendingTrigger_t t;
             t.measId = measId;
             t.concernedCells = concernedCellsEntry;
-            t.timer = Simulator::Schedule(MilliSeconds(reportConfigEutra.timeToTrigger),
-                                          &NrUeRrc::VarMeasReportListAdd,
-                                          this,
-                                          measId,
-                                          concernedCellsEntry);
+            const double tttScale = GetTttScale();
+            t.timer = Simulator::Schedule(
+                MilliSeconds(static_cast<int64_t>(reportConfigEutra.timeToTrigger * tttScale)),
+                &NrUeRrc::VarMeasReportListAdd,
+                this,
+                measId,
+                concernedCellsEntry);
             auto enteringTriggerIt = m_enteringTriggerQueue.find(measId);
             NS_ASSERT(enteringTriggerIt != m_enteringTriggerQueue.end());
             enteringTriggerIt->second.push_back(t);
@@ -3483,12 +3543,14 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
             PendingTrigger_t t;
             t.measId = measId;
             t.concernedCells = concernedCellsLeaving;
-            t.timer = Simulator::Schedule(MilliSeconds(reportConfigEutra.timeToTrigger),
-                                          &NrUeRrc::VarMeasReportListErase,
-                                          this,
-                                          measId,
-                                          concernedCellsLeaving,
-                                          reportOnLeave);
+            const double tttScale = GetTttScale();
+            t.timer = Simulator::Schedule(
+                MilliSeconds(static_cast<int64_t>(reportConfigEutra.timeToTrigger * tttScale)),
+                &NrUeRrc::VarMeasReportListErase,
+                this,
+                measId,
+                concernedCellsLeaving,
+                reportOnLeave);
             auto leavingTriggerIt = m_leavingTriggerQueue.find(measId);
             NS_ASSERT(leavingTriggerIt != m_leavingTriggerQueue.end());
             leavingTriggerIt->second.push_back(t);
@@ -4245,6 +4307,65 @@ ToString(NrUeRrc::RadioLinkFailureCause cause)
     case NrUeRrc::RLF_NONE:
     default:
         return "NONE";
+    }
+}
+
+double
+NrUeRrc::GetTttScale()
+{
+    if (m_mseFixedScale > 0.0)
+    {
+        return m_mseFixedScale;
+    }
+    if (m_mseEnable)
+    {
+        UpdateMobilityState();
+        return m_mseTttScaleFactor;
+    }
+    return 1.0;
+}
+
+void
+NrUeRrc::UpdateMobilityState()
+{
+    NS_LOG_FUNCTION(this);
+    const Time now = Simulator::Now();
+    // Drop handover timestamps that fell out of the counting window.
+    while (!m_mseHandoverTimes.empty() && (now - m_mseHandoverTimes.front()) > m_mseCountWindow)
+    {
+        m_mseHandoverTimes.pop_front();
+    }
+    const auto nHo = static_cast<uint32_t>(m_mseHandoverTimes.size());
+
+    // Classify from the recent handover count. An elevated (Medium/High) state is held for at
+    // least MseHystNormal (via m_mseElevatedUntil) so a momentary lull does not snap back to
+    // Normal and cause the scale factor to chatter.
+    double target;
+    if (nHo >= m_mseThreshHigh)
+    {
+        target = m_mseSfHigh;
+        m_mseElevatedUntil = now + m_mseHystNormal;
+    }
+    else if (nHo >= m_mseThreshMedium)
+    {
+        target = m_mseSfMedium;
+        m_mseElevatedUntil = now + m_mseHystNormal;
+    }
+    else if (now < m_mseElevatedUntil)
+    {
+        target = m_mseTttScaleFactor; // hysteresis: hold the current elevated factor
+    }
+    else
+    {
+        target = 1.0; // Normal mobility
+    }
+
+    if (target != m_mseTttScaleFactor)
+    {
+        NS_LOG_INFO("MSE IMSI " << m_imsi << ": " << nHo << " HOs in "
+                                << m_mseCountWindow.As(Time::S) << " -> TTT scale factor "
+                                << m_mseTttScaleFactor << " -> " << target);
+        m_mseTttScaleFactor = target;
     }
 }
 
