@@ -44,7 +44,7 @@
  * The example prints the end-to-end result of the QoS flows on-screen and
  * writes them to a file (outputDir/simTag), identically to
  * gsoc-nr-rl-based-sched.cc, so the two transports can be compared flow by
- * flow. 
+ * flow.
  *
  * @see gsoc-nr-rl-based-sched.cc
  * @see NrMacSchedulerAiNs3MsgInterfaceEnv
