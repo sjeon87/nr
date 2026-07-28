@@ -3,9 +3,18 @@
 #
 # SPDX-License-Identifier: GPL-2.0-only
 
-# pybind11 bindings for the ns3-ai message-interface NR scheduler structs.
+# ns3-ai message-interface NR scheduler example: the gsoc-nr-rl-based-sched
+# scenario driven over shared memory, plus the pybind11 struct bindings.
 # Built only when the ai module is available (the parent gates this with
 # add_subdirectory under the same condition).
+
+build_lib_example(
+  NAME nr-ai-sched
+  SOURCE_FILES nr-ai-sched.cc
+  LIBRARIES_TO_LINK ${libnr}
+                    ${libflow-monitor}
+                    ${libai}
+)
 
 # pybind11_add_module and its imported targets are only set up in the directory
 # scope that ran find_package(pybind11) (contrib/ai). This example lives under
@@ -23,5 +32,7 @@ set_target_properties(
   ns3ai_nr_sched_py
   PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-# The binding needs the nr/ai headers generated first.
+# The binding needs the nr/ai headers generated first, and the Python driver
+# launches the C++ example alongside the binding, so tie them together.
 add_dependencies(ns3ai_nr_sched_py ${libnr} ${libai})
+add_dependencies(nr-ai-sched ns3ai_nr_sched_py)
