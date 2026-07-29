@@ -229,7 +229,7 @@ NrUeManager::ConfigureSrb0()
         lcinfo.lcGroup = 0; // SRBs are always mapped to LCG 0; this reservation
                             // frees LCGs 1..3 for the opt-in per-bearer DRB
                             // mapping (see GetLogicalChannelGroupPerBearer)
-        lcinfo.fiveQi = 5; // Arbitrary 5QI to route UE RRC UL messages through BWP manager
+        lcinfo.fiveQi = 5;  // Arbitrary 5QI to route UE RRC UL messages through BWP manager
         lcinfo.resourceType = 0;
         lcinfo.mbrUl = 0;
         lcinfo.mbrDl = 0;
@@ -504,16 +504,14 @@ NrUeManager::SetupDataRadioBearer(NrQosFlow flow,
     m_drbCreatedTrace(m_imsi, m_rrc->ComponentCarrierToCellId(m_componentCarrierId), m_rnti, lcid);
 
     std::vector<NrCcmRrcSapProvider::LcsConfig> lcOnCcMapping =
-        m_rrc->m_ccmRrcSapProvider->SetupDataRadioBearer(flow,
-                                                         qfi,
-                                                         m_rnti,
-                                                         lcid,
-                                                         m_rrc->m_perBearerUlLcg
-                                                             ? m_rrc->GetLogicalChannelGroupPerBearer(
-                                                                   flow,
-                                                                   lcid)
-                                                             : m_rrc->GetLogicalChannelGroup(flow),
-                                                         rlc->GetNrMacSapUser());
+        m_rrc->m_ccmRrcSapProvider->SetupDataRadioBearer(
+            flow,
+            qfi,
+            m_rnti,
+            lcid,
+            m_rrc->m_perBearerUlLcg ? m_rrc->GetLogicalChannelGroupPerBearer(flow, lcid)
+                                    : m_rrc->GetLogicalChannelGroup(flow),
+            rlc->GetNrMacSapUser());
     // NrGnbCmacSapProvider::LcInfo lcinfo;
     // lcinfo.rnti = m_rnti;
     // lcinfo.lcId = lcid;

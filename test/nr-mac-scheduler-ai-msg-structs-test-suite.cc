@@ -12,11 +12,11 @@
 
 using namespace ns3;
 
-static_assert(std::is_trivially_copyable<NrSchedulerLcObservation>::value,
+static_assert(std::is_trivially_copyable_v<NrSchedulerLcObservation>,
               "NrSchedulerLcObservation must be trivially copyable");
-static_assert(std::is_trivially_copyable<NrSchedulerObservation>::value,
+static_assert(std::is_trivially_copyable_v<NrSchedulerObservation>,
               "NrSchedulerObservation must be trivially copyable");
-static_assert(std::is_trivially_copyable<NrSchedulerAction>::value,
+static_assert(std::is_trivially_copyable_v<NrSchedulerAction>,
               "NrSchedulerAction must be trivially copyable");
 
 class NrSchedLcObservationLayoutTestCase : public TestCase
@@ -132,13 +132,13 @@ class NrSchedVectorElementTestCase : public TestCase
     {
         // The structs are pushed as elements of an ns3-ai message-interface
         // vector, so they must be trivially copyable POD types.
-        NS_TEST_ASSERT_MSG_EQ(std::is_trivially_copyable<NrSchedulerLcObservation>::value,
+        NS_TEST_ASSERT_MSG_EQ(std::is_trivially_copyable_v<NrSchedulerLcObservation>,
                               true,
                               "NrSchedulerLcObservation must be trivially copyable");
-        NS_TEST_ASSERT_MSG_EQ(std::is_trivially_copyable<NrSchedulerObservation>::value,
+        NS_TEST_ASSERT_MSG_EQ(std::is_trivially_copyable_v<NrSchedulerObservation>,
                               true,
                               "NrSchedulerObservation must be trivially copyable");
-        NS_TEST_ASSERT_MSG_EQ(std::is_trivially_copyable<NrSchedulerAction>::value,
+        NS_TEST_ASSERT_MSG_EQ(std::is_trivially_copyable_v<NrSchedulerAction>,
                               true,
                               "NrSchedulerAction must be trivially copyable");
 

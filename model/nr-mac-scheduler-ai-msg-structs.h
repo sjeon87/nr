@@ -67,7 +67,7 @@ struct NrSchedulerLcObservation
     uint8_t fiveQI;         //!< 5G QoS Identifier (QoS class) of this bearer
     uint8_t priority;       //!< QoS priority level associated with the 5QI
     uint8_t resourceType;   //!< Resource type of the 5QI (non-GBR, GBR or DC-GBR)
-    float bsr;              //!< Bytes waiting in this bearer 
+    float bsr;              //!< Bytes waiting in this bearer
 };
 
 /**
