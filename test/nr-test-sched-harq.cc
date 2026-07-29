@@ -10,6 +10,7 @@
 #include "ns3/nr-mac-scheduler-tdma-rr.h"
 #include "ns3/nr-spectrum-phy.h"
 #include "ns3/object-factory.h"
+#include "ns3/simulator.h"
 #include "ns3/test.h"
 
 /**
@@ -323,6 +324,7 @@ NrTestMacSchedulerHarqRrReshape::DoRun()
     }
     delete schedSapUser;
     delete cschedSapUser;
+    Simulator::Destroy();
 }
 
 class NrTestMacSchedulerHarqRrScheduleDlHarq : public NrTestMacSchedulerHarqRrReshape
@@ -483,6 +485,7 @@ NrTestMacSchedulerHarqRrScheduleDlHarq::DoRun()
     }
     delete schedSapUser;
     delete cschedSapUser;
+    Simulator::Destroy();
 }
 
 /**
@@ -631,6 +634,7 @@ NrTestMacSchedulerHarqRrBeamOrder::DoRun()
 
     delete schedSapUser;
     delete cschedSapUser;
+    Simulator::Destroy();
 }
 
 /**
@@ -801,6 +805,7 @@ NrTestMacSchedulerHarqRrSymbolBudget::DoRun()
 
     delete schedSapUser;
     delete cschedSapUser;
+    Simulator::Destroy();
 }
 
 /**
@@ -971,6 +976,7 @@ NrTestMacSchedulerHarqRrOfdmaSharing::DoRun()
 
     delete schedSapUser;
     delete cschedSapUser;
+    Simulator::Destroy();
 }
 
 class NrTestSchedHarqSuite : public TestSuite

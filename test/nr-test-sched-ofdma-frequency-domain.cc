@@ -8,6 +8,7 @@
 #include "ns3/nr-mac-scheduler-ofdma.h"
 #include "ns3/nr-mac-short-bsr-ce.h"
 #include "ns3/object-factory.h"
+#include "ns3/simulator.h"
 #include "ns3/test.h"
 
 #include <algorithm>
@@ -314,6 +315,7 @@ NrSchedOfdmaMcsTestCase::DoRun()
 
     delete schedSapUser;
     delete cSchedSapUser;
+    Simulator::Destroy();
 }
 
 class NrTestSchedOfdmaFrequencyDomainSuite : public TestSuite

@@ -10,6 +10,7 @@
 #include "ns3/nr-mac-scheduler-ns3.h"
 #include "ns3/nr-phy-sap.h"
 #include "ns3/object-factory.h"
+#include "ns3/simulator.h"
 #include "ns3/test.h"
 
 #include <algorithm>
@@ -427,6 +428,7 @@ NrNotchingTestCase::DoRun()
     sched->DoSchedDlTriggerReq(paramsDlTrigger);
 
     delete m_phySapProvider;
+    Simulator::Destroy();
 }
 
 class NrNotchingTestSuite : public TestSuite
