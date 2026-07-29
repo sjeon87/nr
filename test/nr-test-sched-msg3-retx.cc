@@ -8,6 +8,7 @@
 #include "ns3/nr-mac-scheduler-ns3.h"
 #include "ns3/nr-mac-scheduler-tdma-rr.h"
 #include "ns3/nr-phy-mac-common.h"
+#include "ns3/simulator.h"
 #include "ns3/test.h"
 
 /**
@@ -309,6 +310,7 @@ NrTestSchedMsg3Retx::DoRun()
 
     delete schedSapUser;
     delete cschedSapUser;
+    Simulator::Destroy();
 }
 
 /**
@@ -411,6 +413,7 @@ NrTestSchedMsg3Ack::DoRun()
 
     delete schedSapUser;
     delete cschedSapUser;
+    Simulator::Destroy();
 }
 
 /**

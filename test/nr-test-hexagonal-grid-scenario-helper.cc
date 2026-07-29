@@ -7,6 +7,7 @@
 #include "ns3/fast-fading-constant-position-mobility-model.h"
 #include "ns3/hexagonal-grid-scenario-helper.h"
 #include "ns3/resource-assignment-matrix.h"
+#include "ns3/simulator.h"
 #include "ns3/test.h"
 #include "ns3/vector.h"
 
@@ -221,6 +222,7 @@ NrHexagonalGridDeploymentTestCase::DoRun()
     NS_TEST_ASSERT_MSG_EQ(ue5Mm->GetVelocity().GetLength(),
                           10,
                           "User terminal 5 should have non-zero velocity");
+    Simulator::Destroy();
 }
 
 class NrHexagonalGridDeploymentTestSuite : public TestSuite
