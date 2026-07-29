@@ -197,8 +197,10 @@ class NR_EXPORT NrMacSchedulerTdmaAi : public NrMacSchedulerTdmaQos
     double m_alpha{0.0};                           //!< PF Fairness index
     NrMacSchedulerUeInfoAi::NotifyCb m_notifyCbDl; //!< Notify callback function for downlink
     NrMacSchedulerUeInfoAi::NotifyCb m_notifyCbUl; //!< Notify callback function for uplink
-    NrMacSchedulerUeInfoAi::NotifyCbMsg m_notifyCbDlMsg; //!< Message-interface notify callback for downlink
-    NrMacSchedulerUeInfoAi::NotifyCbMsg m_notifyCbUlMsg; //!< Message-interface notify callback for uplink
+    NrMacSchedulerUeInfoAi::NotifyCbMsg
+        m_notifyCbDlMsg; //!< Message-interface notify callback for downlink
+    NrMacSchedulerUeInfoAi::NotifyCbMsg
+        m_notifyCbUlMsg; //!< Message-interface notify callback for uplink
 };
 
 } // namespace ns3

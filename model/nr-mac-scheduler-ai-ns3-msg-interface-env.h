@@ -68,7 +68,7 @@ class NR_EXPORT NrMacSchedulerAiNs3MsgInterfaceEnv : public Object
 {
   public:
     /**
-     * @brief Constructor. 
+     * @brief Constructor.
      * Configures the ns3-ai vector message interface and
      * joins the shared-memory segment created by the Python side.
      */
@@ -87,7 +87,8 @@ class NR_EXPORT NrMacSchedulerAiNs3MsgInterfaceEnv : public Object
 
     /**
      * @brief NotifyCbMsg implementation: one observation/action exchange.
-     * @param observations the compact per-LC observations (unused, the full state is read from ueVector instead)
+     * @param observations the compact per-LC observations (unused, the full state is read from
+     * ueVector instead)
      * @param isGameOver unused (termination via the ns3-ai finish flag)
      * @param reward unused (the reward is computed on the Python side)
      * @param extraInfo unused
