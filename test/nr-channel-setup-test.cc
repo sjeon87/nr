@@ -12,6 +12,7 @@
 #include "ns3/nyu-propagation-loss-model.h"
 #include "ns3/nyu-spectrum-propagation-loss-model.h"
 #include "ns3/pointer.h"
+#include "ns3/simulator.h"
 #include "ns3/test.h"
 #include "ns3/three-gpp-propagation-loss-model.h"
 #include "ns3/three-gpp-spectrum-propagation-loss-model.h"
@@ -200,6 +201,7 @@ NrChannelSetupTest::DoRun()
             }
         }
     }
+    Simulator::Destroy();
 }
 
 void

@@ -7,6 +7,7 @@
 #include "ns3/nr-eesm-ir-t1.h"
 #include "ns3/nr-spectrum-value-helper.h"
 #include "ns3/ptr.h"
+#include "ns3/simulator.h"
 #include "ns3/spectrum-value.h"
 #include "ns3/test.h"
 
@@ -180,6 +181,7 @@ TestHarqTestCase::DoRun()
     default:
         NS_FATAL_ERROR("Unsupported number of RX given to test HARQ");
     }
+    Simulator::Destroy();
 }
 
 class TestHarq : public TestSuite
