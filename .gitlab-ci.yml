@@ -251,6 +251,95 @@ weekly-clang-msan:
   tags:
     - CTTC
 
+# Valgrind memcheck complements the MemorySanitizer job: it needs no special
+# toolchain and additionally checks the ns-3 libraries the nr module links
+# against, at the price of a much larger slowdown. Only the QUICK fullness is
+# exercised, and the build is configured with tests but WITHOUT examples so only
+# the test suites are grinded (grinding examples too is effectively unbounded).
+# Even so, QUICK-under-valgrind is heavy: summed over the nr suites it is
+# ~13 CPU-hours, dominated by a few numerical suites (nr-test-csi ~2.6 h,
+# nr-ideal-beamforming-test ~2.4 h). The suites are run in parallel (xargs -P
+# nproc), so wall-clock is bounded by the slowest single suite (~2.7 h) and
+# stays under the 9 h timeout down to about two cores.
+#
+# valgrind is invoked directly rather than through test.py -g: the latter
+# hardcodes --errors-for-leak-kinds=all, which counts still-reachable blocks
+# (framework/singleton allocations that are alive at exit -- not leaks) as
+# errors, so it reports failures for suites that have no actual memory error
+# (verified: nr-channel-setup-test etc. show "definitely lost: 0" with only
+# still reachable). Here we keep valgrind's default error leak-kinds
+# (definite,possible), so real leaks and real memory errors fail the job while
+# benign still-reachable does not.
+#
+# This job uses an Ubuntu image rather than the archlinux one shared by the
+# other jobs on purpose: Arch ships a stripped ld.so and provides its debug
+# symbols only over networked debuginfod, which makes valgrind refuse to start
+# ("stripped ld.so ... Cannot continue"). On Ubuntu the valgrind package pulls
+# the glibc debug symbols in and it runs offline out of the box.
+weekly-gcc-valgrind:
+  stage: build
+  image: ubuntu:24.04
+  rules:
+    - if: $RELEASE == "weekly"
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      allow_failure: true
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+  before_script:
+    - apt-get update
+    - DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends --yes
+      ca-certificates
+      g++ ninja-build build-essential
+      git ccache valgrind
+      libeigen3-dev
+      python3 python3-dev python3-pip python3-venv
+    - python3 -m venv ns3env
+    - source ./ns3env/bin/activate
+    - pip install cmake==$CMAKE_VERSION
+  script:
+    - git clone -b $NS3_RELEASE_VERSION --depth=1 $NS3_REPOSITORY_URL
+    - mkdir -p $CCACHE_BASEDIR_VALUE
+    - export CCACHE_BASEDIR=${PWD}
+    - export CCACHE_DIR=${PWD}/$CCACHE_BASEDIR_VALUE
+    - ln -s ${PWD} ns-3-dev/contrib/nr
+    - pushd ns-3-dev
+    - CXX=g++ ./ns3 configure -d default -GNinja --enable-tests --disable-examples --enable-asserts --filter-module-examples-and-tests="nr"
+    - ./ns3 build
+    # Run every nr test suite under valgrind memcheck in parallel, at QUICK
+    # fullness, applying the in-tree suppressions (.ns3.supp). A suite with a
+    # real memory error or leak makes valgrind exit non-zero (--error-exitcode),
+    # and a failing test case makes the runner exit non-zero; either records a
+    # failure. The whole matrix is reduced to a single pass/fail at the end.
+    - |
+      RUNNER=./build/utils/ns3-dev-test-runner-default
+      rm -f vg-failed
+      "$RUNNER" --list | grep -E '^nr' | xargs -P "$(nproc)" -I{} sh -c '
+        s="$1"
+        if ! valgrind --suppressions=.ns3.supp --leak-check=full --error-exitcode=1 \
+             ./build/utils/ns3-dev-test-runner-default --test-name="$s" \
+             --stop-on-failure --fullness=QUICK > "vg-$s.log" 2>&1; then
+          echo "===== FAILURE UNDER VALGRIND: $s ====="
+          cat "vg-$s.log"
+          touch vg-failed
+        fi' _ {}
+      if [ -e vg-failed ]; then
+        echo "One or more suites reported a valgrind error or test failure"
+        exit 1
+      fi
+    - popd
+    - rm -rf ns-3-dev
+  cache:
+    key: "ccache-$CI_JOB_NAME"
+    paths:
+      - $CCACHE_BASEDIR_VALUE/
+  variables:
+    CCACHE_BASEDIR_VALUE: ns-3-ccache-storage
+  timeout: 9h
+  interruptible: true
+  tags:
+    - CTTC
+
 weekly-sionna:
   stage: build
   image: ubuntu:24.04
