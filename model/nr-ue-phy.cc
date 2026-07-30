@@ -155,8 +155,16 @@ NrUePhy::GetTypeId()
                 UintegerValue(1),
                 MakeUintegerAccessor(&NrUePhy::SetCsiImDuration, &NrUePhy::GetCsiImDuration),
                 MakeUintegerChecker<uint8_t>(1, 12))
+            // The reported value is NrUePhy::ComputeAvgSinr(): a linear SINR (apply 10*log10() for
+            // dB) averaged over the RBs of the received PDSCH. Fired only in SISO CQI feedback
+            // configurations (CsiFeedbackFlags = CQI_PDSCH_SISO, or a channel without a
+            // phased-array loss model): the value is the per-RB C/(I+N) computed by NrInterference
+            // (noise included), emitted at the end of each PDSCH data reception, and feeds the SISO
+            // wideband CQI. MIMO CSI feedback configurations do not fire this trace; see
+            // CqiFeedbackTrace.
             .AddTraceSource("DlDataSinr",
-                            "DL DATA SINR statistics.",
+                            "Effective DL data SINR used for CQI/CSI feedback, reported as a "
+                            "linear ratio (not dB) averaged over the allocated RBs.",
                             MakeTraceSourceAccessor(&NrUePhy::m_dlDataSinrTrace),
                             "ns3::NrUePhy::DlDataSinrTracedCallback")
             .AddTraceSource("DlCtrlSinr",

@@ -71,7 +71,7 @@ Inspired by [mmWave module by NYU/UniPD](https://github.com/nyuwireless-unipd/ns
 We would be very happy if you would contribute to 5G-LENA!
 
 If you identify a bug, please let us know through the
-[Gitlab issue page](https://gitlab.com/cttc-lena/nr/-/issues/).
+[Gitlab work items page](https://gitlab.com/cttc-lena/nr/-/work_items/).
 
 If you do some of the following with 5G-LENA, please open
 a [merge request](https://gitlab.com/cttc-lena/nr/-/merge_requests)
