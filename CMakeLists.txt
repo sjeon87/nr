@@ -541,6 +541,7 @@ set(test_sources
     test/nr-test-handover-scenarios.cc
     test/nr-test-cell-individual-offset.cc
     test/nr-test-cell-selection-with-rlf.cc
+    test/nr-test-attach-window.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover
