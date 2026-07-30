@@ -197,6 +197,7 @@ NrUeRrc::DoDispose()
     // These callbacks capture a Ptr to the BWP manager, which in turn holds a callback capturing
     // this RRC. Release them to break the reference cycle.
     m_updateBwpOutputLinkFn = nullptr;
+    m_updateQosFlowBwpFn = nullptr;
     m_clearBwpOutputLinksFn = nullptr;
 }
 
@@ -710,11 +711,15 @@ NrUeRrc::SyncBwpOutputLinks()
         return;
     }
     // Outgoing messages sourced on the primary DL BWP leave through the primary
-    // UL BWP, which itself routes to itself. Applying this on every primary
-    // index change overwrites links belonging to a previous serving cell whose
-    // UL/DL carrier pairing differed (e.g. a handover between FDD cells with
-    // inverted carrier roles).
-    m_updateBwpOutputLinkFn(GetPrimaryDlIndex(), GetPrimaryUlIndex());
+    // UL BWP, which itself routes to itself; a DL-only primary BWP leaves through
+    // the UL carrier the serving cell paired it with in dedicated RRC config.
+    // Applying this on every primary index change overwrites links belonging to
+    // a previous serving cell whose UL/DL carrier pairing differed (e.g. a
+    // handover between FDD cells with inverted carrier roles).
+    const auto pairIt = m_rrcBwpPairings.find(GetPrimaryDlIndex());
+    const uint32_t dlOutput =
+        pairIt != m_rrcBwpPairings.end() ? pairIt->second : GetPrimaryUlIndex();
+    m_updateBwpOutputLinkFn(GetPrimaryDlIndex(), dlOutput);
     m_updateBwpOutputLinkFn(GetPrimaryUlIndex(), GetPrimaryUlIndex());
 }
 
@@ -2263,10 +2268,81 @@ NrUeRrc::ApplyRadioResourceConfigDedicatedSecondaryCarrier(
 }
 
 void
+NrUeRrc::ApplyServingCellBwpConfig(const NrRrcSap::RadioResourceConfigDedicated& rrcd)
+{
+    NS_LOG_FUNCTION(this);
+    m_rrcBwpPairings.clear();
+    for (const auto& bwpConfig : rrcd.bwpConfigList)
+    {
+        auto phyIt =
+            std::find_if(m_cphySapProvider.begin(),
+                         m_cphySapProvider.end(),
+                         [arfcn = bwpConfig.arfcn](auto& phy) { return phy->GetArfcn() == arfcn; });
+        if (phyIt == m_cphySapProvider.end())
+        {
+            NS_LOG_WARN("Serving cell BWP with ARFCN " << bwpConfig.arfcn
+                                                       << " has no matching local BWP; skipping");
+            continue;
+        }
+        auto bwpId = std::distance(m_cphySapProvider.begin(), phyIt);
+        ReconfigureFromSib1(bwpId,
+                            m_cellId,
+                            bwpConfig.config.dlCtrlSymsNum,
+                            bwpConfig.config.ulCtrlSymsNum,
+                            bwpConfig.config.symbolsPerSlot,
+                            bwpConfig.config.numerology,
+                            bwpConfig.config.tddPattern,
+                            bwpConfig.config.rbgSize);
+        // A DL-only (FDD) carrier sends its outgoing control messages through
+        // the UL carrier it is paired with
+        if (bwpConfig.config.ulCarrierFreq != 0 &&
+            bwpConfig.config.ulCarrierFreq != bwpConfig.arfcn && m_updateBwpOutputLinkFn)
+        {
+            auto ulIt = std::find_if(m_cphySapProvider.begin(),
+                                     m_cphySapProvider.end(),
+                                     [arfcn = bwpConfig.config.ulCarrierFreq](auto& phy) {
+                                         return phy->GetArfcn() == arfcn;
+                                     });
+            if (ulIt != m_cphySapProvider.end())
+            {
+                auto ulBwpId = std::distance(m_cphySapProvider.begin(), ulIt);
+                m_rrcBwpPairings[bwpId] = ulBwpId;
+                m_updateBwpOutputLinkFn(bwpId, ulBwpId);
+            }
+        }
+    }
+    if (m_updateQosFlowBwpFn)
+    {
+        for (const auto& mapping : rrcd.qosFlowToBwpList)
+        {
+            auto phyIt = std::find_if(
+                m_cphySapProvider.begin(),
+                m_cphySapProvider.end(),
+                [arfcn = mapping.bwpArfcn](auto& phy) { return phy->GetArfcn() == arfcn; });
+            if (phyIt == m_cphySapProvider.end())
+            {
+                NS_LOG_WARN("QoS flow BWP with ARFCN " << mapping.bwpArfcn
+                                                       << " has no matching local BWP; skipping");
+                continue;
+            }
+            auto bwpId = std::distance(m_cphySapProvider.begin(), phyIt);
+            // A flow the network pins to a DL-only (FDD) BWP is served in the
+            // uplink by the UL carrier that BWP is paired with: the advertised
+            // mapping drives the gNB's downlink scheduling, while the UE needs
+            // an UL-capable BWP for its own transmissions
+            const auto pairIt = m_rrcBwpPairings.find(bwpId);
+            const auto ulBwpId = pairIt != m_rrcBwpPairings.end() ? pairIt->second : bwpId;
+            m_updateQosFlowBwpFn(mapping.fiveQi, ulBwpId);
+        }
+    }
+}
+
+void
 NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicated rrcd)
 {
     NS_LOG_FUNCTION(this << " primary UL " << GetPrimaryUlIndex() << ", primary DL "
                          << GetPrimaryDlIndex());
+    ApplyServingCellBwpConfig(rrcd);
     const NrRrcSap::PhysicalConfigDedicated& pcd = rrcd.physicalConfigDedicated;
 
     if (pcd.haveAntennaInfoDedicated)

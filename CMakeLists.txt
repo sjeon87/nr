@@ -541,6 +541,7 @@ set(test_sources
     test/nr-test-handover-delay.cc
     test/nr-test-handover-failure.cc
     test/nr-test-handover-rach-config.cc
+    test/nr-test-fdd-ul-routing.cc
     test/nr-test-handover-target.cc
     test/nr-test-handover-scenarios.cc
     test/nr-test-cell-individual-offset.cc

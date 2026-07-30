@@ -282,6 +282,54 @@ class NR_EXPORT NrRrcSap
         PdschConfigCommon pdschConfigCommon; ///< PDSCH config common
     };
 
+    /// ServingCellConfigCommon structure (broadcast cell PHY configuration)
+    struct NR_EXPORT ServingCellConfigCommon
+    {
+        uint8_t numerology; // SubcarrierSpacing (0..5)
+
+        // SubcarrierSpacing of the cell's UL carrier. Equal to numerology for
+        // TDD or intra-carrier FDD; differs when the cell receives uplink on a
+        // separate carrier with its own numerology.
+        uint8_t ulNumerology;
+
+        // ARFCN of the cell's UL carrier (frequencyInfoUL in TS 38.331). Equal
+        // to the carrier's own ARFCN for TDD; points to the dedicated UL-only
+        // carrier for FDD, letting the UE derive its primary UL BWP without
+        // manual configuration.
+        uint32_t ulCarrierFreq;
+
+        uint8_t symbolsPerSlot; // 14 (normal CP), 12 (extended CP)
+
+        // DL/UL control symbols (approx. downlinkSymbolsNum/uplinkSymbolsNum from TDD pattern)
+
+        // Number of DL control symbols (scheduled forwards from first symbol)
+        uint8_t dlCtrlSymsNum;
+
+        // Number of DL control symbols (scheduled backwards from last symbol)
+        uint8_t ulCtrlSymsNum;
+
+        std::string tddPattern; // TDD pattern (Not following ASN.1 structure just yet)
+
+        // Number of RBs per RBG. Standard actually defines a bit to select between config1 and
+        // config2. We avoid it here because we have flexible rbOverhead numbers that cause weird
+        // rounding issues.
+        uint8_t rbgSize;
+    };
+
+    /// BwpConfig structure: describes one BWP/carrier of the serving cell
+    struct NR_EXPORT BwpConfig
+    {
+        uint32_t arfcn;                 ///< carrier ARFCN
+        ServingCellConfigCommon config; ///< PHY configuration of the carrier
+    };
+
+    /// QosFlowToBwp structure: maps a 5QI to the BWP (carrier ARFCN) serving it
+    struct NR_EXPORT QosFlowToBwp
+    {
+        uint8_t fiveQi;    ///< 5QI
+        uint32_t bwpArfcn; ///< ARFCN of the BWP serving flows of this 5QI
+    };
+
     /// RadioResourceConfigDedicated structure
     struct NR_EXPORT RadioResourceConfigDedicated
     {
@@ -290,6 +338,14 @@ class NR_EXPORT NrRrcSap
         std::list<uint8_t> drbToReleaseList;             ///< DRB to release list
         bool havePhysicalConfigDedicated{false};         ///< have physical config dedicated?
         PhysicalConfigDedicated physicalConfigDedicated; ///< physical config dedicated
+
+        // All BWPs/carriers of the serving cell, so the UE can configure its
+        // extra BWPs and derive the UL pairing of DL-only (FDD) carriers
+        // without manual UE-side configuration
+        std::list<BwpConfig> bwpConfigList; ///< serving-cell BWP configurations
+        // 5QI -> serving BWP mappings, mirroring the gNB's BWP manager
+        // algorithm, so the UE routes uplink flows like the network expects
+        std::list<QosFlowToBwp> qosFlowToBwpList; ///< 5QI to BWP (ARFCN) mappings
     };
 
     /// QuantityConfig structure
@@ -595,40 +651,6 @@ class NR_EXPORT NrRrcSap
     {
         uint8_t raPreambleIndex;  ///< RA preamble index
         uint8_t raPrachMaskIndex; ///< RA PRACH mask index
-    };
-
-    /// ServingCellConfigCommon structure (broadcast cell PHY configuration)
-    struct NR_EXPORT ServingCellConfigCommon
-    {
-        uint8_t numerology; // SubcarrierSpacing (0..5)
-
-        // SubcarrierSpacing of the cell's UL carrier. Equal to numerology for
-        // TDD or intra-carrier FDD; differs when the cell receives uplink on a
-        // separate carrier with its own numerology.
-        uint8_t ulNumerology;
-
-        // ARFCN of the cell's UL carrier (frequencyInfoUL in TS 38.331). Equal
-        // to the carrier's own ARFCN for TDD; points to the dedicated UL-only
-        // carrier for FDD, letting the UE derive its primary UL BWP without
-        // manual configuration.
-        uint32_t ulCarrierFreq;
-
-        uint8_t symbolsPerSlot; // 14 (normal CP), 12 (extended CP)
-
-        // DL/UL control symbols (approx. downlinkSymbolsNum/uplinkSymbolsNum from TDD pattern)
-
-        // Number of DL control symbols (scheduled forwards from first symbol)
-        uint8_t dlCtrlSymsNum;
-
-        // Number of DL control symbols (scheduled backwards from last symbol)
-        uint8_t ulCtrlSymsNum;
-
-        std::string tddPattern; // TDD pattern (Not following ASN.1 structure just yet)
-
-        // Number of RBs per RBG. Standard actually defines a bit to select between config1 and
-        // config2. We avoid it here because we have flexible rbOverhead numbers that cause weird
-        // rounding issues.
-        uint8_t rbgSize;
     };
 
     /// MobilityControlInfo structure

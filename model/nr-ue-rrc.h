@@ -364,6 +364,16 @@ class NR_EXPORT NrUeRrc : public Object
     void SetUpdateBwpOutputLinkFn(std::function<void(uint32_t, uint32_t)> fn);
 
     /**
+     * @brief Install the callback used to program the BWP manager's QoS flow to
+     * BWP mapping from the one the serving cell advertises over RRC
+     * @param fn callback taking (5QI, BWP index)
+     */
+    void SetUpdateQosFlowBwpFn(std::function<void(uint8_t, uint8_t)> fn)
+    {
+        m_updateQosFlowBwpFn = std::move(fn);
+    }
+
+    /**
      * @brief Install the callback used to drop all BWP manager output links
      * when the UE moves to a different cell, whose UL/DL carrier pairing may
      * differ from the previous one's
@@ -877,6 +887,14 @@ class NR_EXPORT NrUeRrc : public Object
      */
     void ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicated rrcd);
     /**
+     * Apply the serving-cell BWP configurations and QoS flow to BWP mappings
+     * received in dedicated RRC config: reconfigures the local BWPs, installs
+     * the UL pairing of DL-only (FDD) carriers as output links, and programs
+     * the BWP manager algorithm.
+     * @param rrcd NrRrcSap::RadioResourceConfigDedicated
+     */
+    void ApplyServingCellBwpConfig(const NrRrcSap::RadioResourceConfigDedicated& rrcd);
+    /**
      * Apply radio resource config dedicated secondary carrier.
      * @param nonCec NrRrcSap::NonCriticalExtensionConfiguration
      */
@@ -965,7 +983,20 @@ class NR_EXPORT NrUeRrc : public Object
     std::function<void(uint32_t, uint32_t)>
         m_updateBwpOutputLinkFn; ///< updates the BWP manager output links
 
+    std::function<void(uint8_t, uint8_t)>
+        m_updateQosFlowBwpFn; ///< programs the BWP manager 5QI to BWP mapping
+
     std::function<void()> m_clearBwpOutputLinksFn; ///< drops all BWP manager output links
+
+    /**
+     * @brief UL carrier pairing of DL-only BWPs, advertised by the serving cell
+     * in dedicated RRC config (local source BWP -> local UL BWP).
+     *
+     * Replaced on every application of a serving-cell BWP configuration, and
+     * consulted by SyncBwpOutputLinks() so primary index changes do not break
+     * the FDD pairing of secondary carriers.
+     */
+    std::map<uint32_t, uint32_t> m_rrcBwpPairings;
 
     uint16_t m_primaryUlIndex{0};
 

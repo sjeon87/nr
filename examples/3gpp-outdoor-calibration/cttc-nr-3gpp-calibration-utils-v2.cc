@@ -502,7 +502,6 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
             NS_LOG_LOGIC("band0[0][1]: " << bandCenter << " " << bandwidthBwp);
             ConfigureBwpTo(band0.m_cc[0]->m_bwp[1], bandCenter, bandwidthBwp);
             bandCenter += bandwidthBwp;
-            Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
         }
 
         NS_LOG_LOGIC("band1[0][0]: " << bandCenter << " " << bandwidthBwp);
@@ -879,9 +878,6 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB",
                                                  UintegerValue(bwpIdForLowLat));
 
-    // Ue routing between Bearer and bandwidth part
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(bwpIdForLowLat));
-
     //  NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice (gridScenario.GetBaseStations (),
     //  allBwps);
     gnbSector1NetDev = nrHelper->InstallGnbDevice(gnbSector1Container, sector1Bwps);
@@ -1066,7 +1062,6 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
 
         if (operationMode == "FDD")
         {
-            NrHelper::GetBwpManagerUe(*nd)->SetOutputLink(0, 1);
             uePhySecond = NrHelper::GetUePhy(*nd, 1);
             uePhySecond->SetUplinkPowerControl(uePhyFirst->GetUplinkPowerControl());
 

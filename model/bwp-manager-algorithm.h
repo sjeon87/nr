@@ -637,6 +637,28 @@ class NR_EXPORT BwpManagerAlgorithmStatic : public BwpManagerAlgorithm
         return m_fiveQiToBwpMap.at(NrQosFlow::DGBR_VISUAL_CONTENT_90);
     }
 
+    /**
+     * @brief Set the BWP index for an arbitrary 5QI at runtime
+     * @param fiveQi the 5QI
+     * @param bwpIndex the BWP index to assign to the 5QI
+     *
+     * Unlike the per-5QI attribute setters, this allows the serving cell to
+     * (re)program the mapping over RRC, without a dedicated attribute per 5QI.
+     */
+    void SetBwpForQosFlow(uint8_t fiveQi, uint8_t bwpIndex)
+    {
+        m_fiveQiToBwpMap[fiveQi] = bwpIndex;
+    }
+
+    /**
+     * @brief Get all configured 5QI to BWP mappings
+     * @return the map between 5QI and BWP index
+     */
+    const std::unordered_map<uint8_t, uint8_t>& GetBwpMap() const
+    {
+        return m_fiveQiToBwpMap;
+    }
+
   private:
     /**
      * @brief Map between 5QI and BWP

@@ -398,8 +398,6 @@ main(int argc, char* argv[])
     {
         nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB",
                                                      UintegerValue(bwpIdForLowLat));
-        nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                    UintegerValue(bwpIdForVideo));
     }
     else
     {
@@ -408,11 +406,6 @@ main(int argc, char* argv[])
                                                      UintegerValue(bwpIdForLowLat));
         nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                      UintegerValue(bwpIdForVideo));
-
-        nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB",
-                                                    UintegerValue(bwpIdForLowLat));
-        nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                    UintegerValue(bwpIdForVideo));
     }
 
     // Install and get the pointers to the NetDevices

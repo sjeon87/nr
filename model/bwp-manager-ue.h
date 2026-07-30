@@ -119,6 +119,28 @@ class NR_EXPORT BwpManagerUe : public NrSimpleUeComponentCarrierManager
     void ClearOutputLinks();
 
     /**
+     * @brief Get the output BWP a source BWP's messages are routed to
+     * @param sourceBwp the source BWP
+     * @return the output BWP, or sourceBwp itself if no mapping is installed
+     */
+    uint32_t GetOutputLink(uint32_t sourceBwp) const
+    {
+        auto it = m_outputLinks.find(sourceBwp);
+        return it != m_outputLinks.end() ? it->second : sourceBwp;
+    }
+
+    /**
+     * @brief Set the BWP serving a 5QI at runtime
+     * @param fiveQi the 5QI
+     * @param bwpIndex the BWP index serving flows of this 5QI
+     *
+     * Programs the UE's BWP manager algorithm from the mapping the serving
+     * cell advertises over RRC, so no manual UE-side attribute configuration
+     * is needed.
+     */
+    void SetBwpForQosFlow(uint8_t fiveQi, uint8_t bwpIndex);
+
+    /**
      * @brief Set a callback function to retrieve the primary uplink index.
      *
      * This function assigns a callback that is used to obtain the primary

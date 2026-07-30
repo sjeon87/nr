@@ -567,6 +567,9 @@ NrHelper::InstallSingleUeDevice(
     rrc->SetUpdateBwpOutputLinkFn([bwpManagerUe](uint32_t sourceBwp, uint32_t outputBwp) {
         bwpManagerUe->SetDefaultOutputLink(sourceBwp, outputBwp);
     });
+    rrc->SetUpdateQosFlowBwpFn([bwpManagerUe](uint8_t fiveQi, uint8_t bwpIndex) {
+        bwpManagerUe->SetBwpForQosFlow(fiveQi, bwpIndex);
+    });
     rrc->SetClearBwpOutputLinksFn([bwpManagerUe]() { bwpManagerUe->ClearOutputLinks(); });
 
     if (m_useIdealRrc)
