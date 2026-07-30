@@ -780,11 +780,16 @@ main(int argc, char* argv[])
             outFile << "  Mean jitter: 0 ms\n";
         }
         outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
+        NS_ABORT_MSG_IF(i->second.txPackets > 0 && i->second.rxPackets == 0,
+                        "flow " << i->first << " transmitted " << i->second.txPackets
+                                << " packets but received none");
     }
 
     outFile << "\n\n  Aggregated throughput: " << averageFlowThroughput << "\n";
     outFile << "  Mean flow throughput: " << averageFlowThroughput / stats.size() << "\n";
     outFile << "  Mean flow delay: " << averageFlowDelay / stats.size() << "\n";
+
+    NS_ABORT_MSG_IF(averageFlowThroughput == 0.0, "no flow received any packet");
 
     outFile.close();
 
