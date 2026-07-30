@@ -511,6 +511,12 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
             {
                 continue;
             }
+            // 3GPP TR 36.839 no-wraparound layout: picos sit only on the 6 ring-1 sites
+            // (sites at distance ISD from the central site, siteDistances == 1).
+            if (m_ringOnePicosOnly && siteDistances.at(siteIndex) != 1.0)
+            {
+                continue;
+            }
             // Compute site position from hex grid definition
             Vector sitePos(m_centralPos);
             const double dist = siteDistances.at(siteIndex);
@@ -802,6 +808,12 @@ void
 HexagonalGridScenarioHelper::InstallPicoCells(bool installPicoCells)
 {
     m_installPicoCells = installPicoCells;
+}
+
+void
+HexagonalGridScenarioHelper::SetRingOneOnlyPicos(bool ringOnePicosOnly)
+{
+    m_ringOnePicosOnly = ringOnePicosOnly;
 }
 
 void
