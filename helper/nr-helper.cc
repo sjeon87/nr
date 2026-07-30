@@ -155,7 +155,16 @@ NrHelper::GetTypeId()
                           "Number of resource blocks per resource block group.",
                           UintegerValue(1),
                           MakeUintegerAccessor(&NrHelper::m_numRbPerRbg),
-                          MakeUintegerChecker<uint32_t>(1, 16));
+                          MakeUintegerChecker<uint32_t>(1, 16))
+            .AddAttribute("AttachWindow",
+                          "If non-zero, initial UE attachment is spread deterministically "
+                          "over this time window instead of every UE attaching at once: the "
+                          "k-th call to AttachToGnb() is deferred by AttachWindow times the "
+                          "radical inverse of k in base 2. De-synchronises the "
+                          "RACH/connection-setup thundering herd at initial association.",
+                          TimeValue(Seconds(0)),
+                          MakeTimeAccessor(&NrHelper::m_attachWindow),
+                          MakeTimeChecker());
     return tid;
 }
 
@@ -1072,7 +1081,9 @@ NrHelper::AttachToMaxRsrpGnb(const NetDeviceContainer& ueDevices,
             ueNetDevCast->GetPhy(0)->SetNumerology(gnbNetDevCast->GetPhy(0)->GetNumerology());
         }
 
-        // attach the UE to the highest RSRP gNB (this will change with active panel)
+        // attach the UE to the highest RSRP gNB (this will change with active panel).
+        // Any AttachWindow staggering is applied by AttachToGnb, which this path reaches
+        // through AttachToMaxRsrpGnb.
         Simulator::ScheduleNow([=, this]() { AttachToMaxRsrpGnb(*i, gnbDevices); });
     }
 }
@@ -1142,6 +1153,43 @@ NrHelper::AttachToClosestGnb(const Ptr<NetDevice>& ueDevice, const NetDeviceCont
 
 void
 NrHelper::AttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbDevice)
+{
+    const uint32_t index = m_attachCount++;
+
+    if (m_attachWindow.IsZero())
+    {
+        DoAttachToGnb(ueDevice, gnbDevice);
+        return;
+    }
+
+    // Spread this attachment across the window by its position in the call sequence, using the
+    // radical inverse of the index in base 2 (the van der Corput sequence): 0, 1/2, 1/4, 3/4,
+    // 1/8, ... Any prefix of that sequence covers the window roughly uniformly, so a handful of
+    // UEs is spread just as well as a large deployment and the helper never needs to know the
+    // total number of UEs in advance.
+    double fraction = 0.0;
+    double weight = 0.5;
+    for (uint32_t v = index; v != 0; v >>= 1)
+    {
+        if (v & 1u)
+        {
+            fraction += weight;
+        }
+        weight *= 0.5;
+    }
+
+    // The whole attachment is deferred as one unit rather than just the connection trigger,
+    // because a UE that has registered but not started random access would receive a random
+    // access response for a procedure it never began.
+    Simulator::Schedule(m_attachWindow * fraction,
+                        &NrHelper::DoAttachToGnb,
+                        this,
+                        ueDevice,
+                        gnbDevice);
+}
+
+void
+NrHelper::DoAttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbDevice)
 {
     Ptr<NrGnbNetDevice> gnbNetDev = gnbDevice->GetObject<NrGnbNetDevice>();
     Ptr<NrUeNetDevice> ueNetDev = ueDevice->GetObject<NrUeNetDevice>();
