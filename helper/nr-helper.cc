@@ -153,9 +153,9 @@ NrHelper::GetTypeId()
                           MakeDoubleChecker<double>(0, 0.5))
             .AddAttribute("NumRbPerRbg",
                           "Number of resource blocks per resource block group.",
-                          UintegerValue(1),
+                          UintegerValue(0),
                           MakeUintegerAccessor(&NrHelper::m_numRbPerRbg),
-                          MakeUintegerChecker<uint32_t>(1, 16));
+                          MakeUintegerChecker<uint32_t>(0, 16));
     return tid;
 }
 
@@ -516,6 +516,9 @@ NrHelper::InstallSingleUeDevice(
                                          cc->GetArfcn()));
 
         phy->SetBwpId(bwpId);
+        // Apply the same forced RBG size as the gNB MAC (0 = derive it from
+        // the bandwidth part size, per TS 38.214 Table 5.1.2.2.1-1)
+        phy->SetNumRbPerRbg(m_numRbPerRbg);
         cc->SetPhy(phy);
 
         if (bwpId == 0)
@@ -1170,7 +1173,7 @@ NrHelper::AttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbD
                                                 gnbPhy->GetSymbolsPerSlot(),
                                                 gnbPhy->GetNumerology(),
                                                 gnbPhy->GetPattern(),
-                                                gnbPhy->GetNumRbPerRbg());
+                                                gnbNetDev->GetMac(i)->GetRbgSizeConfig2());
 
         Ptr<NrEpcUeNas> ueNas = ueNetDev->GetNas();
         ueNas->Connect(gnbNetDev->GetCellId(), gnbNetDev->GetBwpArfcn(i));

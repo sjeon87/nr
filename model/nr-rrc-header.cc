@@ -763,8 +763,8 @@ NrRrcAsn1Header::SerializeServingCellConfigCommon(
     SerializeInteger(servingCellConfigCommon.dlCtrlSymsNum, 0, 14);
     SerializeInteger(servingCellConfigCommon.ulCtrlSymsNum, 0, 14);
 
-    // rbgSize: number of RBs per RBG
-    SerializeInteger(servingCellConfigCommon.rbgSize, 0, 255);
+    // rbgSizeConfig2: rbg-Size selector of TS 38.214 Table 5.1.2.2.1-1
+    SerializeBoolean(servingCellConfigCommon.rbgSizeConfig2);
 
     // tddPattern: variable-length string (e.g. "DL|DL|DL|DL|UL"). Encode the
     // length as a constrained INTEGER, then each character as an octet so the
@@ -3832,8 +3832,7 @@ NrRrcAsn1Header::DeserializeServingCellConfigCommon(
     bIterator = DeserializeInteger(&n, 0, 14, bIterator);
     servingCellConfigCommon->ulCtrlSymsNum = static_cast<uint8_t>(n);
 
-    bIterator = DeserializeInteger(&n, 0, 255, bIterator);
-    servingCellConfigCommon->rbgSize = static_cast<uint8_t>(n);
+    bIterator = DeserializeBoolean(&servingCellConfigCommon->rbgSizeConfig2, bIterator);
 
     // tddPattern: length-prefixed character sequence.
     int patternLength;
@@ -6122,7 +6121,7 @@ NrRrcConnectionReconfigurationHeader::Print(std::ostream& os) const
             os << "  scc.symbolsPerSlot: " << (int)scc.symbolsPerSlot << std::endl;
             os << "  scc.dlCtrlSymsNum: " << (int)scc.dlCtrlSymsNum << std::endl;
             os << "  scc.ulCtrlSymsNum: " << (int)scc.ulCtrlSymsNum << std::endl;
-            os << "  scc.rbgSize: " << (int)scc.rbgSize << std::endl;
+            os << "  scc.rbgSizeConfig2: " << scc.rbgSizeConfig2 << std::endl;
             os << "  scc.tddPattern: " << scc.tddPattern << std::endl;
         }
     }

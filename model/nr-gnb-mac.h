@@ -89,6 +89,23 @@ class NR_EXPORT NrGnbMac : public Object
     uint32_t GetNumRbPerRbg() const;
 
     /**
+     * @return The number of resource blocks in the last RBG.
+     * This function will be called through SAP interfaces by PHY and scheduler,
+     * to obtain this information from MAC.
+     * Note that this functions can be named without "Do" prefix,
+     * since it does not change the state of the object and can be exposed to
+     * everyone, not only through SAP.
+     *
+     */
+    uint32_t GetNumRbsInLastRbg() const;
+
+    /**
+     * @return True when the RBG size is derived using the Configuration 2
+     * column of TS 38.214 Table 5.1.2.2.1-1, false for Configuration 1.
+     */
+    bool GetRbgSizeConfig2() const;
+
+    /**
      * @brief Sets the number of HARQ processes
      * @param numHarqProcess the maximum number of harq processes
      */
@@ -363,9 +380,12 @@ class NR_EXPORT NrGnbMac : public Object
     NrCcmMacSapProvider* m_ccmMacSapProvider; ///< CCM MAC SAP provider
     NrCcmMacSapUser* m_ccmMacSapUser;         ///< CCM MAC SAP user
 
-    uint32_t m_numRbPerRbg{0}; //!< number of resource blocks within the channel bandwidth
-
-    uint8_t m_numHarqProcess{20}; //!< number of HARQ processes
+    uint32_t m_numRbPerRbg{0};     //!< number of resource blocks within the channel bandwidth
+    uint32_t m_numRbsInLastRbg{0}; //!< size of the last RBG, which may be smaller than
+                                   //!< m_numRbPerRbg when the bandwidth is not a multiple of the
+                                   //!< RBG size
+    bool m_rbgSizeConfig2{false};  //!< rbg-Size selector of TS 38.214 Table 5.1.2.2.1-1
+    uint8_t m_numHarqProcess{20};  //!< number of HARQ processes
 
     std::unordered_map<uint32_t, struct NrMacPduInfo> m_macPduMap;
 

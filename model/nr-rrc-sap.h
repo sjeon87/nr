@@ -614,10 +614,10 @@ class NR_EXPORT NrRrcSap
 
         std::string tddPattern; // TDD pattern (Not following ASN.1 structure just yet)
 
-        // Number of RBs per RBG. Standard actually defines a bit to select between config1 and
-        // config2. We avoid it here because we have flexible rbOverhead numbers that cause weird
-        // rounding issues.
-        uint8_t rbgSize;
+        // Selects the RBG size column of TS 38.214 Table 5.1.2.2.1-1 (rbg-Size
+        // field of PDSCH-Config, TS 38.331): false = config1, true = config2.
+        // The actual RBG size is derived by the UE from the bandwidth part size.
+        bool rbgSizeConfig2{false};
     };
 
     /// MobilityControlInfo structure

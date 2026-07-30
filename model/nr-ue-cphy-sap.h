@@ -200,7 +200,7 @@ class NR_EXPORT NrUeCphySapProvider
     virtual void SetPattern(std::string tddPattern) = 0;
     virtual void SetDlCtrlSyms(uint8_t numDlCtrlSyms) = 0;
     virtual void SetUlCtrlSyms(uint8_t numUlCtrlSyms) = 0;
-    virtual void SetNumRbPerRbg(uint32_t numRbPerRbg) = 0;
+    virtual void SetRbgSizeConfig2(bool rbgSizeConfig2) = 0;
 };
 
 /**
@@ -337,7 +337,7 @@ class MemberNrUeCphySapProvider : public NrUeCphySapProvider
     void SetPattern(std::string tddPattern) override;
     void SetDlCtrlSyms(uint8_t numDlCtrlSyms) override;
     void SetUlCtrlSyms(uint8_t numUlCtrlSyms) override;
-    void SetNumRbPerRbg(uint32_t numRbPerRbg) override;
+    void SetRbgSizeConfig2(bool rbgSizeConfig2) override;
 
   private:
     C* m_owner; ///< the owner class
@@ -512,9 +512,9 @@ MemberNrUeCphySapProvider<C>::SetUlCtrlSyms(uint8_t numUlCtrlSyms)
 
 template <class C>
 void
-MemberNrUeCphySapProvider<C>::SetNumRbPerRbg(uint32_t numRbPerRbg)
+MemberNrUeCphySapProvider<C>::SetRbgSizeConfig2(bool rbgSizeConfig2)
 {
-    m_owner->SetNumRbPerRbg(numRbPerRbg);
+    m_owner->SetRbgSizeConfig2(rbgSizeConfig2);
 }
 
 /**

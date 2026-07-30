@@ -274,17 +274,20 @@ class NrNotchingTestCase : public TestCase
      * @param schedulerType The type of the scheduler to be tested
      * @param numOfUesPerBeam The number of UEs per beam to be tested
      * @param beamsNum The number beams to be tested
+     * @param numRbPerRbg The number of RBs per RBG to be tested
      */
     NrNotchingTestCase(const std::string& name,
                        const std::vector<bool>& mask,
                        const std::string& schedulerType,
                        uint32_t numOfUesPerBeam,
-                       uint32_t beamsNum)
+                       uint32_t beamsNum,
+                       uint32_t numRbPerRbg)
         : TestCase(name),
           m_mask(mask),
           m_schedulerType(schedulerType),
           m_numOfUesPerBeam(numOfUesPerBeam),
-          m_beamsNum(beamsNum)
+          m_beamsNum(beamsNum),
+          m_numRbPerRbg(numRbPerRbg)
     {
     }
 
@@ -302,6 +305,7 @@ class NrNotchingTestCase : public TestCase
     const std::string m_schedulerType;
     uint32_t m_numOfUesPerBeam;
     uint32_t m_beamsNum;
+    uint32_t m_numRbPerRbg;
     TestNotchingPhySapProvider* m_phySapProvider;
 };
 
@@ -327,6 +331,9 @@ NrNotchingTestCase::CreateMac(Ptr<NrMacSchedulerNs3>& scheduler,
 {
     Ptr<TestNotchingGnbMac> mac = CreateObject<TestNotchingGnbMac>(m_mask);
 
+    // The notched mask is in RBG units, so it is independent of the RBG size,
+    // but the scheduler TB size estimation depends on the number of RBs per RBG
+    mac->SetNumRbPerRbg(m_numRbPerRbg);
     mac->SetNrMacSchedSapProvider(scheduler->GetMacSchedSapProvider());
     mac->SetNrMacCschedSapProvider(scheduler->GetMacCschedSapProvider());
     scheduler->SetMacSchedSapUser(mac->GetNrMacSchedSapUser());
@@ -437,8 +444,10 @@ class NrNotchingTestSuite : public TestSuite
     NrNotchingTestSuite()
         : TestSuite("nr-test-notching", Type::UNIT)
     {
-        // We simulate BW of 10 MHz so the size of the mask is 53 RBGs
-        // considering that 1 RBG contains 1 RB
+        // The mask is expressed in RBG units and has 53 entries, which
+        // corresponds to a BW of 10 MHz when 1 RBG contains 1 RB. The RBG
+        // size itself is swept separately (per TS 38.214 Table 5.1.2.2.1-1
+        // sizes), since the notching mask granularity is always one RBG.
         // NOLINTBEGIN
         std::vector<bool> notchedMask1{0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1,
                                        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1,
@@ -452,6 +461,7 @@ class NrNotchingTestSuite : public TestSuite
         std::list<std::string> scheds = {"RR"};
         std::list<uint32_t> uesPerBeamList = {1, 2, 4, 6};
         std::list<uint32_t> beams = {1, 2};
+        std::list<uint32_t> numRbPerRbgList = {1, 2, 4, 8, 16};
 
         for (const auto& subType : subdivision)
         {
@@ -461,25 +471,31 @@ class NrNotchingTestSuite : public TestSuite
                 {
                     for (const auto& beam : beams)
                     {
-                        std::stringstream ss;
-                        std::stringstream schedName;
-                        ss << ", " << subType << " " << sched << ", " << uesPerBeam
-                           << " UE per beam, " << beam << " beam";
+                        for (const auto& numRbPerRbg : numRbPerRbgList)
+                        {
+                            std::stringstream ss;
+                            std::stringstream schedName;
+                            ss << ", " << subType << " " << sched << ", " << uesPerBeam
+                               << " UE per beam, " << beam << " beam, " << numRbPerRbg
+                               << " RB per RBG";
 
-                        schedName << "ns3::NrMacScheduler" << subType << sched;
+                            schedName << "ns3::NrMacScheduler" << subType << sched;
 
-                        AddTestCase(new NrNotchingTestCase(ss.str(),
-                                                           notchedMask1,
-                                                           schedName.str(),
-                                                           uesPerBeam,
-                                                           beam),
-                                    Duration::QUICK);
-                        AddTestCase(new NrNotchingTestCase(ss.str(),
-                                                           notchedMask2,
-                                                           schedName.str(),
-                                                           uesPerBeam,
-                                                           beam),
-                                    Duration::QUICK);
+                            AddTestCase(new NrNotchingTestCase(ss.str(),
+                                                               notchedMask1,
+                                                               schedName.str(),
+                                                               uesPerBeam,
+                                                               beam,
+                                                               numRbPerRbg),
+                                        Duration::QUICK);
+                            AddTestCase(new NrNotchingTestCase(ss.str(),
+                                                               notchedMask2,
+                                                               schedName.str(),
+                                                               uesPerBeam,
+                                                               beam,
+                                                               numRbPerRbg),
+                                        Duration::QUICK);
+                        }
                     }
                 }
             }

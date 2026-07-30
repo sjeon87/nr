@@ -258,12 +258,12 @@ class TestSchedTemporalFairnessSystem : public TestSuite
         : TestSuite("nr-test-sched-temporal-fairness", Type::SYSTEM)
     {
         // clang-format off
-        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerTdmaRR"),Duration::QUICK);
-        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerTdmaPF"), Duration::QUICK);
-        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerTdmaQos"),Duration::QUICK);
-        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerOfdmaRR"),   Duration::QUICK);
-        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerOfdmaPF"),  Duration::QUICK);
-        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerOfdmaQos"), Duration::QUICK);
+        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerTdmaRR"),  Duration::QUICK);
+        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerTdmaPF"),  Duration::QUICK);
+        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerTdmaQos"), Duration::QUICK);
+        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerOfdmaRR"), Duration::QUICK);
+        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerOfdmaPF"), Duration::QUICK);
+        AddTestCase(new SchedTemporalFairnessTestCase("ns3::NrMacSchedulerOfdmaQos"),Duration::QUICK);
         // clang-format on
     }
 };

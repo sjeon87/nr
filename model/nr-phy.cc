@@ -550,6 +550,13 @@ NrPhy::GetRbNum() const
 }
 
 uint32_t
+NrPhy::GetRbgNum() const
+{
+    const uint32_t numRbPerRbg = GetNumRbPerRbg();
+    return (GetRbNum() + numRbPerRbg - 1) / numRbPerRbg;
+}
+
+uint32_t
 NrPhy::GetChannelBandwidth() const
 {
     // m_channelBandwidth is in kHz * 100

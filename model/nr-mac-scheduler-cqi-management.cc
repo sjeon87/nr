@@ -46,7 +46,13 @@ NrMacSchedulerCQIManagement::UlSBCQIReported(
         {
             for (uint32_t k = 0; k < numRbPerRbg; ++k)
             {
-                rbAssignment[i * numRbPerRbg + k] = 1;
+                // The last RBG may contain fewer RBs than numRbPerRbg
+                const uint32_t rbIndex = i * numRbPerRbg + k;
+                if (rbIndex >= rbAssignment.size())
+                {
+                    break;
+                }
+                rbAssignment[rbIndex] = 1;
             }
         }
     }

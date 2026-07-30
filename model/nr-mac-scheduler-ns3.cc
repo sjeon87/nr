@@ -679,6 +679,12 @@ NrMacSchedulerNs3::GetNumRbPerRbg() const
     return m_macSchedSapUser->GetNumRbPerRbg();
 }
 
+uint64_t
+NrMacSchedulerNs3::GetNumRbsInLastRbg() const
+{
+    return m_macSchedSapUser->GetNumRbsInLastRbg();
+}
+
 /**
  * @brief Create a logical channel starting from a configuration
  * @param config configuration of the logical channel
@@ -2855,11 +2861,17 @@ NrMacSchedulerNs3::FitMsg3Grant(uint16_t estimatedSizeBits,
     uint8_t allocSymbols = 0;
     uint16_t tbSizeBits = 0;
 
+    // The last RBG may contain fewer RBs than the nominal RBG size when the
+    // bandwidth is not a multiple of the RBG size
+    const uint32_t nRbsPerRbg = GetNumRbPerRbg();
+    const uint32_t nRbsLastRbg = m_macSchedSapUser->GetNumRbsInLastRbg();
+    const uint32_t usablePrbs = usableRbgs * nRbsPerRbg - (nRbsPerRbg - nRbsLastRbg);
+
     // find the lowest TB size that fits UL grant estimated size
     while ((tbSizeBits < estimatedSizeBits) && (symAvail - allocSymbols > 0))
     {
         allocSymbols++;
-        const auto nprbs = usableRbgs * GetNumRbPerRbg() * allocSymbols;
+        const auto nprbs = usablePrbs * allocSymbols;
         tbSizeBits = GetUlAmc()->CalculateTbSize(m_rachUlGrantMcs, 1, nprbs) * 8;
     }
     return {allocSymbols, tbSizeBits};
@@ -3036,6 +3048,10 @@ std::vector<bool>
 NrMacSchedulerNs3::GetDlBitmask() const
 {
     auto dlNotchedRBGsMask = GetDlNotchedRbgMask();
+    NS_ABORT_MSG_IF(!dlNotchedRBGsMask.empty() && dlNotchedRBGsMask.size() != GetBandwidthInRbg(),
+                    "The DL notched mask size (" << dlNotchedRBGsMask.size()
+                                                 << ") must match the bandwidth in RBGs ("
+                                                 << GetBandwidthInRbg() << ")");
     dlNotchedRBGsMask = dlNotchedRBGsMask.empty() ? std::vector<bool>(GetBandwidthInRbg(), true)
                                                   : dlNotchedRBGsMask;
     return dlNotchedRBGsMask;
@@ -3045,6 +3061,10 @@ std::vector<bool>
 NrMacSchedulerNs3::GetUlBitmask() const
 {
     auto ulNotchedRBGsMask = GetUlNotchedRbgMask();
+    NS_ABORT_MSG_IF(!ulNotchedRBGsMask.empty() && ulNotchedRBGsMask.size() != GetBandwidthInRbg(),
+                    "The UL notched mask size (" << ulNotchedRBGsMask.size()
+                                                 << ") must match the bandwidth in RBGs ("
+                                                 << GetBandwidthInRbg() << ")");
     ulNotchedRBGsMask = ulNotchedRBGsMask.empty() ? std::vector<bool>(GetBandwidthInRbg(), true)
                                                   : ulNotchedRBGsMask;
     return ulNotchedRBGsMask;

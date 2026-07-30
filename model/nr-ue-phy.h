@@ -251,15 +251,24 @@ class NR_EXPORT NrUePhy : public NrPhy
     void SetDlCtrlSyms(uint8_t dlCtrlSyms);
 
     /**
-     * @brief Function that sets the number of RBs per RBG.
-     * This function will be soon deprecated, as soon as all the functions at
-     * gNb PHY, MAC and UE PHY that work with DCI bitmask start
-     * to work on level of RBs instead of RBGs.
-     * This function is configured by helper
+     * @brief Force a specific, non-standard number of RBs per RBG.
+     * This function is configured by the helper, with the same value forced
+     * at the gNB MAC, so both ends agree without signaling it.
      *
-     * @param numRbPerRbg Number of RBs per RBG
+     * @param numRbPerRbg Number of RBs per RBG, or 0 to derive it from the
+     * bandwidth part size per TS 38.214 Table 5.1.2.2.1-1 (the default).
      */
     void SetNumRbPerRbg(uint32_t numRbPerRbg);
+
+    /**
+     * @brief Select the RBG size column of TS 38.214 Table 5.1.2.2.1-1 used
+     * to derive the RBG size from the bandwidth part size (rbg-Size field of
+     * PDSCH-Config, TS 38.331). Signaled by the serving cell via SIB1 or
+     * handover configuration.
+     *
+     * @param rbgSizeConfig2 False for Configuration 1, true for Configuration 2.
+     */
+    void SetRbgSizeConfig2(bool rbgSizeConfig2);
 
     /**
      * @brief Set the UE pattern.
@@ -994,9 +1003,11 @@ class NR_EXPORT NrUePhy : public NrPhy
     std::unordered_map<uint8_t, uint32_t>
         m_harqIdToK1Map; //!< Map that holds the K1 delay for each Harq process id
 
-    int64_t m_numRbPerRbg{
-        -1}; //!< number of resource blocks within the channel bandwidth, this parameter is
-             //!< configured by MAC through phy SAP provider interface
+    uint32_t m_numRbPerRbg{0};    //!< forced number of RBs per RBG, configured by the helper;
+                                  //!< 0 derives it from the bandwidth part size per
+                                  //!< TS 38.214 Table 5.1.2.2.1-1
+    bool m_rbgSizeConfig2{false}; //!< rbg-Size selector of TS 38.214 Table 5.1.2.2.1-1,
+                                  //!< signaled by the serving cell
 
     SfnSf m_currentSlot;
 

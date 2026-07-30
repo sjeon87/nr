@@ -378,7 +378,7 @@ class NR_EXPORT NrUeRrc : public Object
                              const uint32_t symPerSlot,
                              const uint16_t numerology,
                              const std::string& tddPattern,
-                             const uint8_t numRbsPerRbg);
+                             const bool rbgSizeConfig2);
 
     /**
      * TracedCallback signature for imsi, cellId and rnti events.
