@@ -1184,9 +1184,9 @@ NrUePhy::DlData(const std::shared_ptr<DciInfoElementTdma>& dci)
 
     Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
 
-    if (GetRbNum() != dci->m_rbgBitmask.size())
+    if (GetRbNum() / GetNumRbPerRbg() != dci->m_rbgBitmask.size())
     {
-        NS_LOG_DEBUG("Mismatching number of RBs and RBG bitmask");
+        NS_LOG_DEBUG("Mismatching number of RBGs and RBG bitmask");
         return varTtiDuration;
     }
 
@@ -1225,7 +1225,7 @@ NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma>& dci)
     NS_LOG_FUNCTION(this);
     Time varTtiDuration = GetSymbolPeriod() * dci->m_numSym;
 
-    if (GetRbNum() != dci->m_rbgBitmask.size())
+    if (GetRbNum() / GetNumRbPerRbg() != dci->m_rbgBitmask.size())
     {
         return varTtiDuration;
     }
