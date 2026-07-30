@@ -410,6 +410,12 @@ NrUeManager::SetSource(uint16_t sourceCellId, uint16_t sourceX2apId)
     m_sourceCellId = sourceCellId;
 }
 
+uint16_t
+NrUeManager::GetSourceCellId() const
+{
+    return m_sourceCellId;
+}
+
 void
 NrUeManager::SetImsi(uint64_t imsi)
 {
@@ -1114,6 +1120,18 @@ NrUeManager::RecvUeContextRelease(NrEpcX2SapUser::UeContextReleaseParams params)
     NS_LOG_FUNCTION(this);
     NS_ASSERT_MSG(m_state == HANDOVER_LEAVING, "method unexpected in state " << ToString(m_state));
     m_handoverLeavingTimeout.Cancel();
+
+    // Source-side handover completion: the target released the UE context back to us.
+    // Report the total handover time measured from the A3 trigger, if recorded.
+    auto triggerIt = m_rrc->m_handoverTriggerTime.find(m_imsi);
+    if (triggerIt != m_rrc->m_handoverTriggerTime.end())
+    {
+        m_rrc->m_handoverTotalTimeTrace(m_imsi,
+                                        params.sourceCellId,
+                                        params.targetCellId,
+                                        Simulator::Now() - triggerIt->second);
+        m_rrc->m_handoverTriggerTime.erase(triggerIt);
+    }
 }
 
 void
@@ -1175,6 +1193,20 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
         m_state = NrUeManager::INITIAL_RANDOM_ACCESS;
         // Fall through to handle as fresh connection
     }
+    case HANDOVER_JOINING:
+        // The target gNB is awaiting the incoming handover to complete, but the UE
+        // instead sends a fresh RRC Connection Request -- this happens when the UE
+        // declared RLF instead of joining (e.g. the TR 36.839 too-late handover
+        // model) and re-selected this cell during re-establishment. Re-attaching
+        // here would re-run the full S1 InitialContextSetup for an already-attached
+        // UE and drift the MME/RRC bearer (QFI) allocation. Instead ignore the
+        // request and let the already-scheduled handover-joining timeout perform the
+        // canonical failure cleanup (fire HO_FAIL_JOINING, notify the source over X2,
+        // release the UE context); the UE falls back to IDLE and re-attaches cleanly.
+        NS_LOG_INFO("Ignoring RRC Connection Request in HANDOVER_JOINING for RNTI "
+                    << m_rnti << "; handover join will be failed by its timeout");
+        break;
+
     case INITIAL_RANDOM_ACCESS: {
         m_connectionRequestTimeout.Cancel();
 
@@ -1225,7 +1257,16 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
         break;
 
     default:
-        NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
+        // Any other (already-active) state receiving a fresh RRC Connection Request
+        // means an RLF'd UE re-selected this cell and re-attached before the gNB
+        // released its context -- e.g. mid-reconfiguration (CONNECTION_RECONFIGURATION)
+        // or during a handover path switch (HANDOVER_PATH_SWITCH), typically via the
+        // TR 36.839 too-late-handover RLF. As in HANDOVER_JOINING, ignore it:
+        // re-admitting would re-run S1 InitialContextSetup for an already-known UE and
+        // drift the bearer (QFI) allocation. The state's own timeout / RLF cleanup
+        // releases this context and the UE re-attaches cleanly.
+        NS_LOG_INFO("Ignoring RRC Connection Request in state " << ToString(m_state) << " for RNTI "
+                                                                << m_rnti);
         break;
     }
 }
@@ -1581,6 +1622,12 @@ NrUeManager::GetState() const
     return m_state;
 }
 
+Time
+NrUeManager::GetConnectedNormallyAt() const
+{
+    return m_connectedNormallyAt;
+}
+
 ns3::TracedCallback<uint64_t, uint16_t, uint16_t, NrUeManager::State, NrUeManager::State>
 NrUeManager::GetStateTransitionTrace() const
 {
@@ -1776,6 +1823,10 @@ NrUeManager::SwitchToState(State newState)
         break;
 
     case CONNECTED_NORMALLY: {
+        // Record when the UE became actively served by this cell (initial connection
+        // or handover completion). Used by the minimum-time-of-stay handover guard to
+        // suppress ping-pong (a UE handed in then immediately handed back out).
+        m_connectedNormallyAt = Simulator::Now();
         if (m_pendingRrcConnectionReconfiguration)
         {
             ScheduleRrcConnectionReconfiguration();
@@ -2052,6 +2103,17 @@ NrGnbRrc::GetTypeId()
                           TimeValue(MilliSeconds(200)),
                           MakeTimeAccessor(&NrGnbRrc::m_handoverJoiningTimeoutDuration),
                           MakeTimeChecker())
+            .AddAttribute("HandoverMinTimeOfStay",
+                          "Reversal-only ping-pong handover guard: a handover is suppressed "
+                          "only if it would send the UE BACK to the cell it just came from "
+                          "(the source of the handover that brought it here) less than this "
+                          "long after arriving. This breaks A->B->A oscillation -- which the "
+                          "A3 algorithm alone does not prevent when the net A3 margin is near "
+                          "zero -- without stranding a UE that genuinely needs to move forward "
+                          "(A->B->C is still allowed). 0 (the default) disables the guard.",
+                          TimeValue(MilliSeconds(0)),
+                          MakeTimeAccessor(&NrGnbRrc::m_handoverMinTimeOfStay),
+                          MakeTimeChecker())
             .AddAttribute("HandoverLeavingTimeoutDuration",
                           "After issuing a Handover Command, if neither RRC "
                           "CONNECTION RE-ESTABLISHMENT nor X2 UE Context Release has "
@@ -2149,6 +2211,12 @@ NrGnbRrc::GetTypeId()
                             "trace fired upon successful termination of a handover procedure",
                             MakeTraceSourceAccessor(&NrGnbRrc::m_handoverEndOkTrace),
                             "ns3::NrGnbRrc::ConnectionHandoverTracedCallback")
+            .AddTraceSource("HandoverTotalTime",
+                            "total time from the A3 handover trigger (condition met at the "
+                            "source gNB) to handover completion, fired at the source gNB "
+                            "on successful handover",
+                            MakeTraceSourceAccessor(&NrGnbRrc::m_handoverTotalTimeTrace),
+                            "ns3::NrGnbRrc::HandoverTotalTimeTracedCallback")
             .AddTraceSource("RecvMeasurementReport",
                             "trace fired when measurement report is received",
                             MakeTraceSourceAccessor(&NrGnbRrc::m_recvMeasurementReportTrace),
@@ -3391,6 +3459,14 @@ NrGnbRrc::DoTriggerHandover(uint16_t rnti, uint16_t targetCellId)
 {
     NS_LOG_FUNCTION(this << rnti << targetCellId);
 
+    // Stamp the A3-trigger instant (condition met at the source gNB) so the total
+    // handover time can be measured when the handover completes. This precedes the
+    // triggering delay, so that delay is included in the reported total.
+    if (HasUeManager(rnti))
+    {
+        m_handoverTriggerTime[GetUeManager(rnti)->GetImsi()] = Simulator::Now();
+    }
+
     if (m_handoverTriggeringDelay.IsStrictlyPositive())
     {
         NS_LOG_INFO("Scheduling handover for RNTI " << rnti << " to cell " << targetCellId
@@ -3451,10 +3527,36 @@ NrGnbRrc::ExecuteHandover(uint16_t rnti, uint16_t targetCellId)
                           << " state");
     }
 
+    // Reversal-only ping-pong guard: suppress a handover only if it sends the UE BACK to
+    // the cell it just came from (target == the source of the handover that brought the UE
+    // here) within HandoverMinTimeOfStay of arriving. This breaks A->B->A oscillation -- the
+    // A3 algorithm alone does not prevent it when the net A3 margin is near zero (e.g. a
+    // small/negative offset with no hysteresis) -- WITHOUT stranding a UE that genuinely needs
+    // to move forward (A->B->C is still allowed, unlike a blunt suppress-any-handover guard).
+    if (isHandoverAllowed && m_handoverMinTimeOfStay.IsStrictlyPositive() &&
+        targetCellId == ueManager->GetSourceCellId())
+    {
+        const Time timeOfStay = Simulator::Now() - ueManager->GetConnectedNormallyAt();
+        if (timeOfStay < m_handoverMinTimeOfStay)
+        {
+            isHandoverAllowed = false;
+            NS_LOG_LOGIC(this << " handover of rnti=" << rnti << " back to source cell "
+                              << targetCellId << " suppressed by reversal ping-pong guard: "
+                              << "time of stay " << timeOfStay.As(Time::MS) << " < "
+                              << m_handoverMinTimeOfStay.As(Time::MS));
+        }
+    }
+
     if (isHandoverAllowed)
     {
         // initiate handover execution
         ueManager->PrepareHandover(targetCellId);
+    }
+    else
+    {
+        // Handover was triggered but suppressed: drop the pending trigger timestamp
+        // so it does not leak or later mismatch a subsequent handover.
+        m_handoverTriggerTime.erase(ueManager->GetImsi());
     }
 }
 
@@ -3521,6 +3623,9 @@ NrGnbRrc::RemoveUe(uint16_t rnti)
     NS_ASSERT_MSG(it != m_ueMap.end(), "request to remove UE info with unknown rnti " << rnti);
     uint64_t imsi = it->second->GetImsi();
     uint16_t srsCi = (*it).second->GetSrsConfigurationIndex();
+    // Drop any pending handover-trigger timestamp for a UE that leaves without
+    // completing a handover (e.g. handover failure), so the map does not leak.
+    m_handoverTriggerTime.erase(imsi);
     // cancel pending events
     it->second->CancelPendingEvents();
     // fire trace upon connection release

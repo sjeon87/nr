@@ -58,7 +58,24 @@ NrA3RsrpHandoverAlgorithm::GetTypeId()
                           TimeValue(MilliSeconds(256)), // 3GPP time-to-trigger median value as per
                                                         // Section 6.3.5 of 3GPP TS 36.331
                           MakeTimeAccessor(&NrA3RsrpHandoverAlgorithm::m_timeToTrigger),
-                          MakeTimeChecker());
+                          MakeTimeChecker())
+            .AddAttribute("MinTargetRsrpDbm",
+                          "Target-admission floor: a neighbour is not selected as a handover "
+                          "target unless its reported RSRP is at least this level (dBm). Avoids "
+                          "handing a UE into a cell too weak to serve it (which would immediately "
+                          "radio-link-fail). -140 dBm (the default) disables the floor.",
+                          DoubleValue(-140.0),
+                          MakeDoubleAccessor(&NrA3RsrpHandoverAlgorithm::m_minTargetRsrpDbm),
+                          MakeDoubleChecker<double>(-140.0, -44.0))
+            .AddAttribute("MinTargetRsrqDb",
+                          "Interference-aware target-admission floor: a neighbour is not "
+                          "selected as a handover target unless its reported RSRQ is at least "
+                          "this level (dB). RSRQ tracks SINR/interference, so this rejects "
+                          "high-RSRP but low-SINR cells that would immediately radio-link-fail "
+                          "after a handover. -100 dB (the default) disables the floor.",
+                          DoubleValue(-100.0),
+                          MakeDoubleAccessor(&NrA3RsrpHandoverAlgorithm::m_minTargetRsrqDb),
+                          MakeDoubleChecker<double>(-100.0, -3.0));
     return tid;
 }
 
@@ -135,13 +152,28 @@ NrA3RsrpHandoverAlgorithm::DoReportUeMeas(uint16_t rnti, NrRrcSap::MeasResults m
         uint16_t bestNeighbourCellId = 0;
         uint8_t bestNeighbourRsrp = 0;
 
+        // Target-admission floors (in report range units): reject a neighbour whose RSRP
+        // is below MinTargetRsrpDbm (coverage) or whose RSRQ is below MinTargetRsrqDb
+        // (interference / SINR), so a UE is not handed into a cell too weak to serve it
+        // (which would immediately radio-link-fail). At the defaults (-140 dBm / -100 dB)
+        // both ranges are 0, so the checks never exclude anything. RSRQ is the effective
+        // signal in a dense co-channel HetNet, where the problem cells have good RSRP but
+        // low SINR.
+        const uint8_t minTargetRsrpRange =
+            nr::EutranMeasurementMapping::Dbm2RsrpRange(m_minTargetRsrpDbm);
+        const uint8_t minTargetRsrqRange =
+            nr::EutranMeasurementMapping::Db2RsrqRange(m_minTargetRsrqDb);
+
         for (auto it = measResults.measResultListEutra.begin();
              it != measResults.measResultListEutra.end();
              ++it)
         {
             if (it->haveRsrpResult)
             {
-                if ((bestNeighbourRsrp < it->rsrpResult) && IsValidNeighbour(it->physCellId))
+                if ((bestNeighbourRsrp < it->rsrpResult) &&
+                    (it->rsrpResult >= minTargetRsrpRange) &&
+                    (!it->haveRsrqResult || it->rsrqResult >= minTargetRsrqRange) &&
+                    IsValidNeighbour(it->physCellId))
                 {
                     bestNeighbourCellId = it->physCellId;
                     bestNeighbourRsrp = it->rsrpResult;

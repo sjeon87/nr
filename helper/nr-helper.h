@@ -316,6 +316,13 @@ class NR_EXPORT NrHelper : public Object
                             const NetDeviceContainer& gnbDevices);
     /**
      * @brief Attach a UE to a particular GNB
+     *
+     * If the AttachWindow attribute is non-zero the attachment is deferred, spreading
+     * successive calls over that window instead of attaching every UE at the same instant.
+     * The whole attachment is deferred as one unit, registration and connection trigger
+     * together: deferring only the connection trigger would leave the UE processing a random
+     * access response for a procedure it has not started yet.
+     *
      * @param ueDevice the UE device
      * @param gnbDevice the GNB device to which attach the UE
      */
@@ -1119,6 +1126,17 @@ class NR_EXPORT NrHelper : public Object
 
     void AttachToMaxRsrpGnb(const Ptr<NetDevice>& ueDevice, const NetDeviceContainer& gnbDevices);
 
+    /**
+     * @brief Perform the actual attachment of a UE to a GNB.
+     *
+     * Holds the body of AttachToGnb(), which either calls this directly or defers it to
+     * implement the AttachWindow staggering.
+     *
+     * @param ueDevice the UE device
+     * @param gnbDevice the GNB device to which attach the UE
+     */
+    void DoAttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gnbDevice);
+
     ObjectFactory m_gnbNetDeviceFactory;            //!< NetDevice factory for gnb
     ObjectFactory m_ueNetDeviceFactory;             //!< NetDevice factory for ue
     ObjectFactory m_channelFactory;                 //!< Channel factory
@@ -1179,6 +1197,8 @@ class NR_EXPORT NrHelper : public Object
     double m_rbOverhead;   //!< Overhead used by gNBs and UEs when calculating the usable RB number
     uint8_t m_numRbPerRbg; //!< The standard determines this via bandwidth and numerology. We are
                            //!< not prepared to handle that just yet
+    Time m_attachWindow;   //!< If non-zero, spread initial UE attachment over this window
+    uint32_t m_attachCount{0}; //!< Number of AttachToGnb() calls so far, indexes the staggering
 };
 
 } // namespace ns3

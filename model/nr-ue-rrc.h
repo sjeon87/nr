@@ -102,6 +102,24 @@ class NR_EXPORT NrUeRrc : public Object
     };
 
     /**
+     * The cause of a transition into the CONNECTED_PHY_PROBLEM state. Recorded at
+     * the instant of failure so downstream analysis does not have to infer the
+     * cause from the state-machine timeline (which conflates, e.g., a network
+     * connection release with a genuine radio link failure). Mirrors the 3GPP
+     * TR 36.839 mobility-failure taxonomy where applicable.
+     */
+    enum RadioLinkFailureCause
+    {
+        RLF_NONE = 0,        ///< not in a failure (default)
+        RLF_T310_EXPIRY,     ///< T310 ran to completion: DL stayed below Qout (genuine RLF)
+        RLF_HO_COMMAND_LATE, ///< handover command arrived while T310 active (too-late handover)
+        RLF_DURING_HANDOVER, ///< failure while in CONNECTED_HANDOVER (handover execution failure)
+        RLF_CONNECTION_RELEASE, ///< network-initiated RRC connection release (not a radio failure)
+        RLF_CONNECTION_TIMEOUT, ///< RRC connection (re)establishment/setup attempts exhausted
+        RLF_RLC_MAX_RETX ///< RLC-AM reached maxRetxThreshold (TS 38.331 5.3.10.3 RLF trigger)
+    };
+
+    /**
      * create an RRC instance for use within an ue
      *
      */
@@ -465,6 +483,28 @@ class NR_EXPORT NrUeRrc : public Object
                                                    uint16_t rnti,
                                                    uint8_t count);
 
+    /**
+     * TracedCallback signature for radio-link-failure events with cause and the
+     * timing context known at the instant of failure.
+     *
+     * @param [in] imsi UE IMSI
+     * @param [in] cellId serving cell at failure
+     * @param [in] rnti UE RNTI
+     * @param [in] oldState RRC state immediately before the failure (NrUeRrc::State value)
+     * @param [in] cause failure cause token (see ns3::ToString(NrUeRrc::RadioLinkFailureCause))
+     * @param [in] t310ElapsedMs time the DL had been below Qout (T310 elapsed), or -1 if T310 was
+     *             not running
+     * @param [in] msSinceLastHoSuccess time since this UE's last successful handover, or -1 if it
+     *             has not handed over yet
+     */
+    typedef void (*RlfCauseTracedCallback)(uint64_t imsi,
+                                           uint16_t cellId,
+                                           uint16_t rnti,
+                                           uint16_t oldState,
+                                           std::string cause,
+                                           int64_t t310ElapsedMs,
+                                           int64_t msSinceLastHoSuccess);
+
   private:
     // PDCP SAP methods
     /**
@@ -616,6 +656,38 @@ class NR_EXPORT NrUeRrc : public Object
      *          hence must be only executed during IDLE mode.
      */
     void SynchronizeToStrongestCell();
+
+    /**
+     * @brief Tune the UE to a cell and register with its MAC.
+     *
+     * Points the primary DL BWP at the given cell/ARFCN (numerology, PHY
+     * synchronization) and registers the UE MAC to the cell. Shared by the
+     * force-camp path (DoForceCampedOnGnb) and the MIB-wait reselection fallback
+     * (MibWaitReselect). Does not change the RRC state.
+     *
+     * @param cellId cell to camp on.
+     * @param arfcn ARFCN of the cell's carrier.
+     */
+    void CampOnGnb(uint16_t cellId, uint32_t arfcn);
+
+    /**
+     * @brief Arm (or re-arm) the MIB-wait reselection timer.
+     *
+     * When #m_mibWaitReselectTimeout is non-zero, schedules MibWaitReselect() to
+     * fire after that interval. Used to rescue a force-camped UE that never
+     * decodes its target cell's MIB. A no-op when the timeout is zero (disabled).
+     */
+    void ArmMibWaitReselect();
+
+    /**
+     * @brief MIB-wait timeout handler: reselect the strongest measured cell.
+     *
+     * If the UE is still in IDLE_WAIT_MIB, reselects the strongest cell it has
+     * measured (excluding cells already tried) and re-camps on it, then re-arms
+     * the timer. Mimics idle-mode cell reselection so a UE force-camped on an
+     * unreachable cell is not stuck waiting for a MIB indefinitely.
+     */
+    void MibWaitReselect();
 
     /**
      * @brief Performs cell selection evaluation to the current serving cell.
@@ -905,6 +977,13 @@ class NR_EXPORT NrUeRrc : public Object
     bool m_rlcMaxRetxTriggersRlf; ///< if true, RLC-AM max-retx declares RLF (TS 38.331 5.3.10.3)
     bool m_rlcMaxRetxRlfDeclared{
         false}; ///< guard: RLC-max-retx RLF already declared this connection
+    /// TR 36.839 (5.3.2) handover-failure model: fail the handover if the HO
+    /// command arrives while the source link is below Qout (T310 running).
+    bool m_tr36839HandoverFailure{false};
+    /// Graded threshold for the above: a late HO command is only failed if T310
+    /// has been running for at least this long; otherwise the command rescues the
+    /// link. 0 ms = original binary behaviour. @see Tr36839HoFailureMinT310Elapsed
+    Time m_tr36839HoFailureMinT310Elapsed{MilliSeconds(0)};
 
     /**
      * @brief Set whether RRC connection reestablishment is enabled.
@@ -997,6 +1076,14 @@ class NR_EXPORT NrUeRrc : public Object
      * procedure. Exporting IMSI, cell ID, and RNTI.
      */
     TracedCallback<uint64_t, uint16_t, uint16_t> m_handoverEndErrorTrace;
+    /**
+     * The `RadioLinkFailureCause` trace source. Fired at the instant the UE
+     * enters CONNECTED_PHY_PROBLEM, carrying the cause and timing context.
+     * Exporting IMSI, cellId, RNTI, oldState, cause token, T310-elapsed ms, and
+     * ms since the last successful handover.
+     */
+    TracedCallback<uint64_t, uint16_t, uint16_t, uint16_t, std::string, int64_t, int64_t>
+        m_radioLinkFailureCauseTrace;
     /**
      * The `SCarrierConfigured` trace source. Fired after the configuration
      * of secondary carriers received through RRC Connection Reconfiguration
@@ -1414,6 +1501,35 @@ class NR_EXPORT NrUeRrc : public Object
                                      ///< the gNB
 
     uint8_t m_connEstFailCount; ///< the counter to count T300 timer expiration
+
+    Time m_lastHoSuccessTime{
+        Seconds(0)}; ///< time of this UE's last successful handover (HandoverEndOk);
+                     ///< Seconds(0) means it has not handed over yet
+
+    // Mobility State Estimation (TR 36.839 / TS 36.331 5.5.6.2, TS 36.304 5.2.4.3). When
+    // enabled, the UE counts its recent handovers over a sliding window to classify itself
+    // as Normal/Medium/High mobility and scales the measurement time-to-trigger accordingly,
+    // so a fast UE does not chase a small cell's transient peak (or fails to hand over in time).
+    bool m_mseEnable{false};             ///< enable Mobility State Estimation
+    Time m_mseCountWindow{Seconds(1)};   ///< sliding window over which handovers are counted
+    Time m_mseHystNormal{Seconds(1)};    ///< keep the elevated state at least this long
+    uint32_t m_mseThreshMedium{2};       ///< handover count for Medium mobility
+    uint32_t m_mseThreshHigh{4};         ///< handover count for High mobility
+    double m_mseSfMedium{1.0};           ///< TTT scale factor in Medium mobility
+    double m_mseSfHigh{1.0};             ///< TTT scale factor in High mobility
+    std::list<Time> m_mseHandoverTimes;  ///< completion times of recent handovers
+    double m_mseTttScaleFactor{1.0};     ///< current TTT scale factor (Normal = 1.0)
+    Time m_mseElevatedUntil{Seconds(0)}; ///< hysteresis: hold >= current elevated state until here
+    double m_mseFixedScale{
+        0.0}; ///< if >0, apply this TTT scale from t=0 (bypass handover counting)
+    /// Re-estimate the mobility state from recent handover count and update the TTT scale factor.
+    void UpdateMobilityState();
+    /// Current time-to-trigger scale factor: the fixed override if set, else the mobility-state
+    /// estimate (MseEnable), else 1.0.
+    double GetTttScale();
+
+    RadioLinkFailureCause m_rlfCause{
+        RLF_NONE}; ///< cause of the most recent CONNECTED_PHY_PROBLEM entry
     /**
      * @brief Radio link failure detected function
      *
@@ -1423,8 +1539,25 @@ class NR_EXPORT NrUeRrc : public Object
      * in an ideal way since there is no radio link failure detection
      * implemented at the eNodeB. If the deletion process is not synchronous,
      * then errors occur due to triggering of assert messages.
+     *
+     * @param cause why the failure was declared (RLF_T310_EXPIRY when invoked by the
+     *        expiring T310 timer, RLF_HO_COMMAND_LATE when invoked because a handover
+     *        command arrived while T310 was already running)
      */
-    void RadioLinkFailureDetected();
+    void RadioLinkFailureDetected(RadioLinkFailureCause cause = RLF_T310_EXPIRY);
+
+    /**
+     * @brief Single entry point for transitioning into CONNECTED_PHY_PROBLEM.
+     *
+     * Captures the failure cause and the timing context known at this instant
+     * (how long the DL had been below Qout, and how long since the last
+     * successful handover), fires the RadioLinkFailureCause trace, then performs
+     * the state switch. All sites that move the UE into CONNECTED_PHY_PROBLEM go
+     * through here so the recorded cause is authoritative.
+     *
+     * @param cause the failure cause to record
+     */
+    void EnterPhyProblemState(RadioLinkFailureCause cause);
 
     /**
      * @brief Callback target invoked when one of this UE's RLC-AM entities reaches
@@ -1556,6 +1689,19 @@ class NR_EXPORT NrUeRrc : public Object
      * Maximum expected duration of one full RACH procedure.
      */
     Time m_rachLockDuration{MilliSeconds(120)};
+
+    // IDLE_WAIT_MIB reselection fallback
+    /** If non-zero, a force-camped UE that receives no MIB within this time
+     *  reselects the strongest measured cell (0 = disabled, wait forever). */
+    Time m_mibWaitReselectTimeout{Seconds(0)};
+    /** Maximum number of cells tried during MIB-wait reselection. */
+    uint32_t m_mibWaitReselectMaxAttempts{8};
+    /** Pending MIB-wait reselection timer. */
+    EventId m_mibWaitTimeoutEvent;
+    /** MIB-wait reselection attempts made since the current camp started. */
+    uint32_t m_mibWaitAttempts{0};
+    /** Cells already tried during the current MIB-wait reselection sequence. */
+    std::set<uint16_t> m_mibCampTried;
     /**
      * @brief Clears the RACH (Random Access Channel) lock state for the UE
      *
@@ -1583,6 +1729,13 @@ class NR_EXPORT NrUeRrc : public Object
  * @return string value of the state
  */
 NR_EXPORT const std::string ToString(NrUeRrc::State state);
+/**
+ * Converts NrUeRrc::RadioLinkFailureCause to a stable upper-case token
+ * (e.g. "T310_EXPIRY"), used for logging and database storage.
+ * @param cause enum value of the failure cause
+ * @return string token for the cause
+ */
+NR_EXPORT std::string ToString(NrUeRrc::RadioLinkFailureCause cause);
 /**
  * Prints to the output stream the NrUeRrc::State
  * @param os output stream

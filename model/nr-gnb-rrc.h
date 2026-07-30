@@ -124,6 +124,13 @@ class NR_EXPORT NrUeManager : public Object
     void SetSource(uint16_t sourceCellId, uint16_t sourceX2apId);
 
     /**
+     * @return the cell ID the UE came from when it joined this cell via handover
+     *         (0 if the UE attached directly rather than via handover); used by the
+     *         reversal (ping-pong) handover guard
+     */
+    uint16_t GetSourceCellId() const;
+
+    /**
      * Set the IMSI
      *
      * @param imsi the IMSI
@@ -418,6 +425,13 @@ class NR_EXPORT NrUeManager : public Object
     State GetState() const;
 
     /**
+     * @return the simulation time at which the UE last entered CONNECTED_NORMALLY
+     *         (initial connection or handover completion) on this cell; used by the
+     *         minimum-time-of-stay handover guard
+     */
+    Time GetConnectedNormallyAt() const;
+
+    /**
      * Get the state transition trace source.
      *
      * @return the trace source
@@ -596,6 +610,9 @@ class NR_EXPORT NrUeManager : public Object
     Ptr<NrGnbRrc> m_rrc;
     /// The current NrUeManager state.
     State m_state;
+    /// Time the UE last entered CONNECTED_NORMALLY on this cell (initial connection or
+    /// handover completion); used by the minimum-time-of-stay handover guard.
+    Time m_connectedNormallyAt{Seconds(0)};
 
     NrPdcpSapUser* m_drbPdcpSapUser; ///< DRB PDCP SAP user
 
@@ -1215,6 +1232,19 @@ class NR_EXPORT NrGnbRrc : public Object
                                                   const uint16_t cellId);
 
     /**
+     * TracedCallback signature for total handover time events.
+     *
+     * @param [in] imsi
+     * @param [in] sourceCellId
+     * @param [in] targetCellId
+     * @param [in] totalTime time from the A3 trigger to handover completion
+     */
+    typedef void (*HandoverTotalTimeTracedCallback)(uint64_t imsi,
+                                                    uint16_t sourceCellId,
+                                                    uint16_t targetCellId,
+                                                    Time totalTime);
+
+    /**
      * TracedCallback signature for X2-U forwarded data drop events.
      *
      * @param [in] sourceCellId the cell that forwarded the packet over X2-U
@@ -1810,6 +1840,19 @@ class NR_EXPORT NrGnbRrc : public Object
      */
     Time m_handoverJoiningTimeoutDuration;
     /**
+     * The `HandoverMinTimeOfStay` attribute. Reversal-only ping-pong guard window: a
+     * handover back to the cell the UE just came from is suppressed if it occurs less
+     * than this long after the UE arrived. 0 disables the guard.
+     */
+    Time m_handoverMinTimeOfStay{MilliSeconds(0)};
+    /**
+     * A3 handover-trigger instant per IMSI, stamped when the source gNB's handover
+     * algorithm requests a handover and cleared on completion, suppression, or UE
+     * removal. Used to compute the total handover time reported by the
+     * `HandoverTotalTime` trace source.
+     */
+    std::map<uint64_t, Time> m_handoverTriggerTime;
+    /**
      * The `HandoverLeavingTimeoutDuration` attribute. After issuing a Handover
      * Command, if neither RRC CONNECTION RE-ESTABLISHMENT nor X2 UE Context
      * Release has been previously received, the UE context is destroyed.
@@ -1841,6 +1884,14 @@ class NR_EXPORT NrGnbRrc : public Object
      * handover procedure. Exporting IMSI, cell ID, and RNTI.
      */
     TracedCallback<uint64_t, uint16_t, uint16_t> m_handoverEndOkTrace;
+    /**
+     * The `HandoverTotalTime` trace source. Fired at the source gNB upon successful
+     * handover completion, reporting the total time from the A3 trigger (the instant
+     * the source gNB's handover algorithm requested the handover) to completion (the
+     * source releasing the UE context). Exporting IMSI, source cell ID, target cell
+     * ID, and the total handover time.
+     */
+    TracedCallback<uint64_t, uint16_t, uint16_t, Time> m_handoverTotalTimeTrace;
     /**
      * The `RecvMeasurementReport` trace source. Fired when measurement report is
      * received. Exporting IMSI, cell ID, and RNTI.
