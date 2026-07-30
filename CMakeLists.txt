@@ -225,6 +225,7 @@ set(source_files
     utils/distance-based-three-gpp-spectrum-propagation-loss-model.cc
     utils/fast-fading-constant-position-mobility-model.cc
     utils/parse-string-to-vector.cc
+    utils/random-direction-disc-2d-mobility-model.cc
     utils/traffic-generators/helper/traffic-generator-helper.cc
     utils/traffic-generators/helper/xr-traffic-mixer-helper.cc
     utils/traffic-generators/model/traffic-generator-3gpp-audio-data.cc
@@ -442,6 +443,7 @@ set(header_files
     utils/fast-fading-constant-position-mobility-model.h
     utils/nr-json.hpp
     utils/parse-string-to-vector.h
+    utils/random-direction-disc-2d-mobility-model.h
     utils/traffic-generators/helper/traffic-generator-helper.h
     utils/traffic-generators/helper/xr-traffic-mixer-helper.h
     utils/traffic-generators/model/traffic-generator-3gpp-audio-data.h
@@ -542,6 +544,7 @@ set(test_sources
     test/nr-test-cell-individual-offset.cc
     test/nr-test-cell-selection-with-rlf.cc
     test/nr-test-attach-window.cc
+    test/nr-test-random-direction-disc-2d-mobility.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover

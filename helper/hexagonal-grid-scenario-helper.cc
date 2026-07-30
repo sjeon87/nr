@@ -10,6 +10,7 @@
 #include "ns3/hexagonal-wraparound-model.h"
 #include "ns3/mobility-helper.h"
 #include "ns3/random-direction-2d-mobility-model.h"
+#include "ns3/random-direction-disc-2d-mobility-model.h"
 #include "ns3/rectangle.h"
 #include "ns3/string.h"
 
@@ -557,20 +558,20 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         mobility.Install(m_picoBs);
     }
 
-    // To allocate UEs, I need the center of the hexagonal cell.
-    // Allocate UE around the disk of radius isd/3, the diameter of a the
-    // hexagon representing the footprint of a single sector.
-    // Reduce this radius by the min BS-UT distance, to respect that standoff
-    // at the one corner of the sector hexagon where the sector antenna lies.
-    // This results in UTs uniformly distributed in a disc centered on
-    // the sector hexagon; there are no UTs near the vertices of the hexagon.
-    // Spread UEs inside the inner hexagonal radius
-    // Need to weight r to get uniform in the sector hexagon
-    // See https://stackoverflow.com/questions/5837572
-    // Set max = radius^2 here, then take sqrt below
-    const double outerR = m_hexagonalRadius * std::sqrt(3) / 2 - m_minBsUtDistance;
+    // UE placement.
+    //
+    // Two modes are supported:
+    //   * Disc mode (m_ueDiscRadius > 0, used by the TR 36.839 no-wraparound layout):
+    //     UEs are sampled uniformly in a disc of radius m_ueDiscRadius around the
+    //     central site. sqrt(U(0, R^2)) gives a uniform radial sample inside the disc;
+    //     the angle is uniform in [-pi, pi]. Mobility is bounded by the same circle via
+    //     RandomDirectionDisc2dMobilityModel, so placement and movement region agree.
+    //   * Sector mode (default): UEs are sampled around each per-sector hexagon, with a
+    //     minimum BS-UT standoff, then rejection-sampled against m_maxUeDistanceToClosestSite.
+    const double sectorOuterR = m_hexagonalRadius * std::sqrt(3) / 2 - m_minBsUtDistance;
+    const double sampleR = (m_ueDiscRadius > 0.0) ? m_ueDiscRadius : sectorOuterR;
     m_r->SetAttribute("Min", DoubleValue(0));
-    m_r->SetAttribute("Max", DoubleValue(outerR * outerR));
+    m_r->SetAttribute("Max", DoubleValue(sampleR * sampleR));
     m_theta->SetAttribute("Min", DoubleValue(-1.0 * M_PI));
     m_theta->SetAttribute("Max", DoubleValue(M_PI));
 
@@ -588,29 +589,40 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         Vector cellCenterPos = bsCenterVector->GetNext();
         Vector utPos;
 
-        Vector closestSitePosition = GetClosestSitePosition(cellCenterPos, sitePosVector);
-
-        double distance2DToClosestSite = 0;
-
-        // We do not want to take into account the positions that are in the part of the
-        // disk that is far away from the closest site.
-        // To determine whether the position is far away we use
-        // parameter max distance to closest site.
-        uint16_t sanityCounter = 0;
-        do
+        if (m_ueDiscRadius > 0.0)
         {
-            NS_ABORT_MSG_IF(sanityCounter++ > 1000,
-                            "Algorithm needs too many trials to find correct UE position. Please "
-                            "check parameters.");
+            // Disc mode: place uniformly in the disc around the central site.
             double d = std::sqrt(m_r->GetValue());
             double t = m_theta->GetValue();
-            utPos = cellCenterPos;
-            utPos.x += d * cos(t);
-            utPos.y += d * sin(t);
-            double d_x = utPos.x - closestSitePosition.x;
-            double d_y = utPos.y - closestSitePosition.y;
-            distance2DToClosestSite = sqrt(d_x * d_x + d_y * d_y);
-        } while (distance2DToClosestSite > m_maxUeDistanceToClosestSite);
+            utPos = m_centralPos;
+            utPos.x += d * std::cos(t);
+            utPos.y += d * std::sin(t);
+        }
+        else
+        {
+            Vector closestSitePosition = GetClosestSitePosition(cellCenterPos, sitePosVector);
+            double distance2DToClosestSite = 0;
+
+            // We do not want to take into account the positions that are in the part of the
+            // disk that is far away from the closest site.
+            // To determine whether the position is far away we use
+            // parameter max distance to closest site.
+            uint16_t sanityCounter = 0;
+            do
+            {
+                NS_ABORT_MSG_IF(sanityCounter++ > 1000,
+                                "Algorithm needs too many trials to find correct UE position. "
+                                "Please check parameters.");
+                double d = std::sqrt(m_r->GetValue());
+                double t = m_theta->GetValue();
+                utPos = cellCenterPos;
+                utPos.x += d * cos(t);
+                utPos.y += d * sin(t);
+                double d_x = utPos.x - closestSitePosition.x;
+                double d_y = utPos.y - closestSitePosition.y;
+                distance2DToClosestSite = sqrt(d_x * d_x + d_y * d_y);
+            } while (distance2DToClosestSite > m_maxUeDistanceToClosestSite);
+        }
 
         if (numUesWithRandomUtHeight > 0)
         {
@@ -661,25 +673,51 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
         }
         else if (mobilityModel == "ns3::RandomDirection2dMobilityModel")
         {
-            ueMobility.SetMobilityModel(mobilityModel,
-                                        "Bounds",
-                                        RectangleValue(outdoorBoundingBox));
+            // In disc mode use the TR 36.839 style circular boundary
+            // (RandomDirectionDisc2dMobilityModel), otherwise fall back to the legacy
+            // rectangle-bounded model and the gNB-derived bounding box.
+            if (m_ueDiscRadius > 0.0)
+            {
+                ueMobility.SetMobilityModel("ns3::RandomDirectionDisc2dMobilityModel",
+                                            "CenterX",
+                                            DoubleValue(m_centralPos.x),
+                                            "CenterY",
+                                            DoubleValue(m_centralPos.y),
+                                            "Radius",
+                                            DoubleValue(m_ueDiscRadius));
+            }
+            else
+            {
+                ueMobility.SetMobilityModel(mobilityModel,
+                                            "Bounds",
+                                            RectangleValue(outdoorBoundingBox));
+            }
             ueMobility.SetPositionAllocator(utPosVector);
             ueMobility.Install(m_ut);
             std::stringstream ss;
             ss << "ns3::ConstantRandomVariable[Constant=" << indoorUeSpeed.GetLength() << "]";
-            // Set bounding boxes and velocity for indoor and outdoor UEs
+            // Set bounding boxes and velocity for indoor and outdoor UEs. The cast must
+            // match whichever model was actually installed above (disc vs rectangle).
             for (uint32_t i = 0; i < indoorUes.GetN(); i++)
             {
                 auto uePos = indoorUes.Get(i)->GetObject<MobilityModel>()->GetPosition();
-                auto indoorUeBoundingBox =
-                    Rectangle(uePos.x - 100, uePos.x + 100, uePos.y - 100, uePos.y + 100);
-                indoorUes.Get(i)->GetObject<RandomDirection2dMobilityModel>()->SetAttribute(
-                    "Bounds",
-                    RectangleValue(indoorUeBoundingBox));
-                indoorUes.Get(i)->GetObject<RandomDirection2dMobilityModel>()->SetAttribute(
-                    "Speed",
-                    StringValue(ss.str()));
+                if (m_ueDiscRadius > 0.0)
+                {
+                    auto m = indoorUes.Get(i)->GetObject<RandomDirectionDisc2dMobilityModel>();
+                    // Indoor disc is a 100-m circle around the UE's initial position.
+                    m->SetAttribute("CenterX", DoubleValue(uePos.x));
+                    m->SetAttribute("CenterY", DoubleValue(uePos.y));
+                    m->SetAttribute("Radius", DoubleValue(100.0));
+                    m->SetAttribute("Speed", StringValue(ss.str()));
+                }
+                else
+                {
+                    auto m = indoorUes.Get(i)->GetObject<RandomDirection2dMobilityModel>();
+                    auto indoorBox =
+                        Rectangle(uePos.x - 100, uePos.x + 100, uePos.y - 100, uePos.y + 100);
+                    m->SetAttribute("Bounds", RectangleValue(indoorBox));
+                    m->SetAttribute("Speed", StringValue(ss.str()));
+                }
             }
             // stringstream::clear() only resets the error flags; str("") empties the
             // buffer. With clear() alone the outdoor spec was appended after the
@@ -689,9 +727,18 @@ HexagonalGridScenarioHelper::CreateScenarioWithMobility(const Vector& indoorUeSp
             ss << "ns3::ConstantRandomVariable[Constant=" << outdoorUeSpeed.GetLength() << "]";
             for (uint32_t i = 0; i < outdoorUes.GetN(); i++)
             {
-                outdoorUes.Get(i)->GetObject<RandomDirection2dMobilityModel>()->SetAttribute(
-                    "Speed",
-                    StringValue(ss.str()));
+                if (m_ueDiscRadius > 0.0)
+                {
+                    outdoorUes.Get(i)
+                        ->GetObject<RandomDirectionDisc2dMobilityModel>()
+                        ->SetAttribute("Speed", StringValue(ss.str()));
+                }
+                else
+                {
+                    outdoorUes.Get(i)->GetObject<RandomDirection2dMobilityModel>()->SetAttribute(
+                        "Speed",
+                        StringValue(ss.str()));
+                }
             }
         }
         else if (mobilityModel == "ns3::FastFadingConstantPositionMobilityModel")
@@ -755,5 +802,27 @@ void
 HexagonalGridScenarioHelper::InstallPicoCells(bool installPicoCells)
 {
     m_installPicoCells = installPicoCells;
+}
+
+void
+HexagonalGridScenarioHelper::SetUeDiscRadius(double radius)
+{
+    NS_ASSERT_MSG(radius >= 0.0, "UE disc radius must be non-negative");
+    m_ueDiscRadius = radius;
+}
+
+uint16_t
+HexagonalGridScenarioHelper::GetNumInnerSites() const
+{
+    const uint16_t numSites = GetNumSites();
+    uint16_t inner = 0;
+    for (uint16_t i = 0; i < numSites; ++i)
+    {
+        if (siteDistances.at(i) <= 1.0)
+        {
+            ++inner;
+        }
+    }
+    return inner;
 }
 } // namespace ns3
