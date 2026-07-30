@@ -374,7 +374,6 @@ LenaV2Utils::SetLenaV2SimulatorParameters(const double sector0AngleRad,
 
     if (operationMode == "FDD")
     {
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
     }
     if (freqScenario == 0) // NON_OVERLAPPING
     {
@@ -667,10 +666,6 @@ LenaV2Utils::SetLenaV2SimulatorParameters(const double sector0AngleRad,
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                  UintegerValue(bwpIdForLowLat));
 
-    // Ue routing between Bearer and bandwidth part
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                UintegerValue(bwpIdForLowLat));
-
     /*
      * We miss many other parameters. By default, not configuring them is equivalent
      * to use the default values. Please, have a look at the documentation to see
@@ -747,7 +742,6 @@ LenaV2Utils::SetLenaV2SimulatorParameters(const double sector0AngleRad,
         auto uePhySecond{uePhyFirst};
         if (operationMode == "FDD")
         {
-            NrHelper::GetBwpManagerUe(*nd)->SetOutputLink(0, 1);
             uePhySecond = NrHelper::GetUePhy(*nd, 1);
             uePhySecond->SetUplinkPowerControl(uePhyFirst->GetUplinkPowerControl());
         }

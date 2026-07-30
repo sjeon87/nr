@@ -5,6 +5,7 @@
 #include "nr-gnb-net-device.h"
 
 #include "bandwidth-part-gnb.h"
+#include "bwp-manager-algorithm.h"
 #include "bwp-manager-gnb.h"
 #include "nr-gnb-component-carrier-manager.h"
 #include "nr-gnb-mac.h"
@@ -277,6 +278,39 @@ NrGnbNetDevice::ConfigureCell()
                 bwpManager->SetOutputLink(cc.first, dlCcIt->first);
             }
         }
+    }
+
+    // Advertise the QoS flow to BWP mapping to UEs in dedicated RRC config, by
+    // carrier ARFCN (BWP indices need not coincide between gNB and UE)
+    if (bwpManager)
+    {
+        auto algo = DynamicCast<const BwpManagerAlgorithmStatic>(bwpManager->GetAlgorithm());
+        if (algo)
+        {
+            std::map<uint8_t, uint32_t> qosFlowToBwpArfcn;
+            for (const auto& [fiveQi, bwpIndex] : algo->GetBwpMap())
+            {
+                if (bwpIndex != BwpManagerAlgorithm::NO_BWP_ASSIGNED && bwpIndex < m_ccMap.size())
+                {
+                    qosFlowToBwpArfcn[fiveQi] = GetBwpArfcn(bwpIndex);
+                }
+            }
+            m_rrc->SetQosFlowToBwpArfcn(qosFlowToBwpArfcn);
+        }
+
+        // Pair each DL carrier with the UL carrier that receives for it by
+        // inverting the output links (UL-only source -> DL target), so UEs
+        // learn the UL pairing of every DL-only carrier over RRC, including
+        // manually paired mixed TDD/FDD carrier aggregation setups
+        std::map<uint32_t, uint32_t> ulCarrierPairing;
+        for (const auto& [sourceBwp, outputBwp] : bwpManager->GetOutputLinks())
+        {
+            if (m_ccMap.count(outputBwp) && !m_ccMap.at(sourceBwp)->GetPhy()->HasDlSlot())
+            {
+                ulCarrierPairing[GetBwpArfcn(outputBwp)] = GetBwpArfcn(sourceBwp);
+            }
+        }
+        m_rrc->SetUlCarrierPairing(ulCarrierPairing);
     }
 
     m_rrc->ConfigureCell(m_ccMap);

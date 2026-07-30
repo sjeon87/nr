@@ -212,6 +212,23 @@ NrRrcHeaderTestCase::CreateRadioResourceConfigDedicated()
 
     rrd.physicalConfigDedicated = physicalConfigDedicated;
 
+    NrRrcSap::BwpConfig bwpConfig;
+    bwpConfig.arfcn = 2079165;
+    bwpConfig.config.numerology = 1;
+    bwpConfig.config.ulNumerology = 0;
+    bwpConfig.config.ulCarrierFreq = 2082915;
+    bwpConfig.config.symbolsPerSlot = 14;
+    bwpConfig.config.dlCtrlSymsNum = 1;
+    bwpConfig.config.ulCtrlSymsNum = 1;
+    bwpConfig.config.tddPattern = "DL|DL|DL|DL|DL|DL|DL|DL|DL|DL|";
+    bwpConfig.config.rbgSize = 2;
+    rrd.bwpConfigList.push_back(bwpConfig);
+
+    NrRrcSap::QosFlowToBwp qosFlowToBwp;
+    qosFlowToBwp.fiveQi = 2;
+    qosFlowToBwp.bwpArfcn = 2082915;
+    rrd.qosFlowToBwpList.push_back(qosFlowToBwp);
+
     return rrd;
 }
 
@@ -337,6 +354,53 @@ NrRrcHeaderTestCase::AssertEqualRadioResourceConfigDedicated(
                                   rrcd2.physicalConfigDedicated.pdschConfigDedicated.pa,
                                   "pdschConfigDedicated.pa");
         }
+    }
+
+    NS_TEST_ASSERT_MSG_EQ(rrcd1.bwpConfigList.size(),
+                          rrcd2.bwpConfigList.size(),
+                          "BwpConfigList different sizes");
+
+    auto bwpIt1 = rrcd1.bwpConfigList.begin();
+    auto bwpIt2 = rrcd2.bwpConfigList.begin();
+    for (; bwpIt1 != rrcd1.bwpConfigList.end(); bwpIt1++, bwpIt2++)
+    {
+        NS_TEST_ASSERT_MSG_EQ(bwpIt1->arfcn, bwpIt2->arfcn, "bwpConfig.arfcn");
+        NS_TEST_ASSERT_MSG_EQ(+bwpIt1->config.numerology,
+                              +bwpIt2->config.numerology,
+                              "bwpConfig.config.numerology");
+        NS_TEST_ASSERT_MSG_EQ(+bwpIt1->config.ulNumerology,
+                              +bwpIt2->config.ulNumerology,
+                              "bwpConfig.config.ulNumerology");
+        NS_TEST_ASSERT_MSG_EQ(bwpIt1->config.ulCarrierFreq,
+                              bwpIt2->config.ulCarrierFreq,
+                              "bwpConfig.config.ulCarrierFreq");
+        NS_TEST_ASSERT_MSG_EQ(+bwpIt1->config.symbolsPerSlot,
+                              +bwpIt2->config.symbolsPerSlot,
+                              "bwpConfig.config.symbolsPerSlot");
+        NS_TEST_ASSERT_MSG_EQ(+bwpIt1->config.dlCtrlSymsNum,
+                              +bwpIt2->config.dlCtrlSymsNum,
+                              "bwpConfig.config.dlCtrlSymsNum");
+        NS_TEST_ASSERT_MSG_EQ(+bwpIt1->config.ulCtrlSymsNum,
+                              +bwpIt2->config.ulCtrlSymsNum,
+                              "bwpConfig.config.ulCtrlSymsNum");
+        NS_TEST_ASSERT_MSG_EQ(bwpIt1->config.tddPattern,
+                              bwpIt2->config.tddPattern,
+                              "bwpConfig.config.tddPattern");
+        NS_TEST_ASSERT_MSG_EQ(+bwpIt1->config.rbgSize,
+                              +bwpIt2->config.rbgSize,
+                              "bwpConfig.config.rbgSize");
+    }
+
+    NS_TEST_ASSERT_MSG_EQ(rrcd1.qosFlowToBwpList.size(),
+                          rrcd2.qosFlowToBwpList.size(),
+                          "QosFlowToBwpList different sizes");
+
+    auto qosIt1 = rrcd1.qosFlowToBwpList.begin();
+    auto qosIt2 = rrcd2.qosFlowToBwpList.begin();
+    for (; qosIt1 != rrcd1.qosFlowToBwpList.end(); qosIt1++, qosIt2++)
+    {
+        NS_TEST_ASSERT_MSG_EQ(+qosIt1->fiveQi, +qosIt2->fiveQi, "qosFlowToBwp.fiveQi");
+        NS_TEST_ASSERT_MSG_EQ(qosIt1->bwpArfcn, qosIt2->bwpArfcn, "qosFlowToBwp.bwpArfcn");
     }
 }
 

@@ -147,6 +147,16 @@ BwpManagerUe::ClearOutputLinks()
     m_explicitOutputLinks.clear();
 }
 
+void
+BwpManagerUe::SetBwpForQosFlow(uint8_t fiveQi, uint8_t bwpIndex)
+{
+    NS_LOG_FUNCTION(this);
+    auto algo = DynamicCast<BwpManagerAlgorithmStatic>(m_algorithm);
+    NS_ABORT_MSG_IF(algo == nullptr,
+                    "SetBwpForQosFlow requires a BwpManagerAlgorithmStatic algorithm");
+    algo->SetBwpForQosFlow(fiveQi, bwpIndex);
+}
+
 uint8_t
 BwpManagerUe::RouteOutgoingCtrlMsg(const Ptr<NrControlMessage>& msg, uint8_t sourceBwpId) const
 {

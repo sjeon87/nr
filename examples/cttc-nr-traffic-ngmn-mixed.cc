@@ -388,13 +388,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                  UintegerValue(bwpIdForLowLat));
 
-    // Ue routing between QoS flow and bandwidth part. Whatever the direction of
-    // the application traffic, the UE transmits this flow on the uplink, which
-    // in FDD is BWP 1 (BWP 0 is the DL-only carrier)
-    uint32_t ueBwpIdForLowLat = (operationMode == "FDD") ? 1 : bwpIdForLowLat;
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                UintegerValue(ueBwpIdForLowLat));
-
     /*
      * We have configured the attributes we needed. Now, install and get the pointers
      * to the NetDevices, which contains all the NR stack:

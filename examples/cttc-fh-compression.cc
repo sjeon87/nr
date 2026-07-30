@@ -506,10 +506,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                  UintegerValue(bwpIdForLowLat));
 
-    // Ue routing between Bearer and bandwidth part
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                UintegerValue(bwpIdForLowLat));
-
     /*
      * We miss many other parameters. By default, not configuring them is equivalent
      * to use the default values. Please, have a look at the documentation to see
