@@ -138,6 +138,17 @@ class NR_EXPORT HexagonalGridScenarioHelper : public NodeDistributionScenarioInt
     void InstallPicoCells(bool installPicoCells);
 
     /**
+     * @brief Restrict picocell deployment to ring-1 sites only.
+     *
+     * Follows the 3GPP TR 36.839 no-wraparound dense-A layout: with numRings >= 1,
+     * picocells are placed only around the 6 ring-1 sites (sites at distance ISD from
+     * the central site). The central site (ring 0) and ring-2 sites get no picos.
+     *
+     * @param ringOnePicosOnly true to restrict picos to ring-1 sites.
+     */
+    void SetRingOneOnlyPicos(bool ringOnePicosOnly);
+
+    /**
      * @brief Restrict initial UE placement (and outdoor RandomDirection2d bounds) to a
      *        disc centred on the central site.
      *
@@ -188,6 +199,7 @@ class NR_EXPORT HexagonalGridScenarioHelper : public NodeDistributionScenarioInt
     bool m_installPicoCells{false};
 
     //!< Whether to place picos only on the 6 ring-1 sites (TR 36.839 no-wraparound layout)
+    bool m_ringOnePicosOnly{false};
 
     //!< When > 0, UEs are initially placed uniformly in a disc of this radius around the central
     //!< site and outdoor mobility bounds are clamped to the disc's circumscribing square.
