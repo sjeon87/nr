@@ -96,6 +96,11 @@ class NR_EXPORT NrRlcAm : public NrRlc
     void DoTransmitBufferStatusReport();
 
   private:
+    /// Grant the STATUS PDU robustness test access to private transmit window state
+    friend class NrRlcAmStaleStatusTestCase;
+    /// Grant the reassembly resynchronisation regression test access to private reassembly state
+    friend class NrRlcAmReassemblyResyncTestCase;
+
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
      */

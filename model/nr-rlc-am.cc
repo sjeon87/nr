@@ -11,6 +11,7 @@
 #include "nr-rlc-sdu-status-tag.h"
 #include "nr-rlc-tag.h"
 
+#include "ns3/abort.h"
 #include "ns3/log.h"
 #include "ns3/simulator.h"
 
@@ -1063,6 +1064,20 @@ NrRlcAm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
         ackSn.SetModulusBase(m_vtA);
         sn.SetModulusBase(m_vtA);
 
+        // A STATUS PDU is only meaningful if VT(A) <= ACK_SN <= VT(S) (TS 36.322
+        // 5.2.1). A stale one -- duplicated or reordered by HARQ, or from the old
+        // epoch after the entities were re-created at handover, aliasing in the
+        // 10-bit SN space -- can carry an ACK_SN outside the live transmit window;
+        // applying it would spuriously acknowledge (and release) PDUs the peer never
+        // received. Discard it instead.
+        if (!((m_vtA <= ackSn) && (ackSn <= m_vtS)))
+        {
+            NS_LOG_WARN("Discarding STATUS PDU with ACK_SN="
+                        << ackSn << " outside the transmit window [" << m_vtA << ", " << m_vtS
+                        << "]: stale, duplicated or reordered STATUS PDU");
+            return;
+        }
+
         bool incrementVtA = true;
 
         for (sn = m_vtA; sn < ackSn && sn < m_vtS; sn++)
@@ -1076,7 +1091,23 @@ NrRlcAm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
                 m_pollRetransmitTimer.Cancel();
             }
 
-            if (rlcAmHeader.IsNackPresent(sn))
+            // A NACK for an SN that is held in neither buffer refers to a PDU that an
+            // earlier STATUS PDU already positively acknowledged and released. It can
+            // only come from a stale or reordered STATUS PDU: there is nothing left to
+            // retransmit, so treat the SN as acknowledged (TS 36.322 5.2.1) instead of
+            // asserting or freezing VT(A) on it forever.
+            const bool isHeld =
+                m_txedBuffer.at(seqNumberValue).m_pdu || m_retxBuffer.at(seqNumberValue).m_pdu;
+
+            if (rlcAmHeader.IsNackPresent(sn) && !isHeld)
+            {
+                NS_LOG_WARN("NACK for SN=" << seqNumberValue
+                                           << ", which was already acknowledged and released "
+                                              "(stale or reordered STATUS PDU): treating the SN "
+                                              "as acknowledged");
+            }
+
+            if (rlcAmHeader.IsNackPresent(sn) && isHeld)
             {
                 NS_LOG_LOGIC("sn " << sn << " is NACKed");
 
@@ -1204,37 +1235,7 @@ NrRlcAm::ReassembleAndDeliver(Ptr<Packet> packet)
     }
 
     // Build list of SDUs
-    uint8_t extensionBit;
-    uint16_t lengthIndicator;
-    do
-    {
-        extensionBit = rlcAmHeader.PopExtensionBit();
-        NS_LOG_LOGIC("E = " << (uint16_t)extensionBit);
-
-        if (extensionBit == 0)
-        {
-            m_sdusBuffer.push_back(packet);
-        }
-        else // extensionBit == 1
-        {
-            lengthIndicator = rlcAmHeader.PopLengthIndicator();
-            NS_LOG_LOGIC("LI = " << lengthIndicator);
-
-            // Check if there is enough data in the packet
-            if (lengthIndicator >= packet->GetSize())
-            {
-                NS_LOG_LOGIC("INTERNAL ERROR: Not enough data in the packet ("
-                             << packet->GetSize() << "). Needed LI=" << lengthIndicator);
-                /// @todo What to do in this case? Discard packet and continue? Or Assert?
-            }
-
-            // Split packet in two fragments
-            Ptr<Packet> data_field = packet->CreateFragment(0, lengthIndicator);
-            packet->RemoveAtStart(lengthIndicator);
-
-            m_sdusBuffer.push_back(data_field);
-        }
-    } while (extensionBit == 1);
+    SplitDataFields(rlcAmHeader, packet, m_sdusBuffer);
 
     // Current reassembling state
     if (m_reassemblingState == WAITING_S0_FULL)
@@ -1254,362 +1255,30 @@ NrRlcAm::ReassembleAndDeliver(Ptr<Packet> packet)
     NS_LOG_LOGIC("Framing Info = " << (uint16_t)framingInfo);
     NS_LOG_LOGIC("m_sdusBuffer = " << m_sdusBuffer.size());
 
-    // Reassemble the list of SDUs (when there is no losses)
-    if (!expectedSnLost)
+    // The FI field is the transmitter's ground truth about SDU boundaries, while
+    // expectedSnLost is inferred from 10-bit SN continuity, which aliases: after a
+    // handover both RLC entities are re-created and an old-epoch PDU still in flight
+    // can be accepted by the fresh entity and later delivered in sequence at an
+    // aliased position. When the FI contradicts the reassembly state, the awaited
+    // segment was lost even though the SN looks consecutive, so the stale partial
+    // SDU is discarded rather than concatenated with unrelated data,
+    // resynchronising on the next SDU boundary.
+    const bool firstFieldContinuesSdu = ((framingInfo & NrRlcAmHeader::NO_FIRST_BYTE) != 0);
+    const bool lastFieldIsComplete = ((framingInfo & NrRlcAmHeader::NO_LAST_BYTE) == 0);
+    if (!expectedSnLost && firstFieldContinuesSdu != (m_reassemblingState == WAITING_SI_SF))
     {
-        switch (m_reassemblingState)
-        {
-        case WAITING_S0_FULL:
-            switch (framingInfo)
-            {
-            case (NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::LAST_BYTE):
-                m_reassemblingState = WAITING_S0_FULL;
-
-                /**
-                 * Deliver one or multiple PDUs
-                 */
-                for (auto it = m_sdusBuffer.begin(); it != m_sdusBuffer.end(); it++)
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(*it);
-                }
-                m_sdusBuffer.clear();
-                break;
-
-            case (NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::NO_LAST_BYTE):
-                m_reassemblingState = WAITING_SI_SF;
-
-                /**
-                 * Deliver full PDUs
-                 */
-                while (m_sdusBuffer.size() > 1)
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-
-                /**
-                 * Keep S0
-                 */
-                m_keepS0 = m_sdusBuffer.front();
-                m_sdusBuffer.pop_front();
-                break;
-
-            case (NrRlcAmHeader::NO_FIRST_BYTE | NrRlcAmHeader::LAST_BYTE):
-            case (NrRlcAmHeader::NO_FIRST_BYTE | NrRlcAmHeader::NO_LAST_BYTE):
-            default:
-                /**
-                 * ERROR: Transition not possible
-                 */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
-                break;
-            }
-            break;
-
-        case WAITING_SI_SF:
-            switch (framingInfo)
-            {
-            case (NrRlcAmHeader::NO_FIRST_BYTE | NrRlcAmHeader::LAST_BYTE):
-                m_reassemblingState = WAITING_S0_FULL;
-
-                /**
-                 * Deliver (Kept)S0 + SN
-                 */
-                m_keepS0->AddAtEnd(m_sdusBuffer.front());
-                m_sdusBuffer.pop_front();
-                m_rlcSapUser->ReceivePdcpPdu(m_keepS0);
-
-                /**
-                 * Deliver zero, one or multiple PDUs
-                 */
-                while (!m_sdusBuffer.empty())
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
-            case (NrRlcAmHeader::NO_FIRST_BYTE | NrRlcAmHeader::NO_LAST_BYTE):
-                m_reassemblingState = WAITING_SI_SF;
-
-                /**
-                 * Keep SI
-                 */
-                if (m_sdusBuffer.size() == 1)
-                {
-                    m_keepS0->AddAtEnd(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-                else // m_sdusBuffer.size () > 1
-                {
-                    /**
-                     * Deliver (Kept)S0 + SN
-                     */
-                    m_keepS0->AddAtEnd(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                    m_rlcSapUser->ReceivePdcpPdu(m_keepS0);
-
-                    /**
-                     * Deliver zero, one or multiple PDUs
-                     */
-                    while (m_sdusBuffer.size() > 1)
-                    {
-                        m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                        m_sdusBuffer.pop_front();
-                    }
-
-                    /**
-                     * Keep S0
-                     */
-                    m_keepS0 = m_sdusBuffer.front();
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
-            case (NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::LAST_BYTE):
-            case (NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::NO_LAST_BYTE):
-            default:
-                /**
-                 * ERROR: Transition not possible
-                 */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
-                break;
-            }
-            break;
-
-        default:
-            NS_LOG_LOGIC(
-                "INTERNAL ERROR: Wrong reassembling state = " << (uint32_t)m_reassemblingState);
-            break;
-        }
+        NS_LOG_WARN("SN=" << currSeqNumber
+                          << " matches the expected SN but FI=" << (uint16_t)framingInfo
+                          << " contradicts the reassembly state: resynchronising");
     }
-    else // Reassemble the list of SDUs (when there are losses, i.e. the received SN is not the
-         // expected one)
-    {
-        switch (m_reassemblingState)
-        {
-        case WAITING_S0_FULL:
-            switch (framingInfo)
-            {
-            case (NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::LAST_BYTE):
-                m_reassemblingState = WAITING_S0_FULL;
 
-                /**
-                 * Deliver one or multiple PDUs
-                 */
-                for (auto it = m_sdusBuffer.begin(); it != m_sdusBuffer.end(); it++)
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(*it);
-                }
-                m_sdusBuffer.clear();
-                break;
-
-            case (NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::NO_LAST_BYTE):
-                m_reassemblingState = WAITING_SI_SF;
-
-                /**
-                 * Deliver full PDUs
-                 */
-                while (m_sdusBuffer.size() > 1)
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-
-                /**
-                 * Keep S0
-                 */
-                m_keepS0 = m_sdusBuffer.front();
-                m_sdusBuffer.pop_front();
-                break;
-
-            case (NrRlcAmHeader::NO_FIRST_BYTE | NrRlcAmHeader::LAST_BYTE):
-                m_reassemblingState = WAITING_S0_FULL;
-
-                /**
-                 * Discard SN
-                 */
-                m_sdusBuffer.pop_front();
-
-                /**
-                 * Deliver zero, one or multiple PDUs
-                 */
-                while (!m_sdusBuffer.empty())
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
-            case (NrRlcAmHeader::NO_FIRST_BYTE | NrRlcAmHeader::NO_LAST_BYTE):
-                if (m_sdusBuffer.size() == 1)
-                {
-                    m_reassemblingState = WAITING_S0_FULL;
-                }
-                else
-                {
-                    m_reassemblingState = WAITING_SI_SF;
-                }
-
-                /**
-                 * Discard SI or SN
-                 */
-                m_sdusBuffer.pop_front();
-
-                if (!m_sdusBuffer.empty())
-                {
-                    /**
-                     * Deliver zero, one or multiple PDUs
-                     */
-                    while (m_sdusBuffer.size() > 1)
-                    {
-                        m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                        m_sdusBuffer.pop_front();
-                    }
-
-                    /**
-                     * Keep S0
-                     */
-                    m_keepS0 = m_sdusBuffer.front();
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
-            default:
-                /**
-                 * ERROR: Transition not possible
-                 */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
-                break;
-            }
-            break;
-
-        case WAITING_SI_SF:
-            switch (framingInfo)
-            {
-            case (NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::LAST_BYTE):
-                m_reassemblingState = WAITING_S0_FULL;
-
-                /**
-                 * Discard S0
-                 */
-                m_keepS0 = nullptr;
-
-                /**
-                 * Deliver one or multiple PDUs
-                 */
-                while (!m_sdusBuffer.empty())
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
-            case (NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::NO_LAST_BYTE):
-                m_reassemblingState = WAITING_SI_SF;
-
-                /**
-                 * Discard S0
-                 */
-                m_keepS0 = nullptr;
-
-                /**
-                 * Deliver zero, one or multiple PDUs
-                 */
-                while (m_sdusBuffer.size() > 1)
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-
-                /**
-                 * Keep S0
-                 */
-                m_keepS0 = m_sdusBuffer.front();
-                m_sdusBuffer.pop_front();
-
-                break;
-
-            case (NrRlcAmHeader::NO_FIRST_BYTE | NrRlcAmHeader::LAST_BYTE):
-                m_reassemblingState = WAITING_S0_FULL;
-
-                /**
-                 * Discard S0
-                 */
-                m_keepS0 = nullptr;
-
-                /**
-                 * Discard SI or SN
-                 */
-                m_sdusBuffer.pop_front();
-
-                /**
-                 * Deliver zero, one or multiple PDUs
-                 */
-                while (!m_sdusBuffer.empty())
-                {
-                    m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
-            case (NrRlcAmHeader::NO_FIRST_BYTE | NrRlcAmHeader::NO_LAST_BYTE):
-                if (m_sdusBuffer.size() == 1)
-                {
-                    m_reassemblingState = WAITING_S0_FULL;
-                }
-                else
-                {
-                    m_reassemblingState = WAITING_SI_SF;
-                }
-
-                /**
-                 * Discard S0
-                 */
-                m_keepS0 = nullptr;
-
-                /**
-                 * Discard SI or SN
-                 */
-                m_sdusBuffer.pop_front();
-
-                if (!m_sdusBuffer.empty())
-                {
-                    /**
-                     * Deliver zero, one or multiple PDUs
-                     */
-                    while (m_sdusBuffer.size() > 1)
-                    {
-                        m_rlcSapUser->ReceivePdcpPdu(m_sdusBuffer.front());
-                        m_sdusBuffer.pop_front();
-                    }
-
-                    /**
-                     * Keep S0
-                     */
-                    m_keepS0 = m_sdusBuffer.front();
-                    m_sdusBuffer.pop_front();
-                }
-                break;
-
-            default:
-                /**
-                 * ERROR: Transition not possible
-                 */
-                NS_LOG_LOGIC(
-                    "INTERNAL ERROR: Transition not possible. FI = " << (uint32_t)framingInfo);
-                break;
-            }
-            break;
-
-        default:
-            NS_LOG_LOGIC(
-                "INTERNAL ERROR: Wrong reassembling state = " << (uint32_t)m_reassemblingState);
-            break;
-        }
-    }
+    m_reassemblingState = ReassembleSdus(m_sdusBuffer,
+                                         m_keepS0,
+                                         firstFieldContinuesSdu,
+                                         lastFieldIsComplete,
+                                         !expectedSnLost)
+                              ? WAITING_SI_SF
+                              : WAITING_S0_FULL;
 }
 
 void
