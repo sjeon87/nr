@@ -78,7 +78,7 @@ CreateDirectionalBfv(const Ptr<const UniformPlanarArray>& antenna, double sector
             -2 * M_PI *
             (sin(vAngle_radian) * cos(hAngle_radian) * loc.x +
              sin(vAngle_radian) * sin(hAngle_radian) * loc.y + cos(vAngle_radian) * loc.z);
-        tempVector[ind] = (exp(std::complex<double>(0, phase)) * power);
+        tempVector[ind] = (exp(std::complex<double>(0, -phase)) * power);
     }
     return tempVector;
 }
@@ -107,7 +107,7 @@ CreateDirectionalBfvAz(const Ptr<const UniformPlanarArray>& antenna, double azim
                 -2 * M_PI *
                 (sin(vAngle_radian) * cos(hAngle_radian) * loc.x +
                  sin(vAngle_radian) * sin(hAngle_radian) * loc.y + cos(vAngle_radian) * loc.z);
-            tempVector[ind] = exp(std::complex<double>(0, phase)) * power;
+            tempVector[ind] = exp(std::complex<double>(0, -phase)) * power;
         }
     }
     return tempVector;
@@ -149,7 +149,7 @@ CreateDirectPathBfv(const Ptr<MobilityModel>& a,
         double phase = -2 * M_PI *
                        (sin(vAngleRadian) * cos(hAngleRadian) * loc.x +
                         sin(vAngleRadian) * sin(hAngleRadian) * loc.y + cos(vAngleRadian) * loc.z);
-        antennaWeights[ind] = exp(std::complex<double>(0, phase)) * power;
+        antennaWeights[ind] = exp(std::complex<double>(0, -phase)) * power;
     }
 
     return antennaWeights;
@@ -183,7 +183,8 @@ CreateKroneckerBfvImpl(const Ptr<const UniformPlanarArray>& antenna,
             continue;
         }
         auto combPhase = rowIdx * vPhasePerEl + colIdx * hPhasePerEl;
-        bfVector[elIdx] = normalizer * std::complex<double>(cos(combPhase), sin(combPhase));
+        bfVector[elIdx] =
+            normalizer * std::conj(std::complex<double>(cos(combPhase), sin(combPhase)));
     }
     return bfVector;
 }
