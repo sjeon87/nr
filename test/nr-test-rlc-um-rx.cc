@@ -108,6 +108,26 @@ DeliverUmPdu(Ptr<NrRlcUm> rlc, Ptr<Packet> pdu, Time senderTimestamp)
 }
 
 /**
+ * Deliver one single-segment PDU with the given sender timestamp to the RLC entity
+ * through the MAC SAP.
+ *
+ * @param rlc the RLC entity under test
+ * @param sn the RLC sequence number
+ * @param framingInfo the FI field
+ * @param payloadSize the payload size in bytes (used by the tests to identify the SDU)
+ * @param senderTimestamp the sender timestamp carried by the PDU
+ */
+void
+DeliverPduAt(Ptr<NrRlcUm> rlc,
+             uint16_t sn,
+             uint8_t framingInfo,
+             uint32_t payloadSize,
+             Time senderTimestamp)
+{
+    DeliverUmPdu(rlc, MakeUmPdu(sn, framingInfo, Create<Packet>(payloadSize)), senderTimestamp);
+}
+
+/**
  * Deliver one single-segment PDU to the RLC entity through the MAC SAP.
  *
  * @param rlc the RLC entity under test
@@ -118,7 +138,7 @@ DeliverUmPdu(Ptr<NrRlcUm> rlc, Ptr<Packet> pdu, Time senderTimestamp)
 void
 DeliverPdu(Ptr<NrRlcUm> rlc, uint16_t sn, uint8_t framingInfo, uint32_t payloadSize)
 {
-    DeliverUmPdu(rlc, MakeUmPdu(sn, framingInfo, Create<Packet>(payloadSize)), Simulator::Now());
+    DeliverPduAt(rlc, sn, framingInfo, payloadSize, Simulator::Now());
 }
 
 /// Size in bytes of the payload segment identified by each fill letter ('S', 'A', 'B', 'C')
@@ -1331,6 +1351,76 @@ NrRlcUmOutOfOrderDeliveryTestCase::DoRun()
 /**
  * @ingroup tests
  *
+ * @brief Regression test for the severely-delayed-PDU guard of the reordering window.
+ *
+ * A PDU delayed by more than UM_Window_Size SNs (e.g. a last-round HARQ
+ * retransmission at high rate) aliases in the 10-bit SN space to an out-of-window
+ * "new" position: the receiver used to slide the reordering window back onto it
+ * (VR(UH) = SN + 1), wholesale-discarding live in-window traffic until the stream
+ * caught up again. The newest transmission always carries the newest sender
+ * timestamp, so such a PDU must be discarded instead, while genuinely new
+ * out-of-window traffic must still slide the window forward.
+ */
+class NrRlcUmLatePduTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmLatePduTestCase()
+        : NrRlcTestCaseBase("Test RLC UM RX: severely delayed PDU must not rewind the window")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmLatePduTestCase::DoRun()
+{
+    const uint8_t fi00 = NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE;
+
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    NrRlcTestSduSink sink;
+    rlc->SetNrRlcSapUser(sink.GetSapUser());
+
+    // Receiver mid-stream, fully in sequence at SN=600.
+    rlc->m_vrUr = 600;
+    rlc->m_vrUx = 600;
+    rlc->m_vrUh = 600;
+    rlc->m_expectedSeqNumber = 600;
+
+    // In-sequence PDU SN=600, sent at t=10ms: delivered, window advances to 601.
+    DeliverPduAt(rlc, 600, fi00, 20, MilliSeconds(10));
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 1, "the in-sequence PDU must be delivered");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_vrUh.GetValue(), 601, "VR(UH) must advance to 601");
+
+    // A severely delayed PDU: SN=50 is more than 512 SNs behind, aliasing as
+    // out-of-window "new" traffic, but it was sent (t=2ms) before traffic already
+    // received. It must be discarded, not slide the window back onto SN 50.
+    DeliverPduAt(rlc, 50, fi00, 22, MilliSeconds(2));
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 1, "the severely delayed PDU must not be delivered");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_vrUh.GetValue(),
+                          601,
+                          "the reordering window must not move backwards");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_rxBuffer.size(),
+                          0,
+                          "the severely delayed PDU must not be buffered");
+
+    // Genuinely new out-of-window traffic (fresh timestamp) still slides the window.
+    DeliverPduAt(rlc, 700, fi00, 24, MilliSeconds(12));
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_vrUh.GetValue(),
+                          701,
+                          "genuinely new traffic must still slide the window forward");
+
+    Simulator::Run(); // t-Reordering flushes the SDU beyond the SN 601-699 gap
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 2, "the new out-of-window SDU must be delivered");
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.at(1)->GetSize(), 24, "SN=700 must be delivered second");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
  * @brief End-to-end data-integrity test of the RLC UM transmit and receive entities.
  *
  * A transmitting NrRlcUm segments and concatenates a set of SDUs with distinct,
@@ -1564,6 +1654,7 @@ class NrRlcUmTestSuite : public TestSuite
         AddTestCase(new NrRlcUmTxLargeSduTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcUmReorderingTimerTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcUmOutOfOrderDeliveryTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmLatePduTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcUmDataIntegrityTestCase(), Duration::QUICK);
     }
 };
