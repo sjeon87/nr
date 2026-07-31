@@ -64,8 +64,16 @@ class NR_EXPORT NrRlcUm : public NrRlc
      */
     bool IsInsideReorderingWindow(nr::SequenceNumber10 seqNumber);
 
-    /// Reassemble outside window
-    void ReassembleOutsideWindow();
+    void ReestablishRxSide() override;
+
+    /**
+     * Reassemble outside window
+     *
+     * @param tombstoneDelivered if true, keep a null entry for each delivered SN in
+     *                           the reception buffer so late duplicates are
+     *                           recognised (used by out-of-order delivery)
+     */
+    void ReassembleOutsideWindow(bool tombstoneDelivered = false);
     /**
      * Reassemble SN interval function
      *

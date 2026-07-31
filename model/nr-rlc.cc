@@ -73,11 +73,15 @@ NrRlcSpecificNrMacSapUser::ReceivePdu(NrMacSapUser::ReceivePduParameters params)
 
 NS_OBJECT_ENSURE_REGISTERED(NrRlc);
 
+/// Monotonic source of unique RLC entity identifiers (see NrRlc::m_rlcEntityId)
+static uint32_t g_rlcEntityIdCounter = 0;
+
 NrRlc::NrRlc()
     : m_rlcSapUser(nullptr),
       m_macSapProvider(nullptr),
       m_rnti(0),
-      m_lcid(0)
+      m_lcid(0),
+      m_rlcEntityId(++g_rlcEntityIdCounter)
 {
     NS_LOG_FUNCTION(this);
     m_rlcSapProvider = new NrRlcSpecificNrRlcSapProvider<NrRlc>(this);
@@ -117,6 +121,42 @@ NrRlc::DoDispose()
     NS_LOG_FUNCTION(this);
     delete (m_rlcSapProvider);
     delete (m_macSapUser);
+}
+
+void
+NrRlc::ReestablishRxSide()
+{
+    NS_LOG_FUNCTION(this);
+}
+
+bool
+NrRlc::AcceptPduFromPeerEntity(uint32_t txEntityId)
+{
+    if (txEntityId == 0)
+    {
+        return true;
+    }
+
+    if (txEntityId < m_peerRlcEntityId)
+    {
+        NS_LOG_WARN("Discarding PDU from old-epoch RLC entity "
+                    << txEntityId << " (current peer entity " << m_peerRlcEntityId << ")");
+        return false;
+    }
+
+    if (txEntityId > m_peerRlcEntityId)
+    {
+        if (m_peerRlcEntityId != 0)
+        {
+            NS_LOG_WARN("Peer RLC entity re-established (" << m_peerRlcEntityId << " -> "
+                                                           << txEntityId
+                                                           << "): re-establishing RX side");
+            ReestablishRxSide();
+        }
+        m_peerRlcEntityId = txEntityId;
+    }
+
+    return true;
 }
 
 void

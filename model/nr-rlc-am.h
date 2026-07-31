@@ -83,6 +83,8 @@ class NR_EXPORT NrRlcAm : public NrRlc
     //   void ReassembleSnLessThan (uint16_t seqNumber);
     //
 
+    void ReestablishRxSide() override;
+
     /**
      * Reassemble and deliver
      *
