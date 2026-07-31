@@ -106,6 +106,19 @@ NrRlcTmTestCase::DoRun()
                           42,
                           "transparent mode must deliver the PDU unmodified");
 
+    // MaxTxBufferSize = 0 means an unlimited buffer (consistent with NrRlcAm and
+    // NrRlcUm): nothing is dropped.
+    Ptr<NrRlcTm> unlimitedRlc = CreateObject<NrRlcTm>();
+    unlimitedRlc->SetAttribute("MaxTxBufferSize", UintegerValue(0));
+    unlimitedRlc->SetNrMacSapProvider(mac->GetNrMacSapProvider());
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        unlimitedRlc->DoTransmitPdcpPdu(Create<Packet>(1000));
+    }
+    NS_TEST_ASSERT_MSG_EQ(unlimitedRlc->m_txBuffer.size(),
+                          3,
+                          "MaxTxBufferSize = 0 must mean an unlimited Tx buffer");
+
     Simulator::Destroy();
 }
 

@@ -260,8 +260,9 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
         NS_LOG_LOGIC("RLC header: " << rlcAmHeader);
         packet->AddHeader(rlcAmHeader);
 
-        // Sender timestamp
+        // Sender timestamp and transmitting entity identity
         NrRlcTag rlcTag(Simulator::Now());
+        rlcTag.SetTxEntityId(m_rlcEntityId);
         packet->AddByteTag(rlcTag, 1, rlcAmHeader.GetSerializedSize());
         m_txPdu(m_rnti, m_lcid, packet->GetSize());
 
@@ -352,6 +353,7 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
 
                     NrRlcTag rlcTag;
                     rlcTag.SetSenderTimestamp(Simulator::Now());
+                    rlcTag.SetTxEntityId(m_rlcEntityId);
 
                     packet->AddByteTag(rlcTag, 1, rlcAmHeader.GetSerializedSize());
 
@@ -748,6 +750,7 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
 
     NrRlcTag rlcTag;
     rlcTag.SetSenderTimestamp(Simulator::Now());
+    rlcTag.SetTxEntityId(m_rlcEntityId);
 
     packet->AddHeader(rlcAmHeader);
     packet->AddByteTag(rlcTag, 1, rlcAmHeader.GetSerializedSize());
@@ -795,6 +798,14 @@ NrRlcAm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
 
     bool ret = rxPduParams.p->FindFirstMatchingByteTag(rlcTag);
     NS_ASSERT_MSG(ret, "NrRlcTag not found in RLC Header. The packet went into a real network?");
+
+    // Old-epoch PDUs of a peer entity destroyed at handover alias into the new SN
+    // space and would corrupt reassembly or the transmit window undetectably:
+    // discard them.
+    if (!AcceptPduFromPeerEntity(rlcTag.GetTxEntityId()))
+    {
+        return;
+    }
 
     delay = Simulator::Now() - rlcTag.GetSenderTimestamp();
 
@@ -1203,6 +1214,29 @@ NrRlcAm::IsInsideReceivingWindow(nr::SequenceNumber10 seqNumber)
         NS_LOG_LOGIC(seqNumber << " is OUTSIDE the receiving window");
         return false;
     }
+}
+
+void
+NrRlcAm::ReestablishRxSide()
+{
+    NS_LOG_FUNCTION(this << m_rnti << (uint32_t)m_lcid);
+
+    // TS 38.322 5.1.2: on re-establishment the RLC entity shall discard all RLC
+    // SDUs, RLC SDU segments and RLC PDUs, stop and reset all timers, and reset all
+    // state variables to their initial values (receiving side).
+    m_reorderingTimer.Cancel();
+    m_statusProhibitTimer.Cancel();
+    m_rxonBuffer.clear();
+    m_keepS0 = nullptr;
+    m_reassemblingState = WAITING_S0_FULL;
+    m_expectedSeqNumber = 0;
+    m_vrR = 0;
+    m_vrMr = m_vrR + m_windowSize;
+    m_vrX = 0;
+    m_vrMs = 0;
+    m_vrH = 0;
+    m_statusPduRequested = false;
+    m_statusPduBufferSize = 0;
 }
 
 void

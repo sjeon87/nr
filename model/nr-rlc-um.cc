@@ -49,7 +49,8 @@ NrRlcUm::GetTypeId()
             .SetGroupName("Nr")
             .AddConstructor<NrRlcUm>()
             .AddAttribute("MaxTxBufferSize",
-                          "Maximum Size of the Transmission Buffer (in Bytes)",
+                          "Maximum Size of the Transmission Buffer (in Bytes). "
+                          "If set to 0, the buffer is unlimited.",
                           UintegerValue(10 * 1024),
                           MakeUintegerAccessor(&NrRlcUm::m_maxTxBufferSize),
                           MakeUintegerChecker<uint32_t>())
@@ -99,7 +100,7 @@ void
 NrRlcUm::DoTransmitPdcpPdu(Ptr<Packet> p)
 {
     NS_LOG_FUNCTION(this << m_rnti << (uint32_t)m_lcid << p->GetSize());
-    if (m_txBufferSize + p->GetSize() <= m_maxTxBufferSize)
+    if ((m_txBufferSize + p->GetSize() <= m_maxTxBufferSize) || (m_maxTxBufferSize == 0))
     {
         if (m_enablePdcpDiscarding)
         {
@@ -418,8 +419,9 @@ NrRlcUm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
     NS_LOG_LOGIC("RLC header: " << rlcHeader);
     packet->AddHeader(rlcHeader);
 
-    // Sender timestamp
+    // Sender timestamp and transmitting entity identity
     NrRlcTag rlcTag(Simulator::Now());
+    rlcTag.SetTxEntityId(m_rlcEntityId);
     packet->AddByteTag(rlcTag, 1, rlcHeader.GetSerializedSize());
     m_txPdu(m_rnti, m_lcid, packet->GetSize());
 
@@ -462,6 +464,13 @@ NrRlcUm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
 
     delay = Simulator::Now() - rlcTag.GetSenderTimestamp();
     m_rxPdu(m_rnti, m_lcid, rxPduParams.p->GetSize(), delay.GetNanoSeconds());
+
+    // Old-epoch PDUs of a peer entity destroyed at handover alias into the new SN
+    // space and would corrupt reassembly undetectably: discard them.
+    if (!AcceptPduFromPeerEntity(rlcTag.GetTxEntityId()))
+    {
+        return;
+    }
 
     // 5.1.2.2 Receive operations
 
@@ -532,7 +541,9 @@ NrRlcUm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
 
     if (m_outOfOrderDelivery)
     {
-        ReassembleOutsideWindow();
+        // Deliver immediately, leaving tombstones so late duplicates of the
+        // delivered PDUs are recognised and not delivered twice.
+        ReassembleOutsideWindow(true);
     }
 
     // - if x falls outside of the reordering window:
@@ -723,13 +734,33 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
 }
 
 void
-NrRlcUm::ReassembleOutsideWindow()
+NrRlcUm::ReestablishRxSide()
+{
+    NS_LOG_FUNCTION(this << m_rnti << (uint32_t)m_lcid);
+
+    // TS 38.322 5.1.2: on re-establishment the RLC entity shall discard all RLC
+    // SDUs, RLC SDU segments and RLC PDUs, stop and reset all timers, and reset all
+    // state variables to their initial values.
+    m_reorderingTimer.Cancel();
+    m_rxBuffer.clear();
+    m_keepS0 = nullptr;
+    m_reassemblingState = WAITING_S0_FULL;
+    m_expectedSeqNumber = 0;
+    m_vrUr = 0;
+    m_vrUx = 0;
+    m_vrUh = 0;
+}
+
+void
+NrRlcUm::ReassembleOutsideWindow(bool tombstoneDelivered)
 {
     NS_LOG_LOGIC("Reassemble Outside Window");
 
     auto it = m_rxBuffer.lower_bound(m_vrUr.GetValue()); // First SN such that SN >= VR(UR)
 
-    while (!m_rxBuffer.empty())
+    // In tombstone mode the delivered entries stay in the buffer (as null), so the
+    // iteration must be bounded by the number of entries rather than by emptiness.
+    for (size_t remaining = m_rxBuffer.size(); remaining > 0; remaining--)
     {
         if (it == m_rxBuffer.end())
         {
@@ -744,12 +775,28 @@ NrRlcUm::ReassembleOutsideWindow()
 
         NS_LOG_LOGIC("SN = " << it->first);
 
-        // Reassemble RLC SDUs and deliver the PDCP PDU to upper layer
-        ReassembleAndDeliver(it->second);
+        // Reassemble RLC SDUs and deliver the PDCP PDU to upper layer. A null entry
+        // is a tombstone for a PDU already delivered out of order: consume it
+        // without delivering again.
+        if (it->second)
+        {
+            ReassembleAndDeliver(it->second);
+        }
 
-        auto it_tmp = it;
-        ++it;
-        m_rxBuffer.erase(it_tmp);
+        if (tombstoneDelivered)
+        {
+            // Remember the SN as received so that a duplicate of this PDU arriving
+            // later (once the SN has slid inside the reordering window, where only
+            // buffered SNs are recognised as duplicates) is not delivered twice.
+            it->second = nullptr;
+            ++it;
+        }
+        else
+        {
+            auto it_tmp = it;
+            ++it;
+            m_rxBuffer.erase(it_tmp);
+        }
     }
 
     if (it != m_rxBuffer.end())
@@ -776,8 +823,13 @@ NrRlcUm::ReassembleSnInterval(nr::SequenceNumber10 lowSeqNumber, nr::SequenceNum
             NS_LOG_LOGIC("it->second = " << it->second);
             NS_LOG_LOGIC("SN = " << it->first);
 
-            // Reassemble RLC SDUs and deliver the PDCP PDU to upper layer
-            ReassembleAndDeliver(it->second);
+            // Reassemble RLC SDUs and deliver the PDCP PDU to upper layer. A null
+            // entry is a tombstone for a PDU already delivered out of order:
+            // consume it without delivering again.
+            if (it->second)
+            {
+                ReassembleAndDeliver(it->second);
+            }
 
             m_rxBuffer.erase(it);
         }

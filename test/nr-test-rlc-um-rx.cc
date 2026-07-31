@@ -39,7 +39,6 @@
 #include "ns3/uinteger.h"
 
 #include <algorithm>
-#include <map>
 #include <set>
 #include <string>
 #include <utility>
@@ -109,26 +108,6 @@ DeliverUmPdu(Ptr<NrRlcUm> rlc, Ptr<Packet> pdu, Time senderTimestamp)
 }
 
 /**
- * Deliver one single-segment PDU with the given sender timestamp to the RLC entity
- * through the MAC SAP.
- *
- * @param rlc the RLC entity under test
- * @param sn the RLC sequence number
- * @param framingInfo the FI field
- * @param payloadSize the payload size in bytes (used by the tests to identify the SDU)
- * @param senderTimestamp the sender timestamp carried by the PDU
- */
-void
-DeliverPduAt(Ptr<NrRlcUm> rlc,
-             uint16_t sn,
-             uint8_t framingInfo,
-             uint32_t payloadSize,
-             Time senderTimestamp)
-{
-    DeliverUmPdu(rlc, MakeUmPdu(sn, framingInfo, Create<Packet>(payloadSize)), senderTimestamp);
-}
-
-/**
  * Deliver one single-segment PDU to the RLC entity through the MAC SAP.
  *
  * @param rlc the RLC entity under test
@@ -139,7 +118,7 @@ DeliverPduAt(Ptr<NrRlcUm> rlc,
 void
 DeliverPdu(Ptr<NrRlcUm> rlc, uint16_t sn, uint8_t framingInfo, uint32_t payloadSize)
 {
-    DeliverPduAt(rlc, sn, framingInfo, payloadSize, Simulator::Now());
+    DeliverUmPdu(rlc, MakeUmPdu(sn, framingInfo, Create<Packet>(payloadSize)), Simulator::Now());
 }
 
 /// Size in bytes of the payload segment identified by each fill letter ('S', 'A', 'B', 'C')
@@ -971,6 +950,20 @@ NrRlcUmTxBufferOverflowTestCase::DoRun()
                           "the Tx buffer size must only account for the stored SDUs");
     NS_TEST_ASSERT_MSG_EQ(m_dropCount, 1, "the overflowing SDU must fire the TxDrop trace once");
 
+    // MaxTxBufferSize = 0 means an unlimited buffer (consistent with NrRlcAm and
+    // NrRlcTm): nothing is dropped.
+    Ptr<NrRlcUm> unlimitedRlc = CreateObject<NrRlcUm>();
+    unlimitedRlc->SetAttribute("MaxTxBufferSize", UintegerValue(0));
+    unlimitedRlc->SetAttribute("EnablePdcpDiscarding", BooleanValue(false));
+    unlimitedRlc->SetNrMacSapProvider(mac->GetNrMacSapProvider());
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        unlimitedRlc->DoTransmitPdcpPdu(Create<Packet>(1000));
+    }
+    NS_TEST_ASSERT_MSG_EQ(unlimitedRlc->m_txBuffer.size(),
+                          3,
+                          "MaxTxBufferSize = 0 must mean an unlimited Tx buffer");
+
     Simulator::Destroy();
 }
 
@@ -1270,6 +1263,17 @@ NrRlcUmOutOfOrderDeliveryTestCase::DoRun()
                               "SN=2 must be delivered before the missing SN=1");
     });
 
+    // A duplicate of the out-of-order-delivered SN=2 (e.g. a HARQ duplicate)
+    // arrives after its SN slid inside the reordering window. It used to be
+    // re-accepted (the delivered PDU was no longer buffered) and delivered to PDCP
+    // a second time; it must be recognised and discarded.
+    Simulator::Schedule(MilliSeconds(3), [rlc]() { DeliverPdu(rlc, 2, fi00, 22); });
+    Simulator::Schedule(MilliSeconds(4), [this, &sink]() {
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(),
+                              2,
+                              "a duplicate of an out-of-order-delivered PDU must be discarded");
+    });
+
     // The late SN=1 falls inside the reordering window; it is buffered and
     // delivered when t-Reordering expires, exactly once.
     Simulator::Schedule(MilliSeconds(5), [rlc]() { DeliverPdu(rlc, 1, fi00, 21); });
@@ -1279,6 +1283,47 @@ NrRlcUmOutOfOrderDeliveryTestCase::DoRun()
     NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 3, "the late SDU must be delivered exactly once");
     NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.at(2)->GetSize(), 21, "the late SN=1 must be delivered last");
     NS_TEST_ASSERT_MSG_EQ(rlc->m_rxBuffer.size(), 0, "the reception buffer must be drained");
+
+    // Part 2: tombstone at the 10-bit SN wrap. SN=0 is delivered out of order
+    // (leaving a tombstone at SN 0), then SNs 1022 and 1023 complete the sequence
+    // up to the wrap: VR(UR) must advance across the boundary and consume the
+    // tombstone. A late duplicate of SN=0 must then be discarded -- the advance
+    // used to stop at the wrap (raw counter reaching 1024), stranding the
+    // tombstone at VR(UR)=0, where the duplicate hit the "already exists in the
+    // RX buffer" assert (or was re-delivered with asserts disabled).
+    {
+        Ptr<NrRlcUm> wrapRlc = CreateObject<NrRlcUm>();
+        wrapRlc->SetAttribute("OutOfOrderDelivery", BooleanValue(true));
+        NrRlcTestSduSink wrapSink;
+        wrapRlc->SetNrRlcSapUser(wrapSink.GetSapUser());
+        wrapRlc->m_vrUr = 1022;
+        wrapRlc->m_vrUx = 1022;
+        wrapRlc->m_vrUh = 1022;
+        wrapRlc->m_expectedSeqNumber = 1022;
+
+        DeliverPdu(wrapRlc, 0, fi00, 20); // out of order: delivered and tombstoned
+        NS_TEST_ASSERT_MSG_EQ(wrapSink.m_sdus.size(), 1, "SN=0 must be delivered out of order");
+        DeliverPdu(wrapRlc, 1022, fi00, 21);
+        DeliverPdu(wrapRlc, 1023, fi00, 22); // VR(UR) crosses the wrap here
+        NS_TEST_ASSERT_MSG_EQ(wrapSink.m_sdus.size(),
+                              3,
+                              "SNs 1022 and 1023 must be delivered in order");
+        NS_TEST_ASSERT_MSG_EQ(wrapRlc->m_rxBuffer.size(),
+                              0,
+                              "the tombstone at SN=0 must be consumed across the wrap");
+        NS_TEST_ASSERT_MSG_EQ(wrapRlc->m_vrUr.GetValue(),
+                              1,
+                              "VR(UR) must advance across the wrap boundary");
+
+        DeliverPdu(wrapRlc, 0, fi00, 20); // late duplicate of the tombstoned SN
+        NS_TEST_ASSERT_MSG_EQ(wrapSink.m_sdus.size(),
+                              3,
+                              "the late duplicate of SN=0 must be discarded");
+        Simulator::Run();
+        NS_TEST_ASSERT_MSG_EQ(wrapSink.m_sdus.size(),
+                              3,
+                              "no further deliveries after the timers drain");
+    }
 
     Simulator::Destroy();
 }
@@ -1407,25 +1452,17 @@ NrRlcUmDataIntegrityTestCase::DoRun()
     }
 
     // Scenario 5: SN epoch mixing after a handover, with real transmitters on both
-    // sides. An OLD-epoch transmitter (representing the entity destroyed at
-    // handover) emits three self-contained PDUs; its SN=2 PDU is still in flight
-    // when the entities are re-created and reaches the fresh receiver first. The
-    // NEW-epoch transmitter then restarts at SN=0. The stale PDU occupies the SN=2
-    // slot: it is delivered at the aliased position (where the resynchronisation
-    // discards the partial new-epoch SDU it interrupts), the genuine new-epoch SN=2
-    // is discarded as a duplicate, and reception continues. Data integrity demands:
-    // every delivered SDU is byte-exact (old- or new-epoch -- never a mix), the
-    // stale SDU is delivered exactly once, new-epoch SDUs keep their relative
-    // order, and exactly the new-epoch SDUs with data in the shadowed SN=2 PDU are
-    // missing.
-    //
-    // (If the stale PDU instead ended mid-SDU, a following new-epoch continuation
-    // with matching SN and FI would be indistinguishable from a genuine one at the
-    // RLC layer -- an inherent 10-bit SN limitation only detectable above RLC. The
-    // old-epoch PDUs here are deliberately SDU-aligned to pin the detectable case.)
+    // sides. An OLD-epoch transmitter (the entity destroyed at handover, created
+    // FIRST so it carries the older entity identity) emits three self-contained
+    // PDUs; its SN=2 PDU is still in flight when the entities are re-created and
+    // reaches the fresh receiver before the NEW-epoch transmitter's traffic. The
+    // receiver locks onto the old identity, and the first new-epoch PDU (higher
+    // identity) re-establishes the receiving side (TS 38.322 5.1.2: discard all,
+    // reset state): the whole new-epoch stream is then delivered in order and
+    // byte-exact -- nothing is shadowed, nothing stale is delivered, nothing mixes.
     {
         const std::vector<NrRlcSduSpec> oldSdus = {{'X', 30}, {'Y', 34}, {'Z', 38}};
-        Ptr<NrRlcUm> oldTxRlc = CreateObject<NrRlcUm>();
+        Ptr<NrRlcUm> oldTxRlc = CreateObject<NrRlcUm>(); // created first: older identity
         NrRlcTestCaptureMac oldCapture;
         oldTxRlc->SetNrMacSapProvider(&oldCapture);
         TransmitSdusAligned(oldTxRlc, oldSdus, 40);
@@ -1434,78 +1471,76 @@ NrRlcUmDataIntegrityTestCase::DoRun()
                               "epoch-mix sanity: one SDU-aligned PDU per old-epoch SDU");
         Ptr<Packet> stalePdu = oldCapture.m_pdus.at(2); // old-epoch SN=2, carries 'Z'
 
-        // Expected: all new-epoch SDUs except those with data in the new SN=2 PDU.
-        std::set<uint8_t> shadowedFills = FillsInPdu<NrRlcHeader>(pdus.at(2));
-        std::vector<NrRlcSduSpec> expectedNew;
-        for (const auto& sdu : txSdus)
-        {
-            if (shadowedFills.count(sdu.first) == 0)
-            {
-                expectedNew.push_back(sdu);
-            }
-        }
-        NS_TEST_ASSERT_MSG_EQ((expectedNew.size() < txSdus.size()),
-                              true,
-                              "epoch-mix sanity: the shadowed PDU must carry SDU data");
+        Ptr<NrRlcUm> newTxRlc = CreateObject<NrRlcUm>(); // created second: newer identity
+        NrRlcTestCaptureMac newCapture;
+        newTxRlc->SetNrMacSapProvider(&newCapture);
+        QueueSdus(newTxRlc, txSdus);
+        GrantTxOpportunities(newTxRlc, 40, 20);
 
         Ptr<NrRlcUm> rxRlc = CreateObject<NrRlcUm>();
         NrRlcTestSduSink sink;
         rxRlc->SetNrRlcSapUser(sink.GetSapUser());
 
-        DeliverPduToRlc(rxRlc, stalePdu); // in-flight old-epoch PDU arrives first
-        for (const auto& pdu : pdus)
+        // Pre-handover, the receiver operated normally in the old epoch: SN=0 is
+        // delivered in order (advancing the window state, so the re-establishment
+        // must also reset the sequence-number modulus bases, not just the values),
+        // and SN=2 is buffered behind the lost SN=1.
+        DeliverPduToRlc(rxRlc, oldCapture.m_pdus.at(0));
+        DeliverPduToRlc(rxRlc, stalePdu);
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 1, "the in-order old-epoch SDU is delivered");
+
+        for (const auto& pdu : newCapture.m_pdus)
         {
             DeliverPduToRlc(rxRlc, pdu);
         }
         Simulator::Run();
 
-        // Every delivered SDU must be byte-exact against its epoch's original.
-        std::map<uint8_t, uint32_t> allSpecs;
-        for (const auto& [fill, size] : txSdus)
+        // The re-establishment discards the buffered stale PDU; the whole new-epoch
+        // stream is delivered in order, everything byte-exact and nothing mixed.
+        std::vector<NrRlcSduSpec> expected = {{'X', 30}};
+        expected.insert(expected.end(), txSdus.begin(), txSdus.end());
+        VerifyDelivered(sink, expected, "epoch mix with re-establishment");
+    }
+
+    // Scenario 6: the stale in-flight PDU ends mid-SDU. Without the entity
+    // identity check this is the undetectable corruption case: the new-epoch
+    // continuation matches the expected SN and framing info, and the receiver
+    // concatenates old- and new-epoch bytes into one SDU. With the identity check
+    // the stale partial is discarded at re-establishment, so no delivered SDU may
+    // ever mix epochs, and the whole new-epoch stream arrives byte-exact.
+    {
+        const std::vector<NrRlcSduSpec> oldSdus = {{'X', 70}, {'Y', 74}};
+        Ptr<NrRlcUm> oldTxRlc = CreateObject<NrRlcUm>(); // created first: older identity
+        NrRlcTestCaptureMac oldCapture;
+        oldTxRlc->SetNrMacSapProvider(&oldCapture);
+        QueueSdus(oldTxRlc, oldSdus);
+        GrantTxOpportunities(oldTxRlc, 40, 10);
+        NS_TEST_ASSERT_MSG_EQ((oldCapture.m_pdus.size() > 1),
+                              true,
+                              "epoch-mix sanity: the old-epoch SDUs must be segmented");
+        // The second PDU starts mid-'X' and ends mid-'Y': a mid-SDU stale PDU.
+        Ptr<Packet> stalePdu = oldCapture.m_pdus.at(1);
+
+        Ptr<NrRlcUm> newTxRlc = CreateObject<NrRlcUm>(); // created second: newer identity
+        NrRlcTestCaptureMac newCapture;
+        newTxRlc->SetNrMacSapProvider(&newCapture);
+        QueueSdus(newTxRlc, txSdus);
+        GrantTxOpportunities(newTxRlc, 40, 20);
+
+        Ptr<NrRlcUm> rxRlc = CreateObject<NrRlcUm>();
+        NrRlcTestSduSink sink;
+        rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+
+        DeliverPduToRlc(rxRlc, stalePdu); // in-flight mid-SDU old-epoch PDU first
+        for (const auto& pdu : newCapture.m_pdus)
         {
-            allSpecs[fill] = size;
+            DeliverPduToRlc(rxRlc, pdu);
         }
-        for (const auto& [fill, size] : oldSdus)
-        {
-            allSpecs[fill] = size;
-        }
-        uint32_t staleDeliveries = 0;
-        std::vector<uint8_t> deliveredNewFills;
-        for (uint32_t i = 0; i < sink.m_sdus.size(); i++)
-        {
-            std::vector<uint8_t> buf(sink.m_sdus.at(i)->GetSize());
-            sink.m_sdus.at(i)->CopyData(buf.data(), buf.size());
-            const uint8_t fill = buf.empty() ? 0 : buf.front();
-            NS_TEST_ASSERT_MSG_EQ((allSpecs.count(fill) > 0),
-                                  true,
-                                  "epoch mix: delivered SDU " << i
-                                                              << " must match a transmitted SDU");
-            NS_TEST_ASSERT_MSG_EQ(IsUniformSdu(sink.m_sdus.at(i), fill, allSpecs[fill]),
-                                  true,
-                                  "epoch mix: delivered SDU "
-                                      << i << " ('" << (char)fill
-                                      << "') must be byte-exact, never an epoch mix");
-            if (fill == 'Z')
-            {
-                staleDeliveries++;
-            }
-            else
-            {
-                deliveredNewFills.push_back(fill);
-            }
-        }
-        NS_TEST_ASSERT_MSG_EQ(staleDeliveries,
-                              1,
-                              "epoch mix: the stale SDU must be delivered exactly once");
-        NS_TEST_ASSERT_MSG_EQ(deliveredNewFills.size(),
-                              expectedNew.size(),
-                              "epoch mix: exactly the un-shadowed new-epoch SDUs are delivered");
-        for (uint32_t i = 0; i < std::min(deliveredNewFills.size(), expectedNew.size()); i++)
-        {
-            NS_TEST_ASSERT_MSG_EQ((char)deliveredNewFills.at(i),
-                                  (char)expectedNew[i].first,
-                                  "epoch mix: new-epoch SDUs must keep their relative order");
-        }
+        Simulator::Run();
+
+        // The stale PDU carried only partial SDUs: nothing of the old epoch may be
+        // delivered, no SDU may mix epochs, and the new stream arrives complete.
+        VerifyDelivered(sink, txSdus, "mid-SDU stale PDU with re-establishment");
     }
 
     Simulator::Destroy();

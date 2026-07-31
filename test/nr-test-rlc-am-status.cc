@@ -34,8 +34,6 @@
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
 
-#include <map>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -97,21 +95,6 @@ MakeAmdPdu(uint16_t sn,
     pdu->AddByteTag(rlcTag, 1, header.GetSerializedSize());
 
     return pdu;
-}
-
-/**
- * Deliver one full-SDU AMD PDU to the RLC AM entity through the MAC SAP.
- *
- * @param rlc the receiving RLC entity
- * @param sn the RLC sequence number
- * @param size the SDU payload size in bytes
- * @param requestPoll whether to set the polling bit
- */
-void
-DeliverAmDataPdu(Ptr<NrRlcAm> rlc, uint16_t sn, uint32_t size, bool requestPoll)
-{
-    const uint8_t fi00 = NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::LAST_BYTE;
-    DeliverPduToRlc(rlc, MakeAmdPdu(sn, fi00, {{0, size}}, requestPoll));
 }
 
 /**
@@ -461,19 +444,17 @@ NrRlcAmDataIntegrityTestCase::DoRun()
     }
 
     // Scenario 4: SN epoch mixing after a handover, with real transmitters on both
-    // sides. An OLD-epoch transmitter emits three SDU-aligned PDUs; its SN=2 PDU is
-    // still in flight when the entities are re-created and reaches the fresh
-    // receiver first, occupying the SN=2 slot. The NEW-epoch transmitter restarts
-    // at SN=0: the stale PDU is delivered at the aliased position (the
-    // resynchronisation discards the partial new-epoch SDU it interrupts, then the
-    // orphan continuation), and the genuine new-epoch SN=2 is discarded as below
-    // the receiving window. Data integrity demands: every delivered SDU is
-    // byte-exact (old- or new-epoch -- never a mix), the stale SDU is delivered
-    // exactly once, new-epoch SDUs keep their relative order, and exactly the
-    // new-epoch SDUs with data in the shadowed SN=2 PDU are missing.
+    // sides. An OLD-epoch transmitter (created FIRST, so it carries the older
+    // entity identity) emits three SDU-aligned PDUs; its SN=2 PDU is still in
+    // flight when the entities are re-created and reaches the fresh receiver
+    // before the NEW-epoch transmitter's traffic. The receiver locks onto the old
+    // identity, and the first new-epoch PDU (higher identity) re-establishes the
+    // receiving side (TS 38.322 5.1.2: discard all, reset state): the whole
+    // new-epoch stream is then delivered in order and byte-exact -- nothing is
+    // shadowed, nothing stale is delivered, nothing mixes.
     {
         const std::vector<NrRlcSduSpec> oldSdus = {{'X', 30}, {'Y', 34}, {'Z', 38}};
-        Ptr<NrRlcAm> oldTxRlc = CreateObject<NrRlcAm>();
+        Ptr<NrRlcAm> oldTxRlc = CreateObject<NrRlcAm>(); // created first: older identity
         NrRlcTestCaptureMac oldCapture;
         oldTxRlc->SetNrMacSapProvider(&oldCapture);
         TransmitSdusAligned(oldTxRlc, oldSdus, 60);
@@ -482,19 +463,11 @@ NrRlcAmDataIntegrityTestCase::DoRun()
                               "epoch-mix sanity: one SDU-aligned PDU per old-epoch SDU");
         Ptr<Packet> stalePdu = oldCapture.m_pdus.at(2); // old-epoch SN=2, carries 'Z'
 
-        // Expected: all new-epoch SDUs except those with data in the new SN=2 PDU.
-        std::set<uint8_t> shadowedFills = FillsInPdu<NrRlcAmHeader>(pdus.at(2));
-        std::vector<NrRlcSduSpec> expectedNew;
-        for (const auto& sdu : txSdus)
-        {
-            if (shadowedFills.count(sdu.first) == 0)
-            {
-                expectedNew.push_back(sdu);
-            }
-        }
-        NS_TEST_ASSERT_MSG_EQ((expectedNew.size() < txSdus.size()),
-                              true,
-                              "epoch-mix sanity: the shadowed PDU must carry SDU data");
+        Ptr<NrRlcAm> newTxRlc = CreateObject<NrRlcAm>(); // created second: newer identity
+        NrRlcTestCaptureMac newCapture;
+        newTxRlc->SetNrMacSapProvider(&newCapture);
+        QueueSdus(newTxRlc, txSdus);
+        GrantTxOpportunities(newTxRlc, 44, 20);
 
         Ptr<NrRlcAm> rxRlc = CreateObject<NrRlcAm>();
         NrRlcTestCaptureMac rxCapture;
@@ -503,58 +476,14 @@ NrRlcAmDataIntegrityTestCase::DoRun()
         rxRlc->SetNrRlcSapUser(sink.GetSapUser());
 
         DeliverPduToRlc(rxRlc, stalePdu); // in-flight old-epoch PDU arrives first
-        for (const auto& pdu : pdus)
+        for (const auto& pdu : newCapture.m_pdus)
         {
             DeliverPduToRlc(rxRlc, pdu);
         }
 
-        // Every delivered SDU must be byte-exact against its epoch's original.
-        std::map<uint8_t, uint32_t> allSpecs;
-        for (const auto& [fill, size] : txSdus)
-        {
-            allSpecs[fill] = size;
-        }
-        for (const auto& [fill, size] : oldSdus)
-        {
-            allSpecs[fill] = size;
-        }
-        uint32_t staleDeliveries = 0;
-        std::vector<uint8_t> deliveredNewFills;
-        for (uint32_t i = 0; i < sink.m_sdus.size(); i++)
-        {
-            std::vector<uint8_t> buf(sink.m_sdus.at(i)->GetSize());
-            sink.m_sdus.at(i)->CopyData(buf.data(), buf.size());
-            const uint8_t fill = buf.empty() ? 0 : buf.front();
-            NS_TEST_ASSERT_MSG_EQ((allSpecs.count(fill) > 0),
-                                  true,
-                                  "epoch mix: delivered SDU " << i
-                                                              << " must match a transmitted SDU");
-            NS_TEST_ASSERT_MSG_EQ(IsUniformSdu(sink.m_sdus.at(i), fill, allSpecs[fill]),
-                                  true,
-                                  "epoch mix: delivered SDU "
-                                      << i << " ('" << (char)fill
-                                      << "') must be byte-exact, never an epoch mix");
-            if (fill == 'Z')
-            {
-                staleDeliveries++;
-            }
-            else
-            {
-                deliveredNewFills.push_back(fill);
-            }
-        }
-        NS_TEST_ASSERT_MSG_EQ(staleDeliveries,
-                              1,
-                              "epoch mix: the stale SDU must be delivered exactly once");
-        NS_TEST_ASSERT_MSG_EQ(deliveredNewFills.size(),
-                              expectedNew.size(),
-                              "epoch mix: exactly the un-shadowed new-epoch SDUs are delivered");
-        for (uint32_t i = 0; i < std::min(deliveredNewFills.size(), expectedNew.size()); i++)
-        {
-            NS_TEST_ASSERT_MSG_EQ((char)deliveredNewFills.at(i),
-                                  (char)expectedNew[i].first,
-                                  "epoch mix: new-epoch SDUs must keep their relative order");
-        }
+        // The re-establishment discards the buffered stale PDU; the whole new-epoch
+        // stream is delivered in order, everything byte-exact and nothing mixed.
+        VerifyDelivered(sink, txSdus, "epoch mix with re-establishment");
     }
 
     Simulator::Destroy();

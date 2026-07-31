@@ -212,6 +212,32 @@ class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
      */
     virtual void DoReceivePdu(NrMacSapUser::ReceivePduParameters params) = 0;
 
+    /**
+     * Re-establish the receiving side (TS 38.322 5.1.2): discard all buffered RLC
+     * PDUs and partial SDUs, stop the timers and reset the receiving-side state
+     * variables. Invoked when the peer transmitting entity has been re-created
+     * (e.g. at handover). The default does nothing, for the modes that keep no
+     * receiving state.
+     */
+    virtual void ReestablishRxSide();
+
+    /**
+     * Tell the epoch of a received PDU apart from the epoch of the current peer,
+     * through the transmitting entity identity it carries (see NrRlcTag).
+     *
+     * RLC entities are destroyed and re-created (with SNs restarting at 0) at
+     * handover, but PDUs of the old entity can still be in flight. Their 10-bit SNs
+     * alias into the new SN space and can corrupt reassembly (or the transmit
+     * window) undetectably. A PDU from an entity older than the current peer is
+     * discarded, and a PDU from a newer entity re-establishes the receiving side
+     * (TS 36.322 5.4), as the peer was re-created. Untagged PDUs (identity 0)
+     * bypass the check.
+     *
+     * @param txEntityId the transmitting entity identity carried by the PDU
+     * @return false if the PDU belongs to an old epoch and must be discarded
+     */
+    bool AcceptPduFromPeerEntity(uint32_t txEntityId);
+
     NrMacSapUser* m_macSapUser;         ///< MAC SAP user
     NrMacSapProvider* m_macSapProvider; ///< MAC SAP provider
 
@@ -219,6 +245,24 @@ class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
     uint8_t m_lcid;  ///< LCID
     uint16_t m_packetDelayBudgetMs{
         UINT16_MAX}; //!< the packet delay budget in ms of the corresponding logical channel
+
+    /**
+     * Unique identifier of this RLC entity, assigned monotonically at construction.
+     * Stamped on every transmitted PDU (see NrRlcTag) so a receiving entity can tell
+     * PDUs of a re-created peer (e.g. after handover, when both entities are
+     * destroyed and rebuilt and SNs restart) apart from PDUs of the old epoch that
+     * are still in flight; 10-bit sequence numbers alone cannot. The ordering is
+     * process-wide, so it is not meaningful across MPI ranks.
+     */
+    uint32_t m_rlcEntityId;
+
+    /**
+     * Identifier of the peer transmitting RLC entity, learnt from received PDUs
+     * (0 until the first tagged PDU arrives). A PDU carrying a lower identifier
+     * belongs to a destroyed old-epoch entity and is discarded; a higher identifier
+     * means the peer was re-established, which re-establishes the receiving side.
+     */
+    uint32_t m_peerRlcEntityId{0};
 
     /**
      * Used to inform of a PDU delivery to the MAC SAP provider
