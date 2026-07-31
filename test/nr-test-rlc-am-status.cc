@@ -475,7 +475,14 @@ NrRlcAmDataIntegrityTestCase::DoRun()
         NrRlcTestSduSink sink;
         rxRlc->SetNrRlcSapUser(sink.GetSapUser());
 
-        DeliverPduToRlc(rxRlc, stalePdu); // in-flight old-epoch PDU arrives first
+        // Pre-handover, the receiver operated normally in the old epoch: SN=0 is
+        // delivered in order (advancing VR(R), so the re-establishment must also
+        // reset the sequence-number modulus bases, not just the values), and SN=2
+        // is buffered behind the lost SN=1.
+        DeliverPduToRlc(rxRlc, oldCapture.m_pdus.at(0));
+        DeliverPduToRlc(rxRlc, stalePdu);
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 1, "the in-order old-epoch SDU is delivered");
+
         for (const auto& pdu : newCapture.m_pdus)
         {
             DeliverPduToRlc(rxRlc, pdu);
@@ -483,7 +490,9 @@ NrRlcAmDataIntegrityTestCase::DoRun()
 
         // The re-establishment discards the buffered stale PDU; the whole new-epoch
         // stream is delivered in order, everything byte-exact and nothing mixed.
-        VerifyDelivered(sink, txSdus, "epoch mix with re-establishment");
+        std::vector<NrRlcSduSpec> expected = {{'X', 30}};
+        expected.insert(expected.end(), txSdus.begin(), txSdus.end());
+        VerifyDelivered(sink, expected, "epoch mix with re-establishment");
     }
 
     Simulator::Destroy();
