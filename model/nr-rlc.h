@@ -19,6 +19,8 @@
 #include "ns3/traced-value.h"
 #include "ns3/uinteger.h"
 
+#include <list>
+
 namespace ns3
 {
 
@@ -144,6 +146,47 @@ class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
      */
     virtual void DoTransmitPdcpPdu(Ptr<Packet> p) = 0;
 
+    /**
+     * Split the payload of a received RLC PDU into its data fields, as delimited by
+     * the length indicators of the (already removed) RLC header.
+     *
+     * @tparam RlcHeader the RLC header type, NrRlcHeader or NrRlcAmHeader.
+     * @param header Header of the PDU, whose E and LI fields are consumed.
+     * @param packet Payload of the PDU, fragmented in place.
+     * @param dataFields List the data fields are appended to, in order.
+     */
+    template <typename RlcHeader>
+    void SplitDataFields(RlcHeader& header, Ptr<Packet> packet, std::list<Ptr<Packet>>& dataFields);
+
+    /**
+     * Reassemble the data fields carried by a received RLC PDU and deliver the
+     * complete SDUs to PDCP, in the order they appear in the PDU.
+     *
+     * The data fields are consumed: a leading field that continues the held first
+     * segment is concatenated with it, a trailing field that does not end on an SDU
+     * boundary becomes the new held first segment, and everything in between is a
+     * complete SDU. Segments that can no longer be reassembled -- a held segment
+     * whose continuation was lost, or a continuation whose first segment is gone --
+     * are discarded, which resynchronises the entity on the next SDU boundary.
+     *
+     * @param dataFields Data fields of the PDU, in order; emptied by the call.
+     * @param keepS0 Held first segment (may be null); updated in place.
+     * @param firstFieldContinuesSdu Whether the first data field continues the SDU
+     *        of a previous PDU (FI = 10 or 11).
+     * @param lastFieldIsComplete Whether the last data field ends an SDU
+     *        (FI = 00 or 10).
+     * @param heldSegmentIsUsable Whether the held first segment is still the
+     *        immediate predecessor of this PDU, i.e. no loss was detected and the
+     *        framing info agrees with the reassembly state.
+     * @return Whether a first segment is being held after the call, i.e. whether
+     *         the entity is left mid-SDU.
+     */
+    bool ReassembleSdus(std::list<Ptr<Packet>>& dataFields,
+                        Ptr<Packet>& keepS0,
+                        bool firstFieldContinuesSdu,
+                        bool lastFieldIsComplete,
+                        bool heldSegmentIsUsable);
+
     NrRlcSapUser* m_rlcSapUser;         ///< RLC SAP user
     NrRlcSapProvider* m_rlcSapProvider; ///< RLC SAP provider
 
@@ -169,6 +212,32 @@ class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
      */
     virtual void DoReceivePdu(NrMacSapUser::ReceivePduParameters params) = 0;
 
+    /**
+     * Re-establish the receiving side (TS 38.322 5.1.2): discard all buffered RLC
+     * PDUs and partial SDUs, stop the timers and reset the receiving-side state
+     * variables. Invoked when the peer transmitting entity has been re-created
+     * (e.g. at handover). The default does nothing, for the modes that keep no
+     * receiving state.
+     */
+    virtual void ReestablishRxSide();
+
+    /**
+     * Tell the epoch of a received PDU apart from the epoch of the current peer,
+     * through the transmitting entity identity it carries (see NrRlcTag).
+     *
+     * RLC entities are destroyed and re-created (with SNs restarting at 0) at
+     * handover, but PDUs of the old entity can still be in flight. Their 10-bit SNs
+     * alias into the new SN space and can corrupt reassembly (or the transmit
+     * window) undetectably. A PDU from an entity older than the current peer is
+     * discarded, and a PDU from a newer entity re-establishes the receiving side
+     * (TS 36.322 5.4), as the peer was re-created. Untagged PDUs (identity 0)
+     * bypass the check.
+     *
+     * @param txEntityId the transmitting entity identity carried by the PDU
+     * @return false if the PDU belongs to an old epoch and must be discarded
+     */
+    bool AcceptPduFromPeerEntity(uint32_t txEntityId);
+
     NrMacSapUser* m_macSapUser;         ///< MAC SAP user
     NrMacSapProvider* m_macSapProvider; ///< MAC SAP provider
 
@@ -176,6 +245,24 @@ class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
     uint8_t m_lcid;  ///< LCID
     uint16_t m_packetDelayBudgetMs{
         UINT16_MAX}; //!< the packet delay budget in ms of the corresponding logical channel
+
+    /**
+     * Unique identifier of this RLC entity, assigned monotonically at construction.
+     * Stamped on every transmitted PDU (see NrRlcTag) so a receiving entity can tell
+     * PDUs of a re-created peer (e.g. after handover, when both entities are
+     * destroyed and rebuilt and SNs restart) apart from PDUs of the old epoch that
+     * are still in flight; 10-bit sequence numbers alone cannot. The ordering is
+     * process-wide, so it is not meaningful across MPI ranks.
+     */
+    uint32_t m_rlcEntityId;
+
+    /**
+     * Identifier of the peer transmitting RLC entity, learnt from received PDUs
+     * (0 until the first tagged PDU arrives). A PDU carrying a lower identifier
+     * belongs to a destroyed old-epoch entity and is discarded; a higher identifier
+     * means the peer was re-established, which re-establishes the receiving side.
+     */
+    uint32_t m_peerRlcEntityId{0};
 
     /**
      * Used to inform of a PDU delivery to the MAC SAP provider

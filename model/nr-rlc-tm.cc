@@ -37,7 +37,8 @@ NrRlcTm::GetTypeId()
                             .SetGroupName("Nr")
                             .AddConstructor<NrRlcTm>()
                             .AddAttribute("MaxTxBufferSize",
-                                          "Maximum Size of the Transmission Buffer (in Bytes)",
+                                          "Maximum Size of the Transmission Buffer (in Bytes). "
+                                          "If set to 0, the buffer is unlimited.",
                                           UintegerValue(2 * 1024 * 1024),
                                           MakeUintegerAccessor(&NrRlcTm::m_maxTxBufferSize),
                                           MakeUintegerChecker<uint32_t>());
@@ -63,7 +64,7 @@ NrRlcTm::DoTransmitPdcpPdu(Ptr<Packet> p)
 {
     NS_LOG_FUNCTION(this << m_rnti << (uint32_t)m_lcid << p->GetSize());
 
-    if (m_txBufferSize + p->GetSize() <= m_maxTxBufferSize)
+    if ((m_txBufferSize + p->GetSize() <= m_maxTxBufferSize) || (m_maxTxBufferSize == 0))
     {
         NS_LOG_LOGIC("Tx Buffer: New packet added");
         m_txBuffer.emplace_back(p, Simulator::Now());
@@ -78,6 +79,7 @@ NrRlcTm::DoTransmitPdcpPdu(Ptr<Packet> p)
         NS_LOG_LOGIC("MaxTxBufferSize = " << m_maxTxBufferSize);
         NS_LOG_LOGIC("txBufferSize    = " << m_txBufferSize);
         NS_LOG_LOGIC("packet size     = " << p->GetSize());
+        m_txDropTrace(p);
     }
 
     /** Transmit Buffer Status Report */

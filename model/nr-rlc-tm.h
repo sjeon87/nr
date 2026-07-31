@@ -63,6 +63,9 @@ class NR_EXPORT NrRlcTm : public NrRlc
     void DoTransmitBufferStatusReport();
 
   private:
+    /// Grant the transparent-mode test access to private transmit buffer state
+    friend class NrRlcTmTestCase;
+
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
      */
