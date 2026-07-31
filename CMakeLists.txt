@@ -507,6 +507,7 @@ set(test_sources
     test/nr-test-rlc-am-e2e.cc
     test/nr-test-rlc-am-transmitter.cc
     test/nr-test-rlc-header.cc
+    test/nr-test-rlc-tm.cc
     test/nr-test-rlc-um-e2e.cc
     test/nr-test-rlc-um-transmitter.cc
     test/nr-test-rlc-um-rx.cc
