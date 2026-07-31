@@ -159,11 +159,7 @@ class NR_EXPORT NrRlcAm : public NrRlc
 
     std::map<uint16_t, PduBuffer> m_rxonBuffer; ///< Reception buffer
 
-    Ptr<Packet> m_controlPduBuffer; ///< Control PDU buffer (just one PDU)
-
     // SDU reassembly
-    //   std::vector < Ptr<Packet> > m_reasBuffer;     // Reassembling buffer
-    //
     std::list<Ptr<Packet>> m_sdusBuffer; ///< List of SDUs in a packet (PDU)
 
     /**

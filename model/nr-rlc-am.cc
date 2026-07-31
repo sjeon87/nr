@@ -136,7 +136,6 @@ NrRlcAm::DoDispose()
     m_rxonBuffer.clear();
     m_sdusBuffer.clear();
     m_keepS0 = nullptr;
-    m_controlPduBuffer = nullptr;
 
     NrRlc::DoDispose();
 }
@@ -289,6 +288,7 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
         NS_LOG_LOGIC("retxBufferSize = " << m_retxBufferSize);
         NS_LOG_LOGIC("Sending data from Retransmission Buffer");
         NS_ASSERT(m_vtA < m_vtS);
+        bool anyRetxPduFound = false;
         nr::SequenceNumber10 sn;
         sn.SetModulusBase(m_vtA);
         for (sn = m_vtA; sn < m_vtS; sn++)
@@ -299,6 +299,7 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
 
             if (m_retxBuffer.at(seqNumberValue).m_pdu)
             {
+                anyRetxPduFound = true;
                 Ptr<Packet> packet = m_retxBuffer.at(seqNumberValue).m_pdu->Copy();
 
                 if ((packet->GetSize() <= txOpParams.bytes) ||
@@ -412,16 +413,21 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
                 }
                 else
                 {
+                    // This PDU does not fit; a later NACKed SN might (AM PDUs are
+                    // not re-segmented, so PDU sizes vary). Do not let one oversized
+                    // PDU head-of-line block every other pending retransmission.
                     NS_LOG_LOGIC("TxOpportunity (size = "
                                  << txOpParams.bytes
                                  << ") too small for retransmission of the packet (size = "
-                                 << packet->GetSize() << ")");
-                    NS_LOG_LOGIC("Waiting for bigger TxOpportunity");
-                    return;
+                                 << packet->GetSize() << "); trying the next NACKed SN");
                 }
             }
         }
-        NS_ASSERT_MSG(false, "m_retxBufferSize > 0, but no PDU considered for retx found");
+        NS_ABORT_MSG_UNLESS(anyRetxPduFound,
+                            "m_retxBufferSize > 0, but no PDU considered for retx found");
+        NS_LOG_LOGIC("No pending retransmission fits in this TxOpportunity ("
+                     << txOpParams.bytes << " bytes); waiting for a bigger one");
+        return;
     }
     else if (m_txonBufferSize > 0)
     {
@@ -1229,12 +1235,16 @@ NrRlcAm::ReestablishRxSide()
     m_rxonBuffer.clear();
     m_keepS0 = nullptr;
     m_reassemblingState = WAITING_S0_FULL;
-    m_expectedSeqNumber = 0;
-    m_vrR = 0;
+    // Assign fresh SequenceNumber10 objects rather than raw values:
+    // operator=(uint16_t) keeps the old modulus base, and a stale base makes the
+    // window comparisons against the next received SN abort (their operators
+    // require equal bases) or misorder.
+    m_expectedSeqNumber = nr::SequenceNumber10(0);
+    m_vrR = nr::SequenceNumber10(0);
     m_vrMr = m_vrR + m_windowSize;
-    m_vrX = 0;
-    m_vrMs = 0;
-    m_vrH = 0;
+    m_vrX = nr::SequenceNumber10(0);
+    m_vrMs = nr::SequenceNumber10(0);
+    m_vrH = nr::SequenceNumber10(0);
     m_statusPduRequested = false;
     m_statusPduBufferSize = 0;
 }
@@ -1424,7 +1434,15 @@ NrRlcAm::ExpireReorderingTimer()
     // Section 5.2.3 Status Reporting:
     //   - The receiving side of an AM RLC entity shall trigger a
     //     STATUS report when T_reordering expires.
+    // Advertise the pending STATUS to the MAC as the poll path does; without the
+    // buffer-status report a receive-only bearer would wait for an unrelated
+    // transmission opportunity to send it.
     m_statusPduRequested = true;
+    m_statusPduBufferSize = 4;
+    if (!m_statusProhibitTimer.IsPending())
+    {
+        DoTransmitBufferStatusReport();
+    }
 }
 
 void
