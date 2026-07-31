@@ -355,6 +355,36 @@ class NR_EXPORT NrUeRrc : public Object
     uint16_t GetPrimaryDlIndex() const;
 
     /**
+     * @brief Install the callback used to update the BWP manager routing when
+     * the primary DL/UL BWP pair changes (e.g. on handover to a cell whose
+     * UL/DL carriers are paired differently)
+     * @param fn callback taking (source BWP, output BWP), same semantics as
+     *           BwpManagerUe::SetOutputLink
+     */
+    void SetUpdateBwpOutputLinkFn(std::function<void(uint32_t, uint32_t)> fn);
+
+    /**
+     * @brief Install the callback used to program the BWP manager's QoS flow to
+     * BWP mapping from the one the serving cell advertises over RRC
+     * @param fn callback taking (5QI, BWP index)
+     */
+    void SetUpdateQosFlowBwpFn(std::function<void(uint8_t, uint8_t)> fn)
+    {
+        m_updateQosFlowBwpFn = std::move(fn);
+    }
+
+    /**
+     * @brief Install the callback used to drop all BWP manager output links
+     * when the UE moves to a different cell, whose UL/DL carrier pairing may
+     * differ from the previous one's
+     * @param fn callback taking no arguments
+     */
+    void SetClearBwpOutputLinksFn(std::function<void()> fn)
+    {
+        m_clearBwpOutputLinksFn = std::move(fn);
+    }
+
+    /**
      * @brief Set the cell-individual offset (Ocn/Ocp, in dB) applied to the given
      * cell during event A3 evaluation, per 3GPP TS 36.331 Section 5.5.4.4.
      *
@@ -857,6 +887,14 @@ class NR_EXPORT NrUeRrc : public Object
      */
     void ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicated rrcd);
     /**
+     * Apply the serving-cell BWP configurations and QoS flow to BWP mappings
+     * received in dedicated RRC config: reconfigures the local BWPs, installs
+     * the UL pairing of DL-only (FDD) carriers as output links, and programs
+     * the BWP manager algorithm.
+     * @param rrcd NrRrcSap::RadioResourceConfigDedicated
+     */
+    void ApplyServingCellBwpConfig(const NrRrcSap::RadioResourceConfigDedicated& rrcd);
+    /**
      * Apply radio resource config dedicated secondary carrier.
      * @param nonCec NrRrcSap::NonCriticalExtensionConfiguration
      */
@@ -936,6 +974,30 @@ class NR_EXPORT NrUeRrc : public Object
     /**
      * The index of primary UL PHY/MAC instances
      */
+    /**
+     * @brief Push the current primary DL->UL pairing into the BWP manager
+     * routing, overwriting links left over from a previous serving cell
+     */
+    void SyncBwpOutputLinks();
+
+    std::function<void(uint32_t, uint32_t)>
+        m_updateBwpOutputLinkFn; ///< updates the BWP manager output links
+
+    std::function<void(uint8_t, uint8_t)>
+        m_updateQosFlowBwpFn; ///< programs the BWP manager 5QI to BWP mapping
+
+    std::function<void()> m_clearBwpOutputLinksFn; ///< drops all BWP manager output links
+
+    /**
+     * @brief UL carrier pairing of DL-only BWPs, advertised by the serving cell
+     * in dedicated RRC config (local source BWP -> local UL BWP).
+     *
+     * Replaced on every application of a serving-cell BWP configuration, and
+     * consulted by SyncBwpOutputLinks() so primary index changes do not break
+     * the FDD pairing of secondary carriers.
+     */
+    std::map<uint32_t, uint32_t> m_rrcBwpPairings;
+
     uint16_t m_primaryUlIndex{0};
 
     /**
@@ -1297,6 +1359,17 @@ class NR_EXPORT NrUeRrc : public Object
      * never feeds the cellId-keyed handover machinery.
      */
     std::map<uint32_t, double> m_rsrpPerArfcn;
+
+    /**
+     * @brief Per-BWP uplink capability, keyed by BWP index.
+     *
+     * Recorded in ReconfigureFromSib1() from the TDD pattern applied to the BWP:
+     * a BWP whose pattern has no UL-capable slot (e.g., the DL carrier of an FDD
+     * pair) cannot host the primary UL. Consulted by SwitchPrimaryBwpSameCell()
+     * to avoid moving the primary UL onto a DL-only BWP. BWPs with no recorded
+     * entry are assumed UL-capable (the common TDD case).
+     */
+    std::map<std::size_t, bool> m_bwpUlCapable;
 
     /**
      * @brief Stored measure values per carrier.

@@ -1296,7 +1296,6 @@ Nr3gppCalibration(Parameters& params)
                    // called with invalid pointer to remHelper ...
     if (params.operationMode == "FDD")
     {
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
     }
     if (params.dlRem || params.ulRem)
     {

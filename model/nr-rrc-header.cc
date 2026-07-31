@@ -623,6 +623,23 @@ NrRrcAsn1Header::SerializeRadioResourceConfigDedicated(
     {
         SerializePhysicalConfigDedicated(radioResourceConfigDedicated.physicalConfigDedicated);
     }
+
+    // bwpConfigList: per-carrier BWP configurations of the serving cell
+    SerializeSequenceOf(radioResourceConfigDedicated.bwpConfigList.size(), 32, 0);
+    for (const auto& bwpConfig : radioResourceConfigDedicated.bwpConfigList)
+    {
+        // Carrier ARFCN, then its PHY configuration
+        SerializeInteger((int)bwpConfig.arfcn, 0, MAX_ARFCN);
+        SerializeServingCellConfigCommon(bwpConfig.config);
+    }
+
+    // qosFlowToBwpList: 5QI -> serving BWP (ARFCN) mappings
+    SerializeSequenceOf(radioResourceConfigDedicated.qosFlowToBwpList.size(), 64, 0);
+    for (const auto& mapping : radioResourceConfigDedicated.qosFlowToBwpList)
+    {
+        SerializeInteger(mapping.fiveQi, 0, 255);
+        SerializeInteger((int)mapping.bwpArfcn, 0, MAX_ARFCN);
+    }
 }
 
 void
@@ -755,6 +772,12 @@ NrRrcAsn1Header::SerializeServingCellConfigCommon(
 
     // numerology: SubcarrierSpacing (0..5)
     SerializeInteger(servingCellConfigCommon.numerology, 0, 5);
+
+    // ulNumerology: SubcarrierSpacing (0..5) of the UL carrier
+    SerializeInteger(servingCellConfigCommon.ulNumerology, 0, 5);
+
+    // ulCarrierFreq: ARFCN of the UL carrier
+    SerializeInteger((int)servingCellConfigCommon.ulCarrierFreq, 0, MAX_ARFCN);
 
     // symbolsPerSlot: 12 (extended CP) or 14 (normal CP)
     SerializeInteger(servingCellConfigCommon.symbolsPerSlot, 0, 14);
@@ -2470,6 +2493,32 @@ NrRrcAsn1Header::DeserializeRadioResourceConfigDedicated(
             bIterator);
     }
 
+    // Deserialize bwpConfigList
+    int numBwps;
+    bIterator = DeserializeSequenceOf(&numBwps, 32, 0, bIterator);
+    for (int i = 0; i < numBwps; i++)
+    {
+        NrRrcSap::BwpConfig bwpConfig;
+        int arfcn;
+        bIterator = DeserializeInteger(&arfcn, 0, MAX_ARFCN, bIterator);
+        bwpConfig.arfcn = static_cast<uint32_t>(arfcn);
+        bIterator = DeserializeServingCellConfigCommon(&bwpConfig.config, bIterator);
+        radioResourceConfigDedicated->bwpConfigList.push_back(bwpConfig);
+    }
+
+    // Deserialize qosFlowToBwpList
+    int numMappings;
+    bIterator = DeserializeSequenceOf(&numMappings, 64, 0, bIterator);
+    for (int i = 0; i < numMappings; i++)
+    {
+        int fiveQi;
+        int bwpArfcn;
+        bIterator = DeserializeInteger(&fiveQi, 0, 255, bIterator);
+        bIterator = DeserializeInteger(&bwpArfcn, 0, MAX_ARFCN, bIterator);
+        radioResourceConfigDedicated->qosFlowToBwpList.push_back(
+            {static_cast<uint8_t>(fiveQi), static_cast<uint32_t>(bwpArfcn)});
+    }
+
     return bIterator;
 }
 
@@ -3822,6 +3871,12 @@ NrRrcAsn1Header::DeserializeServingCellConfigCommon(
 
     bIterator = DeserializeInteger(&n, 0, 5, bIterator);
     servingCellConfigCommon->numerology = static_cast<uint8_t>(n);
+
+    bIterator = DeserializeInteger(&n, 0, 5, bIterator);
+    servingCellConfigCommon->ulNumerology = static_cast<uint8_t>(n);
+
+    bIterator = DeserializeInteger(&n, 0, MAX_ARFCN, bIterator);
+    servingCellConfigCommon->ulCarrierFreq = static_cast<uint32_t>(n);
 
     bIterator = DeserializeInteger(&n, 0, 14, bIterator);
     servingCellConfigCommon->symbolsPerSlot = static_cast<uint8_t>(n);

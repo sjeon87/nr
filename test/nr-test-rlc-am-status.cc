@@ -256,7 +256,7 @@ class NrRlcAmReassemblyResyncTestCase : public NrRlcTestCaseBase
 {
   public:
     NrRlcAmReassemblyResyncTestCase()
-        : NrRlcTestCaseBase("Test RLC AM RX: FI/state contradiction resynchronises the reassembler")
+        : NrRlcTestCaseBase("Test RLC AM RX: FI-state contradiction resynchronises the reassembler")
     {
     }
 

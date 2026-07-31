@@ -1010,6 +1010,25 @@ class NR_EXPORT NrGnbRrc : public Object
     void ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyConf);
 
     /**
+     * @brief Set the 5QI to serving-BWP map advertised in dedicated RRC config
+     * @param qosFlowToBwpArfcn map between 5QI and the ARFCN of the BWP serving it
+     */
+    void SetQosFlowToBwpArfcn(const std::map<uint8_t, uint32_t>& qosFlowToBwpArfcn)
+    {
+        m_qosFlowToBwpArfcn = qosFlowToBwpArfcn;
+    }
+
+    /**
+     * @brief Set the UL carrier pairing advertised in dedicated RRC config
+     * @param ulCarrierPairing map between a DL carrier ARFCN and the ARFCN of
+     *        the UL carrier receiving for it
+     */
+    void SetUlCarrierPairing(const std::map<uint32_t, uint32_t>& ulCarrierPairing)
+    {
+        m_ulCarrierPairing = ulCarrierPairing;
+    }
+
+    /**
      * @brief Configure carriers.
      * @param ccPhyConf the component carrier configuration
      */
@@ -1961,6 +1980,12 @@ class NR_EXPORT NrGnbRrc : public Object
 
     std::map<uint8_t, Ptr<BandwidthPartGnb>>
         m_componentCarrierPhyConf; ///< component carrier phy configuration
+
+    std::map<uint8_t, uint32_t>
+        m_qosFlowToBwpArfcn; ///< 5QI -> ARFCN of the BWP serving it, advertised to UEs
+
+    std::map<uint32_t, uint32_t>
+        m_ulCarrierPairing; ///< DL carrier ARFCN -> paired UL carrier ARFCN, advertised to UEs
 
 }; // end of `class NrGnbRrc`
 

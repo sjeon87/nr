@@ -563,6 +563,14 @@ NrHelper::InstallSingleUeDevice(
     ccmUe->SetNumberOfComponentCarriers(ueCcMap.size());
     DynamicCast<BwpManagerUe>(ccmUe)->SetGetPrimaryUlFn(
         [rrc]() { return rrc->GetPrimaryUlIndex(); });
+    Ptr<BwpManagerUe> bwpManagerUe = DynamicCast<BwpManagerUe>(ccmUe);
+    rrc->SetUpdateBwpOutputLinkFn([bwpManagerUe](uint32_t sourceBwp, uint32_t outputBwp) {
+        bwpManagerUe->SetDefaultOutputLink(sourceBwp, outputBwp);
+    });
+    rrc->SetUpdateQosFlowBwpFn([bwpManagerUe](uint8_t fiveQi, uint8_t bwpIndex) {
+        bwpManagerUe->SetBwpForQosFlow(fiveQi, bwpIndex);
+    });
+    rrc->SetClearBwpOutputLinksFn([bwpManagerUe]() { bwpManagerUe->ClearOutputLinks(); });
 
     if (m_useIdealRrc)
     {
@@ -1200,6 +1208,29 @@ NrHelper::DoAttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gn
     {
         gnbNetDev->ConfigureCell();
     }
+
+    // Derive the UE primary DL/UL BWP pair from the gNB configuration. The DL
+    // is the gNB's primary carrier (the one broadcasting MIB/SIB); for an FDD
+    // cell (DL-only primary) the UL is the cell's dedicated UL-only carrier,
+    // matching what SIB1 advertises in ulCarrierFreq.
+    if (!gnbNetDev->GetPhy(0)->HasDlSlot())
+    {
+        NS_FATAL_ERROR("The gNB primary carrier (CC0) cannot be UL-only: it broadcasts MIB/SIB");
+    }
+    ueNetDev->GetRrc()->SetPrimaryDlIndex(ueNetDev->GetArfcnBwpId(gnbNetDev->GetBwpArfcn(0)));
+    if (!gnbNetDev->GetPhy(0)->HasUlSlot())
+    {
+        for (uint32_t i = 0; i < gnbNetDev->GetCcMapSize(); ++i)
+        {
+            if (!gnbNetDev->GetPhy(i)->HasDlSlot())
+            {
+                ueNetDev->GetRrc()->SetPrimaryUlIndex(
+                    ueNetDev->GetArfcnBwpId(gnbNetDev->GetBwpArfcn(i)));
+                break;
+            }
+        }
+    }
+
     for (uint32_t i = 0; i < gnbNetDev->GetCcMapSize(); ++i)
     {
         gnbNetDev->GetPhy(i)->RegisterUe(ueNetDev->GetImsi(), ueNetDev);

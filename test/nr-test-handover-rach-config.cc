@@ -16,6 +16,8 @@
  */
 
 #include "ns3/boolean.h"
+#include "ns3/bwp-manager-gnb.h"
+#include "ns3/bwp-manager-ue.h"
 #include "ns3/callback.h"
 #include "ns3/config.h"
 #include "ns3/double.h"
@@ -29,6 +31,7 @@
 #include "ns3/nr-channel-helper.h"
 #include "ns3/nr-gnb-mac.h"
 #include "ns3/nr-gnb-net-device.h"
+#include "ns3/nr-gnb-phy.h"
 #include "ns3/nr-helper.h"
 #include "ns3/nr-point-to-point-epc-helper.h"
 #include "ns3/nr-ue-mac.h"
@@ -39,6 +42,7 @@
 #include "ns3/propagation-loss-model.h"
 #include "ns3/rng-seed-manager.h"
 #include "ns3/simulator.h"
+#include "ns3/string.h"
 #include "ns3/test.h"
 #include "ns3/uinteger.h"
 
@@ -60,10 +64,13 @@ class NrHandoverRachConfigTestCase : public TestCase
      *
      * @param name the name of the test case, to be displayed in the test result
      * @param useIdealRrc if true, use the ideal RRC
+     * @param fdd if true, use FDD carriers with UL/DL roles inverted between the
+     *            two gNBs; otherwise a single TDD carrier shared by both
      */
-    NrHandoverRachConfigTestCase(std::string name, bool useIdealRrc)
+    NrHandoverRachConfigTestCase(std::string name, bool useIdealRrc, bool fdd)
         : TestCase(name),
-          m_useIdealRrc(useIdealRrc)
+          m_useIdealRrc(useIdealRrc),
+          m_fdd(fdd)
     {
     }
 
@@ -86,19 +93,33 @@ class NrHandoverRachConfigTestCase : public TestCase
                                  uint16_t targetCellId);
 
     /**
+     * UE handover success callback
+     * @param context the context string
+     * @param imsi the IMSI
+     * @param cellId the cell ID
+     * @param rnti the RNTI
+     */
+    void UeHandoverEndOkCallback(std::string context,
+                                 uint64_t imsi,
+                                 uint16_t cellId,
+                                 uint16_t rnti);
+
+    /**
      * @brief Check that the UE MAC holds the target cell's RACH configuration
      */
     void CheckUeMacRachConfig();
 
-    Ptr<NrUeMac> m_ueMac; ///< the UE MAC under test
+    Ptr<NrUeNetDevice> m_ueDev; ///< the UE device under test
 
     static constexpr uint8_t targetNumberOfRaPreambles = 40; ///< target numberOfRaPreambles
     static constexpr uint8_t targetPreambleTransMax = 100;   ///< target preambleTransMax
     static constexpr uint8_t targetRaResponseWindowSize = 8; ///< target raResponseWindowSize
     static constexpr uint8_t targetConnEstFailCount = 2;     ///< target connEstFailCount
 
-    bool m_useIdealRrc;                ///< use ideal RRC?
-    bool m_hasHandoverOccurred{false}; ///< whether the handover completed successfully
+    bool m_useIdealRrc;                 ///< use ideal RRC?
+    bool m_fdd;                         ///< FDD carriers with inverted UL/DL roles?
+    bool m_hasHandoverOccurred{false};  ///< whether the handover command reached the UE
+    bool m_hasHandoverCompleted{false}; ///< whether the handover completed successfully
 };
 
 void
@@ -149,10 +170,33 @@ NrHandoverRachConfigTestCase::DoRun()
     channelHelper->ConfigurePropagationFactory(LogDistancePropagationLossModel::GetTypeId());
 
     CcBwpCreator ccBwpCreator;
-    CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9, 5e6, static_cast<uint8_t>(1));
-    OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
-    channelHelper->AssignChannelsToBands({band});
-    BandwidthPartInfoPtrVector allBwps = CcBwpCreator::GetAllBwps({band});
+    BandwidthPartInfoPtrVector allBwps;
+    std::vector<BandwidthPartInfoPtrVector> allBwpsPerGnb;
+    OperationBandInfo band;
+    OperationBandInfo band2;
+    if (m_fdd)
+    {
+        // Wide enough carriers that even numerology 3 (120 kHz SCS) has room
+        // for the msg3 grant
+        CcBwpCreator::SimpleOperationBandConf bandConf(2.4e9, 40e6, static_cast<uint8_t>(1));
+        CcBwpCreator::SimpleOperationBandConf bandConf2(2.7e9, 40e6, static_cast<uint8_t>(1));
+        band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+        band2 = ccBwpCreator.CreateOperationBandContiguousCc(bandConf2);
+        channelHelper->AssignChannelsToBands({band, band2});
+        allBwps = CcBwpCreator::GetAllBwps({band, band2});
+        // Only the primary component carrier (index 0) broadcasts MIB/SIB, so
+        // each gNB must have its DL carrier first: 2.7 GHz for the source gNB,
+        // 2.4 GHz for the target
+        allBwpsPerGnb.push_back({allBwps[1], allBwps[0]});
+        allBwpsPerGnb.push_back({allBwps[0], allBwps[1]});
+    }
+    else
+    {
+        CcBwpCreator::SimpleOperationBandConf bandConf(2.8e9, 5e6, static_cast<uint8_t>(1));
+        band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+        channelHelper->AssignChannelsToBands({band});
+        allBwps = CcBwpCreator::GetAllBwps({band});
+    }
 
     NodeContainer gnbNodes;
     gnbNodes.Create(2);
@@ -169,21 +213,53 @@ NrHandoverRachConfigTestCase::DoRun()
     mobilityHelper.Install(gnbNodes);
     mobilityHelper.Install(ueNode);
 
-    auto gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
+    NetDeviceContainer gnbDevs;
+    if (m_fdd)
+    {
+        gnbDevs.Add(nrHelper->InstallGnbDevice(gnbNodes.Get(0), allBwpsPerGnb[0]));
+        gnbDevs.Add(nrHelper->InstallGnbDevice(gnbNodes.Get(1), allBwpsPerGnb[1]));
+    }
+    else
+    {
+        gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
+    }
     auto ueDev = nrHelper->InstallUeDevice(ueNode, allBwps).Get(0);
 
+    if (m_fdd)
+    {
+        const std::string dlPattern = "DL|DL|DL|DL|DL|DL|DL|DL|DL|DL|";
+        const std::string ulPattern = "UL|UL|UL|UL|UL|UL|UL|UL|UL|UL|";
+        // Each gNB: CC 0 is DL (2.7 GHz for the source, 2.4 GHz for the target),
+        // CC 1 is UL, i.e. the two cells have inverted UL/DL frequency roles.
+        // Four distinct numerologies make any misapplied configuration obvious.
+        NrHelper::GetGnbPhy(gnbDevs.Get(0), 0)->SetAttribute("Pattern", StringValue(dlPattern));
+        NrHelper::GetGnbPhy(gnbDevs.Get(0), 0)->SetAttribute("Numerology", UintegerValue(1));
+        NrHelper::GetGnbPhy(gnbDevs.Get(0), 1)->SetAttribute("Pattern", StringValue(ulPattern));
+        NrHelper::GetGnbPhy(gnbDevs.Get(0), 1)->SetAttribute("Numerology", UintegerValue(0));
+
+        NrHelper::GetGnbPhy(gnbDevs.Get(1), 0)->SetAttribute("Pattern", StringValue(dlPattern));
+        NrHelper::GetGnbPhy(gnbDevs.Get(1), 0)->SetAttribute("Numerology", UintegerValue(2));
+        NrHelper::GetGnbPhy(gnbDevs.Get(1), 1)->SetAttribute("Pattern", StringValue(ulPattern));
+        NrHelper::GetGnbPhy(gnbDevs.Get(1), 1)->SetAttribute("Numerology", UintegerValue(3));
+    }
+
     // Give the target gNB a RACH configuration entirely distinct from the source's
-    auto targetMac = DynamicCast<NrGnbNetDevice>(gnbDevs.Get(1))->GetMac(0);
-    targetMac->SetAttribute("NumberOfRaPreambles", UintegerValue(targetNumberOfRaPreambles));
-    targetMac->SetAttribute("PreambleTransMax", UintegerValue(targetPreambleTransMax));
-    targetMac->SetAttribute("RaResponseWindowSize", UintegerValue(targetRaResponseWindowSize));
-    targetMac->SetAttribute("ConnEstFailCount", UintegerValue(targetConnEstFailCount));
+    for (uint32_t bwp = 0; bwp < (m_fdd ? 2U : 1U); bwp++)
+    {
+        auto targetMac = DynamicCast<NrGnbNetDevice>(gnbDevs.Get(1))->GetMac(bwp);
+        targetMac->SetAttribute("NumberOfRaPreambles", UintegerValue(targetNumberOfRaPreambles));
+        targetMac->SetAttribute("PreambleTransMax", UintegerValue(targetPreambleTransMax));
+        targetMac->SetAttribute("RaResponseWindowSize", UintegerValue(targetRaResponseWindowSize));
+        targetMac->SetAttribute("ConnEstFailCount", UintegerValue(targetConnEstFailCount));
+    }
 
     InternetStackHelper inetStackHelper;
     inetStackHelper.Install(ueNode);
     Ipv4InterfaceContainer ueIfs = nrEpcHelper->AssignUeIpv4Address(ueDev);
 
-    m_ueMac = DynamicCast<NrUeNetDevice>(ueDev)->GetMac(0);
+    m_ueDev = DynamicCast<NrUeNetDevice>(ueDev);
+    Config::Connect("/NodeList/*/DeviceList/*/NrUeRrc/HandoverEndOk",
+                    MakeCallback(&NrHandoverRachConfigTestCase::UeHandoverEndOkCallback, this));
     Config::Connect("/NodeList/*/DeviceList/*/NrUeRrc/HandoverStart",
                     MakeCallback(&NrHandoverRachConfigTestCase::UeHandoverStartCallback, this));
 
@@ -204,8 +280,10 @@ NrHandoverRachConfigTestCase::DoRun()
     Simulator::Run();
 
     NS_TEST_ASSERT_MSG_EQ(m_hasHandoverOccurred, true, "handover did not start");
+    NS_TEST_ASSERT_MSG_EQ(m_hasHandoverCompleted, true, "handover did not complete");
 
     Simulator::Destroy();
+    m_ueDev = nullptr;
     RngSeedManager::SetSeed(previousSeed);
     RngSeedManager::SetRun(previousRun);
 }
@@ -226,9 +304,22 @@ NrHandoverRachConfigTestCase::UeHandoverStartCallback(std::string context,
 }
 
 void
+NrHandoverRachConfigTestCase::UeHandoverEndOkCallback(std::string context,
+                                                      uint64_t imsi,
+                                                      uint16_t cellId,
+                                                      uint16_t rnti)
+{
+    NS_LOG_FUNCTION(this << context << imsi << cellId << rnti);
+    m_hasHandoverCompleted = true;
+}
+
+void
 NrHandoverRachConfigTestCase::CheckUeMacRachConfig()
 {
-    NrUeCmacSapProvider::RachConfig rc = m_ueMac->GetRachConfig();
+    // The primary UL BWP may have changed with the handover (it does in the
+    // FDD-inverted scenario); check the MAC the RRC currently uses for RA
+    NrUeCmacSapProvider::RachConfig rc =
+        m_ueDev->GetMac(m_ueDev->GetRrc()->GetPrimaryUlIndex())->GetRachConfig();
     NS_TEST_ASSERT_MSG_EQ(+rc.numberOfRaPreambles,
                           +targetNumberOfRaPreambles,
                           "UE MAC did not apply the target cell's numberOfRaPreambles");
@@ -254,9 +345,23 @@ class NrHandoverRachConfigTestSuite : public TestSuite
     NrHandoverRachConfigTestSuite()
         : TestSuite("nr-handover-rach-config", Type::SYSTEM)
     {
-        AddTestCase(new NrHandoverRachConfigTestCase("Target RACH config applied, ideal RRC", true),
+        AddTestCase(new NrHandoverRachConfigTestCase("Target RACH config applied, TDD, ideal RRC",
+                                                     true,
+                                                     false),
                     TestCase::Duration::QUICK);
-        AddTestCase(new NrHandoverRachConfigTestCase("Target RACH config applied, real RRC", false),
+        AddTestCase(new NrHandoverRachConfigTestCase("Target RACH config applied, TDD, real RRC",
+                                                     false,
+                                                     false),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrHandoverRachConfigTestCase(
+                        "Target RACH config applied, FDD inverted UL-DL, ideal RRC",
+                        true,
+                        true),
+                    TestCase::Duration::QUICK);
+        AddTestCase(new NrHandoverRachConfigTestCase(
+                        "Target RACH config applied, FDD inverted UL-DL, real RRC",
+                        false,
+                        true),
                     TestCase::Duration::QUICK);
     }
 };

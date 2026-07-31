@@ -375,8 +375,8 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     uint8_t numBwpPerCc = 1;
     if (operationMode == "FDD")
     {
-        numBwpPerCc = 2; // FDD will have 2 BWPs per CC
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
+        numBwpPerCc = 2; // FDD will have 2 BWPs per CC; the UE derives its
+                         // primary UL BWP and routing from the cell configuration
     }
 
     CcBwpCreator::SimpleOperationBandConf bandConf1(centralFrequencyBand1,
@@ -505,10 +505,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     // gNb routing between Bearer and bandwidth part
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                  UintegerValue(bwpIdForLowLat));
-
-    // Ue routing between Bearer and bandwidth part
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                UintegerValue(bwpIdForLowLat));
 
     /*
      * We miss many other parameters. By default, not configuring them is equivalent
@@ -667,9 +663,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
             NrHelper::GetGnbPhy(gnb, 1)->SetAttribute(
                 "Pattern",
                 StringValue("UL|UL|UL|UL|UL|UL|UL|UL|UL|UL|"));
-
-            // Link the two FDD BWP
-            NrHelper::GetBwpManagerGnb(gnb)->SetOutputLink(1, 0);
         }
 
         else
@@ -746,9 +739,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
             NrHelper::GetGnbPhy(gnb, 1)->SetAttribute(
                 "Pattern",
                 StringValue("UL|UL|UL|UL|UL|UL|UL|UL|UL|UL|"));
-
-            // Link the two FDD BWP
-            NrHelper::GetBwpManagerGnb(gnb)->SetOutputLink(1, 0);
         }
 
         else
@@ -825,9 +815,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
             NrHelper::GetGnbPhy(gnb, 1)->SetAttribute(
                 "Pattern",
                 StringValue("UL|UL|UL|UL|UL|UL|UL|UL|UL|UL|"));
-
-            // Link the two FDD BWP
-            NrHelper::GetBwpManagerGnb(gnb)->SetOutputLink(1, 0);
         }
 
         else
@@ -835,26 +822,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
             NS_ABORT_MSG("Incorrect number of BWPs per CC");
         }
         globalCellId++;
-    }
-
-    // Set the UE routing:
-
-    if (operationMode == "FDD")
-    {
-        for (uint32_t i = 0; i < ueSector1NetDev.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueSector1NetDev.Get(i))->SetOutputLink(0, 1);
-        }
-
-        for (uint32_t i = 0; i < ueSector2NetDev.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueSector2NetDev.Get(i))->SetOutputLink(0, 1);
-        }
-
-        for (uint32_t i = 0; i < ueSector3NetDev.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueSector3NetDev.Get(i))->SetOutputLink(0, 1);
-        }
     }
 }
 

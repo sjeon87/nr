@@ -18,15 +18,34 @@ API and behavior across releases.
 Release NR-v5.1 (under development)
 ------------------------------------
 
+New user-visible features
+-------------------------
+- FDD cells now advertise their UL carrier in SIB1 (the equivalent of
+  ``frequencyInfoUL`` in TS 38.331), and the UE derives its primary UL BWP and
+  bandwidth-part routing from it automatically. Manual
+  ``NrUeNetDevice::PrimaryUlIndex`` and ``SetOutputLink()`` configuration is no
+  longer needed for cells with a single DL/UL carrier pair, and was removed
+  from the examples and tests.
+- Added support for handover between FDD cells, including cells with inverted
+  UL/DL carrier roles and different per-carrier numerologies: the handover
+  command carries the target cell's UL carrier and RACH configuration, and the
+  UE re-tunes and re-synchronizes its UL BWP to the target cell. Covered by the
+  new ``nr-handover-rach-config`` test suite (TDD and FDD, ideal and real RRC).
+
 Bugs fixed
 ----------
 - Fixed the handover command not applying the target cell's RACH configuration
   to the UE MAC, which sized the RA response window and bounded the preamble
-  retransmissions from the source cell's (or no) configuration. Covered by the
-  new ``nr-handover-rach-config`` test suite.
+  retransmissions from the source cell's (or no) configuration.
+- Fixed ``BwpManagerGnb/Ue::SetOutputLink()`` silently ignoring a second call
+  for the same source BWP, which made it impossible to re-point a link.
 - Fixed a read of an uninitialized numerology in ``NrUeRrc::StartConnection()``
   when the UE was forced to camp without decoding SIB1; the FR1-safe RACH lock
   duration is now used.
+- Fixed FDD operation of the ``cttc-nr-traffic-ngmn-mixed`` example: uplink
+  traffic was routed to the DL-only BWP and silently dropped. Also made the
+  example abort on a simulation time too short for the applications to run,
+  instead of crashing in the statistics post-processing.
 
 Release NR-v5.0
 ---------------
