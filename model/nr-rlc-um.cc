@@ -495,6 +495,29 @@ NrRlcUm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
     // - update state variables, reassemble and deliver RLC SDUs to upper layer and start
     // t-Reordering as needed (see sub clause 5.1.2.2.4).
 
+    // A PDU whose SN falls outside the reordering window is normally the newest
+    // transmission and slides the window forward (5.1.2.2.3). But a PDU delayed by
+    // more than UM_Window_Size SNs (e.g. a last-round HARQ retransmission at high
+    // rate) aliases to the same out-of-window position, and sliding the window back
+    // onto it would discard live in-window traffic wholesale. The two cases are
+    // indistinguishable in the 10-bit SN space, but the newest transmission always
+    // carries the newest sender timestamp: discard an out-of-window PDU that was
+    // sent before traffic already received.
+    if (!IsInsideReorderingWindow(seqNumber) &&
+        (rlcTag.GetSenderTimestamp() < m_maxRxSenderTimestamp))
+    {
+        NS_LOG_WARN("Discarding PDU with SN="
+                    << seqNumber << " outside the reordering window but sent ("
+                    << rlcTag.GetSenderTimestamp().As(Time::MS) << ") before already-received "
+                    << "traffic (" << m_maxRxSenderTimestamp.As(Time::MS)
+                    << "): severely delayed duplicate, not new traffic");
+        return;
+    }
+    if (rlcTag.GetSenderTimestamp() > m_maxRxSenderTimestamp)
+    {
+        m_maxRxSenderTimestamp = rlcTag.GetSenderTimestamp();
+    }
+
     // 5.1.2.2.2 Actions when an UMD PDU is received from lower layer
     // When an UMD PDU with SN = x is received from lower layer, the receiving UM RLC entity shall:
     // - if VR(UR) < x < VR(UH) and the UMD PDU with SN = x has been received before; or
@@ -584,12 +607,13 @@ NrRlcUm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
     {
         NS_LOG_LOGIC("Reception buffer contains SN = " << m_vrUr);
 
-        uint16_t newVrUr;
         nr::SequenceNumber10 oldVrUr = m_vrUr;
 
-        auto it = m_rxBuffer.find(m_vrUr.GetValue());
-        newVrUr = (it->first) + 1;
-        while (m_rxBuffer.count(newVrUr) > 0)
+        // Advance with a SequenceNumber10 so the scan wraps at the 10-bit boundary:
+        // a raw counter would stop at 1024 (never a buffer key) and strand buffered
+        // or tombstoned entries at SN 0 while VR(UR) wraps onto them.
+        nr::SequenceNumber10 newVrUr = m_vrUr + 1;
+        while (m_rxBuffer.count(newVrUr.GetValue()) > 0)
         {
             newVrUr++;
         }
@@ -745,10 +769,13 @@ NrRlcUm::ReestablishRxSide()
     m_rxBuffer.clear();
     m_keepS0 = nullptr;
     m_reassemblingState = WAITING_S0_FULL;
-    m_expectedSeqNumber = 0;
-    m_vrUr = 0;
-    m_vrUx = 0;
-    m_vrUh = 0;
+    // Assign fresh SequenceNumber10 objects rather than raw values:
+    // operator=(uint16_t) keeps the old modulus base (see the AM twin).
+    m_expectedSeqNumber = nr::SequenceNumber10(0);
+    m_vrUr = nr::SequenceNumber10(0);
+    m_vrUx = nr::SequenceNumber10(0);
+    m_vrUh = nr::SequenceNumber10(0);
+    m_maxRxSenderTimestamp = Time();
 }
 
 void

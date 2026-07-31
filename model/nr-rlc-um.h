@@ -114,6 +114,8 @@ class NR_EXPORT NrRlcUm : public NrRlc
     friend class NrRlcUmReorderingTimerTestCase;
     /// Grant the out-of-order delivery test access to private reception buffer state
     friend class NrRlcUmOutOfOrderDeliveryTestCase;
+    /// Grant the severely-delayed-PDU test access to private window state
+    friend class NrRlcUmLatePduTestCase;
     uint32_t m_maxTxBufferSize; ///< maximum transmit buffer status
     uint32_t m_txBufferSize;    ///< transmit buffer size
 
@@ -186,6 +188,14 @@ class NR_EXPORT NrRlcUm : public NrRlc
      * Expected Sequence Number
      */
     nr::SequenceNumber10 m_expectedSeqNumber;
+
+    /**
+     * Newest sender timestamp among the received PDUs. Used to tell a genuinely new
+     * out-of-window PDU (which slides the reordering window forward) from a PDU
+     * delayed by more than UM_Window_Size SNs that aliases to the same position:
+     * the newest transmission always carries the newest sender timestamp.
+     */
+    Time m_maxRxSenderTimestamp;
 
     bool m_expBsrTimer{false};
 };
