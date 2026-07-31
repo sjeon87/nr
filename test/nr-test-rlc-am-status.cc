@@ -33,6 +33,7 @@
 #include "ns3/nr-rlc-tag.h"
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
+#include "ns3/uinteger.h"
 
 #include <string>
 #include <utility>
@@ -95,6 +96,21 @@ MakeAmdPdu(uint16_t sn,
     pdu->AddByteTag(rlcTag, 1, header.GetSerializedSize());
 
     return pdu;
+}
+
+/**
+ * Deliver one full-SDU AMD PDU to the RLC AM entity through the MAC SAP.
+ *
+ * @param rlc the receiving RLC entity
+ * @param sn the RLC sequence number
+ * @param size the SDU payload size in bytes
+ * @param requestPoll whether to set the polling bit
+ */
+void
+DeliverAmDataPdu(Ptr<NrRlcAm> rlc, uint16_t sn, uint32_t size, bool requestPoll)
+{
+    const uint8_t fi00 = NrRlcAmHeader::FIRST_BYTE | NrRlcAmHeader::LAST_BYTE;
+    DeliverPduToRlc(rlc, MakeAmdPdu(sn, fi00, {{0, size}}, requestPoll));
 }
 
 /**
@@ -498,6 +514,267 @@ NrRlcAmDataIntegrityTestCase::DoRun()
     Simulator::Destroy();
 }
 
+/**
+ * @ingroup tests
+ *
+ * @brief Conformance-style test of the AM receiver status triggers and STATUS
+ * generation (TS 38.523-1 clause 7.1.2.3.7, adapted to this 36.322-style entity).
+ *
+ * Verifies that a poll triggers a STATUS report; that the generated STATUS carries
+ * the correct ACK_SN and NACKs exactly the missing SNs below VR(MS) (this is the
+ * only direct test of the STATUS generation content); that t-Reordering expiry
+ * triggers a STATUS report by itself; and that a report triggered while
+ * t-StatusProhibit runs is withheld until the prohibit timer expires.
+ */
+class NrRlcAmStatusTriggerTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcAmStatusTriggerTestCase()
+        : NrRlcTestCaseBase("Test RLC AM RX: status triggers and generated STATUS content")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcAmStatusTriggerTestCase::DoRun()
+{
+    Ptr<NrRlcAm> rlc = CreateObject<NrRlcAm>();
+    NrRlcTestCaptureMac capture;
+    rlc->SetNrMacSapProvider(&capture);
+    NrRlcTestSduSink sink;
+    rlc->SetNrRlcSapUser(sink.GetSapUser());
+
+    // In-order SN=0, then SN=2 with a poll (SN=1 missing): the poll must trigger a
+    // STATUS report reflecting the receiver state.
+    DeliverAmDataPdu(rlc, 0, 20, false);
+    DeliverAmDataPdu(rlc, 2, 22, true);
+    GrantTxOpportunities(rlc, 20, 1);
+    NS_TEST_ASSERT_MSG_EQ(capture.m_pdus.size(), 1, "the poll must trigger a STATUS report");
+    {
+        NrRlcAmHeader status;
+        capture.m_pdus.at(0)->PeekHeader(status);
+        NS_TEST_ASSERT_MSG_EQ(status.IsControlPdu(), true, "a STATUS PDU must be emitted");
+        // VR(MS) has not advanced past the missing SN=1 yet, so nothing may be
+        // NACKed and ACK_SN acknowledges the in-order prefix only.
+        NS_TEST_ASSERT_MSG_EQ(status.GetAckSn().GetValue(),
+                              1,
+                              "ACK_SN must acknowledge the in-order prefix");
+        NS_TEST_ASSERT_MSG_EQ(status.IsNackPresent(nr::SequenceNumber10(1)),
+                              false,
+                              "SN=1 may not be NACKed before t-Reordering expires");
+    }
+
+    // t-Reordering expiry (10 ms) must advance VR(MS) past the loss and trigger a
+    // STATUS report on its own; the report must NACK exactly the missing SN=1.
+    // (Bounded run: RLC BSR timers self-reschedule while data is outstanding.)
+    Simulator::Stop(MilliSeconds(15));
+    Simulator::Run();
+    GrantTxOpportunities(rlc, 20, 1);
+    NS_TEST_ASSERT_MSG_EQ(capture.m_pdus.size(),
+                          2,
+                          "t-Reordering expiry must trigger a STATUS report");
+    {
+        NrRlcAmHeader status;
+        capture.m_pdus.at(1)->PeekHeader(status);
+        NS_TEST_ASSERT_MSG_EQ(status.IsNackPresent(nr::SequenceNumber10(1)),
+                              true,
+                              "the missing SN=1 must be NACKed");
+        NS_TEST_ASSERT_MSG_EQ(status.IsNackPresent(nr::SequenceNumber10(2)),
+                              false,
+                              "the received SN=2 must not be NACKed");
+        NS_TEST_ASSERT_MSG_EQ(status.GetAckSn().GetValue(),
+                              3,
+                              "ACK_SN must point past the highest reported SN");
+    }
+
+    // A report triggered while t-StatusProhibit runs (just re-armed by the report
+    // above) must be withheld until the prohibit timer expires.
+    DeliverAmDataPdu(rlc, 4, 24, true);
+    GrantTxOpportunities(rlc, 20, 1);
+    NS_TEST_ASSERT_MSG_EQ(capture.m_pdus.size(),
+                          2,
+                          "the report must be withheld while t-StatusProhibit runs");
+    Simulator::Stop(MilliSeconds(15)); // t-StatusProhibit and t-Reordering expire
+    Simulator::Run();
+    GrantTxOpportunities(rlc, 20, 1);
+    NS_TEST_ASSERT_MSG_EQ(capture.m_pdus.size(),
+                          3,
+                          "the withheld report must be sent after t-StatusProhibit expires");
+    {
+        NrRlcAmHeader status;
+        capture.m_pdus.at(2)->PeekHeader(status);
+        NS_TEST_ASSERT_MSG_EQ(status.IsNackPresent(nr::SequenceNumber10(1)),
+                              true,
+                              "the still-missing SN=1 must be NACKed");
+        NS_TEST_ASSERT_MSG_EQ(status.IsNackPresent(nr::SequenceNumber10(3)),
+                              true,
+                              "the missing SN=3 must be NACKed");
+        NS_TEST_ASSERT_MSG_EQ(status.GetAckSn().GetValue(),
+                              5,
+                              "ACK_SN must point past the highest reported SN");
+    }
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Conformance-style test of AM polling (TS 38.523-1 clause 7.1.2.3.6,
+ * adapted to this 36.322-style entity).
+ *
+ * Verifies that the last data in the buffer is transmitted with the polling bit
+ * set, and that t-PollRetransmit expiry without a STATUS answer retransmits the
+ * polled PDU with the polling bit set again.
+ */
+class NrRlcAmPollingTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcAmPollingTestCase()
+        : NrRlcTestCaseBase("Test RLC AM TX: polling bit on last data and t-PollRetransmit expiry")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcAmPollingTestCase::DoRun()
+{
+    Ptr<NrRlcAm> rlc = CreateObject<NrRlcAm>();
+    NrRlcTestCaptureMac capture;
+    rlc->SetNrMacSapProvider(&capture);
+
+    // Transmitting the last (only) data in the buffer must set the polling bit.
+    rlc->DoTransmitPdcpPdu(Create<Packet>(30));
+    GrantTxOpportunities(rlc, 40, 1);
+    NS_TEST_ASSERT_MSG_EQ(capture.m_pdus.size(), 1, "one AMD PDU must be transmitted");
+    {
+        NrRlcAmHeader header;
+        capture.m_pdus.at(0)->PeekHeader(header);
+        NS_TEST_ASSERT_MSG_EQ(header.IsControlPdu(), false, "an AMD PDU must be emitted");
+        NS_TEST_ASSERT_MSG_EQ((uint16_t)header.GetPollingBit(),
+                              (uint16_t)NrRlcAmHeader::STATUS_REPORT_IS_REQUESTED,
+                              "the last data in the buffer must carry a poll");
+    }
+
+    // No STATUS answers the poll: t-PollRetransmit expiry (20 ms) must move the
+    // polled PDU to the retransmission buffer, and the next opportunity must
+    // retransmit it with the polling bit set again. (Bounded run: the BSR timer
+    // self-reschedules while un-acknowledged data is outstanding.)
+    Simulator::Stop(MilliSeconds(25));
+    Simulator::Run();
+    GrantTxOpportunities(rlc, 40, 1);
+    NS_TEST_ASSERT_MSG_EQ(capture.m_pdus.size(),
+                          2,
+                          "t-PollRetransmit expiry must lead to a retransmission");
+    {
+        NrRlcAmHeader header;
+        capture.m_pdus.at(1)->PeekHeader(header);
+        NS_TEST_ASSERT_MSG_EQ(header.IsControlPdu(), false, "the retransmission is an AMD PDU");
+        NS_TEST_ASSERT_MSG_EQ(header.GetSequenceNumber().GetValue(),
+                              0,
+                              "the polled PDU must be the one retransmitted");
+        NS_TEST_ASSERT_MSG_EQ((uint16_t)header.GetPollingBit(),
+                              (uint16_t)NrRlcAmHeader::STATUS_REPORT_IS_REQUESTED,
+                              "the retransmission after poll expiry must poll again");
+    }
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Conformance-style test of the AM transmit and receive window control
+ * (TS 38.523-1 clause 7.1.2.3.5, adapted to this 36.322-style entity).
+ *
+ * Verifies that the transmitter stalls at VT(A) + AM_Window_Size and does not emit
+ * AMD PDUs beyond the transmit window; that acknowledging part of the window
+ * resumes transmission within the updated range; and that the receiver discards
+ * AMD PDUs outside the receive window while accepting in-window ones.
+ */
+class NrRlcAmWindowTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcAmWindowTestCase()
+        : NrRlcTestCaseBase("Test RLC AM: transmit window stall, resume on ACK, receive window")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcAmWindowTestCase::DoRun()
+{
+    const uint16_t windowSize = 512;
+
+    Ptr<NrRlcAm> rlc = CreateObject<NrRlcAm>();
+    rlc->SetAttribute("MaxTxBufferSize", UintegerValue(0)); // unlimited
+    NrRlcTestCaptureMac capture;
+    rlc->SetNrMacSapProvider(&capture);
+
+    // Queue more SDUs than the transmit window holds (at least 100 beyond it, so
+    // the resume step below is not limited by the buffer); grants are sized so
+    // each PDU carries exactly one SDU. The transmitter must stall at VT(A) + 512.
+    for (uint32_t i = 0; i < windowSize + 188u; i++)
+    {
+        rlc->DoTransmitPdcpPdu(Create<Packet>(36));
+    }
+    GrantTxOpportunities(rlc, 40, windowSize + 188u);
+    NS_TEST_ASSERT_MSG_EQ(capture.m_pdus.size(),
+                          windowSize,
+                          "the transmitter must not emit AMD PDUs beyond VT(A) + AM_Window_Size");
+    {
+        NrRlcAmHeader header;
+        capture.m_pdus.back()->PeekHeader(header);
+        NS_TEST_ASSERT_MSG_EQ(header.GetSequenceNumber().GetValue(),
+                              windowSize - 1,
+                              "the last emitted SN must be the window edge");
+    }
+
+    // Acknowledging the first 100 SNs slides the window: exactly 100 more PDUs may
+    // now be transmitted, and no more.
+    DeliverStatusPdu(rlc, 100, {});
+    GrantTxOpportunities(rlc, 40, 200);
+    NS_TEST_ASSERT_MSG_EQ(capture.m_pdus.size(),
+                          (uint32_t)windowSize + 100,
+                          "acknowledging part of the window must resume transmission within the "
+                          "updated range");
+    {
+        NrRlcAmHeader header;
+        capture.m_pdus.back()->PeekHeader(header);
+        NS_TEST_ASSERT_MSG_EQ(header.GetSequenceNumber().GetValue(),
+                              windowSize + 99,
+                              "the last emitted SN must be the updated window edge");
+    }
+
+    // Receive window: a PDU with SN outside [VR(R), VR(MR)) must be discarded, and
+    // in-window PDUs must still be accepted afterwards.
+    Ptr<NrRlcAm> rxRlc = CreateObject<NrRlcAm>();
+    NrRlcTestCaptureMac rxCapture;
+    rxRlc->SetNrMacSapProvider(&rxCapture);
+    NrRlcTestSduSink sink;
+    rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+
+    DeliverAmDataPdu(rxRlc, 700, 20, false); // outside [0, 512): must be discarded
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(),
+                          0,
+                          "a PDU outside the receive window must be discarded");
+    DeliverAmDataPdu(rxRlc, 0, 20, false); // in window: delivered in sequence
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(),
+                          1,
+                          "in-window PDUs must still be accepted after the discard");
+
+    Simulator::Destroy();
+}
+
 class NrRlcAmStatusTestSuite : public TestSuite
 {
   public:
@@ -507,6 +784,9 @@ class NrRlcAmStatusTestSuite : public TestSuite
         AddTestCase(new NrRlcAmStaleStatusTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcAmReassemblyResyncTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcAmDataIntegrityTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcAmStatusTriggerTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcAmPollingTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcAmWindowTestCase(), Duration::QUICK);
     }
 };
 
