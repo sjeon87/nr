@@ -505,6 +505,7 @@ set(test_sources
     test/nr-test-phy.cc
     test/nr-test-resource-assignment-matrix.cc
     test/nr-test-rlc-am-e2e.cc
+    test/nr-test-rlc-am-status.cc
     test/nr-test-rlc-am-transmitter.cc
     test/nr-test-rlc-header.cc
     test/nr-test-rlc-tm.cc
