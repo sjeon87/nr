@@ -123,6 +123,10 @@ NrSpectrumPhy::DoDispose()
     m_phyDlHarqFeedbackCallback = MakeNullCallback<void, const DlHarqInfo&>();
     m_phyUlHarqFeedbackCallback = MakeNullCallback<void, const UlHarqInfo&>();
     m_phyRxPssCallback = MakeNullCallback<void, uint16_t, const Ptr<SpectrumValue>&>();
+    // The device and this callback both refer back to the NetDevice owning this spectrum PHY.
+    // Release them to break the reference cycle.
+    m_phyRxCtrlEndOkCallback = nullptr;
+    m_device = nullptr;
 
     SpectrumPhy::DoDispose();
 }
