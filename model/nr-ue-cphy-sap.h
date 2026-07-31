@@ -199,6 +199,12 @@ class NR_EXPORT NrUeCphySapProvider
     virtual void SetSymbolsPerSlot(uint32_t symbolsPerSlot) = 0;
     virtual void SetPattern(std::string tddPattern) = 0;
     virtual void SetDlCtrlSyms(uint8_t numDlCtrlSyms) = 0;
+
+    /**
+     * @brief Configure DL HARQ feedback (TS 38.331 downlinkHARQ-FeedbackDisabled)
+     * @param disabled true if DL HARQ feedback is suppressed
+     */
+    virtual void SetDownlinkHarqFeedbackDisabled(bool disabled) = 0;
     virtual void SetUlCtrlSyms(uint8_t numUlCtrlSyms) = 0;
     virtual void SetNumRbPerRbg(uint32_t numRbPerRbg) = 0;
 };
@@ -337,6 +343,7 @@ class MemberNrUeCphySapProvider : public NrUeCphySapProvider
     void SetPattern(std::string tddPattern) override;
     void SetDlCtrlSyms(uint8_t numDlCtrlSyms) override;
     void SetUlCtrlSyms(uint8_t numUlCtrlSyms) override;
+    void SetDownlinkHarqFeedbackDisabled(bool disabled) override;
     void SetNumRbPerRbg(uint32_t numRbPerRbg) override;
 
   private:
@@ -515,6 +522,13 @@ void
 MemberNrUeCphySapProvider<C>::SetNumRbPerRbg(uint32_t numRbPerRbg)
 {
     m_owner->SetNumRbPerRbg(numRbPerRbg);
+}
+
+template <class C>
+void
+MemberNrUeCphySapProvider<C>::SetDownlinkHarqFeedbackDisabled(bool disabled)
+{
+    m_owner->SetEnableHarq(!disabled);
 }
 
 /**

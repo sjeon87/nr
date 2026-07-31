@@ -55,6 +55,7 @@ class UeMemberNrUeCmacSapProvider : public NrUeCmacSapProvider
     void NotifyConnectionSuccessful() override;
     void SetImsi(uint64_t imsi) override;
     void RegisterToGnb(uint16_t cellId) override;
+    void SetDownlinkHarqFeedbackDisabled(bool disabled) override;
 
   private:
     NrUeMac* m_mac;
@@ -125,6 +126,12 @@ void
 UeMemberNrUeCmacSapProvider::RegisterToGnb(uint16_t cellId)
 {
     m_mac->m_phySapProvider->RegisterToGnb(cellId);
+}
+
+void
+UeMemberNrUeCmacSapProvider::SetDownlinkHarqFeedbackDisabled(bool disabled)
+{
+    m_mac->SetEnableHarq(!disabled);
 }
 
 class UeMemberNrMacSapProvider : public NrMacSapProvider
@@ -239,6 +246,12 @@ NrUeMac::GetTypeId()
                           UintegerValue(64),
                           MakeUintegerAccessor(&NrUeMac::m_srTransMax),
                           MakeUintegerChecker<uint32_t>(1))
+            .AddAttribute("EnableHarq",
+                          "If false, UE MAC will not buffer UL HARQ TBs for retransmission "
+                          "and will signal new-data transmissions only.",
+                          BooleanValue(true),
+                          MakeBooleanAccessor(&NrUeMac::SetEnableHarq, &NrUeMac::IsHarqEnabled),
+                          MakeBooleanChecker())
             .AddTraceSource("UeMacRxedCtrlMsgsTrace",
                             "Ue MAC Control Messages Traces.",
                             MakeTraceSourceAccessor(&NrUeMac::m_macRxedCtrlMsgsTrace),
@@ -848,9 +861,10 @@ NrUeMac::ProcessUlDci(const Ptr<NrUlDciMessage>& dciMsg)
                 << dataSfn << " Harq Process " << +m_ulDci->m_harqProcess << " TBS "
                 << m_ulDci->m_tbSize << " total queue " << GetTotalBufSize());
 
-    if (m_ulDci->m_ndi == 0)
+    // HARQ-enabled retransmission path: only when HARQ is enabled AND NDI==0.
+    if (m_enableHarq && m_ulDci->m_ndi == 0)
     {
-        // This method will retransmit the data saved in the harq buffer
+        // Retransmit the data saved in the HARQ buffer
         TransmitRetx();
         m_macUeStateMachine(m_imsi,
                             m_currentSlot,
@@ -862,33 +876,45 @@ NrUeMac::ProcessUlDci(const Ptr<NrUlDciMessage>& dciMsg)
                             m_ulDci->m_ndi,
                             "ProcessUlDci");
 
-        // This method will transmit a new BSR.
+        // Transmit a (new) BSR
         SendBufferStatusReport(dataSfn, m_ulDci->m_symStart);
+        return;
     }
-    else if (m_ulDci->m_ndi == 1)
+
+    // Otherwise: treat the grant as NEW DATA.
+    // This covers:
+    //  - HARQ disabled (even if NDI==0, we must not stall UL)
+    //  - HARQ enabled and NDI==1 (standard new transmission)
+    SendNewData();
+
+    m_macUeStateMachine(m_imsi,
+                        m_currentSlot,
+                        GetCellId(),
+                        m_rnti,
+                        GetBwpId(),
+                        m_srState,
+                        m_ulBsrReceived,
+                        m_ulDci->m_ndi,
+                        "ProcessUlDci");
+
+    NS_LOG_INFO("After sending NewData, bufSize " << GetTotalBufSize());
+
+    // Send a new BSR. SendNewData() already took into account the size of the BSR.
+    SendBufferStatusReport(dataSfn, m_ulDci->m_symStart);
+
+    NS_LOG_INFO("UL DCI processing done, sent to PHY a total of "
+                << m_ulDciTotalUsed << " B out of " << m_ulDci->m_tbSize << " allocated bytes ");
+
+    if (GetTotalBufSize() == 0)
     {
-        SendNewData();
-        m_macUeStateMachine(m_imsi,
-                            m_currentSlot,
-                            GetCellId(),
-                            m_rnti,
-                            GetBwpId(),
-                            m_srState,
-                            m_ulBsrReceived,
-                            m_ulDci->m_ndi,
-                            "ProcessUlDci");
+        m_srState = INACTIVE;
+        NS_LOG_INFO("m_srState = ACTIVE -> INACTIVE, bufSize " << GetTotalBufSize());
 
-        NS_LOG_INFO("After sending NewData, bufSize " << GetTotalBufSize());
-
-        // Send a new BSR. SendNewData() already took into account the size of
-        // the BSR.
-        SendBufferStatusReport(dataSfn, m_ulDci->m_symStart);
-
-        NS_LOG_INFO("UL DCI processing done, sent to PHY a total of "
-                    << m_ulDciTotalUsed << " B out of " << m_ulDci->m_tbSize
-                    << " allocated bytes ");
-
-        if (GetTotalBufSize() == 0)
+        // the UE may have been scheduled, but we didn't use a single byte
+        // of the allocation. So send an empty PDU. This happens because the
+        // byte reporting in the BSR is not accurate, due to RLC and/or
+        // BSR quantization.
+        if (m_ulDciTotalUsed == 0)
         {
             m_srState = INACTIVE;
             // The buffer was drained by a transport block that also carried the buffer status,
@@ -900,25 +926,16 @@ NrUeMac::ProcessUlDci(const Ptr<NrUlDciMessage>& dciMsg)
             m_srCounter = 0;
             NS_LOG_INFO("m_srState = ACTIVE -> INACTIVE, bufSize " << GetTotalBufSize());
 
-            // the UE may have been scheduled, but we didn't use a single byte
-            // of the allocation. So send an empty PDU. This happens because the
-            // byte reporting in the BSR is not accurate, due to RLC and/or
-            // BSR quantization.
-            if (m_ulDciTotalUsed == 0)
-            {
-                NS_LOG_WARN("No byte used for this UL-DCI, sending empty PDU");
+            NrMacSapProvider::TransmitPduParameters txParams;
 
-                NrMacSapProvider::TransmitPduParameters txParams;
+            txParams.pdu = Create<Packet>();
+            txParams.lcid = 3;
+            txParams.rnti = m_rnti;
+            txParams.layer = 0;
+            txParams.harqProcessId = m_enableHarq ? m_ulDci->m_harqProcess : 0;
+            txParams.componentCarrierId = GetBwpId();
 
-                txParams.pdu = Create<Packet>();
-                txParams.lcid = 3;
-                txParams.rnti = m_rnti;
-                txParams.layer = 0;
-                txParams.harqProcessId = m_ulDci->m_harqProcess;
-                txParams.componentCarrierId = GetBwpId();
-
-                DoTransmitPdu(txParams);
-            }
+            DoTransmitPdu(txParams);
         }
     }
 }
@@ -927,6 +944,11 @@ void
 NrUeMac::TransmitRetx()
 {
     NS_LOG_FUNCTION(this);
+
+    if (!m_enableHarq)
+    {
+        return;
+    }
 
     Ptr<PacketBurst> pb = m_miUlHarqProcessesPacket.at(m_ulDci->m_harqProcess).m_pktBurst;
 
@@ -940,9 +962,16 @@ NrUeMac::TransmitRetx()
         return;
     }
 
-    NS_LOG_DEBUG("UE MAC RETX HARQ " << +m_ulDci->m_harqProcess);
+    NS_LOG_DEBUG("UE MAC retransmitting UL HARQ process " << +m_ulDci->m_harqProcess << " for rnti "
+                                                          << m_rnti << " (" << pb->GetNPackets()
+                                                          << " packets)");
 
-    NS_ASSERT(pb->GetNPackets() > 0);
+    if (pb->GetNPackets() == 0)
+    {
+        NS_LOG_WARN("HARQ process " << +m_ulDci->m_harqProcess
+                                    << " has empty packet burst, skipping retransmission.");
+        return;
+    }
 
     for (auto j = pb->Begin(); j != pb->End(); ++j)
     {
@@ -954,8 +983,10 @@ NrUeMac::TransmitRetx()
         }
         m_phySapProvider->SendMacPdu(pkt, m_ulDciSfnsf, m_ulDci->m_symStart, m_ulDci->m_rnti);
     }
-
-    m_miUlHarqProcessesPacketTimer.at(m_ulDci->m_harqProcess) = GetNumHarqProcess();
+    if (m_ulDci->m_ndi == 0)
+    {
+        m_miUlHarqProcessesPacketTimer.at(m_ulDci->m_harqProcess) = GetNumHarqProcess();
+    }
 }
 
 void
@@ -1481,6 +1512,27 @@ NrUeMac::DoRemoveLc(uint8_t lcId)
     //         }
     //     }
     // }
+}
+
+void
+NrUeMac::SetEnableHarq(bool enable)
+{
+    if (m_enableHarq && !enable)
+    {
+        for (auto& proc : m_miUlHarqProcessesPacket)
+        {
+            proc.m_pktBurst = CreateObject<PacketBurst>();
+            proc.m_lcidList.clear();
+        }
+        std::fill(m_miUlHarqProcessesPacketTimer.begin(), m_miUlHarqProcessesPacketTimer.end(), 0);
+    }
+    m_enableHarq = enable;
+}
+
+bool
+NrUeMac::IsHarqEnabled() const
+{
+    return m_enableHarq;
 }
 
 NrMacSapProvider*

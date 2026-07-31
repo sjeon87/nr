@@ -177,6 +177,24 @@ class NR_EXPORT NrGnbMac : public Object
     void BeamChangeReport(BeamId beamId, uint8_t rnti);
 
     /**
+     * @brief Enable or disable HARQ functionality in the gNB MAC.
+     *
+     * When disabled, HARQ-related mechanisms such as retransmissions
+     * and feedback processing are bypassed. This can be useful for
+     * experiments where HARQ behavior needs to be evaluated or disabled.
+     *
+     * @param enable True to enable HARQ, false to disable it.
+     */
+    void SetEnableHarq(bool enable);
+
+    /**
+     * @brief Check whether HARQ functionality is enabled.
+     *
+     * @return True if HARQ is enabled, false otherwise.
+     */
+    bool IsHarqEnabled() const;
+
+    /**
      * TracedCallback signature for DL and UL data scheduling events.
      *
      * @param [in] frame Frame number
@@ -337,6 +355,7 @@ class NR_EXPORT NrGnbMac : public Object
 
   private:
     bool HasMsg3Allocations(const SlotAllocInfo& slotInfo);
+    bool m_enableHarq{true};
 
     struct NR_EXPORT NrDlHarqProcessInfo
     {
@@ -354,7 +373,7 @@ class NR_EXPORT NrGnbMac : public Object
     NrPhySapProvider* m_phySapProvider{nullptr};
     NrGnbPhySapUser* m_phySapUser;
 
-    NrMacSchedSapProvider* m_macSchedSapProvider;
+    NrMacSchedSapProvider* m_macSchedSapProvider{nullptr};
     NrMacSchedSapUser* m_macSchedSapUser;
     NrMacCschedSapProvider* m_macCschedSapProvider;
     NrMacCschedSapUser* m_macCschedSapUser;

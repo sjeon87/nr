@@ -245,8 +245,13 @@ class NR_EXPORT NrMacScheduler : public Object
      * @return the number of UL ctrl symbols
      */
     virtual uint8_t GetUlCtrlSyms() const = 0;
-
     virtual bool IsHarqReTxEnable() const = 0;
+
+    /**
+     * @brief Enable or disable HARQ processing in the scheduler
+     * @param enable false to disable the HARQ lifecycle and retransmissions
+     */
+    virtual void EnableHarq(bool enable) = 0;
 
     virtual bool IsMaxSrsReached() const = 0;
     /**

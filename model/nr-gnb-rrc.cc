@@ -196,6 +196,11 @@ NrUeManager::ConfigureSap()
     m_physicalConfigDedicated.soundingRsUlConfigDedicated.srsBandwidth = 0;
     m_physicalConfigDedicated.havePdschConfigDedicated = true;
     m_physicalConfigDedicated.pdschConfigDedicated.pa = NrRrcSap::PdschConfigDedicated::dB0;
+    if (!m_rrc->m_enableHarq)
+    {
+        m_physicalConfigDedicated.haveDownlinkHarqFeedbackDisabled = true;
+        m_physicalConfigDedicated.downlinkHarqFeedbackDisabled = true;
+    }
 
     for (uint16_t i = 0; i < m_rrc->m_numberOfComponentCarriers; i++)
     {
@@ -1670,6 +1675,17 @@ NrUeManager::SetPdschConfigDedicated(NrRrcSap::PdschConfigDedicated pdschConfigD
 }
 
 void
+NrUeManager::SetHarqFeedbackDisabled(bool disabled)
+{
+    NS_LOG_FUNCTION(this << disabled);
+    m_physicalConfigDedicated.haveDownlinkHarqFeedbackDisabled = true;
+    m_physicalConfigDedicated.downlinkHarqFeedbackDisabled = disabled;
+    m_needPhyMacConfiguration = true;
+    // reconfigure the UE RRC
+    ScheduleRrcConnectionReconfiguration();
+}
+
+void
 NrUeManager::CancelPendingEvents()
 {
     NS_LOG_FUNCTION(this);
@@ -2147,6 +2163,12 @@ NrGnbRrc::GetTypeId()
                           UintegerValue(0), // default tx-mode
                           MakeUintegerAccessor(&NrGnbRrc::m_defaultTransmissionMode),
                           MakeUintegerChecker<uint8_t>())
+            .AddAttribute("EnableHarq",
+                          "If false, signal downlinkHARQ-FeedbackDisabled to the UE "
+                          "(see TS 38.331 PDSCH-ServingCellConfig)",
+                          BooleanValue(true),
+                          MakeBooleanAccessor(&NrGnbRrc::SetEnableHarq, &NrGnbRrc::IsHarqEnabled),
+                          MakeBooleanChecker())
             .AddAttribute(
                 "QosFlowToRlcMapping",
                 "Specify which type of RLC will be used for each type of QoS flow.",
@@ -2548,6 +2570,33 @@ NrGnbRrc::HasUeManager(uint16_t rnti) const
     return (it != m_ueMap.end());
 }
 
+void
+NrGnbRrc::SetEnableHarq(bool enable)
+{
+    NS_LOG_FUNCTION(this << enable);
+    if (m_enableHarq == enable)
+    {
+        return;
+    }
+    m_enableHarq = enable;
+
+    // gNB side: configure MAC/scheduler and PHY locally
+    for (auto& p : m_cmacSapProvider)
+    {
+        p->SetEnableHarq(enable);
+    }
+    for (auto& p : m_cphySapProvider)
+    {
+        p->SetEnableHarq(enable);
+    }
+
+    // UE side: signal the change over the air
+    for (auto& it : m_ueMap)
+    {
+        it.second->SetHarqFeedbackDisabled(!enable);
+    }
+}
+
 Ptr<NrUeManager>
 NrGnbRrc::GetUeManager(uint16_t rnti)
 {
@@ -2567,6 +2616,12 @@ NrGnbRrc::GetUeMap() const
 {
     NS_LOG_FUNCTION(this);
     return m_ueMap;
+}
+
+bool
+NrGnbRrc::IsHarqEnabled() const
+{
+    return m_enableHarq;
 }
 
 std::vector<uint8_t>

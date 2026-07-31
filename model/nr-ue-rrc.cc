@@ -2380,6 +2380,14 @@ NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicate
         m_cphySapProvider.at(GetPrimaryDlIndex())->SetPa(paDouble);
     }
 
+    if (pcd.haveDownlinkHarqFeedbackDisabled)
+    {
+        m_cmacSapProvider.at(GetPrimaryDlIndex())
+            ->SetDownlinkHarqFeedbackDisabled(pcd.downlinkHarqFeedbackDisabled);
+        m_cphySapProvider.at(GetPrimaryDlIndex())
+            ->SetDownlinkHarqFeedbackDisabled(pcd.downlinkHarqFeedbackDisabled);
+    }
+
     auto stamIt = rrcd.srbToAddModList.begin();
     if (stamIt != rrcd.srbToAddModList.end())
     {

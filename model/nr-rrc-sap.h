@@ -217,11 +217,14 @@ class NR_EXPORT NrRrcSap
     {
         bool haveSoundingRsUlConfigDedicated{false}; ///< have sounding RS UL config dedicated?
         SoundingRsUlConfigDedicated
-            soundingRsUlConfigDedicated;           ///< sounding RS UL config dedicated
-        bool haveAntennaInfoDedicated{false};      ///< have antenna info dedicated?
-        AntennaInfoDedicated antennaInfo;          ///< antenna info
-        bool havePdschConfigDedicated{false};      ///< have PDSCH config dedicated?
-        PdschConfigDedicated pdschConfigDedicated; ///< PDSCH config dedicated
+            soundingRsUlConfigDedicated;              ///< sounding RS UL config dedicated
+        bool haveAntennaInfoDedicated{false};         ///< have antenna info dedicated?
+        AntennaInfoDedicated antennaInfo;             ///< antenna info
+        bool havePdschConfigDedicated{false};         ///< have PDSCH config dedicated?
+        PdschConfigDedicated pdschConfigDedicated;    ///< PDSCH config dedicated
+        bool haveDownlinkHarqFeedbackDisabled{false}; ///< have DL HARQ feedback disabled
+        bool downlinkHarqFeedbackDisabled{
+            false}; ///< DL HARQ feedback disabled (TS 38.331 downlinkHARQ-FeedbackDisabled-r17)
     };
 
     /// SrbToAddMod structure

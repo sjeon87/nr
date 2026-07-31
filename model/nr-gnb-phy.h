@@ -823,9 +823,31 @@ class NR_EXPORT NrGnbPhy : public NrPhy
     void HandleFhDropping();
 
     /**
-     * @brief Prepare and schedule all the events needed for the current slot.
+     * @brief Prepare and schedule all the events required for the current slot.
+     *
+     * This method generates the internal events needed to process the slot,
+     * including scheduling transmissions, receptions, and control signaling
+     * according to the current slot configuration and allocations.
      */
     void FillTheEvent();
+
+    /**
+     * @brief Enable or disable HARQ functionality at the PHY layer.
+     *
+     * When disabled, HARQ feedback handling and related control processing
+     * at the PHY are bypassed. This is useful for experiments where HARQ
+     * needs to be disabled or controlled externally.
+     *
+     * @param enable True to enable HARQ processing, false to disable it.
+     */
+    void SetEnableHarq(bool enable);
+
+    /**
+     * @brief Check whether HARQ functionality is enabled at the PHY layer.
+     *
+     * @return True if HARQ processing is enabled, false otherwise.
+     */
+    bool IsHarqEnabled() const;
 
     /**
      * @brief Assign PHY and spectrumPhy random streams.
@@ -955,7 +977,8 @@ class NR_EXPORT NrGnbPhy : public NrPhy
     bool m_testDropRachPreambles{false};
 
     mutable Ptr<UniformRandomVariable>
-        m_fhRng; //!< Random distribution for fronthaul management shuffling
+        m_fhRng;             //!< Random distribution for fronthaul management shuffling
+    bool m_enableHarq{true}; //!< Whether HARQ feedback/control handling is enabled at PHY
 };
 
 } // namespace ns3

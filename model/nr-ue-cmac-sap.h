@@ -112,6 +112,12 @@ class NR_EXPORT NrUeCmacSapProvider
     virtual void SetImsi(uint64_t imsi) = 0;
 
     virtual void RegisterToGnb(uint16_t cellId) = 0;
+
+    /**
+     * @brief Configure DL HARQ feedback (TS 38.331 downlinkHARQ-FeedbackDisabled)
+     * @param disabled true if DL HARQ feedback is disabled
+     */
+    virtual void SetDownlinkHarqFeedbackDisabled(bool disabled) = 0;
 };
 
 /**

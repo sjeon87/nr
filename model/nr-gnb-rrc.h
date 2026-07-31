@@ -447,6 +447,12 @@ class NR_EXPORT NrUeManager : public Object
     void SetPdschConfigDedicated(NrRrcSap::PdschConfigDedicated pdschConfigDedicated);
 
     /**
+     * @brief Update the HARQ configuration signalled to this UE
+     * @param disabled true if DL HARQ feedback is to be disabled
+     */
+    void SetHarqFeedbackDisabled(bool disabled);
+
+    /**
      * Cancel all timers which are running for the UE
      *
      */
@@ -948,6 +954,26 @@ class NR_EXPORT NrGnbRrc : public Object
      * @return map of RNTI to NrUeManager instances
      */
     std::map<uint16_t, Ptr<NrUeManager>> GetUeMap() const;
+
+    /**
+     * @brief Enable or disable HARQ, signalling the change to connected UEs
+     *
+     * Changing this at runtime triggers an RRC connection reconfiguration for
+     * every connected UE so the new setting is signalled over the air. UEs that
+     * attach or hand over into this gNB afterwards pick up the current setting
+     * via ConfigureSap(). The setting is per-gNB: a runtime change on one gNB is
+     * not propagated to other gNBs automatically, so for consistent behaviour
+     * under inter-gNB handover the attribute should be set on all gNBs.
+     *
+     * @param enable false to signal downlinkHARQ-FeedbackDisabled to the UEs
+     */
+    void SetEnableHarq(bool enable);
+
+    /**
+     * @brief Get the current HARQ enable state
+     * @return true if HARQ is enabled
+     */
+    bool IsHarqEnabled() const;
 
     /**
      * @brief Add a new UE measurement reporting configuration
@@ -1781,6 +1807,8 @@ class NR_EXPORT NrGnbRrc : public Object
      * mode (0: SISO).
      */
     uint8_t m_defaultTransmissionMode;
+
+    bool m_enableHarq{true}; ///< enable HARQ feedback (signalled as downlinkHARQ-FeedbackDisabled)
     /**
      * The `QosFlowToRlcMapping` attribute. Specify which type of RLC will be
      * used for each type of QoS flow.

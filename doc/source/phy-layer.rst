@@ -975,7 +975,7 @@ At the MAC layer, the HARQ entity residing in the scheduler is in charge of
 controlling the HARQ processes for generating new packets and managing the
 retransmissions both for the DL and the UL. The scheduler collects the HARQ
 feedback from gNB and UE PHY layers (respectively for UL and DL connection)
-by means of the FF API primitives ``SchedUlTriggerReq`` and ``SchedUlTriggerReq``.
+by means of the FF API primitives 'SchedUlTriggerReq' and 'SchedUlTriggerReq'.
 According to the HARQ feedback and the RLC buffers status, the scheduler generates
 a set of DCIs including both retransmissions of HARQ blocks received erroneous
 and new transmissions, in general, giving priority to the former.
@@ -986,8 +986,65 @@ the specification of the rate matcher in the 3GPP standard [TS38212]_, where
 the algorithm fixes the modulation order for generating the different blocks
 of the redundancy versions.
 
-The 'NR' module supports multiple (20) stop and wait processes to allow continuous data flow. The model is asynchronous for both DL and UL transmissions. The transmissions, feedback, and retransmissions basically depend on the processing timings, the TDD pattern, and the scheduler. We support up to 4 redundancy versions per HARQ process; after which, if combined decoding is not successful, the transport block is dropped.
+The 'NR' module supports multiple (20) stop and wait processes to allow continuous data flow. The model is asynchronous for both DL and UL transmissions. The transmissions, feedback, and retransmissions basically depend on the processing timings, the TDD pattern, and the scheduler. The number of retransmissions of a transport block is bounded by the ``MaxHarqReTx`` attribute of the scheduler (3 by default, matching the four redundancy versions defined in the standard); when that limit is reached and combined decoding has still not succeeded, the transport block is dropped. The soft-combining history of a HARQ process is discarded when new data is transmitted on that process, i.e. when the NDI indicates a new transport block, following TS 38.321 clause 5.3.2.2.
 
+Disabling HARQ
+==============
+
+By default HARQ is enabled, reproducing the behavior described above. The 'NR'
+module also allows HARQ to be disabled, which is useful to isolate the effect
+of retransmissions, to model systems that do not rely on HARQ, or to reduce the
+latency introduced by the HARQ feedback round-trip.
+
+HARQ is controlled through the 'EnableHarq' attribute, which is present on the
+scheduler, on the gNB and UE MAC, on the gNB and UE PHY, and on the gNB RRC. The
+'NrHelper::SetHarqEnabled(bool)' helper configures the gNB scheduler, MAC and
+PHY locally, and sets the gNB RRC default; the UE is then configured over the air
+by RRC, in 'PhysicalConfigDedicated'. As a consequence, a UE keeps its default
+configuration (HARQ enabled) until the RRC connection setup completes. Changing
+'NrGnbRrc::EnableHarq' during the simulation reconfigures the gNB and triggers
+an RRC reconfiguration towards every connected UE, so HARQ can be enabled and
+disabled at runtime.
+
+In addition, the 'MaxHarqReTx' attribute of the scheduler bounds the number of
+HARQ retransmissions of a transport block, in both DL and UL. The initial
+transmission always takes place, so 'MaxHarqReTx' counts the retransmissions
+that follow it, not the total number of transmissions. For example:
+
+* 'MaxHarqReTx = 0': the transport block is transmitted once, with no
+  retransmission; if it is not decoded correctly it is dropped. This disables
+  HARQ retransmissions while keeping the rest of the HARQ machinery active.
+* 'MaxHarqReTx = 1': the initial transmission plus at most one retransmission
+  (up to two transmissions in total).
+* 'MaxHarqReTx = 2': the initial transmission plus at most two retransmissions
+  (up to three in total).
+* 'MaxHarqReTx = 3' (default): the initial transmission plus at most three
+  retransmissions (up to four transmissions in total), matching the four
+  redundancy versions (RV0-RV3) defined in the standard.
+
+When HARQ is disabled:
+
+* At the gNB MAC, the scheduler does not process HARQ feedback and does not
+  schedule retransmissions, for both DL and UL. A transport block that is not
+  correctly decoded is not retransmitted; recovery, if any, is left to the upper
+  layers (e.g. RLC). Pending retransmissions and HARQ process state are
+  discarded at the moment HARQ is disabled, so no stale work is carried across
+  a disable window.
+* At the UE MAC, the UL HARQ process buffers, logical channel lists and timers
+  are flushed, and no UL retransmission is prepared.
+* At the PHY layer, HARQ feedback is suppressed in both directions, which
+  removes the PUCCH feedback round-trip and the associated K1 delay, and the
+  soft-combining history (soft buffers) is cleared, so transmissions are not
+  combined.
+
+Because the default leaves HARQ enabled, existing scenarios are not affected
+unless HARQ is explicitly disabled. The 'cttc-nr-harq-validation' example
+illustrates how to enable or disable HARQ and how to limit the number of
+retransmissions, and reports HARQ statistics such as the average number of
+retransmissions per transport block and the block error rate before and after
+HARQ. The 'cttc-nr-harq-runtime' example shows HARQ being disabled and
+re-enabled during the simulation through the gNB RRC. Both examples use a DL
+traffic flow; the UL path is implemented but is not exercised by these examples.
 
 MIMO
 ====

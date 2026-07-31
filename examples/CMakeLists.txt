@@ -24,7 +24,10 @@ set(base_examples
     cttc-nr-simple-qos-sched
     cttc-nr-multi-flow-qos-sched
     gsoc-nr-channel-models
+    cttc-nr-harq-runtime
+    cttc-nr-harq-validation
 )
+
 foreach(
   example
   ${base_examples}

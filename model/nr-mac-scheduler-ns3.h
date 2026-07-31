@@ -540,24 +540,33 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
      * @return true if F slots are available for SRS, false otherwise
      */
     bool IsSrsInFSlots() const;
+
     /**
-     * @brief Enable HARQ ReTx function
+     * @brief Enable or disable the HARQ lifecycle in the scheduler.
      *
-     * Remember we introduced the EnableHarqReTx attribute only
-     * for FB calibration example. We want to disable HARQ ReTx
-     * because ReTx are scheduled in OFDMA fashion. In a TDMA simulation,
-     * such retransmissions change the SINR trends in a scenario. Also,
-     * REMEMBER that this solution of disabling the HARQ ReTx not very
-     * optimized because gNB MAC will still buffer the packet and UE
-     * would still transmit the HARQ feedback for the first transmission.
+     * If false, the scheduler will ignore HARQ feedback, skip HARQ timers,
+     * and schedule only fresh data. This is stronger than MaxHarqReTx = 0,
+     * which stops retransmissions while HARQ feedback is still processed.
      *
-     * @param enableFlag If true, it would set the max HARQ ReTx to 3; otherwise it set it to 0
+     * On the true -> false transition any pending retransmission and every
+     * per-UE HARQ process is discarded, so no stale work is carried across a
+     * disable window. Repeated calls with the same value are a no-op.
+     *
+     * @param enableFlag true to enable scheduler HARQ processing, false to disable it
      */
-    void EnableHarqReTx(bool enableFlag);
+    void EnableHarq(bool enableFlag) override;
+
     /**
-     * @brief Is HARQ ReTx enable function
+     * @brief Check if scheduler HARQ processing is enabled.
      *
-     * @return Returns true if HARQ ReTx are enabled; otherwise false
+     * @return true if scheduler HARQ processing is enabled
+     */
+    bool IsHarqEnabled() const;
+
+    /**
+     * @brief Check whether HARQ retransmissions can be scheduled.
+     *
+     * @return true when the HARQ lifecycle is enabled and MaxHarqReTx > 0
      */
     bool IsHarqReTxEnable() const override;
 
@@ -567,6 +576,94 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
      * @param v the MCS to be used for RACH UL grant
      */
     void SetRachUlGrantMcs(uint8_t v);
+
+    /**
+     * @brief Raw HARQ counters, for measuring statistics over an interval
+     *
+     * The getters below return ratios accumulated since the start of the
+     * simulation. Callers that need per-interval figures can snapshot these
+     * raw counters at the interval boundaries and difference them.
+     */
+    struct HarqCounters
+    {
+        uint64_t totalTbFirstTx{0};     //!< first transmissions of a TB
+        uint64_t totalHarqRetx{0};      //!< HARQ retransmissions
+        uint64_t totalTbFirstTxNack{0}; //!< first transmissions that were NACKed
+        uint64_t totalTbReachedMax{0};  //!< TBs that reached MaxHarqReTx and still failed
+    };
+
+    /**
+     * @brief Get a snapshot of the raw HARQ counters
+     * @return the current counter values
+     */
+    HarqCounters GetHarqCounters() const
+    {
+        return {m_totalTbFirstTx, m_totalHarqRetx, m_totalTbFirstTxNack, m_totalTbReachedMax};
+    }
+
+    double GetAvgRetxPerTb() const
+    {
+        if (m_totalTbFirstTx == 0)
+        {
+            return 0.0;
+        }
+        // "How many HARQ retransmissions were triggered per initial TB"
+        return static_cast<double>(m_totalHarqRetx) / static_cast<double>(m_totalTbFirstTx);
+    }
+
+    double GetHarqOverhead() const
+    {
+        // Overhead ratio = retx transmissions / (firstTx + retx)
+        const uint64_t totalTx = m_totalTbFirstTx + m_totalHarqRetx;
+        if (totalTx == 0)
+        {
+            return 0.0;
+        }
+
+        return static_cast<double>(m_totalHarqRetx) / static_cast<double>(totalTx);
+    }
+
+    double GetBlerBeforeHarq() const
+    {
+        if (m_totalTbFirstTx == 0)
+        {
+            return 0.0;
+        }
+
+        // First-TX BLER proxy: fraction of first transmissions that got NACK
+        return static_cast<double>(m_totalTbFirstTxNack) / static_cast<double>(m_totalTbFirstTx);
+    }
+
+    double GetBlerAfterHarq() const
+    {
+        if (m_totalTbFirstTx == 0)
+        {
+            return 0.0;
+        }
+
+        // Final BLER proxy: TBs that still failed after exhausting HARQ
+        return static_cast<double>(m_totalTbReachedMax) / static_cast<double>(m_totalTbFirstTx);
+    }
+
+    double GetTbReachedMaxRatio() const
+    {
+        if (m_totalTbFirstTx == 0)
+        {
+            return 0.0;
+        }
+
+        return static_cast<double>(m_totalTbReachedMax) / static_cast<double>(m_totalTbFirstTx);
+    }
+
+    // Trace for HARQ feedback processing
+    typedef TracedCallback<uint16_t,   // rnti
+                           uint8_t,    // harqId
+                           uint8_t,    // rv
+                           bool,       // isAck
+                           bool,       // reachedMax
+                           std::string // direction ("DL"/"UL")
+                           >
+        HarqStatsTracedCallback;
 
   protected:
     /**
@@ -855,6 +952,12 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
                            const std::vector<DlHarqInfo>& dlHarqFeedback) const;
     void ComputeActiveHarq(ActiveHarqMap* activeUlHarq,
                            const std::vector<UlHarqInfo>& ulHarqFeedback) const;
+    /// Look up a UE's HARQ vector by RNTI. Returns nullptr if the RNTI is unknown.
+    NrMacHarqVector* GetUeHarqVector(
+        uint16_t rnti,
+        const NrMacSchedulerUeInfo::GetHarqVectorFn& getHarqVector) const;
+    /// Create a new HARQ process (WAITING_FEEDBACK, m_txAttempts = 1) for a first transmission.
+    HarqProcess CreateNewHarqProcess(const std::shared_ptr<DciInfoElementTdma>& dci) const;
 
     uint8_t DoScheduleDlData(PointInFTPlane* spoint,
                              uint32_t symAvail,
@@ -918,8 +1021,18 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
     void LogUesWithPendingDlSignalingTraffic(const ActiveUeMap& activeDlUe) const;
 
     static const unsigned m_macHdrSize = 0; //!< Mac Header size
+    static const uint32_t m_subHdrSize = 4; //!< Sub Header size (?)
     static const unsigned m_rlcHdrSize = 3; //!< RLC Header size
     // The MAC sub header size defined in nr-mac-scheduler-lcg.h
+
+    // --- HARQ statistics counters ---
+    mutable uint64_t m_totalTbFirstTx{0};     // # TBs (first TX only)
+    mutable uint64_t m_totalTbFirstTxNack{0}; // # first-TX TBs that got NACK
+    mutable uint64_t m_totalHarqRetx{0};      // # retransmissions triggered (proxy)
+    mutable uint64_t m_totalTbReachedMax{0};  // # TBs that reached maxHarqReTx and still failed
+
+    // Trace source
+    mutable HarqStatsTracedCallback m_harqStats;
 
   protected:
     /**
@@ -1006,6 +1119,8 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
     uint8_t m_startMcsUl{0};   //!< Starting (or fixed) value for UL MCS
     int8_t m_maxDlMcs{0};      //!< Maximum index for DL MCS
     Time m_cqiTimersThreshold; //!< The time while a CQI is valid
+    bool m_enableHarq{true};   //!< Flag to enable or disable HARQ lifecycle in scheduler
+    uint8_t m_maxHarqReTx{3};
 
     uint8_t m_rachUlGrantMcs{0}; //!< The MCS that will be used for UL RACH grant
     uint8_t m_ulRachBwpIndex{
@@ -1065,8 +1180,6 @@ class NR_EXPORT NrMacSchedulerNs3 : public NrMacScheduler
     TypeId m_schedLcType; //!< Type of the LC scheduling algorithm
 
     uint32_t m_srsSlotCounter{0}; //!< Counter for UL slots
-
-    bool m_enableHarqReTx{true}; //!< Flag to enable or disable HARQ ReTx (attribute)
 
     TracedCallback<uint16_t, uint16_t, const std::shared_ptr<NrMacSchedulerUeInfo>&>
         m_csiFeedbackReceived; //!< Traced callback to access CSI feedback

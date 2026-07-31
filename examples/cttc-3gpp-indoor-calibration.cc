@@ -615,7 +615,7 @@ Nr3gppIndoorCalibration::Run(double centralFrequencyBand,
     {
         nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaPF"));
     }
-    nrHelper->SetSchedulerAttribute("EnableHarqReTx", BooleanValue(false));
+    nrHelper->SetSchedulerAttribute("MaxHarqReTx", UintegerValue(0));
 
     // Antennas for all the UEs - Should be 2x4 = 8 antenna elements
     nrHelper->SetUeAntennaAttribute("NumRows", UintegerValue(2));

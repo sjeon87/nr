@@ -134,6 +134,12 @@ us a note on ns-developers mailing list.
 - The ``cttc-nr-demo-sionna-rt`` example is built only when Sionna RT dependencies are detected and the platform is not Windows.
 - The documentation build generates the figure artifacts from their committed ``.dia``/``.seqdiag``/``.dot`` sources instead of shipping generated images, is self-contained (no ns-3 source tree required), and the CI documentation job stops at the first Sphinx error and verifies that the expected outputs were generated.
 
+### New API
+- Added the ``NrHelper::SetHarqEnabled(bool)`` helper to enable or disable HARQ consistently across the relevant PHY, MAC and scheduler layers.
+
+### Changed Behavior
+- HARQ can now be fully disabled. An ``EnableHarq`` attribute was added to ``NrMacSchedulerNs3``, ``NrGnbMac``, ``NrGnbPhy``, ``NrUePhy`` and ``NrSpectrumPhy``, and a ``MaxHarqReTx`` attribute to ``NrMacSchedulerNs3`` bounds the number of HARQ retransmissions (``0`` disables retransmissions). When disabled, the scheduler skips HARQ feedback processing and retransmission scheduling, and the PHY suppresses HARQ feedback (no PUCCH round-trip / K1 delay) and soft-combining. The default behavior is unchanged (HARQ enabled). See the ``cttc-nr-harq-validation`` example.
+
 ## Changes from NR-v4.1.1 to v4.2
 
 ### New API:
