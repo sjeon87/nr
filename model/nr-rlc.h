@@ -19,6 +19,8 @@
 #include "ns3/traced-value.h"
 #include "ns3/uinteger.h"
 
+#include <list>
+
 namespace ns3
 {
 
@@ -143,6 +145,47 @@ class NR_EXPORT NrRlc : public Object // SimpleRefCount<NrRlc>
      * @param p packet
      */
     virtual void DoTransmitPdcpPdu(Ptr<Packet> p) = 0;
+
+    /**
+     * Split the payload of a received RLC PDU into its data fields, as delimited by
+     * the length indicators of the (already removed) RLC header.
+     *
+     * @tparam RlcHeader the RLC header type, NrRlcHeader or NrRlcAmHeader.
+     * @param header Header of the PDU, whose E and LI fields are consumed.
+     * @param packet Payload of the PDU, fragmented in place.
+     * @param dataFields List the data fields are appended to, in order.
+     */
+    template <typename RlcHeader>
+    void SplitDataFields(RlcHeader& header, Ptr<Packet> packet, std::list<Ptr<Packet>>& dataFields);
+
+    /**
+     * Reassemble the data fields carried by a received RLC PDU and deliver the
+     * complete SDUs to PDCP, in the order they appear in the PDU.
+     *
+     * The data fields are consumed: a leading field that continues the held first
+     * segment is concatenated with it, a trailing field that does not end on an SDU
+     * boundary becomes the new held first segment, and everything in between is a
+     * complete SDU. Segments that can no longer be reassembled -- a held segment
+     * whose continuation was lost, or a continuation whose first segment is gone --
+     * are discarded, which resynchronises the entity on the next SDU boundary.
+     *
+     * @param dataFields Data fields of the PDU, in order; emptied by the call.
+     * @param keepS0 Held first segment (may be null); updated in place.
+     * @param firstFieldContinuesSdu Whether the first data field continues the SDU
+     *        of a previous PDU (FI = 10 or 11).
+     * @param lastFieldIsComplete Whether the last data field ends an SDU
+     *        (FI = 00 or 10).
+     * @param heldSegmentIsUsable Whether the held first segment is still the
+     *        immediate predecessor of this PDU, i.e. no loss was detected and the
+     *        framing info agrees with the reassembly state.
+     * @return Whether a first segment is being held after the call, i.e. whether
+     *         the entity is left mid-SDU.
+     */
+    bool ReassembleSdus(std::list<Ptr<Packet>>& dataFields,
+                        Ptr<Packet>& keepS0,
+                        bool firstFieldContinuesSdu,
+                        bool lastFieldIsComplete,
+                        bool heldSegmentIsUsable);
 
     NrRlcSapUser* m_rlcSapUser;         ///< RLC SAP user
     NrRlcSapProvider* m_rlcSapProvider; ///< RLC SAP provider
