@@ -94,6 +94,18 @@ class NR_EXPORT NrRlcUm : public NrRlc
     friend class NrRlcUmTxPdcpDiscardTestCase;
     /// Grant the ReassembleSnInterval gap regression test access to private reception state
     friend class NrRlcUmReassembleGapTestCase;
+    /// Grant the reassembly state machine matrix test access to private reassembly state
+    friend class NrRlcUmReassemblyMatrixTestCase;
+    /// Grant the SN-alias resynchronisation regression test access to private reassembly state
+    friend class NrRlcUmSnAliasResyncTestCase;
+    /// Grant the Tx buffer overflow test access to private transmit buffer state
+    friend class NrRlcUmTxBufferOverflowTestCase;
+    /// Grant the Tx opportunity edge-case test access to private transmit buffer state
+    friend class NrRlcUmTxOpportunityEdgeTestCase;
+    /// Grant the t-Reordering timer test access to private timer and window state
+    friend class NrRlcUmReorderingTimerTestCase;
+    /// Grant the out-of-order delivery test access to private reception buffer state
+    friend class NrRlcUmOutOfOrderDeliveryTestCase;
     uint32_t m_maxTxBufferSize; ///< maximum transmit buffer status
     uint32_t m_txBufferSize;    ///< transmit buffer size
 
@@ -121,7 +133,6 @@ class NR_EXPORT NrRlcUm : public NrRlc
 
     std::deque<TxPdu> m_txBuffer;               ///< Transmission buffer
     std::map<uint16_t, Ptr<Packet>> m_rxBuffer; ///< Reception buffer
-    std::vector<Ptr<Packet>> m_reasBuffer;      ///< Reassembling buffer
 
     std::list<Ptr<Packet>> m_sdusBuffer; ///< List of SDUs in a packet
 
@@ -148,7 +159,7 @@ class NR_EXPORT NrRlcUm : public NrRlc
     bool m_enablePdcpDiscarding{false}; //!< whether to use the PDCP discarding (perform discarding
                                         //!< at the moment of passing the PDCP SDU to RLC)
     uint32_t m_discardTimerMs{0};       //!< the discard timer value in milliseconds
-    bool m_outOfOrderDelivery{true};    //!< whether to deliver RLC SDUs without reordering timer
+    bool m_outOfOrderDelivery{false};   //!< whether to deliver RLC SDUs without reordering timer
 
     /**
      * Reassembling state

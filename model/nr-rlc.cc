@@ -6,6 +6,8 @@
 
 #include "nr-rlc.h"
 
+#include "nr-rlc-am-header.h"
+#include "nr-rlc-header.h"
 #include "nr-rlc-sap.h"
 #include "nr-rlc-tag.h"
 // #include "nr-mac-sap.h"
@@ -171,6 +173,94 @@ NrRlc::SetMaxRetxReachedCallback(Callback<void> cb)
 {
     NS_LOG_FUNCTION(this);
     m_maxRetxReachedCallback = cb;
+}
+
+template <typename RlcHeader>
+void
+NrRlc::SplitDataFields(RlcHeader& header, Ptr<Packet> packet, std::list<Ptr<Packet>>& dataFields)
+{
+    NS_LOG_FUNCTION(this << packet);
+
+    while (true)
+    {
+        const uint8_t extensionBit = header.PopExtensionBit();
+        NS_LOG_LOGIC("E = " << (uint16_t)extensionBit);
+
+        if (extensionBit == 0)
+        {
+            dataFields.push_back(packet);
+            return;
+        }
+
+        const uint16_t lengthIndicator = header.PopLengthIndicator();
+        NS_LOG_LOGIC("LI = " << lengthIndicator);
+
+        // Every LI-delimited data field must leave at least one byte for the last
+        // field, so a valid PDU always holds more data than the LI value.
+        NS_ABORT_MSG_IF(lengthIndicator >= packet->GetSize(),
+                        "Not enough data in the packet (" << packet->GetSize()
+                                                          << "). Needed LI=" << lengthIndicator);
+
+        dataFields.push_back(packet->CreateFragment(0, lengthIndicator));
+        packet->RemoveAtStart(lengthIndicator);
+    }
+}
+
+template void NrRlc::SplitDataFields(NrRlcHeader&, Ptr<Packet>, std::list<Ptr<Packet>>&);
+template void NrRlc::SplitDataFields(NrRlcAmHeader&, Ptr<Packet>, std::list<Ptr<Packet>>&);
+
+bool
+NrRlc::ReassembleSdus(std::list<Ptr<Packet>>& dataFields,
+                      Ptr<Packet>& keepS0,
+                      bool firstFieldContinuesSdu,
+                      bool lastFieldIsComplete,
+                      bool heldSegmentIsUsable)
+{
+    NS_LOG_FUNCTION(this << dataFields.size() << firstFieldContinuesSdu << lastFieldIsComplete
+                         << heldSegmentIsUsable);
+    NS_ASSERT(!dataFields.empty());
+
+    if (firstFieldContinuesSdu && keepS0 && heldSegmentIsUsable)
+    {
+        // The first data field continues the held first segment: concatenate them
+        // and let the reassembled SDU take its place at the front of the list.
+        keepS0->AddAtEnd(dataFields.front());
+        dataFields.front() = keepS0;
+        keepS0 = nullptr;
+    }
+    else
+    {
+        // Either there is no segment to continue, or the held one can no longer be
+        // completed (loss, or framing info contradicting the reassembly state).
+        // Discard it, and with it a first data field that continues an SDU we are
+        // not reassembling, which is now orphaned.
+        if (keepS0)
+        {
+            NS_LOG_LOGIC("Discarding the held partial SDU");
+            keepS0 = nullptr;
+        }
+        if (firstFieldContinuesSdu)
+        {
+            NS_LOG_LOGIC("Discarding the orphaned SDU segment");
+            dataFields.pop_front();
+        }
+    }
+
+    // A data field that does not end on an SDU boundary is the first segment of the
+    // next SDU: hold it back until its continuation arrives.
+    if (!lastFieldIsComplete && !dataFields.empty())
+    {
+        keepS0 = dataFields.back();
+        dataFields.pop_back();
+    }
+
+    for (const auto& sdu : dataFields)
+    {
+        m_rlcSapUser->ReceivePdcpPdu(sdu);
+    }
+    dataFields.clear();
+
+    return keepS0 != nullptr;
 }
 
 ////////////////////////////////////////

@@ -12,84 +12,224 @@
  * reassembled (and removed) before VR(UR) advances so no PDU is left outside the reception
  * window, including at 10-bit SN wrap-around; that a stranded partial SDU is discarded on
  * t-Reordering expiry so no corrupt SDU is delivered to PDCP; that an SDU discarded by the PDCP
- * discard timer fires the TxDrop trace once and is not enqueued in the Tx buffer; and that
+ * discard timer fires the TxDrop trace once and is not enqueued in the Tx buffer; that
  * ReassembleSnInterval skips missing SNs safely with logging enabled while reassembling and
- * delivering the SNs that are present.
+ * delivering the SNs that are present; that every transition of the reassembly state machine
+ * (state x FI x SN-continuity x segment count) delivers exactly the expected SDU bytes; that a
+ * stale PDU aliasing the expected SN after a handover resynchronises the reassembler instead of
+ * aborting the simulation; that the Tx side drops SDUs on buffer overflow and on
+ * packet-delay-budget expiry, produces no PDU for tiny or empty-buffer Tx opportunities, and
+ * never concatenates after a > 2047-byte SDU; that t-Reordering starts, stops, delivers past
+ * unfilled holes and restarts correctly; and that OutOfOrderDelivery delivers immediately
+ * without waiting for missing SNs.
  */
 
+#include "nr-rlc-test-utils.h"
 #include "nr-test-entities.h"
 
+#include "ns3/abort.h"
 #include "ns3/boolean.h"
 #include "ns3/log.h"
 #include "ns3/nr-rlc-header.h"
+#include "ns3/nr-rlc-sap.h"
 #include "ns3/nr-rlc-tag.h"
 #include "ns3/nr-rlc-um.h"
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
 #include "ns3/uinteger.h"
 
+#include <algorithm>
+#include <map>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
 NS_LOG_COMPONENT_DEFINE("NrRlcUmTestCase");
 
 namespace ns3
 {
 
-class NrRlcUmTestCase : public TestCase
+namespace
+{
+
+/**
+ * Create an UMD PDU carrying the given payload.
+ *
+ * @param sn RLC Sequence Number (SN) of the PDU
+ * @param framingInfo Framing Info (FI) flag, indicates SDU boundaries:
+ *                    00 = starts and ends with an SDU
+ *                    01 = starts with an SDU but does not end with one
+ *                    10 = does not start with an SDU but ends with one
+ *                    11 = neither starts nor ends with an SDU
+ * @param payload the PDU payload, to which the RLC header is prepended
+ * @param liSizes the length indicators delimiting the data field elements (one per
+ *                element except the last, which is delimited by E = 0)
+ * @return the UMD PDU
+ */
+Ptr<Packet>
+MakeUmPdu(uint16_t sn,
+          uint8_t framingInfo,
+          Ptr<Packet> payload,
+          const std::vector<uint16_t>& liSizes = {})
+{
+    NrRlcHeader rlcHeader;
+    rlcHeader.SetSequenceNumber(nr::SequenceNumber10(sn));
+    for (uint16_t li : liSizes)
+    {
+        rlcHeader.PushExtensionBit(NrRlcHeader::E_LI_FIELDS_FOLLOWS);
+        rlcHeader.PushLengthIndicator(li);
+    }
+    rlcHeader.PushExtensionBit(NrRlcHeader::DATA_FIELD_FOLLOWS);
+    rlcHeader.SetFramingInfo(framingInfo);
+
+    payload->AddHeader(rlcHeader);
+    return payload;
+}
+
+/**
+ * Deliver a PDU to the RLC entity through the MAC SAP, tagged with the given sender
+ * timestamp.
+ *
+ * @param rlc the RLC entity under test
+ * @param pdu the PDU to deliver
+ * @param senderTimestamp the sender timestamp carried by the PDU
+ */
+void
+DeliverUmPdu(Ptr<NrRlcUm> rlc, Ptr<Packet> pdu, Time senderTimestamp)
+{
+    NrRlcTag rlcTag(senderTimestamp);
+    pdu->AddByteTag(rlcTag);
+
+    NrMacSapUser::ReceivePduParameters rxPduParams = {};
+    rxPduParams.p = pdu;
+    rxPduParams.rnti = 0;
+    rxPduParams.lcid = 0;
+    rlc->DoReceivePdu(rxPduParams);
+}
+
+/**
+ * Deliver one single-segment PDU with the given sender timestamp to the RLC entity
+ * through the MAC SAP.
+ *
+ * @param rlc the RLC entity under test
+ * @param sn the RLC sequence number
+ * @param framingInfo the FI field
+ * @param payloadSize the payload size in bytes (used by the tests to identify the SDU)
+ * @param senderTimestamp the sender timestamp carried by the PDU
+ */
+void
+DeliverPduAt(Ptr<NrRlcUm> rlc,
+             uint16_t sn,
+             uint8_t framingInfo,
+             uint32_t payloadSize,
+             Time senderTimestamp)
+{
+    DeliverUmPdu(rlc, MakeUmPdu(sn, framingInfo, Create<Packet>(payloadSize)), senderTimestamp);
+}
+
+/**
+ * Deliver one single-segment PDU to the RLC entity through the MAC SAP.
+ *
+ * @param rlc the RLC entity under test
+ * @param sn the RLC sequence number
+ * @param framingInfo the FI field
+ * @param payloadSize the payload size in bytes (used by the tests to identify the SDU)
+ */
+void
+DeliverPdu(Ptr<NrRlcUm> rlc, uint16_t sn, uint8_t framingInfo, uint32_t payloadSize)
+{
+    DeliverPduAt(rlc, sn, framingInfo, payloadSize, Simulator::Now());
+}
+
+/// Size in bytes of the payload segment identified by each fill letter ('S', 'A', 'B', 'C')
+uint32_t
+SegmentSize(char letter)
+{
+    switch (letter)
+    {
+    case 'S':
+        return 40;
+    case 'A':
+        return 21;
+    case 'B':
+        return 22;
+    case 'C':
+        return 23;
+    default:
+        NS_ABORT_MSG("Unknown segment letter " << letter);
+        return 0;
+    }
+}
+
+/**
+ * Create a payload packet composed of the given segments, each filled with its letter.
+ *
+ * @param letters the segment letters, e.g. "SA" = 40 bytes of 'S' followed by 21 bytes of 'A'
+ * @return the payload packet
+ */
+Ptr<Packet>
+MakePayload(const std::string& letters)
+{
+    std::vector<uint8_t> buf;
+    for (char letter : letters)
+    {
+        buf.insert(buf.end(), SegmentSize(letter), (uint8_t)letter);
+    }
+    return Create<Packet>(buf.data(), buf.size());
+}
+
+/**
+ * Check that a delivered SDU is exactly the concatenation of the given segments.
+ *
+ * @param sdu the delivered SDU
+ * @param letters the expected segment letters
+ * @return true if size and every byte match
+ */
+bool
+SduMatches(Ptr<Packet> sdu, const std::string& letters)
+{
+    uint32_t expectedSize = 0;
+    for (char letter : letters)
+    {
+        expectedSize += SegmentSize(letter);
+    }
+    if (sdu->GetSize() != expectedSize)
+    {
+        return false;
+    }
+    std::vector<uint8_t> buf(sdu->GetSize());
+    sdu->CopyData(buf.data(), buf.size());
+    uint32_t offset = 0;
+    for (char letter : letters)
+    {
+        for (uint32_t i = 0; i < SegmentSize(letter); i++)
+        {
+            if (buf[offset + i] != (uint8_t)letter)
+            {
+                return false;
+            }
+        }
+        offset += SegmentSize(letter);
+    }
+    return true;
+}
+
+} // namespace
+
+class NrRlcUmTestCase : public NrRlcTestCaseBase
 {
   public:
     NrRlcUmTestCase()
-        : TestCase("Test RLC UM RX: Check packets not reassembled when window advances")
+        : NrRlcTestCaseBase("Test RLC UM RX: Check packets not reassembled when window advances")
     {
     }
 
   private:
     void DoRun() override;
 
-    /**
-     * Create an RLC PDU
-     *
-     * @param payloadSize Size of the RLC PDU payload in bytes
-     * @param rlcSn RLC Sequence Number (SN) of the PDU
-     * @param extensionBit Extension Bit flag:
-     *                     0 = no more Length Indicators (LI) follow;
-     *                     1 = at least one more LI follows
-     *                     Default: DATA_FIELD_FOLLOWS (LI = 0)
-     * @param framingInfo Framing Info (FI) flag, indicates SDU boundaries:
-     *                    00 = starts and ends with an SDU
-     *                    01 = starts with an SDU but does not end with one
-     *                    10 = does not start with an SDU but ends with one
-     *                    11 = neither starts nor ends with an SDU
-     *                    Default: FIRST_BYTE | LAST_BYTE (FI = 00)
-     * @return A Ptr<Packet> representing the RLC PDU
-     */
-    Ptr<Packet> CreateRlcPdu(uint32_t payloadSize,
-                             uint16_t rlcSn,
-                             uint8_t extensionBit = NrRlcHeader::DATA_FIELD_FOLLOWS,
-                             uint8_t framingInfo = NrRlcHeader::FIRST_BYTE |
-                                                   NrRlcHeader::LAST_BYTE);
-
     Ptr<NrTestPdcp> rxPdcp; ///< The reception PDCP
 };
-
-Ptr<Packet>
-NrRlcUmTestCase::CreateRlcPdu(uint32_t payloadSize,
-                              uint16_t rlcSn,
-                              uint8_t extensionBit,
-                              uint8_t framingInfo)
-{
-    // Create dummy payload of given size
-    Ptr<Packet> rlcPdu = Create<Packet>(payloadSize);
-
-    // Create RLC header
-    NrRlcHeader rlcHeader;
-    rlcHeader.SetSequenceNumber(nr::SequenceNumber10(rlcSn));
-    rlcHeader.PushExtensionBit(extensionBit);
-    rlcHeader.SetFramingInfo(framingInfo);
-
-    // Add header to packet
-    rlcPdu->AddHeader(rlcHeader);
-
-    return rlcPdu;
-}
 
 void
 NrRlcUmTestCase::DoRun()
@@ -115,13 +255,13 @@ NrRlcUmTestCase::DoRun()
     // advancing VR(UR) to 1018.
 
     NS_LOG_INFO("Step 1.1: Initialized m_rxBuffer with SN 0, 502, 1016, 1017, 1018");
-    rlc->m_rxBuffer[0] = CreateRlcPdu(10, 0, 0x00, NrRlcHeader::FIRST_BYTE);
-    rlc->m_rxBuffer[1016] = CreateRlcPdu(20, 1016, 0x00, NrRlcHeader::FIRST_BYTE);
+    rlc->m_rxBuffer[0] = MakeUmPdu(0, NrRlcHeader::FIRST_BYTE, Create<Packet>(10));
+    rlc->m_rxBuffer[1016] = MakeUmPdu(1016, NrRlcHeader::FIRST_BYTE, Create<Packet>(20));
     rlc->m_rxBuffer[1017] =
-        CreateRlcPdu(15, 1017, 0x00, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE);
+        MakeUmPdu(1017, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE, Create<Packet>(15));
     rlc->m_rxBuffer[1018] =
-        CreateRlcPdu(15, 1018, 0x00, NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::LAST_BYTE);
-    rlc->m_rxBuffer[502] = CreateRlcPdu(30, 502, 0x00, NrRlcHeader::FIRST_BYTE);
+        MakeUmPdu(1018, NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::LAST_BYTE, Create<Packet>(15));
+    rlc->m_rxBuffer[502] = MakeUmPdu(502, NrRlcHeader::FIRST_BYTE, Create<Packet>(30));
 
     NS_LOG_INFO(
         "Step 1.2: Reception window set (VR(UR)=1015, VR(UH)=503, windowSize=512) -> [1015, 503)");
@@ -133,22 +273,10 @@ NrRlcUmTestCase::DoRun()
     rlc->m_expectedSeqNumber = 1015;
     rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
 
-    // Create RLC PDU with SN=505, FI = 00, E = 0
     NS_LOG_INFO("Step 1.3: Creating PDU with SN=505");
-    Ptr<Packet> pdu = CreateRlcPdu(50, 505, 0x00, NrRlcHeader::FIRST_BYTE);
-
-    // Add RLC packet tag
-    NrRlcTag rlcTag(Simulator::Now());
-    pdu->AddByteTag(rlcTag);
-
-    NrMacSapUser::ReceivePduParameters rxPduParams = {};
-    rxPduParams.p = pdu;
-    rxPduParams.lcid = 0;
-    rxPduParams.rnti = 0;
-
     NS_LOG_INFO("Step 1.4: Calling DoReceivePdu with SN=505");
     NS_LOG_INFO("-----------------------------------------------------------------------------");
-    rlc->DoReceivePdu(rxPduParams);
+    DeliverPdu(rlc, 505, NrRlcHeader::FIRST_BYTE, 50);
 
     NS_LOG_INFO("-----------------------------------------------------------------------------");
     NS_LOG_INFO("Step 1.5: DoReceivePdu finished");
@@ -209,20 +337,13 @@ NrRlcUmTestCase::DoRun()
 
     NS_LOG_INFO("Step 2.2: Store SN=1015 and remove SN=502 from the RX buffer (m_rxBuffer), as it "
                 "should have already been reassembled");
-    rlc->m_rxBuffer[1015] = CreateRlcPdu(20, 1015, 0x00, NrRlcHeader::FIRST_BYTE);
+    rlc->m_rxBuffer[1015] = MakeUmPdu(1015, NrRlcHeader::FIRST_BYTE, Create<Packet>(20));
     rlc->m_rxBuffer.erase(502);
 
     NS_LOG_INFO("Step 2.3: Creating PDU with SN=1016");
-    Ptr<Packet> pdu_1016 =
-        CreateRlcPdu(50, 1016, 0x00, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE);
-    // Add RLC packet tag
-    NrRlcTag rlcTag_1016(Simulator::Now());
-    pdu_1016->AddByteTag(rlcTag_1016);
-    rxPduParams.p = pdu_1016;
-
     NS_LOG_INFO("Step 2.4: Calling DoReceivePdu with SN=1016");
     NS_LOG_INFO("-----------------------------------------------------------------------------");
-    rlc->DoReceivePdu(rxPduParams);
+    DeliverPdu(rlc, 1016, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE, 50);
     NS_LOG_INFO("-----------------------------------------------------------------------------");
     NS_LOG_INFO("m_rxBuffer key (SN) contents after DoReceivePdu:");
     for (const auto& entry : rlc->m_rxBuffer)
@@ -253,16 +374,9 @@ NrRlcUmTestCase::DoRun()
     rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
 
     NS_LOG_INFO("Step 3.2: Creating PDU with SN=502");
-    Ptr<Packet> pdu_502 =
-        CreateRlcPdu(50, 502, 0x00, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE);
-    // Add RLC packet tag
-    NrRlcTag rlcTag_502(Simulator::Now());
-    pdu_502->AddByteTag(rlcTag_502);
-    rxPduParams.p = pdu_502;
-
     NS_LOG_INFO("Step 3.3: Calling DoReceivePdu with SN=502");
     NS_LOG_INFO("-----------------------------------------------------------------------------");
-    rlc->DoReceivePdu(rxPduParams);
+    DeliverPdu(rlc, 502, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE, 50);
 
     NS_LOG_INFO("-----------------------------------------------------------------------------");
     NS_LOG_INFO("m_rxBuffer key (SN) contents after DoReceivePdu:");
@@ -286,16 +400,9 @@ NrRlcUmTestCase::DoRun()
     rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
 
     NS_LOG_INFO("Step 4.2: Creating PDU with SN=511");
-    Ptr<Packet> pdu_511 =
-        CreateRlcPdu(50, 511, 0x00, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE);
-    // Add RLC packet tag
-    NrRlcTag rlcTag_511(Simulator::Now());
-    pdu_511->AddByteTag(rlcTag_511);
-    rxPduParams.p = pdu_511;
-
     NS_LOG_INFO("Step 4.3: Calling DoReceivePdu with SN=511");
     NS_LOG_INFO("-----------------------------------------------------------------------------");
-    rlc->DoReceivePdu(rxPduParams);
+    DeliverPdu(rlc, 511, NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE, 50);
 
     // Flush the event scheduled by the NrTestPdcp constructor, so that it does not
     // outlive this test case and fire on a destroyed object in the next one.
@@ -315,11 +422,11 @@ NrRlcUmTestCase::DoRun()
  * segment aliases as the awaited continuation and is concatenated onto the stale head,
  * delivering a corrupt SDU upwards. This test asserts the discard happens.
  */
-class NrRlcUmReorderingDiscardTestCase : public TestCase
+class NrRlcUmReorderingDiscardTestCase : public NrRlcTestCaseBase
 {
   public:
     NrRlcUmReorderingDiscardTestCase()
-        : TestCase("Test RLC UM RX: stranded partial SDU discarded on t-Reordering expiry")
+        : NrRlcTestCaseBase("Test RLC UM RX: stranded partial SDU discarded on t-Reordering expiry")
     {
     }
 
@@ -381,25 +488,12 @@ NrRlcUmReorderingDiscardTestCase::DoRun()
  * still enqueued the "discarded" packet, making the discard a no-op and
  * double-counting the drop statistics. This test asserts the packet is not stored.
  */
-class NrRlcUmTxPdcpDiscardTestCase : public TestCase
+class NrRlcUmTxPdcpDiscardTestCase : public NrRlcTestCaseBase
 {
   public:
     NrRlcUmTxPdcpDiscardTestCase()
-        : TestCase("Test RLC UM TX: PDCP-discarded SDU is not enqueued in the Tx buffer")
+        : NrRlcTestCaseBase("Test RLC UM TX: PDCP-discarded SDU is not enqueued in the Tx buffer")
     {
-    }
-
-    /// Count of TxDrop trace invocations.
-    uint32_t m_dropCount{0};
-
-    /**
-     * TxDrop trace sink.
-     *
-     * @param p the dropped packet
-     */
-    void HandleTxDrop(Ptr<const Packet> p)
-    {
-        m_dropCount++;
     }
 
   private:
@@ -417,9 +511,7 @@ NrRlcUmTxPdcpDiscardTestCase::DoRun()
     mac->SetRlcHeaderType(NrTestMac::UM_RLC_HEADER);
     rlc->SetNrMacSapProvider(mac->GetNrMacSapProvider());
     mac->SetNrMacSapUser(rlc->GetNrMacSapUser());
-    rlc->TraceConnectWithoutContext(
-        "TxDrop",
-        MakeCallback(&NrRlcUmTxPdcpDiscardTestCase::HandleTxDrop, this));
+    rlc->TraceConnectWithoutContext("TxDrop", MakeCallback(&NrRlcTestCaseBase::HandleTxDrop, this));
 
     // t = 0 ms: first SDU is stored (Tx buffer is empty, so head-of-line delay is 0).
     Simulator::Schedule(MilliSeconds(0), [rlc]() { rlc->DoTransmitPdcpPdu(Create<Packet>(100)); });
@@ -456,11 +548,11 @@ NrRlcUmTxPdcpDiscardTestCase::DoRun()
  * and reassembles an interval with a hole to ensure gaps are skipped safely while the
  * present SNs are reassembled and removed from the reception buffer.
  */
-class NrRlcUmReassembleGapTestCase : public TestCase
+class NrRlcUmReassembleGapTestCase : public NrRlcTestCaseBase
 {
   public:
     NrRlcUmReassembleGapTestCase()
-        : TestCase("Test RLC UM RX: ReassembleSnInterval safely skips missing SNs")
+        : NrRlcTestCaseBase("Test RLC UM RX: ReassembleSnInterval safely skips missing SNs")
     {
     }
 
@@ -483,17 +575,9 @@ NrRlcUmReassembleGapTestCase::DoRun()
     rlc->m_reassemblingState = NrRlcUm::WAITING_S0_FULL;
 
     // Build two self-contained full-SDU PDUs at SN=5 and SN=7, leaving SN=6 as a gap.
-    auto makeFullSdu = [](uint16_t sn) {
-        Ptr<Packet> pdu = Create<Packet>(20);
-        NrRlcHeader h;
-        h.SetSequenceNumber(nr::SequenceNumber10(sn));
-        h.PushExtensionBit(NrRlcHeader::DATA_FIELD_FOLLOWS);
-        h.SetFramingInfo(NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE);
-        pdu->AddHeader(h);
-        return pdu;
-    };
-    rlc->m_rxBuffer[5] = makeFullSdu(5);
-    rlc->m_rxBuffer[7] = makeFullSdu(7);
+    const uint8_t fi00 = NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE;
+    rlc->m_rxBuffer[5] = MakeUmPdu(5, fi00, Create<Packet>(20));
+    rlc->m_rxBuffer[7] = MakeUmPdu(7, fi00, Create<Packet>(20));
 
     // Reassemble the interval [5, 8): SN=6 is missing and must be skipped without any
     // dereference of m_rxBuffer.end().
@@ -516,6 +600,917 @@ NrRlcUmReassembleGapTestCase::DoRun()
     Simulator::Destroy();
 }
 
+/**
+ * @ingroup tests
+ *
+ * @brief Exhaustive matrix test of the NrRlcUm reassembly state machine.
+ *
+ * Drives ReassembleAndDeliver directly through every transition: both reassembling
+ * states (WAITING_S0_FULL, WAITING_SI_SF), all four FI values, in-sequence and
+ * out-of-sequence SNs, single- and multi-segment PDUs, and the defensive
+ * WAITING_SI_SF-without-held-S0 condition. For each transition it verifies the
+ * delivered SDUs (count, order, and exact payload bytes), the resulting state, the
+ * held S0 composition, the updated expected SN, and the state/S0 consistency
+ * invariant.
+ *
+ * In particular it pins the resynchronisation behaviour when the SN matches the
+ * expected SN but the FI contradicts the reassembly state (PDU starts a new SDU
+ * while a partial SDU is held). That combination is reachable over the air: 10-bit
+ * SNs alias when RLC entities are re-created at handover while old-epoch PDUs are
+ * still in flight, or after >= 1023 consecutive losses. It used to abort the
+ * simulation with "INTERNAL ERROR: We are in the WAITING_SI_SF state and no packet
+ * loss has occurred"; it must instead discard the stale partial SDU and deliver the
+ * new SDUs intact.
+ */
+class NrRlcUmReassemblyMatrixTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmReassemblyMatrixTestCase()
+        : NrRlcTestCaseBase("Test RLC UM RX: reassembly state machine transition matrix")
+    {
+    }
+
+  private:
+    /// One reassembly transition and its expected outcome
+    struct MatrixCase
+    {
+        std::string name;                      ///< case description
+        int startState;                        ///< initial reassembling state
+        bool holdS0;                           ///< whether a partial SDU 'S' is held on entry
+        bool snMatches;                        ///< whether the PDU SN equals the expected SN
+        uint8_t framingInfo;                   ///< FI field of the PDU
+        std::string segments;                  ///< PDU data-field segments, one letter each
+        std::vector<std::string> expectedSdus; ///< expected delivered SDUs, in order
+        int endState;                          ///< expected reassembling state after the call
+        std::string expectedKeepS0;            ///< expected held S0 after the call ("" = none)
+    };
+
+    void DoRun() override;
+
+    /**
+     * Run one matrix case against a fresh RLC entity.
+     *
+     * @param c the case to run
+     */
+    void RunCase(const MatrixCase& c);
+};
+
+void
+NrRlcUmReassemblyMatrixTestCase::RunCase(const MatrixCase& c)
+{
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    NrRlcTestSduSink sink;
+    rlc->SetNrRlcSapUser(sink.GetSapUser());
+
+    rlc->m_reassemblingState = (NrRlcUm::ReassemblingState_t)c.startState;
+    rlc->m_keepS0 = c.holdS0 ? MakePayload("S") : nullptr;
+    rlc->m_expectedSeqNumber = nr::SequenceNumber10(10);
+    const uint16_t sn = c.snMatches ? 10 : 13;
+
+    // Build the PDU: concatenated segments plus an UM header carrying SN, FI and
+    // one E/LI pair per segment except the last (which is delimited by E=0).
+    std::vector<uint16_t> liSizes;
+    for (uint32_t i = 0; i + 1 < c.segments.size(); i++)
+    {
+        liSizes.push_back(SegmentSize(c.segments[i]));
+    }
+    rlc->ReassembleAndDeliver(MakeUmPdu(sn, c.framingInfo, MakePayload(c.segments), liSizes));
+
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(),
+                          c.expectedSdus.size(),
+                          c.name << ": number of delivered SDUs");
+    for (uint32_t i = 0; i < std::min(sink.m_sdus.size(), c.expectedSdus.size()); i++)
+    {
+        NS_TEST_ASSERT_MSG_EQ(SduMatches(sink.m_sdus[i], c.expectedSdus[i]),
+                              true,
+                              c.name << ": SDU " << i << " must be exactly '" << c.expectedSdus[i]
+                                     << "'");
+    }
+
+    NS_TEST_ASSERT_MSG_EQ((int)rlc->m_reassemblingState, c.endState, c.name << ": final state");
+    if (c.expectedKeepS0.empty())
+    {
+        NS_TEST_ASSERT_MSG_EQ((rlc->m_keepS0 == nullptr), true, c.name << ": no S0 must be held");
+    }
+    else
+    {
+        NS_TEST_ASSERT_MSG_EQ((rlc->m_keepS0 != nullptr), true, c.name << ": an S0 must be held");
+        NS_TEST_ASSERT_MSG_EQ(SduMatches(rlc->m_keepS0, c.expectedKeepS0),
+                              true,
+                              c.name << ": held S0 must be exactly '" << c.expectedKeepS0 << "'");
+    }
+
+    // Cross-cutting invariants: S0 is held if and only if the reassembler is
+    // mid-SDU, the per-PDU segment list is fully consumed, and the expected SN
+    // always advances to SN + 1.
+    NS_TEST_ASSERT_MSG_EQ((rlc->m_keepS0 != nullptr),
+                          (rlc->m_reassemblingState == NrRlcUm::WAITING_SI_SF),
+                          c.name << ": state/S0 consistency invariant");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_sdusBuffer.size(), 0, c.name << ": segment list fully consumed");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_expectedSeqNumber.GetValue(),
+                          (uint16_t)(sn + 1),
+                          c.name << ": expected SN advances to SN + 1");
+}
+
+void
+NrRlcUmReassemblyMatrixTestCase::DoRun()
+{
+    const int s0Full = NrRlcUm::WAITING_S0_FULL;
+    const int siSf = NrRlcUm::WAITING_SI_SF;
+    const uint8_t fi00 = NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE;
+    const uint8_t fi01 = NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE;
+    const uint8_t fi10 = NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::LAST_BYTE;
+    const uint8_t fi11 = NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE;
+
+    std::vector<MatrixCase> cases;
+
+    // WAITING_S0_FULL: nothing is held, so in-sequence and out-of-sequence PDUs
+    // must be handled identically. Each shape is run with both SN conditions.
+    for (bool snMatches : {true, false})
+    {
+        const std::string tag = snMatches ? " (SN in sequence)" : " (SN loss)";
+        cases.push_back(
+            {"S0_FULL FI=00 [A]" + tag, s0Full, false, snMatches, fi00, "A", {"A"}, s0Full, ""});
+        cases.push_back({"S0_FULL FI=00 [A,B]" + tag,
+                         s0Full,
+                         false,
+                         snMatches,
+                         fi00,
+                         "AB",
+                         {"A", "B"},
+                         s0Full,
+                         ""});
+        cases.push_back(
+            {"S0_FULL FI=01 [A]" + tag, s0Full, false, snMatches, fi01, "A", {}, siSf, "A"});
+        cases.push_back(
+            {"S0_FULL FI=01 [A,B]" + tag, s0Full, false, snMatches, fi01, "AB", {"A"}, siSf, "B"});
+        cases.push_back(
+            {"S0_FULL FI=10 [A]" + tag, s0Full, false, snMatches, fi10, "A", {}, s0Full, ""});
+        cases.push_back(
+            {"S0_FULL FI=10 [A,B]" + tag, s0Full, false, snMatches, fi10, "AB", {"B"}, s0Full, ""});
+        cases.push_back(
+            {"S0_FULL FI=11 [A]" + tag, s0Full, false, snMatches, fi11, "A", {}, s0Full, ""});
+        cases.push_back(
+            {"S0_FULL FI=11 [A,B]" + tag, s0Full, false, snMatches, fi11, "AB", {}, siSf, "B"});
+        cases.push_back({"S0_FULL FI=11 [A,B,C]" + tag,
+                         s0Full,
+                         false,
+                         snMatches,
+                         fi11,
+                         "ABC",
+                         {"B"},
+                         siSf,
+                         "C"});
+    }
+
+    // WAITING_SI_SF, in-sequence continuation (FI = 10/11): the held S0 is
+    // completed with the first segment.
+    cases.push_back(
+        {"SI_SF FI=10 [A] continuation", siSf, true, true, fi10, "A", {"SA"}, s0Full, ""});
+    cases.push_back(
+        {"SI_SF FI=10 [A,B] continuation", siSf, true, true, fi10, "AB", {"SA", "B"}, s0Full, ""});
+    cases.push_back({"SI_SF FI=11 [A] continuation", siSf, true, true, fi11, "A", {}, siSf, "SA"});
+    cases.push_back(
+        {"SI_SF FI=11 [A,B] continuation", siSf, true, true, fi11, "AB", {"SA"}, siSf, "B"});
+    cases.push_back({"SI_SF FI=11 [A,B,C] continuation",
+                     siSf,
+                     true,
+                     true,
+                     fi11,
+                     "ABC",
+                     {"SA", "B"},
+                     siSf,
+                     "C"});
+
+    // WAITING_SI_SF, in-sequence SN but the PDU starts a new SDU (FI = 00/01):
+    // the SN aliased (handover epoch mix or >= 1023 losses). The stale S0 must be
+    // discarded and the new SDUs delivered intact -- this used to abort with
+    // "INTERNAL ERROR: We are in the WAITING_SI_SF state and no packet loss ...".
+    cases.push_back(
+        {"SI_SF FI=00 [A] aliased SN resync", siSf, true, true, fi00, "A", {"A"}, s0Full, ""});
+    cases.push_back({"SI_SF FI=00 [A,B] aliased SN resync",
+                     siSf,
+                     true,
+                     true,
+                     fi00,
+                     "AB",
+                     {"A", "B"},
+                     s0Full,
+                     ""});
+    cases.push_back(
+        {"SI_SF FI=01 [A] aliased SN resync", siSf, true, true, fi01, "A", {}, siSf, "A"});
+    cases.push_back(
+        {"SI_SF FI=01 [A,B] aliased SN resync", siSf, true, true, fi01, "AB", {"A"}, siSf, "B"});
+
+    // WAITING_SI_SF, out-of-sequence SN (loss): the held S0 can never be
+    // completed and must be discarded; leading continuation segments of the lost
+    // SDU are discarded too.
+    cases.push_back({"SI_SF FI=00 [A] loss", siSf, true, false, fi00, "A", {"A"}, s0Full, ""});
+    cases.push_back(
+        {"SI_SF FI=00 [A,B] loss", siSf, true, false, fi00, "AB", {"A", "B"}, s0Full, ""});
+    cases.push_back({"SI_SF FI=01 [A] loss", siSf, true, false, fi01, "A", {}, siSf, "A"});
+    cases.push_back({"SI_SF FI=01 [A,B] loss", siSf, true, false, fi01, "AB", {"A"}, siSf, "B"});
+    cases.push_back({"SI_SF FI=10 [A] loss", siSf, true, false, fi10, "A", {}, s0Full, ""});
+    cases.push_back({"SI_SF FI=10 [A,B] loss", siSf, true, false, fi10, "AB", {"B"}, s0Full, ""});
+    cases.push_back({"SI_SF FI=11 [A] loss", siSf, true, false, fi11, "A", {}, s0Full, ""});
+    cases.push_back({"SI_SF FI=11 [A,B] loss", siSf, true, false, fi11, "AB", {}, siSf, "B"});
+    cases.push_back({"SI_SF FI=11 [A,B,C] loss", siSf, true, false, fi11, "ABC", {"B"}, siSf, "C"});
+
+    // WAITING_SI_SF with no held S0 (defensive: inconsistent entry state). The
+    // PDU must be resynchronised, salvaging any complete SDUs it carries instead
+    // of dropping the whole PDU.
+    cases.push_back({"SI_SF no S0 FI=00 [A]", siSf, false, true, fi00, "A", {"A"}, s0Full, ""});
+    cases.push_back({"SI_SF no S0 FI=01 [A]", siSf, false, true, fi01, "A", {}, siSf, "A"});
+    cases.push_back({"SI_SF no S0 FI=10 [A,B]", siSf, false, true, fi10, "AB", {"B"}, s0Full, ""});
+    cases.push_back({"SI_SF no S0 FI=11 [A,B]", siSf, false, true, fi11, "AB", {}, siSf, "B"});
+
+    for (const auto& c : cases)
+    {
+        RunCase(c);
+    }
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Regression test for the RLC-UM assert after handover (SN epoch mixing).
+ *
+ * At handover both RLC entities are destroyed and re-created (nr-ue-rrc clears the
+ * DRB map; the target gNB builds fresh entities), so the transmitter restarts at
+ * SN=0 -- but a PDU of the old SN epoch still in flight can land in the fresh
+ * receiving entity. When VR(UR) later sweeps past its SN, the stale PDU is
+ * delivered exactly at the aliased position: its SN equals m_expectedSeqNumber, so
+ * the reassembler believes no loss occurred while it is mid-SDU, and the stale
+ * PDU's FI (a new SDU boundary) used to trip
+ * "INTERNAL ERROR: We are in the WAITING_SI_SF state and no packet loss has
+ * occurred". This test replays that sequence through DoReceivePdu and verifies the
+ * receiver instead resynchronises: the un-completable partial SDU is discarded, all
+ * complete SDUs (including the stale one) are delivered intact, the late true
+ * continuation is discarded by the reception window, and reception continues
+ * normally afterwards.
+ */
+class NrRlcUmSnAliasResyncTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmSnAliasResyncTestCase()
+        : NrRlcTestCaseBase("Test RLC UM RX: stale PDU aliasing the expected SN after handover")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmSnAliasResyncTestCase::DoRun()
+{
+    const uint8_t fi00 = NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE;
+    const uint8_t fi01 = NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE;
+    const uint8_t fi10 = NrRlcHeader::NO_FIRST_BYTE | NrRlcHeader::LAST_BYTE;
+
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    NrRlcTestSduSink sink;
+    rlc->SetNrRlcSapUser(sink.GetSapUser());
+
+    auto receive = [&rlc](uint16_t sn, uint8_t framingInfo, const std::string& letters) {
+        DeliverUmPdu(rlc, MakeUmPdu(sn, framingInfo, MakePayload(letters)), Simulator::Now());
+    };
+
+    // A stale PDU of the old SN epoch (a complete SDU, sent as SN=2 before its
+    // transmitter was destroyed) reaches the freshly created receiving entity
+    // first: SN=2 falls outside the initial reordering window [512, 0), so it
+    // slides VR(UH) to 3 and stays buffered, waiting for SN=0..1.
+    receive(2, fi00, "S");
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 0, "the stale PDU alone must not be delivered");
+
+    // New-epoch traffic starts at SN=0: a complete SDU, delivered immediately.
+    receive(0, fi00, "A");
+
+    // New-epoch SN=1 opens a new SDU (FI=01); its continuation, the new-epoch
+    // SN=2, was lost in the handover interruption. Advancing VR(UR) past the
+    // buffered stale SN=2 delivers the stale PDU exactly at the aliased position:
+    // SN == m_expectedSeqNumber ("no loss") while mid-SDU, with FI=00. This used
+    // to abort the simulation; the receiver must instead discard the partial SDU
+    // head and deliver the stale complete SDU intact.
+    receive(1, fi01, "B");
+
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 2, "SDUs 'A' and stale 'S' must have been delivered");
+    NS_TEST_ASSERT_MSG_EQ(SduMatches(sink.m_sdus[0], "A"),
+                          true,
+                          "the first new-epoch SDU must be delivered intact");
+    NS_TEST_ASSERT_MSG_EQ(SduMatches(sink.m_sdus[1], "S"),
+                          true,
+                          "the stale SDU must be delivered intact, not concatenated with the "
+                          "discarded partial SDU head");
+    NS_TEST_ASSERT_MSG_EQ((int)rlc->m_reassemblingState,
+                          (int)NrRlcUm::WAITING_S0_FULL,
+                          "the resynchronisation must discard the un-completable partial SDU");
+    NS_TEST_ASSERT_MSG_EQ((rlc->m_keepS0 == nullptr),
+                          true,
+                          "no partial SDU may be held after the resynchronisation");
+
+    // The true new-epoch continuation of SN=1 arrives late: its SN=2 is now below
+    // VR(UR), so the reception window discards it silently.
+    receive(2, fi10, "C");
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 2, "the late duplicate SN must be discarded");
+
+    // Reception continues normally afterwards.
+    receive(3, fi00, "C");
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 3, "reception must continue after resynchronising");
+    NS_TEST_ASSERT_MSG_EQ(SduMatches(sink.m_sdus[2], "C"),
+                          true,
+                          "post-resynchronisation SDUs must be delivered intact");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Test of the Tx buffer overflow path in NrRlcUm::DoTransmitPdcpPdu.
+ *
+ * When storing an incoming RLC SDU would exceed MaxTxBufferSize, the SDU must be
+ * dropped (TxDrop trace fired) and the Tx buffer left untouched.
+ */
+class NrRlcUmTxBufferOverflowTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmTxBufferOverflowTestCase()
+        : NrRlcTestCaseBase("Test RLC UM TX: SDU overflowing MaxTxBufferSize is dropped")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmTxBufferOverflowTestCase::DoRun()
+{
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    rlc->SetAttribute("MaxTxBufferSize", UintegerValue(250));
+    rlc->SetAttribute("EnablePdcpDiscarding", BooleanValue(false));
+
+    Ptr<NrTestMac> mac = CreateObject<NrTestMac>();
+    mac->SetRlcHeaderType(NrTestMac::UM_RLC_HEADER);
+    rlc->SetNrMacSapProvider(mac->GetNrMacSapProvider());
+    mac->SetNrMacSapUser(rlc->GetNrMacSapUser());
+    rlc->TraceConnectWithoutContext("TxDrop", MakeCallback(&NrRlcTestCaseBase::HandleTxDrop, this));
+
+    rlc->DoTransmitPdcpPdu(Create<Packet>(100)); // stored (100 <= 250)
+    rlc->DoTransmitPdcpPdu(Create<Packet>(100)); // stored (200 <= 250)
+    rlc->DoTransmitPdcpPdu(Create<Packet>(100)); // 300 > 250: must be dropped
+
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_txBuffer.size(),
+                          2,
+                          "the overflowing SDU must not be enqueued in the Tx buffer");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_txBufferSize,
+                          200,
+                          "the Tx buffer size must only account for the stored SDUs");
+    NS_TEST_ASSERT_MSG_EQ(m_dropCount, 1, "the overflowing SDU must fire the TxDrop trace once");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Test of the packet-delay-budget variant of the PDCP discard path.
+ *
+ * With DiscardTimerMs = 0, NrRlcUm::DoTransmitPdcpPdu must fall back to the
+ * packet delay budget as the discard timer, dropping an incoming SDU when the
+ * head-of-line delay exceeds it.
+ */
+class NrRlcUmTxDelayBudgetDiscardTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmTxDelayBudgetDiscardTestCase()
+        : NrRlcTestCaseBase("Test RLC UM TX: PDCP discard falls back to the packet delay budget")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmTxDelayBudgetDiscardTestCase::DoRun()
+{
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    rlc->SetAttribute("EnablePdcpDiscarding", BooleanValue(true));
+    rlc->SetAttribute("DiscardTimerMs", UintegerValue(0)); // fall back to the delay budget
+    rlc->SetPacketDelayBudgetMs(10);
+
+    Ptr<NrTestMac> mac = CreateObject<NrTestMac>();
+    mac->SetRlcHeaderType(NrTestMac::UM_RLC_HEADER);
+    rlc->SetNrMacSapProvider(mac->GetNrMacSapProvider());
+    mac->SetNrMacSapUser(rlc->GetNrMacSapUser());
+    rlc->TraceConnectWithoutContext("TxDrop", MakeCallback(&NrRlcTestCaseBase::HandleTxDrop, this));
+
+    // t = 0 ms: first SDU is stored (Tx buffer is empty, so head-of-line delay is 0).
+    Simulator::Schedule(MilliSeconds(0), [rlc]() { rlc->DoTransmitPdcpPdu(Create<Packet>(100)); });
+
+    // t = 20 ms: head-of-line delay (20 ms) exceeds the 10 ms packet delay budget,
+    // so the second SDU must be discarded.
+    Simulator::Schedule(MilliSeconds(20), [rlc]() { rlc->DoTransmitPdcpPdu(Create<Packet>(200)); });
+
+    Simulator::Run();
+
+    NS_TEST_ASSERT_MSG_EQ(m_dropCount,
+                          1,
+                          "the SDU exceeding the packet delay budget must fire the TxDrop trace "
+                          "exactly once");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Test of the Tx opportunity edge cases in NrRlcUm::DoNotifyTxOpportunity.
+ *
+ * A transmission opportunity of 2 bytes or fewer cannot fit any data beyond the
+ * fixed UM header and must not produce a PDU, and neither must an opportunity
+ * granted while the Tx buffer is empty. A subsequent valid opportunity must then
+ * produce a PDU normally.
+ */
+class NrRlcUmTxOpportunityEdgeTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmTxOpportunityEdgeTestCase()
+        : NrRlcTestCaseBase("Test RLC UM TX: tiny and empty-buffer Tx opportunities produce no PDU")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmTxOpportunityEdgeTestCase::DoRun()
+{
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+
+    Ptr<NrTestMac> mac = CreateObject<NrTestMac>();
+    mac->SetRlcHeaderType(NrTestMac::UM_RLC_HEADER);
+    rlc->SetNrMacSapProvider(mac->GetNrMacSapProvider());
+    mac->SetNrMacSapUser(rlc->GetNrMacSapUser());
+    rlc->TraceConnectWithoutContext("TxPDU", MakeCallback(&NrRlcTestCaseBase::HandleTxPdu, this));
+
+    // Opportunity while the Tx buffer is empty: no PDU.
+    GrantTxOpportunities(rlc, 10, 1);
+    NS_TEST_ASSERT_MSG_EQ(m_pduSizes.size(),
+                          0,
+                          "an opportunity with an empty Tx buffer must not produce a PDU");
+
+    // Opportunity too small for the 2-byte fixed header plus data: no PDU, and the
+    // buffered SDU must remain queued.
+    rlc->DoTransmitPdcpPdu(Create<Packet>(50));
+    GrantTxOpportunities(rlc, 2, 1);
+    NS_TEST_ASSERT_MSG_EQ(m_pduSizes.size(),
+                          0,
+                          "an opportunity of 2 bytes or fewer must not produce a PDU");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_txBuffer.size(),
+                          1,
+                          "the SDU must remain queued after a too-small opportunity");
+
+    // Valid opportunity: the whole SDU fits, one PDU of 50 + 2 header bytes.
+    GrantTxOpportunities(rlc, 100, 1);
+    NS_TEST_ASSERT_MSG_EQ(m_pduSizes.size(), 1, "a valid opportunity must produce one PDU");
+    NS_TEST_ASSERT_MSG_EQ(m_pduSizes.at(0), 52, "the PDU must carry the SDU plus the fixed header");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_txBuffer.size(), 0, "the Tx buffer must be drained");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Test of the 2047-byte length-indicator exception in DoNotifyTxOpportunity.
+ *
+ * The UM length indicator is an 11-bit field, so a data field element larger than
+ * 2047 bytes can only be mapped to the end of the data field (TS 36.322): no
+ * further SDU may be concatenated after it, even if the transmission opportunity
+ * has room left.
+ */
+class NrRlcUmTxLargeSduTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmTxLargeSduTestCase()
+        : NrRlcTestCaseBase("Test RLC UM TX: SDU larger than 2047 bytes ends the data field")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmTxLargeSduTestCase::DoRun()
+{
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+
+    Ptr<NrTestMac> mac = CreateObject<NrTestMac>();
+    mac->SetRlcHeaderType(NrTestMac::UM_RLC_HEADER);
+    rlc->SetNrMacSapProvider(mac->GetNrMacSapProvider());
+    mac->SetNrMacSapUser(rlc->GetNrMacSapUser());
+    rlc->TraceConnectWithoutContext("TxPDU", MakeCallback(&NrRlcTestCaseBase::HandleTxPdu, this));
+
+    rlc->DoTransmitPdcpPdu(Create<Packet>(3000));
+    rlc->DoTransmitPdcpPdu(Create<Packet>(100));
+
+    // The opportunity has room for both SDUs, but the > 2047-byte SDU cannot be
+    // followed by a length indicator: the first PDU must carry only the large SDU.
+    GrantTxOpportunities(rlc, 5000, 1);
+    NS_TEST_ASSERT_MSG_EQ(m_pduSizes.size(), 1, "one PDU must be produced");
+    NS_TEST_ASSERT_MSG_EQ(m_pduSizes.at(0),
+                          3002,
+                          "the > 2047-byte SDU must be sent alone (no concatenation after it)");
+
+    // The second SDU goes out in the next opportunity.
+    GrantTxOpportunities(rlc, 200, 1);
+    NS_TEST_ASSERT_MSG_EQ(m_pduSizes.size(), 2, "the second SDU must go out separately");
+    NS_TEST_ASSERT_MSG_EQ(m_pduSizes.at(1), 102, "the second PDU must carry the small SDU");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Test of the t-Reordering timer lifecycle in NrRlcUm::DoReceivePdu.
+ *
+ * Covers the full timer state machine with in-order delivery (OutOfOrderDelivery
+ * disabled): a reception gap starts the timer and holds back later SNs; filling
+ * the gap delivers the held SDUs in SN order and stops the timer (VR(UX) <=
+ * VR(UR)); an unfilled gap makes the timer expire, which advances VR(UR) past the
+ * hole, delivers the buffered SDUs beyond it, and restarts the timer while a
+ * further gap remains (VR(UH) > VR(UR)).
+ */
+class NrRlcUmReorderingTimerTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmReorderingTimerTestCase()
+        : NrRlcTestCaseBase("Test RLC UM RX: t-Reordering start, stop and expiry delivery")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmReorderingTimerTestCase::DoRun()
+{
+    const uint8_t fi00 = NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE;
+
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    NrRlcTestSduSink sink;
+    rlc->SetNrRlcSapUser(sink.GetSapUser());
+
+    // Part 1: a gap (missing SN=1) starts t-Reordering and holds back SN=2; the
+    // late SN=1 fills the gap, delivers SN=1 and SN=2 in order and stops the timer.
+    // The SDU payload size (20 + SN) identifies each SDU in the delivery order.
+    Simulator::Schedule(MilliSeconds(0), [rlc]() { DeliverPdu(rlc, 0, fi00, 20); });
+    Simulator::Schedule(MilliSeconds(1), [rlc]() { DeliverPdu(rlc, 2, fi00, 22); });
+    Simulator::Schedule(MilliSeconds(2), [this, rlc, &sink]() {
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(),
+                              1,
+                              "SN=2 must be held back while SN=1 is missing");
+        NS_TEST_ASSERT_MSG_EQ(rlc->m_reorderingTimer.IsPending(),
+                              true,
+                              "a reception gap must start t-Reordering");
+    });
+    Simulator::Schedule(MilliSeconds(5), [rlc]() { DeliverPdu(rlc, 1, fi00, 21); });
+    Simulator::Schedule(MilliSeconds(6), [this, rlc, &sink]() {
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 3, "filling the gap must deliver the held SDUs");
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.at(1)->GetSize(), 21, "SN=1 must be delivered second");
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.at(2)->GetSize(), 22, "SN=2 must be delivered third");
+        NS_TEST_ASSERT_MSG_EQ(rlc->m_reorderingTimer.IsPending(),
+                              false,
+                              "filling the gap must stop t-Reordering (VR(UX) <= VR(UR))");
+    });
+
+    // Part 2: gaps at SN=3 and SN=5 are never filled. The first expiry (at
+    // t = 10 ms + 100 ms) must advance VR(UR) past the SN=3 hole, deliver SN=4 and
+    // restart the timer for the SN=5 hole; the second expiry delivers SN=6.
+    Simulator::Schedule(MilliSeconds(10), [rlc]() { DeliverPdu(rlc, 4, fi00, 24); });
+    Simulator::Schedule(MilliSeconds(12), [rlc]() { DeliverPdu(rlc, 6, fi00, 26); });
+    Simulator::Schedule(MilliSeconds(150), [this, rlc, &sink]() {
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(),
+                              4,
+                              "the first expiry must deliver the SDU beyond the hole");
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.at(3)->GetSize(), 24, "SN=4 must be delivered fourth");
+        NS_TEST_ASSERT_MSG_EQ(rlc->m_reorderingTimer.IsPending(),
+                              true,
+                              "t-Reordering must restart while a further gap remains");
+    });
+    Simulator::Schedule(MilliSeconds(250), [this, rlc, &sink]() {
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(),
+                              5,
+                              "the second expiry must deliver the remaining SDU");
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.at(4)->GetSize(), 26, "SN=6 must be delivered fifth");
+        NS_TEST_ASSERT_MSG_EQ(rlc->m_reorderingTimer.IsPending(),
+                              false,
+                              "t-Reordering must not restart once VR(UR) reaches VR(UH)");
+    });
+
+    Simulator::Run();
+
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 5, "all receivable SDUs must have been delivered");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_rxBuffer.size(), 0, "the reception buffer must be drained");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief Test of the OutOfOrderDelivery mode of NrRlcUm.
+ *
+ * With rlc-OutOfOrderDelivery configured, a PDU that slides the reordering window
+ * is reassembled and delivered immediately without waiting for the missing SNs,
+ * and a late in-window PDU is still delivered (on t-Reordering expiry) rather
+ * than lost or duplicated.
+ */
+class NrRlcUmOutOfOrderDeliveryTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmOutOfOrderDeliveryTestCase()
+        : NrRlcTestCaseBase("Test RLC UM RX: out-of-order delivery bypasses reordering")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmOutOfOrderDeliveryTestCase::DoRun()
+{
+    const uint8_t fi00 = NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE;
+
+    Ptr<NrRlcUm> rlc = CreateObject<NrRlcUm>();
+    rlc->SetAttribute("OutOfOrderDelivery", BooleanValue(true));
+    NrRlcTestSduSink sink;
+    rlc->SetNrRlcSapUser(sink.GetSapUser());
+
+    // SN=0 and SN=2 are delivered immediately, without waiting for the missing
+    // SN=1. The SDU payload size (20 + SN) identifies each SDU.
+    Simulator::Schedule(MilliSeconds(0), [rlc]() { DeliverPdu(rlc, 0, fi00, 20); });
+    Simulator::Schedule(MilliSeconds(1), [rlc]() { DeliverPdu(rlc, 2, fi00, 22); });
+    Simulator::Schedule(MilliSeconds(2), [this, &sink]() {
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(),
+                              2,
+                              "out-of-order mode must deliver without waiting for missing SNs");
+        NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.at(1)->GetSize(),
+                              22,
+                              "SN=2 must be delivered before the missing SN=1");
+    });
+
+    // The late SN=1 falls inside the reordering window; it is buffered and
+    // delivered when t-Reordering expires, exactly once.
+    Simulator::Schedule(MilliSeconds(5), [rlc]() { DeliverPdu(rlc, 1, fi00, 21); });
+
+    Simulator::Run();
+
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.size(), 3, "the late SDU must be delivered exactly once");
+    NS_TEST_ASSERT_MSG_EQ(sink.m_sdus.at(2)->GetSize(), 21, "the late SN=1 must be delivered last");
+    NS_TEST_ASSERT_MSG_EQ(rlc->m_rxBuffer.size(), 0, "the reception buffer must be drained");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @ingroup tests
+ *
+ * @brief End-to-end data-integrity test of the RLC UM transmit and receive entities.
+ *
+ * A transmitting NrRlcUm segments and concatenates a set of SDUs with distinct,
+ * identifiable payloads into PDUs (small transmission opportunities force both). The
+ * captured PDUs are then delivered to fresh receiving entities under four conditions
+ * -- lossless in order, with two PDUs swapped (HARQ reordering), with one PDU lost,
+ * and with a duplicated PDU -- verifying byte-exactly that every delivered SDU equals
+ * the transmitted one, deliveries are in order without duplicates, and an SDU with a
+ * segment in the lost PDU is never delivered partially or corrupted. The RLC e2e
+ * suites only count PDUs; this is where received payload content is checked against
+ * transmitted content.
+ */
+class NrRlcUmDataIntegrityTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcUmDataIntegrityTestCase()
+        : NrRlcTestCaseBase("Test RLC UM: transmitted data is received byte-exact under "
+                            "segmentation, reordering, loss and duplication")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcUmDataIntegrityTestCase::DoRun()
+{
+    const std::vector<NrRlcSduSpec> txSdus =
+        {{'A', 45}, {'B', 52}, {'C', 59}, {'D', 66}, {'E', 73}, {'F', 80}};
+
+    // Transmit side: queue the SDUs and grant small opportunities so the PDUs both
+    // segment large SDUs and concatenate small remainders.
+    Ptr<NrRlcUm> txRlc = CreateObject<NrRlcUm>();
+    NrRlcTestCaptureMac capture;
+    txRlc->SetNrMacSapProvider(&capture);
+    QueueSdus(txRlc, txSdus);
+    GrantTxOpportunities(txRlc, 40, 20);
+    const std::vector<Ptr<Packet>>& pdus = capture.m_pdus;
+
+    CheckSegmentationAndConcatenation<NrRlcHeader>(pdus);
+
+    // Scenario 1: all PDUs delivered in order -- every SDU arrives byte-exact.
+    {
+        Ptr<NrRlcUm> rxRlc = CreateObject<NrRlcUm>();
+        NrRlcTestSduSink sink;
+        rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+        for (const auto& pdu : pdus)
+        {
+            DeliverPduToRlc(rxRlc, pdu);
+        }
+        Simulator::Run();
+        VerifyDelivered(sink, txSdus, "lossless in-order");
+    }
+
+    // Scenario 2: two adjacent PDUs swapped (HARQ processes deliver out of order) --
+    // the reordering window restores SN order and every SDU arrives byte-exact.
+    {
+        Ptr<NrRlcUm> rxRlc = CreateObject<NrRlcUm>();
+        NrRlcTestSduSink sink;
+        rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+        std::vector<Ptr<Packet>> reordered = pdus;
+        std::swap(reordered.at(2), reordered.at(3));
+        for (const auto& pdu : reordered)
+        {
+            DeliverPduToRlc(rxRlc, pdu);
+        }
+        Simulator::Run();
+        VerifyDelivered(sink, txSdus, "reordered");
+    }
+
+    // Scenario 3: one mid-stream PDU is lost. Every SDU with a segment in the lost
+    // PDU must be absent; every other SDU must be delivered byte-exact and in order
+    // (after t-Reordering expires and flushes the SDUs beyond the gap). No partial
+    // or corrupted SDU may ever reach the upper layer.
+    {
+        const uint32_t lostIndex = pdus.size() / 2;
+        std::set<uint8_t> lostFills = FillsInPdu<NrRlcHeader>(pdus.at(lostIndex));
+        std::vector<NrRlcSduSpec> expected;
+        for (const auto& sdu : txSdus)
+        {
+            if (lostFills.count(sdu.first) == 0)
+            {
+                expected.push_back(sdu);
+            }
+        }
+        NS_TEST_ASSERT_MSG_EQ((expected.size() < txSdus.size()),
+                              true,
+                              "loss scenario sanity: the lost PDU must carry SDU data");
+
+        Ptr<NrRlcUm> rxRlc = CreateObject<NrRlcUm>();
+        NrRlcTestSduSink sink;
+        rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+        for (uint32_t i = 0; i < pdus.size(); i++)
+        {
+            if (i == lostIndex)
+            {
+                continue;
+            }
+            DeliverPduToRlc(rxRlc, pdus.at(i));
+        }
+        Simulator::Run(); // let t-Reordering expire and flush the SDUs beyond the gap
+        VerifyDelivered(sink, expected, "one PDU lost");
+    }
+
+    // Scenario 4: one PDU is duplicated -- the duplicate must be discarded and the
+    // delivered sequence must be identical to the lossless one.
+    {
+        Ptr<NrRlcUm> rxRlc = CreateObject<NrRlcUm>();
+        NrRlcTestSduSink sink;
+        rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+        for (const auto& pdu : pdus)
+        {
+            DeliverPduToRlc(rxRlc, pdu);
+        }
+        DeliverPduToRlc(rxRlc, pdus.at(3));
+        Simulator::Run();
+        VerifyDelivered(sink, txSdus, "duplicated PDU");
+    }
+
+    // Scenario 5: SN epoch mixing after a handover, with real transmitters on both
+    // sides. An OLD-epoch transmitter (representing the entity destroyed at
+    // handover) emits three self-contained PDUs; its SN=2 PDU is still in flight
+    // when the entities are re-created and reaches the fresh receiver first. The
+    // NEW-epoch transmitter then restarts at SN=0. The stale PDU occupies the SN=2
+    // slot: it is delivered at the aliased position (where the resynchronisation
+    // discards the partial new-epoch SDU it interrupts), the genuine new-epoch SN=2
+    // is discarded as a duplicate, and reception continues. Data integrity demands:
+    // every delivered SDU is byte-exact (old- or new-epoch -- never a mix), the
+    // stale SDU is delivered exactly once, new-epoch SDUs keep their relative
+    // order, and exactly the new-epoch SDUs with data in the shadowed SN=2 PDU are
+    // missing.
+    //
+    // (If the stale PDU instead ended mid-SDU, a following new-epoch continuation
+    // with matching SN and FI would be indistinguishable from a genuine one at the
+    // RLC layer -- an inherent 10-bit SN limitation only detectable above RLC. The
+    // old-epoch PDUs here are deliberately SDU-aligned to pin the detectable case.)
+    {
+        const std::vector<NrRlcSduSpec> oldSdus = {{'X', 30}, {'Y', 34}, {'Z', 38}};
+        Ptr<NrRlcUm> oldTxRlc = CreateObject<NrRlcUm>();
+        NrRlcTestCaptureMac oldCapture;
+        oldTxRlc->SetNrMacSapProvider(&oldCapture);
+        TransmitSdusAligned(oldTxRlc, oldSdus, 40);
+        NS_TEST_ASSERT_MSG_EQ(oldCapture.m_pdus.size(),
+                              3,
+                              "epoch-mix sanity: one SDU-aligned PDU per old-epoch SDU");
+        Ptr<Packet> stalePdu = oldCapture.m_pdus.at(2); // old-epoch SN=2, carries 'Z'
+
+        // Expected: all new-epoch SDUs except those with data in the new SN=2 PDU.
+        std::set<uint8_t> shadowedFills = FillsInPdu<NrRlcHeader>(pdus.at(2));
+        std::vector<NrRlcSduSpec> expectedNew;
+        for (const auto& sdu : txSdus)
+        {
+            if (shadowedFills.count(sdu.first) == 0)
+            {
+                expectedNew.push_back(sdu);
+            }
+        }
+        NS_TEST_ASSERT_MSG_EQ((expectedNew.size() < txSdus.size()),
+                              true,
+                              "epoch-mix sanity: the shadowed PDU must carry SDU data");
+
+        Ptr<NrRlcUm> rxRlc = CreateObject<NrRlcUm>();
+        NrRlcTestSduSink sink;
+        rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+
+        DeliverPduToRlc(rxRlc, stalePdu); // in-flight old-epoch PDU arrives first
+        for (const auto& pdu : pdus)
+        {
+            DeliverPduToRlc(rxRlc, pdu);
+        }
+        Simulator::Run();
+
+        // Every delivered SDU must be byte-exact against its epoch's original.
+        std::map<uint8_t, uint32_t> allSpecs;
+        for (const auto& [fill, size] : txSdus)
+        {
+            allSpecs[fill] = size;
+        }
+        for (const auto& [fill, size] : oldSdus)
+        {
+            allSpecs[fill] = size;
+        }
+        uint32_t staleDeliveries = 0;
+        std::vector<uint8_t> deliveredNewFills;
+        for (uint32_t i = 0; i < sink.m_sdus.size(); i++)
+        {
+            std::vector<uint8_t> buf(sink.m_sdus.at(i)->GetSize());
+            sink.m_sdus.at(i)->CopyData(buf.data(), buf.size());
+            const uint8_t fill = buf.empty() ? 0 : buf.front();
+            NS_TEST_ASSERT_MSG_EQ((allSpecs.count(fill) > 0),
+                                  true,
+                                  "epoch mix: delivered SDU " << i
+                                                              << " must match a transmitted SDU");
+            NS_TEST_ASSERT_MSG_EQ(IsUniformSdu(sink.m_sdus.at(i), fill, allSpecs[fill]),
+                                  true,
+                                  "epoch mix: delivered SDU "
+                                      << i << " ('" << (char)fill
+                                      << "') must be byte-exact, never an epoch mix");
+            if (fill == 'Z')
+            {
+                staleDeliveries++;
+            }
+            else
+            {
+                deliveredNewFills.push_back(fill);
+            }
+        }
+        NS_TEST_ASSERT_MSG_EQ(staleDeliveries,
+                              1,
+                              "epoch mix: the stale SDU must be delivered exactly once");
+        NS_TEST_ASSERT_MSG_EQ(deliveredNewFills.size(),
+                              expectedNew.size(),
+                              "epoch mix: exactly the un-shadowed new-epoch SDUs are delivered");
+        for (uint32_t i = 0; i < std::min(deliveredNewFills.size(), expectedNew.size()); i++)
+        {
+            NS_TEST_ASSERT_MSG_EQ((char)deliveredNewFills.at(i),
+                                  (char)expectedNew[i].first,
+                                  "epoch mix: new-epoch SDUs must keep their relative order");
+        }
+    }
+
+    Simulator::Destroy();
+}
+
 class NrRlcUmTestSuite : public TestSuite
 {
   public:
@@ -526,6 +1521,15 @@ class NrRlcUmTestSuite : public TestSuite
         AddTestCase(new NrRlcUmReorderingDiscardTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcUmTxPdcpDiscardTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcUmReassembleGapTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmReassemblyMatrixTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmSnAliasResyncTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmTxBufferOverflowTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmTxDelayBudgetDiscardTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmTxOpportunityEdgeTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmTxLargeSduTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmReorderingTimerTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmOutOfOrderDeliveryTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcUmDataIntegrityTestCase(), Duration::QUICK);
     }
 };
 
