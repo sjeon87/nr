@@ -34,6 +34,19 @@ New user-visible features
 
 Bugs fixed
 ----------
+- Fixed MIMO SINR chunks being selected by RNTI alone when decoding a transport
+  block. RNTIs are per-cell values that are reused across cells, so following a
+  handover a chunk measured against the previous cell could be matched to a
+  transport block expected from the new one. Where the two cells had granted a
+  different rank, the averaged SINR matrix no longer matched the expected rank and
+  decoding aborted. Chunks now carry the cell they were received from and are
+  filtered on it.
+- Fixed an abort when a data signal arrived misaligned with a reception already in
+  progress. A cell or RNTI change part-way through a reception, as happens on
+  handover or after radio link failure, does not stop that reception, so the next
+  allocation from the new cell could arrive on a different symbol or with a
+  different length and trip the time-alignment assertion. Such a signal is now
+  discarded, and still contributes interference.
 - Fixed the handover command not applying the target cell's RACH configuration
   to the UE MAC, which sized the RA response window and bounded the preamble
   retransmissions from the source cell's (or no) configuration.
