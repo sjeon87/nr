@@ -46,6 +46,13 @@ Bugs fixed
   traffic was routed to the DL-only BWP and silently dropped. Also made the
   example abort on a simulation time too short for the applications to run,
   instead of crashing in the statistics post-processing.
+- Fixed receivers permanently misreporting interference after a saturating
+  signal expired: a very strong signal absorbed the co-resident ordinary
+  signals when added to the running sum of received power (floating-point
+  absorption), and an infinite signal turned the sum into NaN, so every later
+  SISO SINR chunk at that receiver was garbage. The sum is now rebuilt from
+  the tracked list of live signals at each chunk evaluation. Covered by the
+  new ``nr-interference-saturating-signal`` test suite.
 
 Release NR-v5.0
 ---------------

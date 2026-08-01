@@ -129,6 +129,10 @@ NrInterference::ConditionallyEvaluateChunk()
     NS_LOG_DEBUG(this << " now " << Now() << " last " << m_lastChangeTime);
     if (m_receiving && (Now() > m_lastChangeTime))
     {
+        // Rebuild the sum of all signals from the live-signal list: the
+        // running sum can carry a permanent negative bias (absorption by a
+        // saturating signal) or NaN (an infinite signal) from expired signals.
+        RebuildAllSignals();
         NS_LOG_LOGIC(this << " signal = " << *m_rxSignal << " allSignals = " << *m_allSignals
                           << " noise = " << *m_noise);
         SpectrumValue interf = (*m_allSignals) - (*m_rxSignal) + (*m_noise);
