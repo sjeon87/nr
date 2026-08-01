@@ -495,6 +495,7 @@ set(test_sources
     test/nr-test-qos-rule-classifier.cc
     test/nr-test-fdm-of-numerologies.cc
     test/nr-test-harq.cc
+    test/nr-test-harq-flush.cc
     test/nr-interference-overlap-test.cc
     test/nr-ue-handover-interference-test.cc
     test/nr-x2-forwarding-drop-test.cc
