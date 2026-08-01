@@ -71,6 +71,9 @@ class UniformPlanarArray;
  */
 class NR_EXPORT NrSpectrumPhy : public SpectrumPhy
 {
+    friend class NrSpectrumPhyHarqFlushTestCase;
+    friend class NrHarqFlushBlerTestCase;
+
   public:
     /**
      * @brief Get the object TypeId
