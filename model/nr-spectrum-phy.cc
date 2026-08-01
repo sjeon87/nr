@@ -1615,6 +1615,24 @@ NrSpectrumPhy::CheckTransportBlockCorruptionStatus()
             continue;
         }
 
+        // A new transmission (NDI set) must not soft-combine with history left
+        // on this HARQ process by an earlier corrupted transport block. Such
+        // history can survive process reuse when the retransmission chain ends
+        // without a successful reception or an rv == 3 transmission (e.g.,
+        // with HARQ retransmissions disabled), because those are the only
+        // conditions that otherwise clear it.
+        if (tbInfo.m_expected.m_ndi == 1)
+        {
+            if (tbInfo.m_expected.m_isDownlink)
+            {
+                m_harqPhyModule.ResetDlHarqProcessStatus(rnti, tbInfo.m_expected.m_harqProcessId);
+            }
+            else
+            {
+                m_harqPhyModule.ResetUlHarqProcessStatus(rnti, tbInfo.m_expected.m_harqProcessId);
+            }
+        }
+
         const NrErrorModel::NrErrorModelHistory& harqInfoList =
             m_harqPhyModule.GetHarqProcessInfoDlUl(tbInfo.m_expected.m_isDownlink,
                                                    rnti,
