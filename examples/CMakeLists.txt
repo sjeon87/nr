@@ -24,7 +24,6 @@ set(base_examples
     cttc-nr-simple-qos-sched
     cttc-nr-multi-flow-qos-sched
     gsoc-nr-channel-models
-    gsoc-leo-demo-example
 )
 foreach(
   example
@@ -69,6 +68,7 @@ build_lib_example(
 if(${ENABLE_EIGEN})
   set(eigen_dependent_examples
       cttc-nr-fh-xr
+      gsoc-leo-demo-example
   )
   foreach(
     example
