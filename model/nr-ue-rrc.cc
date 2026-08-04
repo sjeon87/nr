@@ -945,6 +945,14 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
     }
     break;
 
+    case CONNECTED_NORMALLY: {
+        // Random access started while already connected, to recover uplink resources after the
+        // scheduling request procedure gave up (3GPP TS 38.321, clause 5.4.4). It only restores
+        // the uplink grant path, so the connection carries on with nothing to signal.
+        NS_LOG_INFO("Random access successful while connected, uplink access recovered");
+    }
+    break;
+
     default:
         NS_FATAL_ERROR("unexpected event in state " << ToString(m_state));
         break;
@@ -998,6 +1006,14 @@ NrUeRrc::DoNotifyRandomAccessFailed()
             // connect rather than doing cell selection again.
             m_asSapUser->NotifyConnectionReleased();
         }
+    }
+    break;
+
+    case CONNECTED_NORMALLY: {
+        // Random access started while already connected did not recover the uplink. The
+        // connection is left alone: the MAC keeps requesting resources, and a persistent loss of
+        // the uplink is detected by the radio link failure procedure.
+        NS_LOG_WARN("Random access failed while connected, uplink access not recovered");
     }
     break;
 

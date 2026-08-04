@@ -19,6 +19,7 @@
 
 #include "ns3/boolean.h"
 #include "ns3/log.h"
+#include "ns3/nstime.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/uinteger.h"
 
@@ -221,6 +222,23 @@ NrUeMac::GetTypeId()
                 UintegerValue(16),
                 MakeUintegerAccessor(&NrUeMac::SetNumHarqProcess, &NrUeMac::GetNumHarqProcess),
                 MakeUintegerChecker<uint8_t>())
+            .AddAttribute("SrProhibitTimer",
+                          "Minimum time between two transmissions of the scheduling request "
+                          "(sr-ProhibitTimer of 3GPP TS 38.331). While the timer is running the "
+                          "pending scheduling request is not transmitted, but it stays pending "
+                          "and is sent on the first occasion after the timer expires. Set to zero "
+                          "to transmit the scheduling request on every occasion.",
+                          TimeValue(MilliSeconds(10)),
+                          MakeTimeAccessor(&NrUeMac::m_srProhibitTimer),
+                          MakeTimeChecker())
+            .AddAttribute("SrTransMax",
+                          "Maximum number of transmissions of a pending scheduling request "
+                          "(sr-TransMax of 3GPP TS 38.331). Once that many go unanswered the "
+                          "request is cancelled and a random access procedure is started to get "
+                          "uplink resources instead.",
+                          UintegerValue(64),
+                          MakeUintegerAccessor(&NrUeMac::m_srTransMax),
+                          MakeUintegerChecker<uint32_t>(1))
             .AddTraceSource("UeMacRxedCtrlMsgsTrace",
                             "Ue MAC Control Messages Traces.",
                             MakeTraceSourceAccessor(&NrUeMac::m_macRxedCtrlMsgsTrace),
@@ -431,13 +449,19 @@ NrUeMac::DoTransmitBufferStatusReport(NrMacSapProvider::BufferStatusReportParame
         it = m_ulBsrReceived.insert(std::make_pair(params.lcid, params)).first;
     }
 
-    if (m_srState == INACTIVE ||
-        (params.expBsrTimer && m_srState == ACTIVE && m_ulDci->m_harqProcess > 0 &&
-         m_ulDci->m_rv == 3) ||
-        (params.expBsrTimer && m_srState == ACTIVE && m_ulDci->m_harqProcess == 0))
+    // Re-arm the SR whenever new buffer status arrives while backlogged, as the UE keeps
+    // requesting resources while a BSR is pending and no UL-SCH resources are available
+    // (3GPP TS 38.321, clauses 5.4.4 and 5.4.5). The previous condition keyed the re-arm to
+    // the last received UL DCI (HARQ process 0, or rv 3), which deadlocks the uplink when the
+    // bootstrap BSR TBs are lost: the gNB stops granting without a BSR, the stale m_ulDci
+    // never satisfies the condition, and no SR is ever sent again.
+    if (m_srState == INACTIVE || (m_srState == ACTIVE && GetTotalBufSize() > 0))
     {
         if (m_srState == INACTIVE)
         {
+            // A scheduling request is triggered while no other one is pending, so the count of
+            // its transmissions starts over (3GPP TS 38.321, clause 5.4.4).
+            m_srCounter = 0;
             NS_LOG_INFO("m_srState = INACTIVE -> TO_SEND, bufSize " << GetTotalBufSize());
             m_macUeStateMachine(m_imsi,
                                 m_currentSlot,
@@ -564,6 +588,13 @@ NrUeMac::SendBufferStatusReport(const SfnSf& dataSfn, uint8_t symStart)
 
     m_phySapProvider->SendMacPdu(p, dataSfn, symStart, m_ulDci->m_rnti);
 
+    // The transmitted MAC PDU carries the buffer status, so the pending scheduling requests are
+    // cancelled and their sr-ProhibitTimer is stopped (3GPP TS 38.321, clause 5.4.4). The gNB now
+    // knows what the UE has, so the transmissions spent asking for this grant no longer count
+    // against sr-TransMax: only requests that go unanswered do.
+    m_srCounter = 0;
+    m_lastSrSent = Time::Min();
+
     m_macUeStateMachine(m_imsi,
                         m_currentSlot,
                         GetCellId(),
@@ -621,21 +652,62 @@ NrUeMac::DoSlotIndication(const SfnSf& sfn)
 
     RefreshHarqProcessesPacketBuffer();
 
-    if (m_srState == TO_SEND)
+    // A pending scheduling request is transmitted on the first occasion on which
+    // sr-ProhibitTimer is not running (3GPP TS 38.321, clause 5.4.4). While the timer runs the
+    // request stays pending, so a backlogged UE asks again as soon as it is allowed to, without
+    // repeating the request on every slot.
+    if (m_srState == TO_SEND &&
+        (m_lastSrSent == Time::Min() || Simulator::Now() - m_lastSrSent >= m_srProhibitTimer))
     {
-        NS_LOG_INFO("Sending SR to PHY in slot " << sfn);
-        SendSR();
-        m_srState = ACTIVE;
-        NS_LOG_INFO("m_srState = TO_SEND -> ACTIVE");
-        m_macUeStateMachine(m_imsi,
-                            m_currentSlot,
-                            GetCellId(),
-                            m_rnti,
-                            GetBwpId(),
-                            m_srState,
-                            m_ulBsrReceived,
-                            1,
-                            "DoSlotIndication");
+        if (m_srCounter < m_srTransMax)
+        {
+            NS_LOG_INFO("Sending SR to PHY in slot " << sfn << ", transmission " << m_srCounter + 1
+                                                     << " of " << m_srTransMax);
+            SendSR();
+            m_srCounter++;
+            m_lastSrSent = Simulator::Now();
+            m_srState = ACTIVE;
+            NS_LOG_INFO("m_srState = TO_SEND -> ACTIVE");
+            m_macUeStateMachine(m_imsi,
+                                m_currentSlot,
+                                GetCellId(),
+                                m_rnti,
+                                GetBwpId(),
+                                m_srState,
+                                m_ulBsrReceived,
+                                1,
+                                "DoSlotIndication");
+        }
+        else
+        {
+            // sr-TransMax transmissions went unanswered, so the scheduling request procedure is
+            // abandoned: the pending requests are cancelled and a random access procedure is
+            // started to get uplink resources instead (3GPP TS 38.321, clause 5.4.4).
+            NS_LOG_WARN("Reached sr-TransMax ("
+                        << m_srTransMax
+                        << ") scheduling requests without a grant, falling back to random access");
+            m_srState = INACTIVE;
+            m_srCounter = 0;
+            m_lastSrSent = Time::Min();
+            m_macUeStateMachine(m_imsi,
+                                m_currentSlot,
+                                GetCellId(),
+                                m_rnti,
+                                GetBwpId(),
+                                m_srState,
+                                m_ulBsrReceived,
+                                0,
+                                "DoSlotIndication");
+
+            if (m_rachConfigured)
+            {
+                RandomlySelectAndSendRaPreamble();
+            }
+            else
+            {
+                NS_LOG_WARN("RACH is not configured, cannot fall back to random access");
+            }
+        }
     }
 
     // Feedback missing
@@ -819,6 +891,13 @@ NrUeMac::ProcessUlDci(const Ptr<NrUlDciMessage>& dciMsg)
         if (GetTotalBufSize() == 0)
         {
             m_srState = INACTIVE;
+            // The buffer was drained by a transport block that also carried the buffer status,
+            // so the pending scheduling requests are cancelled and their sr-ProhibitTimer is
+            // stopped (3GPP TS 38.321, clause 5.4.4): a request triggered by data arriving later
+            // must not be held back by the request that this grant already answered, and it gets
+            // the full sr-TransMax budget of its own.
+            m_lastSrSent = Time::Min();
+            m_srCounter = 0;
             NS_LOG_INFO("m_srState = ACTIVE -> INACTIVE, bufSize " << GetTotalBufSize());
 
             // the UE may have been scheduled, but we didn't use a single byte
@@ -1434,6 +1513,8 @@ NrUeMac::DoReset()
     m_rachConfigured = false;
     m_ulBsrReceived.clear();
     m_srState = INACTIVE;
+    m_lastSrSent = Time::Min();
+    m_srCounter = 0;
 }
 
 //////////////////////////////////////////////

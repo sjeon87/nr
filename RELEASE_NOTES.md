@@ -34,6 +34,36 @@ New user-visible features
 
 Bugs fixed
 ----------
+- Fixed a permanent uplink stall when the bootstrap BSR transport blocks are
+  lost. The UE MAC only re-armed its scheduling request when the last received
+  UL DCI had HARQ process 0 or rv 3, so once the few bootstrap grants were spent
+  without a decoded BSR no scheduling request was ever sent again and the gNB
+  stopped granting. The scheduling request is now re-armed whenever new buffer
+  status arrives while the UE is backlogged, as the UE keeps requesting
+  resources while a BSR is pending and no UL-SCH resources are available
+  (TS 38.321 clauses 5.4.4 and 5.4.5). The scheduler no longer records the
+  request as 12 bytes of buffer in every uplink logical channel group of the
+  UE. A scheduling request carries neither a buffer size nor a logical channel
+  group, and only a buffer status report tells the scheduler what the UE has
+  and where, so the request is now tracked as a pending bootstrap grant, which
+  makes the UE eligible for uplink scheduling without making any of its logical
+  channels look active. Previously a backlogged UE repeating the request
+  downgraded the buffer reported by an earlier BSR and kept its signalling
+  group permanently active, which flattened the uplink priorities of the QoS
+  schedulers. The rate at which the request is repeated is now bounded by the
+  new ``NrUeMac::SrProhibitTimer`` attribute (``sr-ProhibitTimer``, 10 ms by
+  default): while it runs the request stays pending instead of being
+  transmitted on every slot, and it is stopped when a grant that carried the
+  buffer status drains the buffer. A request that goes unanswered for
+  ``NrUeMac::SrTransMax`` transmissions is cancelled, and the UE starts a random
+  access procedure to recover uplink resources instead of asking forever.
+  Covered by the new ``nr-ul-sr-retransmission`` test suite.
+- Fixed ``NrRlcUm`` and ``NrRlcTm`` stopping their buffer status report timer
+  whenever a new SDU arrived from PDCP. New data is what triggers a buffer
+  status report (TS 38.321 clause 5.4.5), never a reason to stop reporting, and
+  the timer is only armed again by a transmission opportunity: once the uplink
+  stalled, the last cancellation was final and the buffer status the gNB held
+  went stale. ``NrRlcAm`` already behaved correctly.
 - Fixed the scheduler dereferencing an invalid UE map entry when a DL CQI report
   arrived for a UE that had already been released from the cell (handover, RRC
   release, radio link failure). The lookup was guarded only by an assertion, so

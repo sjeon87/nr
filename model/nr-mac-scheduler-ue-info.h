@@ -315,6 +315,18 @@ class NR_EXPORT NrMacSchedulerUeInfo
     std::unordered_map<uint8_t, LCGPtr> m_dlLCG; //!< DL LCG
     std::unordered_map<uint8_t, LCGPtr> m_ulLCG; //!< UL LCG
 
+    /**
+     * @brief Size of the uplink grant owed to this UE because it sent a scheduling request.
+     *
+     * A scheduling request carries neither a buffer size nor a logical channel group (3GPP
+     * TS 38.321, clause 5.4.4), so it must not be recorded as buffer in m_ulLCG: only a buffer
+     * status report tells the scheduler what the UE has and where (clause 5.4.5). It is instead
+     * kept here, as the size of the bootstrap grant the UE needs in order to send that buffer
+     * status report, and it makes the UE eligible for uplink scheduling without making any of
+     * its logical channels look active.
+     */
+    uint32_t m_srBytesPending{0};
+
     uint32_t m_dlMRBRetx{0};       //!< MRB assigned for retx. To update the name,
                                    //!< what is MRB is not defined
     uint32_t m_ulMRBRetx{0};       //!< MRB assigned for retx. To update the name,

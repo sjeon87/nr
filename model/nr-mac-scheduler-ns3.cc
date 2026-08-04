@@ -866,6 +866,10 @@ NrMacSchedulerNs3::BSRReceivedFromUe(const MacCeElement& bsr)
     auto itUe = m_ueMap.find(bsr.m_rnti);
     NS_ABORT_IF(itUe == m_ueMap.end());
 
+    // The buffer status is now known, so the bootstrap grant the scheduling request asked for is
+    // no longer owed: from here on the uplink allocation follows the reported buffer.
+    UeInfoOf(*itUe)->m_srBytesPending = 0;
+
     // The UE only notifies the buf size as sum of all components.
     // see nr-ue-mac.cc:395
     for (uint8_t lcg = 0; lcg < 4; ++lcg)
@@ -1429,6 +1433,14 @@ NrMacSchedulerNs3::ComputeActiveUe(ActiveUeMap* activeUe,
             }
         }
 
+        // A UE that sent a scheduling request is eligible for uplink scheduling even though no
+        // logical channel of it is known to hold data: the bootstrap grant it is owed is what
+        // lets it report its buffer status (3GPP TS 38.321, clauses 5.4.4 and 5.4.5).
+        if (!isDl)
+        {
+            totBuffer += ue->m_srBytesPending;
+        }
+
         const auto& harqV = GetHarqVector(ue);
 
         if (totBuffer > 0 && harqV.CanInsert())
@@ -1755,12 +1767,22 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
             }
 
             auto distributedBytes = m_schedLc->AssignBytesToUlLC(ue.first->m_ulLCG, dci->m_tbSize);
-            if (distributedBytes.empty())
+
+            // A UE that only answered a scheduling request has no known buffer to spread over
+            // its logical channels, so there is nothing to distribute: the grant still has to be
+            // issued, as it is what carries the buffer status report back (3GPP TS 38.321,
+            // clause 5.4.4). Which logical channels fill it is decided by the UE.
+            const bool bootstrapGrant = distributedBytes.empty() && ue.first->m_srBytesPending > 0;
+
+            if (distributedBytes.empty() && !bootstrapGrant)
             {
                 NS_LOG_DEBUG("Not enough bytes assigned to UL LCs. Skipping UE.");
                 ue.first->ResetUlMetric();
                 continue;
             }
+
+            // The request has been answered by this grant.
+            ue.first->m_srBytesPending = 0;
 
             assigned = true;
 
@@ -1804,7 +1826,7 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
                                        << " to LCID "
                                        << static_cast<uint32_t>(byteDistribution.m_lcId));
             }
-            NS_ASSERT(assignedToLC);
+            NS_ASSERT(assignedToLC || bootstrapGrant);
             slotAlloc->m_varTtiAllocInfo.emplace_front(slotInfo);
         }
         if (assigned)
@@ -1836,10 +1858,14 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
  * @param spoint Starting point for allocation
  * @param rntiList list of RNTI which asked for a SR
  *
- * Each time an UE asks for SR, the scheduler will assign a fixed amount of
- * data (12 bytes) to the UE's UL LCG. Then, the routine for scheduling the data
- * will take care to create an assignation for the UE, to be able to send
- * some data and, eventually, a BSR.
+ * Each time an UE asks for SR, the scheduler owes it a small bootstrap grant,
+ * recorded in NrMacSchedulerUeInfo::m_srBytesPending. Then, the routine for
+ * scheduling the data will take care to create an assignation for the UE, to
+ * be able to send some data and, eventually, a BSR.
+ *
+ * The request is not recorded as buffer of any logical channel group: it carries
+ * neither a size nor a group (3GPP TS 38.321, clause 5.4.4), and only a buffer
+ * status report tells the scheduler what the UE has and where (clause 5.4.5).
  *
  */
 void
@@ -1847,6 +1873,11 @@ NrMacSchedulerNs3::DoScheduleUlSr(PointInFTPlane* spoint, const std::list<uint16
 {
     NS_LOG_FUNCTION(this);
     NS_ASSERT(spoint->m_rbg == 0);
+
+    // 12 bytes of payload, plus the RLC header and the MAC subheader the UE prepends to them:
+    // the request must buy a transport block that actually fits a buffer status report and a
+    // minimal RLC PDU, not just their payload.
+    const uint32_t srGrantSize = 12 + 2 + MAC_SUBHEADER_SIZE;
 
     for (const auto& v : rntiList)
     {
@@ -1862,11 +1893,9 @@ NrMacSchedulerNs3::DoScheduleUlSr(PointInFTPlane* spoint, const std::list<uint16
                         << v << " (no UE context on this cell, likely a handover race)");
             continue;
         }
-        for (auto& ulLcg : NrMacSchedulerUeInfo::GetUlLCG(ueIt->second))
-        {
-            NS_LOG_DEBUG("Assigning 12 bytes to UE " << v << " because of a SR");
-            ulLcg.second->UpdateInfo(12);
-        }
+        NS_LOG_DEBUG("Owing a " << srGrantSize << " byte bootstrap grant to UE " << v
+                                << " because of a SR");
+        ueIt->second->m_srBytesPending = srGrantSize;
     }
 }
 
