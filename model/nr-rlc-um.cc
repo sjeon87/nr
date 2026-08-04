@@ -73,6 +73,12 @@ NrRlcUm::GetTypeId()
                           UintegerValue(0),
                           MakeUintegerAccessor(&NrRlcUm::m_discardTimerMs),
                           MakeUintegerChecker<uint32_t>())
+            .AddAttribute("BufferStatusReportTimer",
+                          "How much to wait to issue a new Buffer Status Report while the "
+                          "transmission buffer is not empty",
+                          TimeValue(MilliSeconds(10)),
+                          MakeTimeAccessor(&NrRlcUm::m_bsrTimerValue),
+                          MakeTimeChecker())
             .AddAttribute("OutOfOrderDelivery",
                           "Whether to deliver RLC SDUs out of order without waiting for a "
                           "reordering timer to expire",
@@ -125,8 +131,9 @@ NrRlcUm::DoTransmitPdcpPdu(Ptr<Packet> p)
 
                 // The packet has been discarded, so do not store it in the Tx buffer.
                 // A Buffer Status Report is still issued below to reflect the current state.
+                // A running report timer is left alone: new data arriving is what triggers a
+                // buffer status report, never a reason to stop reporting.
                 DoTransmitBufferStatusReport();
-                m_bsrTimer.Cancel();
                 return;
             }
         }
@@ -152,8 +159,11 @@ NrRlcUm::DoTransmitPdcpPdu(Ptr<Packet> p)
     }
 
     /** Transmit Buffer Status Report */
+    // A running report timer is left alone: new data arriving is what triggers a buffer status
+    // report (3GPP TS 38.321, clause 5.4.5), never a reason to stop reporting. Cancelling it here
+    // used to strand the uplink, as the timer is only armed again by a transmission opportunity:
+    // once the uplink stalled, the last cancellation was final and the buffer status went stale.
     DoTransmitBufferStatusReport();
-    m_bsrTimer.Cancel();
 }
 
 /**
@@ -437,11 +447,7 @@ NrRlcUm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
     NS_LOG_INFO("Forward RLC PDU to MAC Layer");
     m_macSapProvider->TransmitPdu(params);
 
-    if (!m_txBuffer.empty())
-    {
-        m_bsrTimer.Cancel();
-        m_bsrTimer = Simulator::Schedule(MilliSeconds(10), &NrRlcUm::ExpireBsrTimer, this);
-    }
+    RestartBsrTimer();
 }
 
 void
@@ -959,7 +965,20 @@ NrRlcUm::ExpireBsrTimer()
     {
         m_expBsrTimer = true;
         DoTransmitBufferStatusReport();
-        m_bsrTimer = Simulator::Schedule(MilliSeconds(10), &NrRlcUm::ExpireBsrTimer, this);
+        RestartBsrTimer();
+    }
+}
+
+void
+NrRlcUm::RestartBsrTimer()
+{
+    NS_LOG_FUNCTION(this);
+
+    m_bsrTimer.Cancel();
+
+    if (!m_txBuffer.empty())
+    {
+        m_bsrTimer = Simulator::Schedule(m_bsrTimerValue, &NrRlcUm::ExpireBsrTimer, this);
     }
 }
 

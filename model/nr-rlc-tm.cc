@@ -41,7 +41,13 @@ NrRlcTm::GetTypeId()
                                           "If set to 0, the buffer is unlimited.",
                                           UintegerValue(2 * 1024 * 1024),
                                           MakeUintegerAccessor(&NrRlcTm::m_maxTxBufferSize),
-                                          MakeUintegerChecker<uint32_t>());
+                                          MakeUintegerChecker<uint32_t>())
+                            .AddAttribute("BufferStatusReportTimer",
+                                          "How much to wait to issue a new Buffer Status Report "
+                                          "while the transmission buffer is not empty",
+                                          TimeValue(MilliSeconds(10)),
+                                          MakeTimeAccessor(&NrRlcTm::m_bsrTimerValue),
+                                          MakeTimeChecker());
     return tid;
 }
 
@@ -83,8 +89,11 @@ NrRlcTm::DoTransmitPdcpPdu(Ptr<Packet> p)
     }
 
     /** Transmit Buffer Status Report */
+    // A running report timer is left alone: new data arriving is what triggers a buffer status
+    // report (3GPP TS 38.321, clause 5.4.5), never a reason to stop reporting. Cancelling it here
+    // used to strand the uplink, as the timer is only armed again by a transmission opportunity:
+    // once the uplink stalled, the last cancellation was final and the buffer status went stale.
     DoTransmitBufferStatusReport();
-    m_bsrTimer.Cancel();
 }
 
 /**
@@ -133,11 +142,7 @@ NrRlcTm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
 
     m_macSapProvider->TransmitPdu(params);
 
-    if (!m_txBuffer.empty())
-    {
-        m_bsrTimer.Cancel();
-        m_bsrTimer = Simulator::Schedule(MilliSeconds(10), &NrRlcTm::ExpireBsrTimer, this);
-    }
+    RestartBsrTimer();
 }
 
 void
@@ -195,7 +200,20 @@ NrRlcTm::ExpireBsrTimer()
     if (!m_txBuffer.empty())
     {
         DoTransmitBufferStatusReport();
-        m_bsrTimer = Simulator::Schedule(MilliSeconds(10), &NrRlcTm::ExpireBsrTimer, this);
+        RestartBsrTimer();
+    }
+}
+
+void
+NrRlcTm::RestartBsrTimer()
+{
+    NS_LOG_FUNCTION(this);
+
+    m_bsrTimer.Cancel();
+
+    if (!m_txBuffer.empty())
+    {
+        m_bsrTimer = Simulator::Schedule(m_bsrTimerValue, &NrRlcTm::ExpireBsrTimer, this);
     }
 }
 
