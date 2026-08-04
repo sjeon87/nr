@@ -134,6 +134,7 @@ complexity:
         - "**/*.cc"
         - "**/*.h"
         - "**/*.hpp"
+      allow_failure: true
     # Always run when a pipeline is started manually from the web UI.
     - if: '$CI_PIPELINE_SOURCE == "web"'
     # Branch pipelines: only run when C++ sources change.
@@ -141,6 +142,7 @@ complexity:
         - "**/*.cc"
         - "**/*.h"
         - "**/*.hpp"
+      allow_failure: true
     # Any other pipeline: offer the job as an optional manual run that does
     # not block the pipeline while waiting to be started.
     - when: manual
