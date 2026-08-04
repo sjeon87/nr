@@ -515,6 +515,7 @@ set(test_sources
     test/nr-test-rlc-um-transmitter.cc
     test/nr-test-rlc-um-rx.cc
     test/nr-test-rrc.cc
+    test/nr-test-sched-released-ue.cc
     test/nr-test-sched-harq.cc
     test/nr-test-sched-lc.cc
     test/nr-test-sched-msg3-retx.cc
