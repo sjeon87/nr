@@ -947,8 +947,19 @@ NrMacSchedulerNs3::DoSchedDlCqiInfoReq(
 
     for (const auto& cqi : params.m_cqiList)
     {
-        NS_ASSERT(m_ueMap.find(cqi.m_rnti) != m_ueMap.end());
-        const std::shared_ptr<NrMacSchedulerUeInfo>& ue = m_ueMap.find(cqi.m_rnti)->second;
+        auto itUe = m_ueMap.find(cqi.m_rnti);
+        if (itUe == m_ueMap.end())
+        {
+            // A DL CQI may legitimately arrive after the UE has been released from this
+            // cell, e.g., after a handover or an RLF. There is nowhere to store it, so
+            // drop the stale report instead of dereferencing an invalid iterator.
+            NS_LOG_INFO("Dropping DL CQI for RNTI "
+                        << cqi.m_rnti
+                        << " because there is no UE context for it. This is expected when the "
+                           "UE was released before the CQI arrived.");
+            continue;
+        }
+        const std::shared_ptr<NrMacSchedulerUeInfo>& ue = itUe->second;
         m_cqiManagement.DlCqiReported(cqi, ue, expirationTime, m_maxDlMcs, GetBandwidthInRbg());
         m_csiFeedbackReceived(GetCellId(), GetBwpId(), ue);
     }
