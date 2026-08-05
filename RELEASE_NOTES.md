@@ -34,6 +34,11 @@ New user-visible features
 
 Bugs fixed
 ----------
+- Fixed the scheduler dereferencing an invalid UE map entry when a DL CQI report
+  arrived for a UE that had already been released from the cell (handover, RRC
+  release, radio link failure). The lookup was guarded only by an assertion, so
+  the dereference happened in optimized builds; such stale reports are now
+  logged and dropped, as was already the case for the UL CQI and UL HARQ paths.
 - Fixed MIMO SINR chunks being selected by RNTI alone when decoding a transport
   block. RNTIs are per-cell values that are reused across cells, so following a
   handover a chunk measured against the previous cell could be matched to a
