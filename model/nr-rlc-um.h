@@ -55,6 +55,15 @@ class NR_EXPORT NrRlcUm : public NrRlc
     void ExpireReorderingTimer();
     /// Expire BSR timer
     void ExpireBsrTimer();
+    /**
+     * @brief Restart the buffer status report timer, or stop it if there is nothing left to send.
+     *
+     * Called whenever the buffer status is reported to the MAC. While data is waiting the timer
+     * keeps running, so its expiry triggers a new report (the equivalent of retxBSR-Timer of 3GPP
+     * TS 38.321, clause 5.4.5, whose expiry triggers a regular buffer status report); once the
+     * buffer is empty there is nothing to report and the timer is left stopped.
+     */
+    void RestartBsrTimer();
 
     /**
      * Is inside reordering window function
@@ -166,6 +175,7 @@ class NR_EXPORT NrRlcUm : public NrRlc
     Time m_reorderingTimerValue;        ///< reordering timer value
     EventId m_reorderingTimer;          ///< reordering timer
     EventId m_bsrTimer;                 ///< BSR timer
+    Time m_bsrTimerValue;               ///< BSR timer value
     bool m_enablePdcpDiscarding{false}; //!< whether to use the PDCP discarding (perform discarding
                                         //!< at the moment of passing the PDCP SDU to RLC)
     uint32_t m_discardTimerMs{0};       //!< the discard timer value in milliseconds

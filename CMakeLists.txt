@@ -496,6 +496,7 @@ set(test_sources
     test/nr-test-fdm-of-numerologies.cc
     test/nr-test-harq.cc
     test/nr-test-harq-flush.cc
+    test/nr-ul-sr-retransmission-test.cc
     test/nr-interference-overlap-test.cc
     test/nr-interference-saturating-signal-test.cc
     test/nr-ue-handover-interference-test.cc

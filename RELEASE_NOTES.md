@@ -15,8 +15,30 @@ http://www.nsnam.org including tutorials: https://www.nsnam.org/documentation/
 Consult the file CHANGES.md for more detailed information about changed
 API and behavior across releases.
 
-Release NR-v5.1 (under development)
-------------------------------------
+Release NR-v5.1
+---------------
+
+Availability
+------------
+August 3, 2026.
+
+Cite this version
+-----------------
+DOI: 10.5281/zenodo.21770621
+
+Supported platforms
+-------------------
+This release has been tested on the following platforms:
+- x86_64
+  - Arch Linux with g++-15 and clang-20.
+  - Ubuntu 22.04 with g++11 and 12 and clang-11 and 14.
+  - Ubuntu 23.04 with g++13.
+  - Ubuntu 25.10 (Questing Quokka) with g++15 and clang-20.
+- ARM
+  - Ubuntu 25.10 (Oracular Oriole) with g++15 and clang-20.
+  - MacOS Sequoia 15.4.1 with AppleClang 17.
+
+This release is compatible with ns-3.48.
 
 New user-visible features
 -------------------------
@@ -31,9 +53,103 @@ New user-visible features
   command carries the target cell's UL carrier and RACH configuration, and the
   UE re-tunes and re-synchronizes its UL BWP to the target cell. Covered by the
   new ``nr-handover-rach-config`` test suite (TDD and FDD, ideal and real RRC).
+- The bandwidth-part configurations and the QoS flow mapping are now advertised
+  in the dedicated RRC configuration delivered to the UE.
+- Added mobility state estimation to ``NrUeRrc`` (TR 36.839): the UE counts its
+  recent handovers over a sliding window, classifies itself as normal, medium or
+  high mobility, and scales the A3 time-to-trigger accordingly. Disabled by
+  default; controlled by the ``MseEnable``, ``MseCountWindow``,
+  ``MseHystNormal``, ``MseThreshMedium``, ``MseThreshHigh``, ``MseSfMedium`` and
+  ``MseSfHigh`` attributes, plus ``MseFixedScale`` to apply a fixed scale from
+  the start. Covered by the new ``nr-mobility-state-ttt`` test suite.
+- Added an optional TR 36.839 handover failure model (``NrUeRrc``
+  ``Tr36839HandoverFailure``, disabled by default): a handover command that
+  arrives while the source link is already below Qout (T310 running) declares
+  radio link failure instead of rescuing the link, so the handover failure rate
+  can be calibrated against the TR 36.839 reference curves. Covered by the new
+  ``nr-tr36839-handover-failure`` test suite. The companion
+  ``Tr36839HoFailureMinT310Elapsed`` attribute grades the too-late threshold by
+  the elapsed T310 time.
+- Added simulation-level handover metrics: the ``NrUeRrc``
+  ``RadioLinkFailureCause`` trace records why every radio link failure happened
+  (with the elapsed T310 time and the time since the last successful handover),
+  and the ``NrGnbRrc`` ``HandoverTotalTime`` trace reports the total handover
+  time from the A3 trigger at the source gNB to completion. Connected-mode
+  failures are now counted as genuine radio link failures (T310 expiry,
+  failures during handover); a too-late handover command is booked as a
+  handover failure instead, matching the TR 36.839 definitions.
+- Added optional handover admission and ping-pong guards, disabled by default:
+  ``NrA3RsrpHandoverAlgorithm`` ``MinTargetRsrpDbm`` and ``MinTargetRsrqDb``
+  reject candidate targets below the configured RSRP/RSRQ floors, and
+  ``NrGnbRrc`` ``HandoverMinTimeOfStay`` suppresses a handover back to the cell
+  the UE just left. Covered by the new ``nr-handover-target-admission`` test
+  suite.
+- Added MIB-wait cell reselection for force-camped UEs (``NrUeRrc``
+  ``MibWaitReselectTimeout`` and ``MibWaitReselectMaxAttempts``): a UE stuck in
+  IDLE_WAIT_MIB on a cell whose MIB it never decodes now reselects the
+  strongest untried measured cell and camps again. Covered by the new
+  ``nr-mib-wait-reselection`` test suite.
+- Added ``RandomDirectionDisc2dMobilityModel``, a random-direction mobility
+  model bounded by a circle rather than a rectangle, and the
+  ``HexagonalGridScenarioHelper::SetUeDiscRadius()`` method to place and move
+  UEs inside a disc centred on the central site. Covered by the new
+  ``nr-random-direction-disc-2d`` test suite.
+- Added the ``NrHelper::AttachWindow`` attribute (disabled by default) to
+  stagger the initial UE attachment over a configurable window,
+  de-synchronising the RACH thundering herd when many UEs attach at once.
+  Covered by the new ``nr-attach-window`` test suite.
+- Added ``HexagonalGridScenarioHelper::SetRingOneOnlyPicos()`` to deploy
+  picocells only around the six ring-1 sites, the placement the 3GPP TR 36.839
+  no-wraparound dense-A layout calls for.
+- ``CQI_CSI_RS`` is now accepted alone as a ``CsiFeedbackFlag`` value: the
+  channel matrix is updated from each CSI-RS reception, so CSI feedback no
+  longer depends on PDSCH data traffic being present.
+- The RLC was reworked towards TS 38.322 conformance: AM status, polling and
+  window handling, UM receive-window behaviour, and re-establishment resets
+  were fixed and are covered by the extended ``nr-test-rlc-am-status``,
+  ``nr-test-rlc-um-rx`` and ``nr-test-rlc-header`` suites, and the TM mode now
+  fires a ``TxDrop`` trace on transmit-buffer overflow (new
+  ``nr-test-rlc-tm`` suite). Every PDU is stamped with a transmitting-entity
+  identity so that stale PDUs of a re-created peer entity still in flight after
+  a handover are discarded instead of corrupting reassembly.
+- The CI pipeline gained a weekly valgrind memcheck job and a weekly
+  MemorySanitizer job (whose findings are fixed in this release), and a
+  lizard-based code-linting check that fails a merge request when it raises the
+  maximum cyclomatic complexity or adds duplicate code blocks relative to the
+  upstream default branch (introduced late in the v5.0 cycle).
 
 Bugs fixed
 ----------
+- Fixed a permanent uplink stall when the bootstrap BSR transport blocks are
+  lost. The UE MAC only re-armed its scheduling request when the last received
+  UL DCI had HARQ process 0 or rv 3, so once the few bootstrap grants were spent
+  without a decoded BSR no scheduling request was ever sent again and the gNB
+  stopped granting. The scheduling request is now re-armed whenever new buffer
+  status arrives while the UE is backlogged, as the UE keeps requesting
+  resources while a BSR is pending and no UL-SCH resources are available
+  (TS 38.321 clauses 5.4.4 and 5.4.5). The scheduler no longer records the
+  request as 12 bytes of buffer in every uplink logical channel group of the
+  UE. A scheduling request carries neither a buffer size nor a logical channel
+  group, and only a buffer status report tells the scheduler what the UE has
+  and where, so the request is now tracked as a pending bootstrap grant, which
+  makes the UE eligible for uplink scheduling without making any of its logical
+  channels look active. Previously a backlogged UE repeating the request
+  downgraded the buffer reported by an earlier BSR and kept its signalling
+  group permanently active, which flattened the uplink priorities of the QoS
+  schedulers. The rate at which the request is repeated is now bounded by the
+  new ``NrUeMac::SrProhibitTimer`` attribute (``sr-ProhibitTimer``, 10 ms by
+  default): while it runs the request stays pending instead of being
+  transmitted on every slot, and it is stopped when a grant that carried the
+  buffer status drains the buffer. A request that goes unanswered for
+  ``NrUeMac::SrTransMax`` transmissions is cancelled, and the UE starts a random
+  access procedure to recover uplink resources instead of asking forever.
+  Covered by the new ``nr-ul-sr-retransmission`` test suite.
+- Fixed ``NrRlcUm`` and ``NrRlcTm`` stopping their buffer status report timer
+  whenever a new SDU arrived from PDCP. New data is what triggers a buffer
+  status report (TS 38.321 clause 5.4.5), never a reason to stop reporting, and
+  the timer is only armed again by a transmission opportunity: once the uplink
+  stalled, the last cancellation was final and the buffer status the gNB held
+  went stale. ``NrRlcAm`` already behaved correctly.
 - Fixed the scheduler dereferencing an invalid UE map entry when a DL CQI report
   arrived for a UE that had already been released from the cell (handover, RRC
   release, radio link failure). The lookup was guarded only by an assertion, so
@@ -71,6 +187,33 @@ Bugs fixed
   SISO SINR chunk at that receiver was garbage. The sum is now rebuilt from
   the tracked list of live signals at each chunk evaluation. Covered by the
   new ``nr-interference-saturating-signal`` test suite.
+- Fixed a new transmission (NDI set) on a HARQ process being combined with stale
+  HARQ history left by an earlier corrupted transport block, when the previous
+  retransmission chain ended without a successful reception. The history is now
+  flushed on new data. Covered by the new ``nr-test-harq-flush`` test suite.
+- Fixed TDMA schedulers and OFDMA uplink scheduling starving a cell when the
+  number of active UEs at MCS 0 reached the schedulable resources of a slot:
+  every UE received an allocation too small to transmit, all DCIs were
+  silently discarded, and without data there was no CSI feedback to raise the
+  MCS. Sub-minimum-TBS allocations are now reaped and redistributed, mirroring
+  the OFDMA downlink behaviour. Covered by the
+  ``nr-system-test-scheduler-many-ues`` test suite with 100 UEs.
+- Fixed the DCI RBG bitmask being validated against the RB count instead of
+  the RBG count.
+- Fixed an abort when a UE that had declared radio link failure re-selected a
+  cell and sent a fresh RRC connection request while the gNB still held its
+  context in an active state; the request is now ignored and the state timeout
+  releases the context. Covered by the new ``nr-stray-rrc-request`` test suite.
+- Fixed the RLC reassembly aborting on aliased sequence numbers after a
+  handover, and the duplicate delivery to PDCP of an out-of-order PDU whose
+  sequence number slid back inside the reordering window.
+- Fixed a reference cycle that kept the whole UE stack (NrUeNetDevice,
+  NrEpcUeNas, NrSpectrumPhy) alive for the lifetime of the process; the
+  back-pointers and callbacks are now released on dispose.
+- Fixed uses of uninitialised memory reported by MemorySanitizer, and made the
+  tests destroy the simulator to release still-reachable memory.
+- Fixed the ``gsoc-leo-demo`` example: it now forces LOS, points the UE
+  antenna to the sky, and over-drives the uplink in the smoke test.
 
 Release NR-v5.0
 ---------------
