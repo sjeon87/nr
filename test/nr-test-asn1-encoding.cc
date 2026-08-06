@@ -172,6 +172,7 @@ NrRrcHeaderTestCase::CreateRadioResourceConfigDedicated()
 
     NrRrcSap::LogicalChannelConfig logicalChannelConfig;
     logicalChannelConfig.priority = 9;
+    logicalChannelConfig.fiveQi = NrQosFlow::GBR_CONV_VOICE;
     logicalChannelConfig.prioritizedBitRateKbps = 128;
     logicalChannelConfig.bucketSizeDurationMs = 100;
     logicalChannelConfig.logicalChannelGroup = 3;
@@ -189,6 +190,7 @@ NrRrcHeaderTestCase::CreateRadioResourceConfigDedicated()
 
     NrRrcSap::LogicalChannelConfig logicalChannelConfig2;
     logicalChannelConfig2.priority = 7;
+    logicalChannelConfig2.fiveQi = NrQosFlow::NGBR_VIDEO_TCP_DEFAULT;
     logicalChannelConfig2.prioritizedBitRateKbps = 256;
     logicalChannelConfig2.bucketSizeDurationMs = 50;
     logicalChannelConfig2.logicalChannelGroup = 2;

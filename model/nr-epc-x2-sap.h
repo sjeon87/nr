@@ -91,12 +91,12 @@ class NR_EXPORT NrEpcX2Sap
     /// ErabsSubjectToStatusTransferItem structure
     struct NR_EXPORT ErabsSubjectToStatusTransferItem
     {
-        uint16_t erabId;                                    ///< ERAB ID
+        uint16_t erabId{0};                                 ///< ERAB ID
         std::bitset<m_maxPdcpSn> receiveStatusOfUlPdcpSdus; ///< receive status of UL PDCP SDUs
-        uint16_t ulPdcpSn;                                  ///< UL PDCP SN
-        uint32_t ulHfn;                                     ///< UL HFN
-        uint16_t dlPdcpSn;                                  ///< DL PDCP SN
-        uint32_t dlHfn;                                     ///< DL HFN
+        uint16_t ulPdcpSn{0};                               ///< UL PDCP SN
+        uint32_t ulHfn{0};                                  ///< UL HFN
+        uint16_t dlPdcpSn{0};                               ///< DL PDCP SN
+        uint32_t dlHfn{0};                                  ///< DL HFN
     };
 
     /**
