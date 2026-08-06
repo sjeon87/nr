@@ -159,19 +159,14 @@ per-commit-gcc-release-sanitizers:
   tags:
     - CTTC
 
-# MemorySanitizer catches reads of uninitialized memory, a defect class that is
-# invisible to the address/leak/undefined sanitizers job and that valgrind only
-# partially reports (it stays silent when uninitialized bytes are merely copied
-# or serialized rather than branched on). MSan requires every linked C++
-# library to be instrumented, so the job first builds an MSan-instrumented
-# libc++/libc++abi matching the clang version (cached across runs) and compiles
-# ns-3 and nr against it. The fast unwinder avoids the sanitizer re-entering
-# the unwinder on report, and dtor poisoning is disabled to mute a known
-# use-after-dtor report in the ns-3 wifi static teardown. Note for runner
-# configuration: MSan may re-exec with ASLR disabled via
-# personality(ADDR_NO_RANDOMIZE), which the default Docker seccomp profile
-# blocks; the runner must be privileged or use a seccomp profile allowing it
-# (verified locally with gitlab-ci-local --privileged).
+# MemorySanitizer catches reads of uninitialized memory, which the other
+# sanitizers and valgrind miss. It requires every linked C++ library to be
+# instrumented, so the job first builds an MSan-instrumented libc++ matching
+# the clang version (cached across runs).
+#
+# Runner requirement: MSan disables ASLR via personality(ADDR_NO_RANDOMIZE),
+# which the default Docker seccomp profile denies. The runner must be
+# registered with security_opt = ["seccomp=unconfined"] or privileged = true.
 weekly-clang-msan:
   stage: build
   image: archlinux
@@ -186,18 +181,18 @@ weekly-clang-msan:
     - pacman-key --init
     - pacman -Sy
     - pacman -S --noconfirm archlinux-keyring
-    - pacman -Su --noconfirm base-devel clang llvm ninja ccache git python curl
+    - pacman -Su --noconfirm base-devel clang llvm ninja ccache git python curl eigen sqlite
     - python3 -m venv ns3env
     - source ./ns3env/bin/activate
     - pip install cmake==$CMAKE_VERSION
   script:
-    # Canary for the runner capability described above: setarch -R uses the
-    # same personality(ADDR_NO_RANDOMIZE) syscall MSan falls back to when its
-    # shadow mapping collides with ASLR. A failure here does not necessarily
-    # doom the job (hosts with vm.mmap_rnd_bits <= 28 rarely need the re-exec),
-    # so warn loudly instead of aborting.
-    - setarch $(uname -m) -R true
-      || echo "WARNING - this runner blocks personality(ADDR_NO_RANDOMIZE); if MemorySanitizer later aborts with 'unable to disable ASLR', run this job on a privileged runner, allow the syscall in the seccomp profile, or set vm.mmap_rnd_bits=28 on the runner host"
+    # Disable ASLR up front so MSan never has to re-exec to do it itself
+    - if setarch $(uname -m) -R true 2>/dev/null; then
+        NO_ASLR="setarch $(uname -m) -R";
+      else
+        NO_ASLR="";
+        echo "WARNING - this runner blocks personality(ADDR_NO_RANDOMIZE); MSan may abort with 'unable to disable ASLR'";
+      fi
     # Build an MSan-instrumented libc++ matching the installed clang
     - LLVM_VERSION=$(clang --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     - if [ ! -e msan-libcxx/lib/libunwind.so ]; then
@@ -213,6 +208,22 @@ weekly-clang-msan:
         rm -rf llvm-project-$LLVM_VERSION.src llvm-project-$LLVM_VERSION.src.tar.xz llvm-msan-build;
       fi
     - MSAN_LIBCXX=${PWD}/msan-libcxx
+    # Build an MSan-instrumented libsqlite3. The system one is uninstrumented,
+    # so MSan cannot see its writes and reports every read back from its
+    # buffers (via SQLiteOutput) as uninitialized. MSan ignores suppression
+    # files, so the library has to be instrumented instead.
+    - if [ ! -e msan-sqlite/lib/libsqlite3.so ]; then
+        curl -sLO https://sqlite.org/2025/sqlite-amalgamation-$SQLITE_VERSION.zip &&
+        bsdtar xf sqlite-amalgamation-$SQLITE_VERSION.zip &&
+        mkdir -p msan-sqlite/lib msan-sqlite/include &&
+        clang -fsanitize=memory -fsanitize-memory-track-origins -fPIC -shared -O1 -g
+          sqlite-amalgamation-$SQLITE_VERSION/sqlite3.c
+          -o msan-sqlite/lib/libsqlite3.so -lpthread -ldl -lm &&
+        cp sqlite-amalgamation-$SQLITE_VERSION/sqlite3.h
+          sqlite-amalgamation-$SQLITE_VERSION/sqlite3ext.h msan-sqlite/include/ &&
+        rm -rf sqlite-amalgamation-$SQLITE_VERSION sqlite-amalgamation-$SQLITE_VERSION.zip;
+      fi
+    - MSAN_SQLITE=${PWD}/msan-sqlite
     - git clone -b $NS3_RELEASE_VERSION --depth=1 $NS3_REPOSITORY_URL
     - mkdir -p $CCACHE_BASEDIR_VALUE
     - export CCACHE_BASEDIR=${PWD}
@@ -225,18 +236,15 @@ weekly-clang-msan:
     # without the MSan runtime and would spuriously fail
     - CXX=clang++ ./ns3 configure -d default -GNinja --enable-examples --enable-tests --enable-asserts --filter-module-examples-and-tests="nr" --
       -DCLANG_STDLIBCPP_WORKS=FALSE -DCLANG_LIBCPP_WORKS=TRUE
+      -DSQLite3_INCLUDE_DIR=$MSAN_SQLITE/include -DSQLite3_LIBRARY=$MSAN_SQLITE/lib/libsqlite3.so
       -DCMAKE_CXX_FLAGS="-stdlib=libc++ -nostdinc++ -isystem $MSAN_LIBCXX/include/c++/v1 -fsanitize=memory -fsanitize-memory-track-origins"
-      -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++ -fsanitize=memory -L$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_LIBCXX/lib"
-      -DCMAKE_SHARED_LINKER_FLAGS="-stdlib=libc++ -fsanitize=memory -L$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_LIBCXX/lib"
+      -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++ -fsanitize=memory -L$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_SQLITE/lib"
+      -DCMAKE_SHARED_LINKER_FLAGS="-stdlib=libc++ -fsanitize=memory -L$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_SQLITE/lib"
     - ./ns3 build
     - export MSAN_OPTIONS=strict_memcmp=0:fast_unwind_on_fatal=1:fast_unwind_on_malloc=1:poison_in_dtor=0
-    - for suite in nr-cell-selection nr-cell-selection-with-rlf nr-handover-delay
-        nr-handover-failure nr-handover-rach-config nr-handover-scenarios
-        nr-handover-target nr-inter-freq-handover nr-rlf-fdd nr-rlf-tdd
-        nr-rlf-tdd-flexible nr-rlf-tdd-mixed nr-rrc nr-ue-measurements
-        nr-x2-handover nr-x2-handover-measures nr-epc-e2e-data; do
-        ./build/utils/ns3-dev-test-runner-default --suite=$suite --stop-on-failure || exit 1;
-      done
+    # The configure step above filtered examples and tests down to nr, so
+    # test.py exercises every nr suite and every nr example and nothing else.
+    - $NO_ASLR ./test.py --no-build --verbose-failed
     - popd
     - rm -rf ns-3-dev
   cache:
@@ -244,38 +252,24 @@ weekly-clang-msan:
     paths:
       - $CCACHE_BASEDIR_VALUE/
       - msan-libcxx/
+      - msan-sqlite/
   variables:
     CCACHE_BASEDIR_VALUE: ns-3-ccache-storage
+    SQLITE_VERSION: "3500400"
   timeout: 9h
   interruptible: true
   tags:
     - CTTC
 
 # Valgrind memcheck complements the MemorySanitizer job: it needs no special
-# toolchain and additionally checks the ns-3 libraries the nr module links
-# against, at the price of a much larger slowdown. Only the QUICK fullness is
-# exercised, and the build is configured with tests but WITHOUT examples so only
-# the test suites are grinded (grinding examples too is effectively unbounded).
-# Even so, QUICK-under-valgrind is heavy: summed over the nr suites it is
-# ~13 CPU-hours, dominated by a few numerical suites (nr-test-csi ~2.6 h,
-# nr-ideal-beamforming-test ~2.4 h). The suites are run in parallel (xargs -P
-# nproc), so wall-clock is bounded by the slowest single suite (~2.7 h) and
-# stays under the 9 h timeout down to about two cores.
+# toolchain and also checks the ns-3 libraries nr links against. Examples are
+# disabled because grinding them is effectively unbounded; the suites alone are
+# ~13 CPU-hours, run in parallel by test.py and bounded by the slowest suite
+# (~2.7 h). See tools/valgrind/nr-valgrind.supp for the extra suppressions.
 #
-# valgrind is invoked directly rather than through test.py -g: the latter
-# hardcodes --errors-for-leak-kinds=all, which counts still-reachable blocks
-# (framework/singleton allocations that are alive at exit -- not leaks) as
-# errors, so it reports failures for suites that have no actual memory error
-# (verified: nr-channel-setup-test etc. show "definitely lost: 0" with only
-# still reachable). Here we keep valgrind's default error leak-kinds
-# (definite,possible), so real leaks and real memory errors fail the job while
-# benign still-reachable does not.
-#
-# This job uses an Ubuntu image rather than the archlinux one shared by the
-# other jobs on purpose: Arch ships a stripped ld.so and provides its debug
-# symbols only over networked debuginfod, which makes valgrind refuse to start
-# ("stripped ld.so ... Cannot continue"). On Ubuntu the valgrind package pulls
-# the glibc debug symbols in and it runs offline out of the box.
+# Ubuntu rather than the archlinux image used elsewhere: Arch ships a stripped
+# ld.so with debug symbols only over networked debuginfod, which makes valgrind
+# refuse to start.
 weekly-gcc-valgrind:
   stage: build
   image: ubuntu:24.04
@@ -306,27 +300,8 @@ weekly-gcc-valgrind:
     - pushd ns-3-dev
     - CXX=g++ ./ns3 configure -d default -GNinja --enable-tests --disable-examples --enable-asserts --filter-module-examples-and-tests="nr"
     - ./ns3 build
-    # Run every nr test suite under valgrind memcheck in parallel, at QUICK
-    # fullness, applying the in-tree suppressions (.ns3.supp). A suite with a
-    # real memory error or leak makes valgrind exit non-zero (--error-exitcode),
-    # and a failing test case makes the runner exit non-zero; either records a
-    # failure. The whole matrix is reduced to a single pass/fail at the end.
-    - |
-      RUNNER=./build/utils/ns3-dev-test-runner-default
-      rm -f vg-failed
-      "$RUNNER" --list | grep -E '^nr' | xargs -P "$(nproc)" -I{} sh -c '
-        s="$1"
-        if ! valgrind --suppressions=.ns3.supp --leak-check=full --error-exitcode=1 \
-             ./build/utils/ns3-dev-test-runner-default --test-name="$s" \
-             --stop-on-failure --fullness=QUICK > "vg-$s.log" 2>&1; then
-          echo "===== FAILURE UNDER VALGRIND: $s ====="
-          cat "vg-$s.log"
-          touch vg-failed
-        fi' _ {}
-      if [ -e vg-failed ]; then
-        echo "One or more suites reported a valgrind error or test failure"
-        exit 1
-      fi
+    - cat contrib/nr/tools/valgrind/nr-valgrind.supp >> .ns3.supp
+    - ./test.py -g --no-build --verbose-failed
     - popd
     - rm -rf ns-3-dev
   cache:
