@@ -20,7 +20,7 @@ Release NR-v5.1
 
 Availability
 ------------
-August 3, 2026.
+August 6, 2026.
 
 Cite this version
 -----------------
