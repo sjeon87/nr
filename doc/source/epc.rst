@@ -289,6 +289,31 @@ The identifier assignment occurs across the following code paths:
    so that the gNB and MME know the correct tunnel endpoints for data
    forwarding.
 
+Unstructured PDU sessions
+=========================
+An unstructured PDU session ([TS23501]_, Section 5.6.1) carries a single non-IP network-layer
+protocol. Its payload is not parsed by the network, so it can neither be classified by a packet
+filter nor routed by a destination address the way an IP session is. The data plane is adapted at
+two points, with no change to the control-plane identifiers above.
+
+At the **PGW**, each unstructured session is given its own ``VirtualNetDevice``, analogous to an N6
+point-to-point tunnel. Whatever is written to that device is sent to the UE of the session, and
+whatever the UE sends on the session comes out of it, with no header inspection in either direction.
+The device is bound to the session TEID when the flow is established, so the downlink is routed by
+TEID (``m_unstructuredSessionByTeid``) rather than by address, and the uplink leaves through the
+device bound to the flow (``m_unstructuredSessionByUe``). The egress device is obtained from the EPC
+helper with ``GetUnstructuredSessionDevice(imsi, qfi)``.
+
+At the **gNB**, ``NrEpcGnbApplication`` gains a third packet socket, beside the IPv4 and IPv6 ones,
+to carry the traffic of unstructured sessions across the node. Its protocol number is node-local and
+never reaches the radio. As with IP, all three sockets feed the same handler, which routes packets by
+the QoS flow tag rather than by their contents.
+
+The session type travels in the QoS rule over GTP-C, so the PGW binds the egress device on the same
+CreateSession exchange that establishes an IP flow. Activation is done with
+``NrHelper::ActivateUnstructuredQosFlow(ueDevice, protocolNumber, flow)``, which needs no IP address
+on the UE.
+
 Control-plane procedures
 ========================
 The following sequence diagrams show the end-to-end control-plane message exchanges as modelled,

@@ -54,15 +54,29 @@ class NR_EXPORT NrEpcGnbApplication : public Application
 
   public:
     /**
+     * Protocol number of the packet socket carrying the traffic of unstructured
+     * PDU sessions between this application and the gNB NetDevice. The payload of
+     * such a session is unstructured, so it cannot be recognized the way an IP packet
+     * can. This number is local to the node and never reaches the radio. The value
+     * is an IEEE 802a local experimental EtherType.
+     */
+    static constexpr uint16_t UNSTRUCTURED_SOCKET_PROTOCOL{0x88B5};
+
+    /**
      * Constructor
      *
      * @param nrSocket the socket to be used to send/receive IPv4 packets to/from the
      * NR radio interface
      * @param nrSocket6 the socket to be used to send/receive IPv6 packets to/from the
      * NR radio interface
+     * @param nrSocketUnstructured the socket to be used to send/receive the packets of
+     * unstructured PDU sessions to/from the NR radio interface
      * @param cellId the identifier of the gNB
      */
-    NrEpcGnbApplication(Ptr<Socket> nrSocket, Ptr<Socket> nrSocket6, uint16_t cellId);
+    NrEpcGnbApplication(Ptr<Socket> nrSocket,
+                        Ptr<Socket> nrSocket6,
+                        Ptr<Socket> nrSocketUnstructured,
+                        uint16_t cellId);
 
     /**
      * Add a S1-U interface to the gNB
@@ -255,6 +269,12 @@ class NR_EXPORT NrEpcGnbApplication : public Application
      * raw packet socket to send and receive the packets to and from the NR radio interface
      */
     Ptr<Socket> m_nrSocket6;
+
+    /**
+     * raw packet socket to send and receive the packets of unstructured PDU sessions
+     * to and from the NR radio interface
+     */
+    Ptr<Socket> m_nrSocketUnstructured;
 
     /**
      * UDP socket to send and receive GTP-U the packets to and from the S1-U interface

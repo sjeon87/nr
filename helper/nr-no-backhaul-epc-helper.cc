@@ -349,9 +349,28 @@ NrNoBackhaulEpcHelper::AddGnb(Ptr<Node> gnb, Ptr<NetDevice> nrGnbNetDevice, uint
     retval = nrGnbSocket6->Connect(nrGnbSocketConnectAddress6);
     NS_ASSERT(retval == 0);
 
+    // create the NR socket carrying the unstructured PDU sessions of the gNB
+    Ptr<Socket> nrGnbSocketUnstructured =
+        Socket::CreateSocket(gnb, TypeId::LookupByName("ns3::PacketSocketFactory"));
+    PacketSocketAddress nrGnbSocketBindAddressUnstructured;
+    nrGnbSocketBindAddressUnstructured.SetSingleDevice(nrGnbNetDevice->GetIfIndex());
+    nrGnbSocketBindAddressUnstructured.SetProtocol(
+        NrEpcGnbApplication::UNSTRUCTURED_SOCKET_PROTOCOL);
+    retval = nrGnbSocketUnstructured->Bind(nrGnbSocketBindAddressUnstructured);
+    NS_ASSERT(retval == 0);
+    PacketSocketAddress nrGnbSocketConnectAddressUnstructured;
+    nrGnbSocketConnectAddressUnstructured.SetPhysicalAddress(Mac48Address::GetBroadcast());
+    nrGnbSocketConnectAddressUnstructured.SetSingleDevice(nrGnbNetDevice->GetIfIndex());
+    nrGnbSocketConnectAddressUnstructured.SetProtocol(
+        NrEpcGnbApplication::UNSTRUCTURED_SOCKET_PROTOCOL);
+    retval = nrGnbSocketUnstructured->Connect(nrGnbSocketConnectAddressUnstructured);
+    NS_ASSERT(retval == 0);
+
     NS_LOG_INFO("Create NrEpcGnbApplication for cell ID " << cellId);
-    Ptr<NrEpcGnbApplication> gnbApp =
-        CreateObject<NrEpcGnbApplication>(nrGnbSocket, nrGnbSocket6, cellId);
+    Ptr<NrEpcGnbApplication> gnbApp = CreateObject<NrEpcGnbApplication>(nrGnbSocket,
+                                                                        nrGnbSocket6,
+                                                                        nrGnbSocketUnstructured,
+                                                                        cellId);
     gnb->AddApplication(gnbApp);
     NS_ASSERT(gnb->GetNApplications() == 1);
     NS_ASSERT_MSG(gnb->GetApplication(0)->GetObject<NrEpcGnbApplication>(),
@@ -485,6 +504,46 @@ NrNoBackhaulEpcHelper::ActivateQosFlow(Ptr<NetDevice> ueDevice,
     DoActivateQosFlowForUe(ueDevice, rule, flow);
 
     return qosFlowId;
+}
+
+uint8_t
+NrNoBackhaulEpcHelper::ActivateUnstructuredQosFlow(Ptr<NetDevice> ueDevice,
+                                                   uint64_t imsi,
+                                                   uint16_t protocolNumber,
+                                                   NrQosFlow flow)
+{
+    NS_LOG_FUNCTION(this << ueDevice << imsi << protocolNumber);
+
+    // The session carries unstructured payload, so the UE has no address to notify to the
+    // core: the session itself identifies the UE, and it is reached through a device
+    // of its own on the PGW rather than by routing on an address.
+    Ptr<NrQosRule> rule = NrQosRule::Unstructured(protocolNumber);
+    uint8_t qosFlowId = m_mmeApp->AddFlow(imsi, rule, flow);
+    rule->SetQfi(qosFlowId);
+
+    Ptr<VirtualNetDevice> sessionDevice = CreateObject<VirtualNetDevice>();
+    // allow jumbo packets
+    sessionDevice->SetAttribute("Mtu", UintegerValue(30000));
+    sessionDevice->SetAddress(Mac48Address::Allocate());
+    m_pgw->AddDevice(sessionDevice);
+    m_unstructuredSessionDevices[{imsi, qosFlowId}] = sessionDevice;
+    m_pgwApp->AddUnstructuredSession(imsi, qosFlowId, protocolNumber, sessionDevice);
+
+    DoActivateQosFlowForUe(ueDevice, rule, flow);
+
+    return qosFlowId;
+}
+
+Ptr<VirtualNetDevice>
+NrNoBackhaulEpcHelper::GetUnstructuredSessionDevice(uint64_t imsi, uint8_t qfi) const
+{
+    NS_LOG_FUNCTION(this << imsi << qfi);
+    auto it = m_unstructuredSessionDevices.find({imsi, qfi});
+    if (it == m_unstructuredSessionDevices.end())
+    {
+        return nullptr;
+    }
+    return it->second;
 }
 
 void

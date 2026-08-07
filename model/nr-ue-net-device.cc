@@ -14,6 +14,7 @@
 #include "nr-ue-phy.h"
 #include "nr-ue-rrc.h"
 
+#include "ns3/error-model.h"
 #include "ns3/ipv4-l3-protocol.h"
 #include "ns3/ipv6-l3-protocol.h"
 #include "ns3/object-map.h"
@@ -234,11 +235,32 @@ bool
 NrUeNetDevice::DoSend(Ptr<Packet> packet, const Address& dest, uint16_t protocolNumber)
 {
     NS_LOG_FUNCTION(this << packet << dest << protocolNumber);
-    NS_ABORT_MSG_IF(protocolNumber != Ipv4L3Protocol::PROT_NUMBER &&
-                        protocolNumber != Ipv6L3Protocol::PROT_NUMBER,
-                    "unsupported protocol " << protocolNumber
-                                            << ", only IPv4 and IPv6 are supported");
+    // The NAS dispatches IP to the sessions matching its packet filters, and any
+    // other protocol to the unstructured session activated for it, if any.
     return m_nas->Send(packet, protocolNumber);
+}
+
+void
+NrUeNetDevice::Receive(Ptr<Packet> p, uint16_t protocolNumber)
+{
+    NS_LOG_FUNCTION(this << p << protocolNumber);
+
+    if (protocolNumber == 0)
+    {
+        // An IP session: the protocol is carried by the packet.
+        NrNetDevice::Receive(p);
+        return;
+    }
+
+    if (m_receiveErrorModel && m_receiveErrorModel->IsCorrupt(p))
+    {
+        NS_LOG_INFO("Dropping " << p->GetSize() << " bytes");
+        m_dropTrace(p);
+        return;
+    }
+
+    NS_LOG_INFO("Received " << p->GetSize() << " bytes of protocol " << protocolNumber);
+    ForwardUp(p, protocolNumber);
 }
 
 Ptr<NrUePhy>

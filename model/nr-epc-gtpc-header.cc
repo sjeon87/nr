@@ -320,11 +320,13 @@ NrGtpcIes::SerializeQosRule(Buffer::Iterator& i, Ptr<const NrQosRule> rule) cons
 {
     std::list<NrQosRule::PacketFilter> packetFilters = rule->GetPacketFilters();
     i.WriteU8(84); // IE Type = QoS rule
-    i.WriteHtonU16(1 + packetFilters.size() * serializedSizePacketFilter);
+    i.WriteHtonU16(4 + packetFilters.size() * serializedSizePacketFilter);
     i.WriteU8(0); // Spare + Instance
     i.WriteU8(rule->GetPrecedence());
     i.WriteU8(rule->GetQfi());
     i.WriteU8(0x20 + (packetFilters.size() & 0x0f)); // Create new rule + Number of packet filters
+    i.WriteU8(static_cast<uint8_t>(rule->GetPduSessionType()));
+    i.WriteHtonU16(rule->GetProtocolNumber()); // Only meaningful for an unstructured session
 
     for (auto& pf : packetFilters)
     {
@@ -359,6 +361,8 @@ NrGtpcIes::DeserializeQosRule(Buffer::Iterator& i, Ptr<NrQosRule> rule) const
     rule->SetPrecedence(i.ReadU8());
     rule->SetQfi(i.ReadU8());
     uint8_t numberOfPacketFilters = i.ReadU8() & 0x0f;
+    rule->SetPduSessionType(static_cast<NrPduSessionType>(i.ReadU8()));
+    rule->SetProtocolNumber(i.ReadNtohU16());
 
     for (uint8_t pf = 0; pf < numberOfPacketFilters; ++pf)
     {
@@ -389,7 +393,7 @@ NrGtpcIes::DeserializeQosRule(Buffer::Iterator& i, Ptr<NrQosRule> rule) const
 uint32_t
 NrGtpcIes::GetSerializedSizeQosRule(std::list<NrQosRule::PacketFilter> packetFilters) const
 {
-    return (7 + packetFilters.size() * serializedSizePacketFilter);
+    return (10 + packetFilters.size() * serializedSizePacketFilter);
 }
 
 void

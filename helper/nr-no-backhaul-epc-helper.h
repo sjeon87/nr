@@ -12,6 +12,8 @@
 
 #include "ns3/nr-export.h"
 
+#include <map>
+
 namespace ns3
 {
 
@@ -65,6 +67,11 @@ class NR_EXPORT NrNoBackhaulEpcHelper : public NrEpcHelper
                             uint64_t imsi,
                             Ptr<NrQosRule> rule,
                             NrQosFlow flow) override;
+    uint8_t ActivateUnstructuredQosFlow(Ptr<NetDevice> ueNrDevice,
+                                        uint64_t imsi,
+                                        uint16_t protocolNumber,
+                                        NrQosFlow flow) override;
+    Ptr<VirtualNetDevice> GetUnstructuredSessionDevice(uint64_t imsi, uint8_t qfi) const override;
     Ptr<Node> GetSgwNode() const override;
     Ptr<Node> GetPgwNode() const override;
     Ipv4InterfaceContainer AssignUeIpv4Address(NetDeviceContainer ueDevices) override;
@@ -153,6 +160,11 @@ class NR_EXPORT NrNoBackhaulEpcHelper : public NrEpcHelper
      * TUN device implementing tunneling of user data over GTP-U/UDP/IP
      */
     Ptr<VirtualNetDevice> m_tunDevice;
+
+    /**
+     * Egress device of each unstructured PDU session, stored by (IMSI, QFI)
+     */
+    std::map<std::pair<uint64_t, uint8_t>, Ptr<VirtualNetDevice>> m_unstructuredSessionDevices;
 
     /**
      * UDP port where the GTP-U Socket is bound, fixed by the standard as 2152

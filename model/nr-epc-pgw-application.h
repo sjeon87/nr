@@ -16,6 +16,8 @@
 #include "ns3/socket.h"
 #include "ns3/virtual-net-device.h"
 
+#include <set>
+
 namespace ns3
 {
 
@@ -83,6 +85,28 @@ class NR_EXPORT NrEpcPgwApplication : public Application
                            uint16_t protocolNumber);
 
     /**
+     * Method to be assigned to the callback of the egress device of an
+     * unstructured PDU session. It is called when the PGW receives a data packet
+     * to be sent to the UE of that session via its associated SGW and gNB. The
+     * payload is unstructured, so the session it arrived on names its destination and
+     * nothing is read from the packet itself.
+     *
+     * @param imsi the unique identifier of the UE of the session
+     * @param qfi the QFI of the session
+     * @param packet the packet
+     * @param source unused
+     * @param dest unused
+     * @param protocolNumber unused
+     * @return true always
+     */
+    bool RecvFromUnstructuredDevice(uint64_t imsi,
+                                    uint8_t qfi,
+                                    Ptr<Packet> packet,
+                                    const Address& source,
+                                    const Address& dest,
+                                    uint16_t protocolNumber);
+
+    /**
      * Method to be assigned to the receiver callback of the S5-U socket.
      * It is called when the PGW receives a data packet from the SGW
      * that is to be forwarded to the internet.
@@ -147,6 +171,24 @@ class NR_EXPORT NrEpcPgwApplication : public Application
     void SetUeAddress6(uint64_t imsi, Ipv6Address ueAddr);
 
     /**
+     * Let the PGW be aware of an unstructured PDU session of a previously added UE
+     * and of the device through which the session reaches the external network.
+     *
+     * An unstructured session carries a payload the network does not parse, so it
+     * cannot be addressed the way an IP session is: the session has a device of its
+     * own, and whatever is sent through that device goes to the UE of the session.
+     *
+     * @param imsi the unique identifier of the UE
+     * @param qfi the QFI of the session
+     * @param protocolNumber the network layer protocol carried by the session
+     * @param device the egress device of the session
+     */
+    void AddUnstructuredSession(uint64_t imsi,
+                                uint8_t qfi,
+                                uint16_t protocolNumber,
+                                Ptr<VirtualNetDevice> device);
+
+    /**
      * TracedCallback signature for data Packet reception event.
      *
      * @param [in] packet The data packet sent from the internet.
@@ -177,6 +219,17 @@ class NR_EXPORT NrEpcPgwApplication : public Application
      * @param packet GTPv2-C Delete Flow Response message
      */
     void DoRecvDeleteFlowResponse(Ptr<Packet> packet);
+
+    /**
+     * Tear down the state of an unstructured PDU session, undoing
+     * AddUnstructuredSession(). It does nothing when the flow is not an
+     * unstructured session, so it can be called for any flow being released.
+     *
+     * @param imsi the unique identifier of the UE of the session
+     * @param qfi the QFI of the session
+     * @param teid the TEID the session was bound to
+     */
+    void RemoveUnstructuredSession(uint64_t imsi, uint8_t qfi, uint32_t teid);
 
     /**
      * store info for each UE connected to this PGW
@@ -229,6 +282,15 @@ class NR_EXPORT NrEpcPgwApplication : public Application
          * returns std::nullopt if no flow matches with the previously declared QoS rules
          */
         std::optional<uint32_t> Classify(Ptr<Packet> p, uint16_t protocolNumber);
+
+        /**
+         * Get the TEID of a flow of this UE by its QFI
+         *
+         * @param qfi the QFI of the flow
+         *
+         * @return the TEID of the flow, or std::nullopt if the flow is not established
+         */
+        std::optional<uint32_t> GetTeidByQfi(uint8_t qfi) const;
 
         /**
          * Get the address of the SGW to which the UE is connected
@@ -302,6 +364,12 @@ class NR_EXPORT NrEpcPgwApplication : public Application
          * Cleared by: DoRecvDeleteFlowResponse() when bearer is released
          */
         std::map<uint8_t, uint32_t> m_teidByFlowIdMap;
+
+        /**
+         * QFIs of the unstructured flows of this UE. Such a flow has no entry in
+         * the classifier, so its removal has no classifier rule to delete.
+         */
+        std::set<uint8_t> m_unstructuredQfis;
     };
 
     /**
@@ -339,6 +407,26 @@ class NR_EXPORT NrEpcPgwApplication : public Application
      * NrUeInfo stored by IMSI
      */
     std::map<uint64_t, Ptr<NrUeInfo>> m_ueInfoByImsiMap;
+
+    /**
+     * The egress of an unstructured PDU session towards the external network
+     */
+    struct UnstructuredSession
+    {
+        Ptr<VirtualNetDevice> device; ///< device through which the session reaches the network
+        uint16_t protocolNumber;      ///< network layer protocol carried by the session
+    };
+
+    /**
+     * Unstructured session stored by (IMSI, QFI), as declared by AddUnstructuredSession()
+     */
+    std::map<std::pair<uint64_t, uint8_t>, UnstructuredSession> m_unstructuredSessionByUe;
+
+    /**
+     * Unstructured session stored by TEID, bound when the session is established.
+     * An uplink packet is delivered to the device of its tunnel, with no inspection.
+     */
+    std::map<uint32_t, UnstructuredSession> m_unstructuredSessionByTeid;
 
     /**
      * UDP port to be used for GTP-U

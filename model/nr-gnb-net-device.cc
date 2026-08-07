@@ -7,6 +7,7 @@
 #include "bandwidth-part-gnb.h"
 #include "bwp-manager-algorithm.h"
 #include "bwp-manager-gnb.h"
+#include "nr-epc-gnb-application.h"
 #include "nr-gnb-component-carrier-manager.h"
 #include "nr-gnb-mac.h"
 #include "nr-gnb-phy.h"
@@ -237,14 +238,24 @@ NrGnbNetDevice::DoSend(Ptr<Packet> packet, const Address& dest, uint16_t protoco
 {
     NS_LOG_FUNCTION(this << packet << dest << protocolNumber);
     NS_ABORT_MSG_IF(protocolNumber != Ipv4L3Protocol::PROT_NUMBER &&
-                        protocolNumber != Ipv6L3Protocol::PROT_NUMBER,
-                    "unsupported protocol " << protocolNumber
-                                            << ", only IPv4 and IPv6 are supported");
+                        protocolNumber != Ipv6L3Protocol::PROT_NUMBER &&
+                        protocolNumber != NrEpcGnbApplication::UNSTRUCTURED_SOCKET_PROTOCOL,
+                    "unsupported protocol " << protocolNumber);
 
     NS_LOG_INFO("Forward received packet to RRC Layer");
     m_txTrace(packet, dest);
 
     return m_rrc->SendData(packet);
+}
+
+void
+NrGnbNetDevice::ForwardUnclassifiedUp(Ptr<Packet> p)
+{
+    NS_LOG_FUNCTION(this << p);
+    // An uplink packet that is not IP belongs to an unstructured PDU session, so it
+    // rides the unstructured socket up to the gNB application, which routes
+    // it by the QoS flow tag it carries rather than by its contents.
+    ForwardUp(p, NrEpcGnbApplication::UNSTRUCTURED_SOCKET_PROTOCOL);
 }
 
 void

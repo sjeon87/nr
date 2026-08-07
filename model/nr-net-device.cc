@@ -228,34 +228,50 @@ NrNetDevice::Receive(Ptr<Packet> p)
         m_dropTrace(p);
         return;
     }
-    if (p->PeekHeader(ipv4Header) != 0)
+    // Deserialize reads the whole header before the packet can be rejected for
+    // carrying something else, so a buffer shorter than the header is not one to
+    // hand to it: what is too short to be a header is not one.
+    if (p->GetSize() >= ipv4Header.GetSerializedSize() && p->PeekHeader(ipv4Header) != 0)
     {
         NS_LOG_INFO("Received " << p->GetSize() << " bytes on " << m_macAddress
                                 << ". IPv4 packet from " << ipv4Header.GetSource() << " to "
                                 << ipv4Header.GetDestination());
-        m_rxTrace(p);
-        m_rxCallback(this, p, Ipv4L3Protocol::PROT_NUMBER, Address());
+        ForwardUp(p, Ipv4L3Protocol::PROT_NUMBER);
     }
-    else if (p->PeekHeader(ipv6Header) != 0)
+    else if (p->GetSize() >= ipv6Header.GetSerializedSize() && p->PeekHeader(ipv6Header) != 0)
     {
         NS_LOG_INFO("Received " << p->GetSize() << " bytes on " << m_macAddress
                                 << ". IPv6 packet from " << ipv6Header.GetSource() << " to "
                                 << ipv6Header.GetDestination());
-        m_rxTrace(p);
-        m_rxCallback(this, p, Ipv6L3Protocol::PROT_NUMBER, Address());
+        ForwardUp(p, Ipv6L3Protocol::PROT_NUMBER);
     }
     else
     {
-        // The packet handed up here is neither IPv4 nor IPv6. In a correct stack this
-        // never happens, but a incorrectly reassembled RLC-UM SDU (e.g. a segment concatenated
-        // across an undetected discontinuity during fast-channel/handover loss) can
-        // surface a non-IP buffer. A real UE's IP layer simply discards a packet with an
-        // unrecognized version field; aborting the whole simulation over one corrupt
-        // data-plane SDU is too strict, so drop and trace it instead.
-        NS_LOG_WARN("Dropping " << p->GetSize() << " bytes with unrecognized IP version on "
-                                << m_macAddress << " (malformed or incorrectly reassembled SDU)");
-        m_dropTrace(p);
+        ForwardUnclassifiedUp(p);
     }
+}
+
+void
+NrNetDevice::ForwardUp(Ptr<Packet> p, uint16_t protocolNumber)
+{
+    NS_LOG_FUNCTION(this << p << protocolNumber);
+    m_rxTrace(p);
+    m_rxCallback(this, p, protocolNumber, Address());
+}
+
+void
+NrNetDevice::ForwardUnclassifiedUp(Ptr<Packet> p)
+{
+    NS_LOG_FUNCTION(this << p);
+    // The packet handed up here is neither IPv4 nor IPv6. In a correct stack this
+    // never happens, but a incorrectly reassembled RLC-UM SDU (e.g. a segment concatenated
+    // across an undetected discontinuity during fast-channel/handover loss) can
+    // surface a non-IP buffer. A real UE's IP layer simply discards a packet with an
+    // unrecognized version field; aborting the whole simulation over one corrupt
+    // data-plane SDU is too strict, so drop and trace it instead.
+    NS_LOG_WARN("Dropping " << p->GetSize() << " bytes with unrecognized IP version on "
+                            << m_macAddress << " (malformed or incorrectly reassembled SDU)");
+    m_dropTrace(p);
 }
 
 bool

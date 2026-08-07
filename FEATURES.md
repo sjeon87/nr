@@ -119,6 +119,7 @@ It is meant to be a compact, “at-a-glance” view, complementary to the detail
 | [RRC](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#rrc-layer)                  | ✅ Supported | Ideal and real RRC; RLF and handover (**NR-v5.0**); TR 36.839 handover failure model (**NR-v5.1**) |
 | [Multi-flow per UE](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#architecture) | ✅ Supported | Independent bearers                                                                                                                                            |
 | [EPC/5GC integration](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#epc-model)  | ✅ Supported | Via LTE-EPC model                                                                                                                                              |
+| Unstructured PDU sessions (non-IP)                                                     | ✅ Supported | 3GPP TS 23.501 5.6.1, one unstructured non-IP protocol per session (**NR-v5.2**)                                                                               |
 
 ---
 

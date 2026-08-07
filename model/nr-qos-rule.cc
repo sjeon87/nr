@@ -42,6 +42,37 @@ operator<<(std::ostream& os, const NrQosRule::Direction& d)
 }
 
 /**
+ * Output stream operator for PDU session type
+ *
+ * @param os output stream
+ * @param t PDU session type
+ * @return ostream
+ */
+std::ostream&
+operator<<(std::ostream& os, const NrPduSessionType& t)
+{
+    switch (t)
+    {
+    case NrPduSessionType::IPV4:
+        os << "IPV4";
+        break;
+    case NrPduSessionType::IPV6:
+        os << "IPV6";
+        break;
+    case NrPduSessionType::IPV4V6:
+        os << "IPV4V6";
+        break;
+    case NrPduSessionType::ETHERNET:
+        os << "ETHERNET";
+        break;
+    default:
+        os << "UNSTRUCTURED";
+        break;
+    }
+    return os;
+}
+
+/**
  * Output stream for QoS rule packet filter
  *
  * @param os output stream
@@ -230,10 +261,23 @@ NrQosRule::Default()
     return rule;
 }
 
+Ptr<NrQosRule>
+NrQosRule::Unstructured(uint16_t protocolNumber)
+{
+    NS_LOG_FUNCTION(protocolNumber);
+    Ptr<NrQosRule> rule = Create<NrQosRule>();
+    rule->SetPduSessionType(NrPduSessionType::UNSTRUCTURED);
+    rule->SetProtocolNumber(protocolNumber);
+    rule->SetPrecedence(255);
+    return rule;
+}
+
 NrQosRule::NrQosRule()
     : m_numFilters(0),
       m_precedence(128),
-      m_qfi(0)
+      m_qfi(0),
+      m_pduSessionType(NrPduSessionType::IPV4V6),
+      m_protocolNumber(0)
 {
     NS_LOG_FUNCTION(this);
 }
@@ -355,6 +399,32 @@ uint8_t
 NrQosRule::GetQfi() const
 {
     return m_qfi;
+}
+
+void
+NrQosRule::SetPduSessionType(NrPduSessionType pduSessionType)
+{
+    NS_LOG_FUNCTION(this << pduSessionType);
+    m_pduSessionType = pduSessionType;
+}
+
+NrPduSessionType
+NrQosRule::GetPduSessionType() const
+{
+    return m_pduSessionType;
+}
+
+void
+NrQosRule::SetProtocolNumber(uint16_t protocolNumber)
+{
+    NS_LOG_FUNCTION(this << protocolNumber);
+    m_protocolNumber = protocolNumber;
+}
+
+uint16_t
+NrQosRule::GetProtocolNumber() const
+{
+    return m_protocolNumber;
 }
 
 } // namespace ns3

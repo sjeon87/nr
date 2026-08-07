@@ -118,8 +118,9 @@ class NR_EXPORT NrAsSapUser
      * receive a data packet
      *
      * @param packet the packet
+     * @param qfi the QoS Flow ID of the flow the packet arrived on
      */
-    virtual void RecvData(Ptr<Packet> packet) = 0;
+    virtual void RecvData(Ptr<Packet> packet, uint8_t qfi) = 0;
 };
 
 /**
@@ -229,7 +230,7 @@ class MemberNrAsSapUser : public NrAsSapUser
     // inherited from NrAsSapUser
     void NotifyConnectionSuccessful() override;
     void NotifyConnectionFailed() override;
-    void RecvData(Ptr<Packet> packet) override;
+    void RecvData(Ptr<Packet> packet, uint8_t qfi) override;
     void NotifyConnectionReleased() override;
     void DeactivateQosFlow(uint8_t qfi) override;
 
@@ -259,9 +260,9 @@ MemberNrAsSapUser<C>::NotifyConnectionFailed()
 
 template <class C>
 void
-MemberNrAsSapUser<C>::RecvData(Ptr<Packet> packet)
+MemberNrAsSapUser<C>::RecvData(Ptr<Packet> packet, uint8_t qfi)
 {
-    m_owner->DoRecvData(packet);
+    m_owner->DoRecvData(packet, qfi);
 }
 
 template <class C>

@@ -114,6 +114,34 @@ class NR_EXPORT NrEpcHelper : public Object
                                     NrQosFlow flow) = 0;
 
     /**
+     * Activate an unstructured PDU session carrying a single network layer
+     * protocol, setting up the corresponding S1-U tunnel. The session has no
+     * address, and is reached from the external network through the device
+     * returned by GetUnstructuredSessionDevice().
+     *
+     * @param ueNrDevice the device of the UE, normally connected via the NR radio interface
+     * @param imsi the unique identifier of the UE
+     * @param protocolNumber the network layer protocol carried by the session
+     * @param flow struct describing the characteristics of the QoS flow to be activated
+     * @return QoS flow ID
+     */
+    virtual uint8_t ActivateUnstructuredQosFlow(Ptr<NetDevice> ueNrDevice,
+                                                uint64_t imsi,
+                                                uint16_t protocolNumber,
+                                                NrQosFlow flow);
+
+    /**
+     * Get the device through which an unstructured PDU session reaches the
+     * external network: what is sent through it reaches the UE, and what the UE
+     * sends comes out of it.
+     *
+     * @param imsi the unique identifier of the UE of the session
+     * @param qfi the QFI returned by ActivateUnstructuredQosFlow()
+     * @return the device of the session, or nullptr when no such session was activated
+     */
+    virtual Ptr<VirtualNetDevice> GetUnstructuredSessionDevice(uint64_t imsi, uint8_t qfi) const;
+
+    /**
      * Get the SGW node
      *
      * @return a pointer to the SGW

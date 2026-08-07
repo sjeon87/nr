@@ -882,7 +882,7 @@ void
 NrUeRrc::DoReceivePdcpSdu(NrPdcpSapUser::ReceivePdcpSduParameters params)
 {
     NS_LOG_FUNCTION(this);
-    m_asSapUser->RecvData(params.pdcpSdu);
+    m_asSapUser->RecvData(params.pdcpSdu, nr::Lcid2Qfi(params.lcid));
 }
 
 void

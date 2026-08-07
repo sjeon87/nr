@@ -1270,7 +1270,11 @@ NrHelper::DoAttachToGnb(const Ptr<NetDevice>& ueDevice, const Ptr<NetDevice>& gn
         }
     }
 
-    if (m_nrEpcHelper)
+    // The default QoS flow is an IP PDU session, whose rule classifies packets by
+    // their IP headers, so it is activated only for a UE that has an IP stack. A UE
+    // reaching the network over an unstructured session alone has none.
+    Ptr<Node> ueNode = ueDevice->GetNode();
+    if (m_nrEpcHelper && (ueNode->GetObject<Ipv4>() || ueNode->GetObject<Ipv6>()))
     {
         // activate default QoS flow
         m_nrEpcHelper->ActivateQosFlow(ueDevice,
@@ -1316,6 +1320,20 @@ NrHelper::ActivateDedicatedQosFlow(Ptr<NetDevice> ueDevice, NrQosFlow flow, Ptr<
     uint64_t imsi = ueDevice->GetObject<NrUeNetDevice>()->GetImsi();
     uint8_t qosFlowId = m_nrEpcHelper->ActivateQosFlow(ueDevice, imsi, rule, flow);
     return qosFlowId;
+}
+
+uint8_t
+NrHelper::ActivateUnstructuredQosFlow(Ptr<NetDevice> ueDevice,
+                                      uint16_t protocolNumber,
+                                      NrQosFlow flow)
+{
+    NS_LOG_FUNCTION(this << ueDevice << protocolNumber);
+
+    NS_ASSERT_MSG(m_nrEpcHelper,
+                  "unstructured PDU sessions cannot be set up when the EPC is not used");
+
+    uint64_t imsi = ueDevice->GetObject<NrUeNetDevice>()->GetImsi();
+    return m_nrEpcHelper->ActivateUnstructuredQosFlow(ueDevice, imsi, protocolNumber, flow);
 }
 
 void

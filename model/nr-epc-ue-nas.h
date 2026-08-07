@@ -15,6 +15,8 @@
 #include "ns3/object.h"
 #include "ns3/traced-callback.h"
 
+#include <map>
+
 namespace ns3
 {
 
@@ -87,9 +89,12 @@ class NR_EXPORT NrEpcUeNas : public Object
     /**
      * set the callback used to forward data packets up the stack
      *
+     * The callback receives the protocol number of an unstructured session, or zero
+     * for an IP session, whose protocol is carried by the packet itself.
+     *
      * @param cb the callback
      */
-    void SetForwardUpCallback(Callback<void, Ptr<Packet>> cb);
+    void SetForwardUpCallback(Callback<void, Ptr<Packet>, uint16_t> cb);
 
     /**
      * @brief Causes NAS to tell AS to find a suitable cell and camp to it.
@@ -132,7 +137,11 @@ class NR_EXPORT NrEpcUeNas : public Object
     void ActivateQosFlow(NrQosFlow flow, Ptr<NrQosRule> rule);
 
     /**
-     * Enqueue an IP packet on the proper QoS flow for uplink transmission
+     * Enqueue a packet on the proper QoS flow for uplink transmission
+     *
+     * An IPv4 or IPv6 packet is classified by matching the packet filters of
+     * the IP sessions against its header. Any other protocol is dispatched to
+     * the unstructured session activated for that protocol, if there is one.
      *
      * @param p the packet
      * @param protocolNumber the protocol number of the packet
@@ -183,8 +192,9 @@ class NR_EXPORT NrEpcUeNas : public Object
     /**
      * Receive data
      * @param packet the packet
+     * @param qfi the QFI of the flow the packet arrived on
      */
-    void DoRecvData(Ptr<Packet> packet);
+    void DoRecvData(Ptr<Packet> packet, uint8_t qfi);
 
     // internal methods
     /**
@@ -225,7 +235,13 @@ class NR_EXPORT NrEpcUeNas : public Object
 
     NrQosRuleClassifier m_qosRuleClassifier; ///< QoS rule classifier
 
-    Callback<void, Ptr<Packet>> m_forwardUpCallback; ///< upward callback
+    /// QFI of the unstructured session carrying each network layer protocol, for uplink dispatch
+    std::map<uint16_t, uint8_t> m_unstructuredQfiByProtocol;
+
+    /// Network layer protocol carried by each unstructured session, for downlink delivery
+    std::map<uint8_t, uint16_t> m_unstructuredProtocolByQfi;
+
+    Callback<void, Ptr<Packet>, uint16_t> m_forwardUpCallback; ///< upward callback
 
     /// QosFlowToBeActivated structure
     struct NR_EXPORT QosFlowToBeActivated
