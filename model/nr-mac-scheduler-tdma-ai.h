@@ -89,6 +89,25 @@ class NR_EXPORT NrMacSchedulerTdmaAi : public NrMacSchedulerTdmaQos
     void SetNotifyCbUl(NrMacSchedulerUeInfoAi::NotifyCb notifyCb);
 
     /**
+     * @brief Set the message-interface notify callback for downlink
+     * @param notifyCb The NotifyCbMsg callback function to be set
+     *
+     * Parallel to SetNotifyCbDl, but for the ns3-ai message-interface bridge.
+     * The callback also receives the active-UE vector.
+     * Also activates the DL AI path.
+     */
+    void SetNotifyCbDlMsg(NrMacSchedulerUeInfoAi::NotifyCbMsg notifyCb);
+
+    /**
+     * @brief Set the message-interface notify callback for uplink
+     * @param notifyCb The NotifyCbMsg callback function to be set
+     *
+     * Parallel to SetNotifyCbUl, but for the ns3-ai message-interface bridge.
+     * Also activates the UL AI path.
+     */
+    void SetNotifyCbUlMsg(NrMacSchedulerUeInfoAi::NotifyCbMsg notifyCb);
+
+    /**
      * @brief Get UE observations for downlink
      * @param ueVector A vector containing pointers to active UEs and their corresponding buffer
      * requests
@@ -178,6 +197,10 @@ class NR_EXPORT NrMacSchedulerTdmaAi : public NrMacSchedulerTdmaQos
     double m_alpha{0.0};                           //!< PF Fairness index
     NrMacSchedulerUeInfoAi::NotifyCb m_notifyCbDl; //!< Notify callback function for downlink
     NrMacSchedulerUeInfoAi::NotifyCb m_notifyCbUl; //!< Notify callback function for uplink
+    NrMacSchedulerUeInfoAi::NotifyCbMsg
+        m_notifyCbDlMsg; //!< Message-interface notify callback for downlink
+    NrMacSchedulerUeInfoAi::NotifyCbMsg
+        m_notifyCbUlMsg; //!< Message-interface notify callback for uplink
 };
 
 } // namespace ns3
