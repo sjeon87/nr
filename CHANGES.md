@@ -48,6 +48,12 @@ the cracks, unfortunately.  If you, as a user, can suggest improvements
 to this file based on your experience, please contribute a patch or drop
 us a note on ns-developers mailing list.
 
+## Changes from NR-v5.1 to v5.2
+
+### New API:
+
+### Changed Behavior
+
 ## Changes from NR-v5.0 to v5.1
 
 ### New API:
