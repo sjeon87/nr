@@ -104,9 +104,10 @@ main(int argc, char* argv[])
     std::string simTag = "default";
     std::string outputDir = "./";
 
-    // Seed passed by the Python driver so runs are reproducible across
-    // transports (mirrors the simSeed of gsoc-nr-rl-based-sched.cc).
-    uint32_t simSeed = 0;
+    // Run number passed by the Python driver so runs are reproducible across
+    // transports (mirrors the simSeed of gsoc-nr-rl-based-sched.cc). ns-3 run
+    // numbers are 1-based.
+    uint32_t simSeed = 1;
 
     /*
      * From here, we instruct the ns3::CommandLine class of all the input parameters
