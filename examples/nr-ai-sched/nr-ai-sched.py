@@ -80,7 +80,7 @@ def parse_args():
         default=0,
         help="1: QoS LC scheduler, 0: Round-Robin LC scheduler",
     )
-    parser.add_argument("--simSeed", type=int, default=0, help="RngSeedManager run number")
+    parser.add_argument("--simSeed", type=int, default=1, help="RngSeedManager run number")
     return parser.parse_args()
 
 
