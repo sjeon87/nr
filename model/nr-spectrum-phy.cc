@@ -610,19 +610,16 @@ NrSpectrumPhy::CreateSpectrumChannelMatrix(const Ptr<SpectrumSignalParameters> p
                   "The conversion only fits to a single antenna port in Tx and Rx");
 
     Ptr<const SpectrumValue> rxPsd = params->psd;
-    Ptr<const SpectrumValue> txPsd =
-        DynamicCast<NrSpectrumPhy>(params->txPhy)->GetTxPowerSpectralDensity();
     uint32_t nRb = rxPsd->GetValuesN();
     Ptr<MatrixBasedChannelModel::Complex3DVector> channelSpct =
         Create<MatrixBasedChannelModel::Complex3DVector>(rxAntennaPorts, txAntennaPorts, nRb);
     auto rxRb = rxPsd->ConstValuesBegin();
-    auto txRb = txPsd->ConstValuesBegin();
     size_t iRb = 0;
-    while (rxRb != rxPsd->ConstValuesEnd() && txRb != txPsd->ConstValuesEnd())
+    while (rxRb != rxPsd->ConstValuesEnd())
     {
-        if (*rxRb != 0.0 && *txRb != 0.0)
+        if (*rxRb != 0.0)
         {
-            auto sqrtvit = sqrt(*rxRb / *txRb);
+            auto sqrtvit = sqrt(*rxRb);
             for (size_t u = 0; u < rxAntennaPorts; u++)
             {
                 for (size_t s = 0; s < txAntennaPorts; s++)
@@ -632,7 +629,6 @@ NrSpectrumPhy::CreateSpectrumChannelMatrix(const Ptr<SpectrumSignalParameters> p
             }
         }
         rxRb++;
-        txRb++;
         iRb++;
     }
     return channelSpct;
