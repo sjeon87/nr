@@ -214,6 +214,8 @@ def main():
     watchdog = _start_watchdog(exp)
 
     exchanges = 0
+    first_done = None  # perf_counter at the end of the first exchange
+    last_done = None  # perf_counter at the end of the most recent exchange
     loop_t0 = time.perf_counter()
     try:
         while True:
@@ -244,17 +246,34 @@ def main():
             msgInterface.PyRecvEnd()
             msgInterface.PySendEnd()
 
+            # Bracket the timed region by the exchanges themselves. loop_t0 is
+            # taken before the first PyRecvBegin(), which blocks until ns-3 has
+            # built the scenario, and the loop only exits once C++ raises the
+            # finish flag - which it does after FlowMonitor has written the
+            # output file. Both ends would otherwise be charged to the
+            # per-exchange figure.
+            last_done = time.perf_counter()
+            if first_done is None:
+                first_done = last_done
+
     except Exception:
         print("Exception in gsoc-nr-ai-sched.py:")
         traceback.print_exc()
         sys.exit(1)
 
     finally:
+        # loop_wall keeps its original full-span meaning, so figures recorded
+        # from earlier runs stay comparable; per_exchange_us is now measured
+        # over the bracketed steady-state region only.
         loop_wall = time.perf_counter() - loop_t0
+        timed_steps = max(exchanges - 1, 0)
+        timed_wall = last_done - first_done if timed_steps else 0.0
+        per_exchange_us = timed_wall / timed_steps * 1e6 if timed_steps else 0.0
         print(
             f"gsoc-nr-ai-sched.py: completed {exchanges} observation/action exchanges | "
             f"MSG_RESULT steps={exchanges} loop_wall_s={loop_wall:.3f} "
-            f"per_exchange_us={loop_wall / max(exchanges, 1) * 1e6:.1f}"
+            f"timed_steps={timed_steps} timed_wall_s={timed_wall:.3f} "
+            f"per_exchange_us={per_exchange_us:.1f}"
         )
         watchdog.terminate()
         del exp
