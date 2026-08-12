@@ -181,7 +181,13 @@ void
 BwpManagerGnb::SetOutputLink(uint32_t sourceBwp, uint32_t outputBwp)
 {
     NS_LOG_FUNCTION(this);
-    m_outputLinks.insert(std::make_pair(sourceBwp, outputBwp));
+    m_outputLinks[sourceBwp] = outputBwp;
+}
+
+bool
+BwpManagerGnb::HasOutputLink(uint32_t sourceBwp) const
+{
+    return m_outputLinks.contains(sourceBwp);
 }
 
 void

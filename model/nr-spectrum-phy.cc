@@ -123,6 +123,10 @@ NrSpectrumPhy::DoDispose()
     m_phyDlHarqFeedbackCallback = MakeNullCallback<void, const DlHarqInfo&>();
     m_phyUlHarqFeedbackCallback = MakeNullCallback<void, const UlHarqInfo&>();
     m_phyRxPssCallback = MakeNullCallback<void, uint16_t, const Ptr<SpectrumValue>&>();
+    // The device and this callback both refer back to the NetDevice owning this spectrum PHY.
+    // Release them to break the reference cycle.
+    m_phyRxCtrlEndOkCallback = nullptr;
+    m_device = nullptr;
 
     SpectrumPhy::DoDispose();
 }
@@ -1281,6 +1285,26 @@ NrSpectrumPhy::StartRxData(const Ptr<NrSpectrumSignalParametersDataFrame>& param
                         << params->cellId << " (UE serving cellId:" << GetCellId() << ")");
             return;
         }
+        // Only the first reception schedules EndRxData, and the SINR of every simultaneously
+        // decoded signal is integrated over that single window, so all of them must be
+        // time-aligned. A misaligned signal can arrive when the cell/RNTI identity changes in
+        // the middle of an ongoing reception (handover or RLF re-synchronisation): the
+        // in-flight reception is not aborted, so the next allocation from the new cell, which
+        // generally starts on a different symbol and spans a different number of symbols,
+        // reaches this point while a reception is still open. Decline to decode it rather than
+        // corrupting the interference window; its power is still accounted for, because
+        // AddSignalMimo() has already registered it as interference in StartRx().
+        if (!m_rxPacketBurstList.empty() &&
+            ((m_firstRxStart != Simulator::Now()) || (m_firstRxDuration != params->duration)))
+        {
+            NS_LOG_WARN("NrSpectrumPhy::StartRxData: discarding misaligned signal from cellId:"
+                        << params->cellId << " rnti:" << params->rnti << " (firstRxStart:"
+                        << m_firstRxStart.As(Time::US) << " now:" << Simulator::Now().As(Time::US)
+                        << " firstRxDuration:" << m_firstRxDuration.As(Time::US)
+                        << " duration:" << params->duration.As(Time::US) << ")");
+            return;
+        }
+
         m_interferenceData->StartRxMimo(params);
 
         if (m_rxPacketBurstList.empty())
@@ -1554,13 +1578,19 @@ NrSpectrumPhy::EndTx()
 std::vector<MimoSinrChunk>
 NrSpectrumPhy::GetMimoSinrForRnti(uint16_t rnti, uint8_t rank)
 {
-    // Filter chunks by RNTI of the expected TB. For DL, this step selects only the RX signals
-    // that were sent towards this UE. For UL, it selects only signals that were sent from the
-    // UE that is currently being decoded.
+    // Filter chunks by the RNTI of the expected TB and by the cell they were received from.
+    // For DL, this step selects only the RX signals that were sent towards this UE. For UL, it
+    // selects only signals that were sent from the UE that is currently being decoded.
+    //
+    // The cell must be part of the match: RNTIs are allocated per cell and reused, so after a
+    // handover a chunk measured against the previous cell can carry the same RNTI as a
+    // transport block now expected from the new one. Averaging those together mixes unrelated
+    // signals, and because the two cells may have granted different ranks it also produces a
+    // SINR matrix whose row count disagrees with the expected rank.
     std::vector<MimoSinrChunk> res;
     for (const auto& chunk : m_mimoSinrPerceived)
     {
-        if (chunk.rnti == rnti)
+        if (chunk.rnti == rnti && chunk.cellId == GetCellId())
         {
             res.emplace_back(chunk);
         }
@@ -1568,10 +1598,11 @@ NrSpectrumPhy::GetMimoSinrForRnti(uint16_t rnti, uint8_t rank)
     if (res.empty())
     {
         // No received signal found, create all-zero SINR matrix with minimum duration
-        NS_LOG_WARN("Did not find any SINR matrix matching the current UE's RNTI " << rnti);
+        NS_LOG_WARN("Did not find any SINR matrix matching the current UE's RNTI "
+                    << rnti << " and cellId " << GetCellId());
         auto sinrMat = NrSinrMatrix{rank, m_rxSpectrumModel->GetNumBands()};
         auto dur = NanoSeconds(1);
-        res.emplace_back(MimoSinrChunk{sinrMat, rnti, dur});
+        res.emplace_back(MimoSinrChunk{sinrMat, rnti, GetCellId(), dur});
     }
     return res;
 }
@@ -1609,6 +1640,24 @@ NrSpectrumPhy::CheckTransportBlockCorruptionStatus()
         if ((!m_dataErrorModelEnabled) || (m_rxPacketBurstList.empty()))
         {
             continue;
+        }
+
+        // A new transmission (NDI set) must not soft-combine with history left
+        // on this HARQ process by an earlier corrupted transport block. Such
+        // history can survive process reuse when the retransmission chain ends
+        // without a successful reception or an rv == 3 transmission (e.g.,
+        // with HARQ retransmissions disabled), because those are the only
+        // conditions that otherwise clear it.
+        if (tbInfo.m_expected.m_ndi == 1)
+        {
+            if (tbInfo.m_expected.m_isDownlink)
+            {
+                m_harqPhyModule.ResetDlHarqProcessStatus(rnti, tbInfo.m_expected.m_harqProcessId);
+            }
+            else
+            {
+                m_harqPhyModule.ResetUlHarqProcessStatus(rnti, tbInfo.m_expected.m_harqProcessId);
+            }
         }
 
         const NrErrorModel::NrErrorModelHistory& harqInfoList =

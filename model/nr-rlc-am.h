@@ -83,6 +83,8 @@ class NR_EXPORT NrRlcAm : public NrRlc
     //   void ReassembleSnLessThan (uint16_t seqNumber);
     //
 
+    void ReestablishRxSide() override;
+
     /**
      * Reassemble and deliver
      *
@@ -96,6 +98,11 @@ class NR_EXPORT NrRlcAm : public NrRlc
     void DoTransmitBufferStatusReport();
 
   private:
+    /// Grant the STATUS PDU robustness test access to private transmit window state
+    friend class NrRlcAmStaleStatusTestCase;
+    /// Grant the reassembly resynchronisation regression test access to private reassembly state
+    friend class NrRlcAmReassemblyResyncTestCase;
+
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
      */
@@ -152,11 +159,7 @@ class NR_EXPORT NrRlcAm : public NrRlc
 
     std::map<uint16_t, PduBuffer> m_rxonBuffer; ///< Reception buffer
 
-    Ptr<Packet> m_controlPduBuffer; ///< Control PDU buffer (just one PDU)
-
     // SDU reassembly
-    //   std::vector < Ptr<Packet> > m_reasBuffer;     // Reassembling buffer
-    //
     std::list<Ptr<Packet>> m_sdusBuffer; ///< List of SDUs in a packet (PDU)
 
     /**

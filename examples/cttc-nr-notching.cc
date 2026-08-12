@@ -358,8 +358,8 @@ main(int argc, char* argv[])
         // For FDD we have 2 BWPs so the BW must be doubled (e.g. for BW of 10MHz we
         // need 20MHz --> 10MHz for the DL BWP and 10MHz for the UL BWP)
         bandwidth = bandwidth * 2;
-        // First CC (index 0) will be DL, and second CC (index 1) will be UL
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
+        // First CC (index 0) will be DL, and second CC (index 1) will be UL;
+        // the UE derives its primary UL BWP and routing from the cell configuration
     }
 
     // Create the configuration for the CcBwpHelper
@@ -398,8 +398,6 @@ main(int argc, char* argv[])
     {
         nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB",
                                                      UintegerValue(bwpIdForLowLat));
-        nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                    UintegerValue(bwpIdForVideo));
     }
     else
     {
@@ -408,11 +406,6 @@ main(int argc, char* argv[])
                                                      UintegerValue(bwpIdForLowLat));
         nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                      UintegerValue(bwpIdForVideo));
-
-        nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB",
-                                                    UintegerValue(bwpIdForLowLat));
-        nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                    UintegerValue(bwpIdForVideo));
     }
 
     // Install and get the pointers to the NetDevices
@@ -456,18 +449,6 @@ main(int argc, char* argv[])
             Ptr<NrMacSchedulerNs3> schedulerBwp2 =
                 DynamicCast<NrMacSchedulerNs3>(NrHelper::GetScheduler(gnbNetDev.Get(i), 1));
             schedulerBwp2->SetUlNotchedRbgMask(notchedMaskUl);
-
-            // Link the two FDD BWPs:
-            NrHelper::GetBwpManagerGnb(gnbNetDev.Get(i))->SetOutputLink(1, 0);
-        }
-    }
-
-    if (operationMode == "FDD")
-    {
-        // Set the UE routing:
-        for (uint32_t i = 0; i < ueNetDev.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueNetDev.Get(i))->SetOutputLink(0, 1);
         }
     }
 

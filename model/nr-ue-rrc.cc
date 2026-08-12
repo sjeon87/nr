@@ -27,8 +27,10 @@
 #include "ns3/object-factory.h"
 #include "ns3/object-map.h"
 #include "ns3/simulator.h"
+#include "ns3/uinteger.h"
 
 #include <cmath>
+#include <iostream>
 
 namespace ns3
 {
@@ -192,6 +194,11 @@ NrUeRrc::DoDispose()
     m_cmacSapProvider.erase(m_cmacSapProvider.begin(), m_cmacSapProvider.end());
     m_cmacSapProvider.clear();
     m_drbMap.clear();
+    // These callbacks capture a Ptr to the BWP manager, which in turn holds a callback capturing
+    // this RRC. Release them to break the reference cycle.
+    m_updateBwpOutputLinkFn = nullptr;
+    m_updateQosFlowBwpFn = nullptr;
+    m_clearBwpOutputLinksFn = nullptr;
 }
 
 TypeId
@@ -282,6 +289,101 @@ NrUeRrc::GetTypeId()
                           BooleanValue(false),
                           MakeBooleanAccessor(&NrUeRrc::m_rlcMaxRetxTriggersRlf),
                           MakeBooleanChecker())
+            .AddAttribute(
+                "Tr36839HandoverFailure",
+                "Prototype TR 36.839 (5.3.2) handover-failure model: if the handover "
+                "command is received while the source radio link is already below Qout "
+                "(modelled as the T310 timer running), declare the handover a failure and "
+                "trigger radio link failure, instead of letting the late command rescue the "
+                "link. Disabled by default to preserve legacy behaviour.",
+                BooleanValue(false),
+                MakeBooleanAccessor(&NrUeRrc::m_tr36839HandoverFailure),
+                MakeBooleanChecker())
+            .AddAttribute(
+                "Tr36839HoFailureMinT310Elapsed",
+                "Graded threshold for the TR 36.839 handover-failure model "
+                "(Tr36839HandoverFailure). A handover command that arrives while T310 is "
+                "running is declared a too-late failure only if T310 has already been "
+                "running for at least this long; a command arriving earlier still rescues "
+                "the link (the UE can still receive it). This makes the failure depend on "
+                "HOW degraded the source is, not merely on T310 being pending, so short-"
+                "TimeToTrigger configurations (whose commands arrive early in T310) escape "
+                "while long-TTT ones (deep in T310) fail. 0 ms reproduces the original "
+                "binary behaviour (fail on any pending T310).",
+                TimeValue(MilliSeconds(0)),
+                MakeTimeAccessor(&NrUeRrc::m_tr36839HoFailureMinT310Elapsed),
+                MakeTimeChecker())
+            .AddAttribute("MseEnable",
+                          "Enable Mobility State Estimation (TS 36.331 5.5.6.2 / TS 36.304 "
+                          "5.2.4.3): count recent handovers to classify the UE mobility state and "
+                          "scale the measurement time-to-trigger, so a fast UE does not chase a "
+                          "small cell's transient peak (nor fail to hand over in time).",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrUeRrc::m_mseEnable),
+                          MakeBooleanChecker())
+            .AddAttribute("MseCountWindow",
+                          "Sliding window over which handovers are counted for mobility-state "
+                          "estimation.",
+                          TimeValue(Seconds(1)),
+                          MakeTimeAccessor(&NrUeRrc::m_mseCountWindow),
+                          MakeTimeChecker())
+            .AddAttribute("MseHystNormal",
+                          "Minimum time the UE keeps an elevated (Medium/High) mobility state "
+                          "before it may drop back down.",
+                          TimeValue(Seconds(1)),
+                          MakeTimeAccessor(&NrUeRrc::m_mseHystNormal),
+                          MakeTimeChecker())
+            .AddAttribute("MseThreshMedium",
+                          "Handover count within MseCountWindow at/above which the UE is Medium "
+                          "mobility.",
+                          UintegerValue(2),
+                          MakeUintegerAccessor(&NrUeRrc::m_mseThreshMedium),
+                          MakeUintegerChecker<uint32_t>())
+            .AddAttribute("MseThreshHigh",
+                          "Handover count within MseCountWindow at/above which the UE is High "
+                          "mobility.",
+                          UintegerValue(4),
+                          MakeUintegerAccessor(&NrUeRrc::m_mseThreshHigh),
+                          MakeUintegerChecker<uint32_t>())
+            .AddAttribute("MseSfMedium",
+                          "Time-to-trigger scale factor applied in Medium mobility (TS 36.331 "
+                          "uses 0.25..1.0; a value >1 lengthens TTT to resist small-cell churn).",
+                          DoubleValue(1.0),
+                          MakeDoubleAccessor(&NrUeRrc::m_mseSfMedium),
+                          MakeDoubleChecker<double>(0.0))
+            .AddAttribute("MseSfHigh",
+                          "Time-to-trigger scale factor applied in High mobility.",
+                          DoubleValue(1.0),
+                          MakeDoubleAccessor(&NrUeRrc::m_mseSfHigh),
+                          MakeDoubleChecker<double>(0.0))
+            .AddAttribute(
+                "MseFixedScale",
+                "If >0, apply this fixed time-to-trigger scale factor from t=0 (bypassing "
+                "handover-count classification). Models a known-speed cohort: a fast UE "
+                "gets the longer TTT immediately, so it does not chase a small cell's "
+                "transient peak on its very first handover.",
+                DoubleValue(0.0),
+                MakeDoubleAccessor(&NrUeRrc::m_mseFixedScale),
+                MakeDoubleChecker<double>(0.0))
+            .AddAttribute(
+                "MibWaitReselectTimeout",
+                "Fallback for a force-camped UE that never decodes its target cell's MIB "
+                "(e.g. the assigned cell is far and its broadcast is drowned by a closer "
+                "co-channel neighbour, leaving the UE stuck in IDLE_WAIT_MIB forever). When "
+                "non-zero, if no MIB arrives within this time the UE reselects the strongest "
+                "cell it has measured and re-camps, mimicking idle-mode cell reselection. "
+                "0 ms disables the fallback (legacy behaviour: wait indefinitely for the "
+                "assigned cell).",
+                TimeValue(MilliSeconds(0)),
+                MakeTimeAccessor(&NrUeRrc::m_mibWaitReselectTimeout),
+                MakeTimeChecker())
+            .AddAttribute(
+                "MibWaitReselectMaxAttempts",
+                "Maximum number of cells a UE tries when MibWaitReselectTimeout is enabled, "
+                "before giving up initial cell acquisition.",
+                UintegerValue(8),
+                MakeUintegerAccessor(&NrUeRrc::m_mibWaitReselectMaxAttempts),
+                MakeUintegerChecker<uint32_t>(1))
             .AddTraceSource("MibReceived",
                             "trace fired upon reception of Master Information Block",
                             MakeTraceSourceAccessor(&NrUeRrc::m_mibReceivedTrace),
@@ -354,6 +456,11 @@ NrUeRrc::GetTypeId()
                             "trace fired upon failure of radio link",
                             MakeTraceSourceAccessor(&NrUeRrc::m_radioLinkFailureTrace),
                             "ns3::NrUeRrc::ImsiCidRntiTracedCallback")
+            .AddTraceSource("RadioLinkFailureCause",
+                            "trace fired when the UE enters CONNECTED_PHY_PROBLEM, carrying the "
+                            "failure cause and timing context",
+                            MakeTraceSourceAccessor(&NrUeRrc::m_radioLinkFailureCauseTrace),
+                            "ns3::NrUeRrc::RlfCauseTracedCallback")
             .AddTraceSource(
                 "PhySyncDetection",
                 "trace fired upon receiving in Sync or out of Sync indications from UE PHY",
@@ -580,6 +687,7 @@ NrUeRrc::SetPrimaryUlIndex(uint16_t ulIndex)
 {
     NS_LOG_FUNCTION(this << +ulIndex);
     m_primaryUlIndex = ulIndex;
+    SyncBwpOutputLinks();
 }
 
 uint16_t
@@ -589,10 +697,38 @@ NrUeRrc::GetPrimaryUlIndex() const
 }
 
 void
+NrUeRrc::SetUpdateBwpOutputLinkFn(std::function<void(uint32_t, uint32_t)> fn)
+{
+    m_updateBwpOutputLinkFn = std::move(fn);
+    SyncBwpOutputLinks();
+}
+
+void
+NrUeRrc::SyncBwpOutputLinks()
+{
+    if (!m_updateBwpOutputLinkFn)
+    {
+        return;
+    }
+    // Outgoing messages sourced on the primary DL BWP leave through the primary
+    // UL BWP, which itself routes to itself; a DL-only primary BWP leaves through
+    // the UL carrier the serving cell paired it with in dedicated RRC config.
+    // Applying this on every primary index change overwrites links belonging to
+    // a previous serving cell whose UL/DL carrier pairing differed (e.g. a
+    // handover between FDD cells with inverted carrier roles).
+    const auto pairIt = m_rrcBwpPairings.find(GetPrimaryDlIndex());
+    const uint32_t dlOutput =
+        pairIt != m_rrcBwpPairings.end() ? pairIt->second : GetPrimaryUlIndex();
+    m_updateBwpOutputLinkFn(GetPrimaryDlIndex(), dlOutput);
+    m_updateBwpOutputLinkFn(GetPrimaryUlIndex(), GetPrimaryUlIndex());
+}
+
+void
 NrUeRrc::SetPrimaryDlIndex(uint16_t dlIndex)
 {
     NS_LOG_FUNCTION(this << +dlIndex);
     m_primaryDlIndex = dlIndex;
+    SyncBwpOutputLinks();
 }
 
 uint16_t
@@ -800,6 +936,20 @@ NrUeRrc::DoNotifyRandomAccessSuccessful()
         m_cmacSapProvider.at(GetPrimaryUlIndex())
             ->NotifyConnectionSuccessful(); // RA successful during handover
         m_handoverEndOkTrace(m_imsi, m_cellId, m_rnti);
+        m_lastHoSuccessTime = Simulator::Now();
+        if (m_mseEnable)
+        {
+            m_mseHandoverTimes.push_back(Simulator::Now());
+            UpdateMobilityState();
+        }
+    }
+    break;
+
+    case CONNECTED_NORMALLY: {
+        // Random access started while already connected, to recover uplink resources after the
+        // scheduling request procedure gave up (3GPP TS 38.321, clause 5.4.4). It only restores
+        // the uplink grant path, so the connection carries on with nothing to signal.
+        NS_LOG_INFO("Random access successful while connected, uplink access recovered");
     }
     break;
 
@@ -849,13 +999,21 @@ NrUeRrc::DoNotifyRandomAccessFailed()
             NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Handover ongoing for IMSI: "
                          << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
                          << " in state: " << ToString(m_state) << ".");
-            SwitchToState(CONNECTED_PHY_PROBLEM);
+            EnterPhyProblemState(RLF_DURING_HANDOVER);
             m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
             // we should have called NotifyConnectionFailed
             // but that method would immediately ask you UE to
             // connect rather than doing cell selection again.
             m_asSapUser->NotifyConnectionReleased();
         }
+    }
+    break;
+
+    case CONNECTED_NORMALLY: {
+        // Random access started while already connected did not recover the uplink. The
+        // connection is left alone: the MAC keeps requesting resources, and a persistent loss of
+        // the uplink is detected by the radio link failure procedure.
+        NS_LOG_WARN("Random access failed while connected, uplink access not recovered");
     }
     break;
 
@@ -897,6 +1055,23 @@ NrUeRrc::DoStartCellSelection()
 }
 
 void
+NrUeRrc::CampOnGnb(uint16_t cellId, uint32_t arfcn)
+{
+    m_cellId = cellId;
+    m_initDlArfcn = arfcn;
+    TrackCellArfcn(cellId, arfcn);
+    auto bwpId = GetArfcnBwpId(arfcn);
+    SetPrimaryDlIndex(bwpId);
+    m_cphySapProvider.at(bwpId)->SetNumerology(0);
+    m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
+    m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
+    if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
+    {
+        m_cmacSapProvider.at(GetPrimaryDlIndex())->RegisterToGnb(m_cellId);
+    }
+}
+
+void
 NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
 {
     NS_LOG_FUNCTION(this << m_imsi << " ,cellId " << cellId << ",arfcn " << arfcn);
@@ -913,19 +1088,13 @@ NrUeRrc::DoForceCampedOnGnb(uint16_t cellId, uint32_t arfcn)
         NS_LOG_INFO("force-camp overrides in-progress cell selection " << ToString(m_state));
         [[fallthrough]];
     case IDLE_START: {
-        m_cellId = cellId;
-        m_initDlArfcn = arfcn;
-        TrackCellArfcn(cellId, arfcn);
-        auto bwpId = GetArfcnBwpId(arfcn);
-        SetPrimaryDlIndex(bwpId);
-        m_cphySapProvider.at(bwpId)->SetNumerology(0);
-        m_cphySapProvider.at(bwpId)->SynchronizeWithGnb(m_cellId, m_initDlArfcn);
-        m_cmacSapProvider.at(GetPrimaryUlIndex())->RegisterToGnb(m_cellId);
-        if (GetPrimaryDlIndex() != GetPrimaryUlIndex())
-        {
-            m_cmacSapProvider.at(GetPrimaryDlIndex())->RegisterToGnb(m_cellId);
-        }
+        CampOnGnb(cellId, arfcn);
         SwitchToState(IDLE_WAIT_MIB);
+        // Start a fresh reselection sequence: if this cell's MIB never arrives,
+        // MibWaitReselect() re-camps on the strongest measured neighbour.
+        m_mibWaitAttempts = 0;
+        m_mibCampTried.clear();
+        ArmMibWaitReselect();
     }
     break;
 
@@ -1036,6 +1205,7 @@ NrUeRrc::DoRecvMasterInformationBlock(uint16_t cellId,
     {
     case IDLE_WAIT_MIB:
         // manual attachment
+        m_mibWaitTimeoutEvent.Cancel(); // the camped cell answered; stop reselection
         SwitchToState(IDLE_CAMPED_NORMALLY);
         break;
 
@@ -1309,6 +1479,34 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
         if (msg.haveMobilityControlInfo)
         {
             NS_LOG_INFO("haveMobilityControlInfo == true");
+            // TR 36.839 (5.3.2) handover-failure model. The handover command is
+            // delivered over the *source* cell. If the source radio link is already
+            // below Qout when the command arrives -- modelled here by the T310 timer
+            // being active (N310 out-of-sync indications already accumulated) -- the
+            // UE cannot reliably receive/act on the command, so the handover fails.
+            // Otherwise the late command silently rescues the link (ResetRlfParams
+            // below) and "too-late" handovers never fail, so the handover failure
+            // rate does not grow with UE speed. Declaring RLF here, before the
+            // HandoverStart trace, makes the event count as a too-late handover
+            // failure and routes the UE through reestablishment. Off by default
+            // (see the Tr36839HandoverFailure attribute).
+            // Graded criterion: fail only if T310 has been running long enough that
+            // the source is too degraded to receive the command. A command arriving
+            // early in T310 (elapsed < Tr36839HoFailureMinT310Elapsed) still rescues
+            // the link below. With the threshold at 0 this reduces to "fail on any
+            // pending T310" (the original binary behaviour).
+            const bool t310DegradedEnough =
+                m_radioLinkFailureDetected.IsPending() &&
+                (m_t310 - Simulator::GetDelayLeft(m_radioLinkFailureDetected)) >=
+                    m_tr36839HoFailureMinT310Elapsed;
+            if (m_tr36839HandoverFailure && t310DegradedEnough)
+            {
+                NS_LOG_INFO("HO command arrived while T310 active (source below Qout): "
+                            "declaring TR 36.839 handover failure for IMSI "
+                            << m_imsi);
+                RadioLinkFailureDetected(RLF_HO_COMMAND_LATE);
+                return;
+            }
             SwitchToState(CONNECTED_HANDOVER);
             if (m_radioLinkFailureDetected.IsPending())
             {
@@ -1373,15 +1571,30 @@ NrUeRrc::DoRecvRrcConnectionReconfiguration(NrRrcSap::RrcConnectionReconfigurati
                                         targetScc.dlCtrlSymsNum,
                                         targetScc.ulCtrlSymsNum,
                                         targetScc.symbolsPerSlot,
-                                        targetScc.numerology,
+                                        targetScc.ulNumerology,
                                         "F",
                                         targetScc.rbgSize);
+                }
+                // The output links describe the previous cell's UL/DL carrier
+                // pairing; drop them before pointing the primaries at the new
+                // cell's carriers
+                if (m_clearBwpOutputLinksFn)
+                {
+                    m_clearBwpOutputLinksFn();
                 }
                 SetPrimaryDlIndex(std::distance(m_cphySapProvider.begin(), dlIt));
                 SetPrimaryUlIndex(std::distance(m_cphySapProvider.begin(), ulIt));
             }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.dlCarrierFreq);
+            if (GetPrimaryUlIndex() != GetPrimaryDlIndex())
+            {
+                // The UL PHY must also resync to the target cell, or it keeps
+                // filtering on the source cell ID and never sees the target's
+                // RAR during the handover random access
+                m_cphySapProvider.at(GetPrimaryUlIndex())
+                    ->SynchronizeWithGnb(m_cellId, mci.carrierFreq.ulCarrierFreq);
+            }
             m_cphySapProvider.at(GetPrimaryDlIndex())
                 ->SetDlBandwidth(mci.carrierBandwidth.dlBandwidth);
             if (GetPrimaryUlIndex() != GetPrimaryDlIndex())
@@ -1540,7 +1753,7 @@ NrUeRrc::DoRecvRrcConnectionRelease(NrRrcSap::RrcConnectionRelease msg)
                      "for IMSI: "
                      << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
                      << " in state: " << ToString(m_state) << ".");
-        SwitchToState(CONNECTED_PHY_PROBLEM);
+        EnterPhyProblemState(RLF_CONNECTION_RELEASE);
         m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
         m_asSapUser->NotifyConnectionReleased();
     }
@@ -1621,6 +1834,70 @@ NrUeRrc::SynchronizeToStrongestCell()
         SwitchToState(IDLE_WAIT_MIB_SIB1);
     }
 } // end of void NrUeRrc::SynchronizeToStrongestCell ()
+
+void
+NrUeRrc::ArmMibWaitReselect()
+{
+    if (m_mibWaitReselectTimeout.IsZero())
+    {
+        return; // fallback disabled
+    }
+    m_mibWaitTimeoutEvent.Cancel();
+    m_mibWaitTimeoutEvent =
+        Simulator::Schedule(m_mibWaitReselectTimeout, &NrUeRrc::MibWaitReselect, this);
+}
+
+void
+NrUeRrc::MibWaitReselect()
+{
+    if (m_state != IDLE_WAIT_MIB)
+    {
+        return; // the MIB arrived (or the UE moved on); nothing to rescue
+    }
+
+    if (++m_mibWaitAttempts > m_mibWaitReselectMaxAttempts)
+    {
+        NS_LOG_WARN("IMSI " << m_imsi << " gave up initial cell acquisition after "
+                            << (m_mibWaitAttempts - 1) << " MIB-wait reselection attempts");
+        return;
+    }
+
+    // Never retry the cell we are currently (and unsuccessfully) camped on.
+    m_mibCampTried.insert(m_cellId);
+
+    // Pick the strongest measured cell we have not tried yet.
+    uint16_t bestCell = 0;
+    double bestRsrp = -std::numeric_limits<double>::infinity();
+    uint32_t bestArfcn = 0;
+    for (const auto& [cellId, meas] : m_storedMeasValues)
+    {
+        if (m_mibCampTried.count(cellId) || meas.carrierFreq == 0)
+        {
+            continue;
+        }
+        if (meas.rsrp > bestRsrp)
+        {
+            bestRsrp = meas.rsrp;
+            bestCell = cellId;
+            bestArfcn = meas.carrierFreq;
+        }
+    }
+
+    if (bestCell == 0)
+    {
+        // No untried measured cell yet (PSS measurements may still be accumulating);
+        // look again after another interval.
+        ArmMibWaitReselect();
+        return;
+    }
+
+    NS_LOG_INFO("IMSI " << m_imsi << " MIB-wait reselect: cell " << m_cellId << " -> " << bestCell
+                        << " (rsrp " << bestRsrp << " dBm, arfcn " << bestArfcn << ")");
+
+    // Re-camp on the stronger cell and stay in IDLE_WAIT_MIB, waiting for its MIB.
+    CampOnGnb(bestCell, bestArfcn);
+    ArmMibWaitReselect();
+}
 
 std::size_t
 NrUeRrc::GetArfcnBwpId(uint32_t arfcn) const
@@ -1726,8 +2003,12 @@ NrUeRrc::SwitchPrimaryBwpSameCell(std::size_t targetBwpId)
                                                  << " on serving cell=" << m_cellId);
 
     // Re-point the primary DL (and UL when they coincide) and re-bind the RNTI
-    // on the new PHY/MAC so the data plane follows the new primary BWP.
-    const bool ulFollowsDl = (GetPrimaryUlIndex() == GetPrimaryDlIndex());
+    // on the new PHY/MAC so the data plane follows the new primary BWP. The UL
+    // does not follow the DL onto a DL-only BWP (e.g., the DL carrier of an FDD
+    // pair): the cell keeps receiving on its usual UL carrier.
+    auto ulCapableIt = m_bwpUlCapable.find(targetBwpId);
+    const bool targetUlCapable = ulCapableIt == m_bwpUlCapable.end() || ulCapableIt->second;
+    const bool ulFollowsDl = (GetPrimaryUlIndex() == GetPrimaryDlIndex()) && targetUlCapable;
     SetPrimaryDlIndex(targetBwpId);
     if (ulFollowsDl)
     {
@@ -1869,6 +2150,14 @@ NrUeRrc::EvaluateCellForSelection()
         // currently setup
         auto bwpId = GetArfcnBwpId(m_initDlArfcn);
         SetPrimaryDlIndex(bwpId);
+        // The cell advertises its UL carrier in SIB1; when it differs from the
+        // camped (DL) carrier this is an FDD cell and the primary UL BWP must
+        // move to the carrier the cell actually receives on
+        const uint32_t sib1UlArfcn = m_lastSib1.servingCellConfigCommon.ulCarrierFreq;
+        if (sib1UlArfcn != 0 && sib1UlArfcn != m_initDlArfcn)
+        {
+            SetPrimaryUlIndex(GetArfcnBwpId(sib1UlArfcn));
+        }
         // Align the active BWP PHY numerology with the cell we are about to camp
         // on. The RNTI is unknown at this point (it is assigned by random access),
         // so it must not be touched here.
@@ -1894,9 +2183,10 @@ NrUeRrc::EvaluateCellForSelection()
                                 m_lastSib1.servingCellConfigCommon.dlCtrlSymsNum,
                                 m_lastSib1.servingCellConfigCommon.ulCtrlSymsNum,
                                 m_lastSib1.servingCellConfigCommon.symbolsPerSlot,
-                                m_lastSib1.servingCellConfigCommon.numerology,
+                                m_lastSib1.servingCellConfigCommon.ulNumerology,
                                 "F",
                                 m_lastSib1.servingCellConfigCommon.rbgSize);
+            m_cphySapProvider.at(ulBwpIndex)->SynchronizeWithGnb(m_cellId, sib1UlArfcn);
         }
         m_cmacSapProvider.at(ulBwpIndex)->RegisterToGnb(m_cellId);
         if (ulBwpIndex != dlBwpIndex)
@@ -1994,10 +2284,81 @@ NrUeRrc::ApplyRadioResourceConfigDedicatedSecondaryCarrier(
 }
 
 void
+NrUeRrc::ApplyServingCellBwpConfig(const NrRrcSap::RadioResourceConfigDedicated& rrcd)
+{
+    NS_LOG_FUNCTION(this);
+    m_rrcBwpPairings.clear();
+    for (const auto& bwpConfig : rrcd.bwpConfigList)
+    {
+        auto phyIt =
+            std::find_if(m_cphySapProvider.begin(),
+                         m_cphySapProvider.end(),
+                         [arfcn = bwpConfig.arfcn](auto& phy) { return phy->GetArfcn() == arfcn; });
+        if (phyIt == m_cphySapProvider.end())
+        {
+            NS_LOG_WARN("Serving cell BWP with ARFCN " << bwpConfig.arfcn
+                                                       << " has no matching local BWP; skipping");
+            continue;
+        }
+        auto bwpId = std::distance(m_cphySapProvider.begin(), phyIt);
+        ReconfigureFromSib1(bwpId,
+                            m_cellId,
+                            bwpConfig.config.dlCtrlSymsNum,
+                            bwpConfig.config.ulCtrlSymsNum,
+                            bwpConfig.config.symbolsPerSlot,
+                            bwpConfig.config.numerology,
+                            bwpConfig.config.tddPattern,
+                            bwpConfig.config.rbgSize);
+        // A DL-only (FDD) carrier sends its outgoing control messages through
+        // the UL carrier it is paired with
+        if (bwpConfig.config.ulCarrierFreq != 0 &&
+            bwpConfig.config.ulCarrierFreq != bwpConfig.arfcn && m_updateBwpOutputLinkFn)
+        {
+            auto ulIt = std::find_if(m_cphySapProvider.begin(),
+                                     m_cphySapProvider.end(),
+                                     [arfcn = bwpConfig.config.ulCarrierFreq](auto& phy) {
+                                         return phy->GetArfcn() == arfcn;
+                                     });
+            if (ulIt != m_cphySapProvider.end())
+            {
+                auto ulBwpId = std::distance(m_cphySapProvider.begin(), ulIt);
+                m_rrcBwpPairings[bwpId] = ulBwpId;
+                m_updateBwpOutputLinkFn(bwpId, ulBwpId);
+            }
+        }
+    }
+    if (m_updateQosFlowBwpFn)
+    {
+        for (const auto& mapping : rrcd.qosFlowToBwpList)
+        {
+            auto phyIt = std::find_if(
+                m_cphySapProvider.begin(),
+                m_cphySapProvider.end(),
+                [arfcn = mapping.bwpArfcn](auto& phy) { return phy->GetArfcn() == arfcn; });
+            if (phyIt == m_cphySapProvider.end())
+            {
+                NS_LOG_WARN("QoS flow BWP with ARFCN " << mapping.bwpArfcn
+                                                       << " has no matching local BWP; skipping");
+                continue;
+            }
+            auto bwpId = std::distance(m_cphySapProvider.begin(), phyIt);
+            // A flow the network pins to a DL-only (FDD) BWP is served in the
+            // uplink by the UL carrier that BWP is paired with: the advertised
+            // mapping drives the gNB's downlink scheduling, while the UE needs
+            // an UL-capable BWP for its own transmissions
+            const auto pairIt = m_rrcBwpPairings.find(bwpId);
+            const auto ulBwpId = pairIt != m_rrcBwpPairings.end() ? pairIt->second : bwpId;
+            m_updateQosFlowBwpFn(mapping.fiveQi, ulBwpId);
+        }
+    }
+}
+
+void
 NrUeRrc::ApplyRadioResourceConfigDedicated(NrRrcSap::RadioResourceConfigDedicated rrcd)
 {
     NS_LOG_FUNCTION(this << " primary UL " << GetPrimaryUlIndex() << ", primary DL "
                          << GetPrimaryDlIndex());
+    ApplyServingCellBwpConfig(rrcd);
     const NrRrcSap::PhysicalConfigDedicated& pcd = rrcd.physicalConfigDedicated;
 
     if (pcd.haveAntennaInfoDedicated)
@@ -3303,11 +3664,13 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
             PendingTrigger_t t;
             t.measId = measId;
             t.concernedCells = concernedCellsEntry;
-            t.timer = Simulator::Schedule(MilliSeconds(reportConfigEutra.timeToTrigger),
-                                          &NrUeRrc::VarMeasReportListAdd,
-                                          this,
-                                          measId,
-                                          concernedCellsEntry);
+            const double tttScale = GetTttScale();
+            t.timer = Simulator::Schedule(
+                MilliSeconds(static_cast<int64_t>(reportConfigEutra.timeToTrigger * tttScale)),
+                &NrUeRrc::VarMeasReportListAdd,
+                this,
+                measId,
+                concernedCellsEntry);
             auto enteringTriggerIt = m_enteringTriggerQueue.find(measId);
             NS_ASSERT(enteringTriggerIt != m_enteringTriggerQueue.end());
             enteringTriggerIt->second.push_back(t);
@@ -3329,12 +3692,14 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
             PendingTrigger_t t;
             t.measId = measId;
             t.concernedCells = concernedCellsLeaving;
-            t.timer = Simulator::Schedule(MilliSeconds(reportConfigEutra.timeToTrigger),
-                                          &NrUeRrc::VarMeasReportListErase,
-                                          this,
-                                          measId,
-                                          concernedCellsLeaving,
-                                          reportOnLeave);
+            const double tttScale = GetTttScale();
+            t.timer = Simulator::Schedule(
+                MilliSeconds(static_cast<int64_t>(reportConfigEutra.timeToTrigger * tttScale)),
+                &NrUeRrc::VarMeasReportListErase,
+                this,
+                measId,
+                concernedCellsLeaving,
+                reportOnLeave);
             auto leavingTriggerIt = m_leavingTriggerQueue.find(measId);
             NS_ASSERT(leavingTriggerIt != m_leavingTriggerQueue.end());
             leavingTriggerIt->second.push_back(t);
@@ -3902,7 +4267,7 @@ NrUeRrc::ConnectionTimeout()
         NS_LOG_DEBUG("Switch to CONNECTED_PHY_PROBLEM. Reason: Connection timeout for IMSI: "
                      << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
                      << " in state: " << ToString(m_state) << ".");
-        SwitchToState(CONNECTED_PHY_PROBLEM);
+        EnterPhyProblemState(RLF_CONNECTION_TIMEOUT);
         // Assumption: The gNB connection request timer would expire
         // before the expiration of T300 at UE. Upon which, the gNB deletes
         // the UE context. Therefore, here we don't need to send the UE context
@@ -4039,12 +4404,12 @@ NrUeRrc::DoNotifyRlcMaxRetx()
         }
         NS_LOG_INFO("RLC-AM reached maxRetxThreshold for IMSI "
                     << m_imsi << "; declaring radio link failure (TS 38.331 5.3.10.3)");
-        RadioLinkFailureDetected();
+        RadioLinkFailureDetected(RLF_RLC_MAX_RETX);
     }
 }
 
 void
-NrUeRrc::RadioLinkFailureDetected()
+NrUeRrc::RadioLinkFailureDetected(RadioLinkFailureCause cause)
 {
     NS_LOG_FUNCTION(this << "IMSI " << m_imsi << m_rnti << ", cellId " << m_cellId);
     m_radioLinkFailureTrace(m_imsi, m_cellId, m_rnti);
@@ -4054,7 +4419,7 @@ NrUeRrc::RadioLinkFailureDetected()
             "Switch to CONNECTED_PHY_PROBLEM. Reason: Radio link failure detected for IMSI: "
             << m_imsi << " rnti: " << m_rnti << " cellId: " << m_cellId
             << " in state: " << ToString(m_state) << ".");
-        SwitchToState(CONNECTED_PHY_PROBLEM);
+        EnterPhyProblemState(cause);
         m_rrcSapUser->SendIdealUeContextRemoveRequest(m_rnti);
         m_asSapUser->NotifyConnectionReleased();
     }
@@ -4069,6 +4434,122 @@ NrUeRrc::RadioLinkFailureDetected()
         ResetRlfParams();
         SwitchToState(IDLE_CELL_SEARCH);
     }
+}
+
+std::string
+ToString(NrUeRrc::RadioLinkFailureCause cause)
+{
+    switch (cause)
+    {
+    case NrUeRrc::RLF_T310_EXPIRY:
+        return "T310_EXPIRY";
+    case NrUeRrc::RLF_HO_COMMAND_LATE:
+        return "HO_COMMAND_LATE";
+    case NrUeRrc::RLF_DURING_HANDOVER:
+        return "DURING_HANDOVER";
+    case NrUeRrc::RLF_CONNECTION_RELEASE:
+        return "CONNECTION_RELEASE";
+    case NrUeRrc::RLF_CONNECTION_TIMEOUT:
+        return "CONNECTION_TIMEOUT";
+    case NrUeRrc::RLF_RLC_MAX_RETX:
+        return "RLC_MAX_RETX";
+    case NrUeRrc::RLF_NONE:
+    default:
+        return "NONE";
+    }
+}
+
+double
+NrUeRrc::GetTttScale()
+{
+    if (m_mseFixedScale > 0.0)
+    {
+        return m_mseFixedScale;
+    }
+    if (m_mseEnable)
+    {
+        UpdateMobilityState();
+        return m_mseTttScaleFactor;
+    }
+    return 1.0;
+}
+
+void
+NrUeRrc::UpdateMobilityState()
+{
+    NS_LOG_FUNCTION(this);
+    const Time now = Simulator::Now();
+    // Drop handover timestamps that fell out of the counting window.
+    while (!m_mseHandoverTimes.empty() && (now - m_mseHandoverTimes.front()) > m_mseCountWindow)
+    {
+        m_mseHandoverTimes.pop_front();
+    }
+    const auto nHo = static_cast<uint32_t>(m_mseHandoverTimes.size());
+
+    // Classify from the recent handover count. An elevated (Medium/High) state is held for at
+    // least MseHystNormal (via m_mseElevatedUntil) so a momentary lull does not snap back to
+    // Normal and cause the scale factor to chatter.
+    double target;
+    if (nHo >= m_mseThreshHigh)
+    {
+        target = m_mseSfHigh;
+        m_mseElevatedUntil = now + m_mseHystNormal;
+    }
+    else if (nHo >= m_mseThreshMedium)
+    {
+        target = m_mseSfMedium;
+        m_mseElevatedUntil = now + m_mseHystNormal;
+    }
+    else if (now < m_mseElevatedUntil)
+    {
+        target = m_mseTttScaleFactor; // hysteresis: hold the current elevated factor
+    }
+    else
+    {
+        target = 1.0; // Normal mobility
+    }
+
+    if (target != m_mseTttScaleFactor)
+    {
+        NS_LOG_INFO("MSE IMSI " << m_imsi << ": " << nHo << " HOs in "
+                                << m_mseCountWindow.As(Time::S) << " -> TTT scale factor "
+                                << m_mseTttScaleFactor << " -> " << target);
+        m_mseTttScaleFactor = target;
+    }
+}
+
+void
+NrUeRrc::EnterPhyProblemState(RadioLinkFailureCause cause)
+{
+    NS_LOG_FUNCTION(this << "IMSI " << m_imsi << " cause " << ToString(cause));
+    // Capture the timing context at the instant of failure, before any reset of
+    // the RLF parameters cancels the T310 event. If T310 is still pending we know
+    // exactly how long the DL has been below Qout; if this very call IS the T310
+    // expiry, the elapsed time is the full T310 duration; otherwise T310 was not
+    // running (e.g. a network connection release) and there is no Qout interval.
+    int64_t t310ElapsedMs = -1;
+    if (m_radioLinkFailureDetected.IsPending())
+    {
+        t310ElapsedMs =
+            (m_t310 - Simulator::GetDelayLeft(m_radioLinkFailureDetected)).GetMilliSeconds();
+    }
+    else if (cause == RLF_T310_EXPIRY)
+    {
+        t310ElapsedMs = m_t310.GetMilliSeconds();
+    }
+    const int64_t msSinceLastHoSuccess =
+        (m_lastHoSuccessTime > Seconds(0))
+            ? (Simulator::Now() - m_lastHoSuccessTime).GetMilliSeconds()
+            : -1;
+    m_rlfCause = cause;
+    m_radioLinkFailureCauseTrace(m_imsi,
+                                 m_cellId,
+                                 m_rnti,
+                                 static_cast<uint16_t>(m_state),
+                                 ToString(cause),
+                                 t310ElapsedMs,
+                                 msSinceLastHoSuccess);
+    SwitchToState(CONNECTED_PHY_PROBLEM);
 }
 
 void
@@ -4095,7 +4576,7 @@ NrUeRrc::DoNotifyOutOfSync()
     if (m_noOfSyncIndications == m_n310)
     {
         m_radioLinkFailureDetected =
-            Simulator::Schedule(m_t310, &NrUeRrc::RadioLinkFailureDetected, this);
+            Simulator::Schedule(m_t310, &NrUeRrc::RadioLinkFailureDetected, this, RLF_T310_EXPIRY);
         if (m_radioLinkFailureDetected.IsPending())
         {
             NS_LOG_INFO("t310 started");
@@ -4139,6 +4620,10 @@ NrUeRrc::ReconfigureFromSib1(const uint8_t bwpId,
     NS_LOG_FUNCTION(this << "IMSI " << m_imsi << ", cellId " << m_cellId << ", primary UL "
                          << GetPrimaryUlIndex() << ", primary DL " << GetPrimaryDlIndex());
     NrDeviceRegistry::SetUeTargetCell(cellId, m_imsi);
+    // A BWP can host the primary UL only if its pattern has UL-capable slots
+    m_bwpUlCapable[bwpId] = tddPattern.find('U') != std::string::npos ||
+                            tddPattern.find('F') != std::string::npos ||
+                            tddPattern.find('S') != std::string::npos;
     m_cphySapProvider.at(bwpId)->SetDlCtrlSyms(dlCtrlSym);
     m_cphySapProvider.at(bwpId)->SetUlCtrlSyms(ulCtrlSym);
     m_cphySapProvider.at(bwpId)->SetSymbolsPerSlot(symPerSlot);

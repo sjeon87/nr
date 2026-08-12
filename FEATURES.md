@@ -51,7 +51,7 @@ It is meant to be a compact, “at-a-glance” view, complementary to the detail
 | [OFDMA (DL/UL)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#resource-allocation-model-ofdma-and-tdma)   | ✅ Supported | 3GPP-compliant slot/symbol allocation; variable TTI and single analog beam capability        |
 | [TDMA (DL/UL)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#resource-allocation-model-ofdma-and-tdma)    | ✅ Supported | Configurable symbol granularity; variable TTI                                                |
 | [Numerologies (μ = 0–4)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#frame-structure-model)             | ✅ Supported | Per-BWP numerology configuration (sub-carrier spacing and symbol duration)                   |
-| [TDD and FDD](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#duplexing-schemes)                            | ✅ Supported | Per-cell configurable TDD pattern                                                            |
+| [TDD and FDD](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#duplexing-schemes)                            | ✅ Supported | Per-cell configurable TDD pattern; automatic UL carrier advertisement and UE UL BWP derivation in FDD (**NR-v5.1**) |
 | [Time-multiplex of shared/control](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#tdd-model)               | ✅ Supported | PDCCH/PDSCH in same slot; PUCCH/PUSCH in same slot                                           |
 | [LDPC coding](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#data-phy-error-model)                         | ✅ Supported | 3GPP TS 38.212 base graphs 1 & 2                                                             |
 | [Code block segmentation](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#data-phy-error-model)             | ✅ Supported | 3GPP TS 38.212                                                                               |
@@ -103,22 +103,22 @@ It is meant to be a compact, “at-a-glance” view, complementary to the detail
 | [Notching mask](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#ufa-aka-notching)                                            | ✅ Supported | UFA masks per-BWP and per-cell; configurable notched RBGs                                   |
 | [CC / BWP managers](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#bwp-manager)                                             | ✅ Supported | Multi-carrier; FDM of numerologies; CC/BWP routing                                          |
 | [Carrier Aggregation (CA)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#bwp-manager)                                      | ✅ Supported | Multiple CC/BWPs with flexible mapping                                                      |
-| [RACH](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#mac-layer)                                                            | ✅ Supported | Contention-based for initial access; RA preamble, RAR, MSG3                                 |
+| [RACH](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#mac-layer)                                                            | ✅ Supported | Contention-based for initial access; RA preamble, RAR, MSG3; target RACH configuration applied on handover; staggered initial attachment (**NR-v5.1**) |
 | [Fronthaul Control](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#fronthaul-control)                                       | ✅ Supported | 7.2x split; Limited-capacity FH link; Dropping, Postponing, Optimize MCS/RBs; (**NR-v3.3**) |
 
 ---
 
 ### RLC / PDCP / RRC / Core
 
-| Feature                                                                                | Status       | Notes                                                         |
-|----------------------------------------------------------------------------------------|--------------|---------------------------------------------------------------|
-| [RLC AM / UM / TM](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#rlc-layer)     | ✅ Supported | LTE-based                                                     |
-| [PDCP](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#pdcp-layer)                | ✅ Supported | Basic header compression                                      |
-| [5QI handling](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#qos-schedulers)    | ✅ Supported | QoS per flow; PDCP discard timer; RLC reordering window timer |
-| [SDAP](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#sdap-layer)                | ⚙️ Ongoing   | Maybe will be contributed soon                                |
-| [RRC](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#rrc-layer)                  | ✅ Supported | Ideal RRC; Real RRC, RLF, Handover ongoing                    |
-| [Multi-flow per UE](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#architecture) | ✅ Supported | Independent bearers                                           |
-| [EPC/5GC integration](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#epc-model)  | ✅ Supported | Via LTE-EPC model                                             |
+| Feature                                                                                | Status       | Notes                                                                                                                                                          |
+|----------------------------------------------------------------------------------------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [RLC AM / UM / TM](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#rlc-layer)     | ✅ Supported | LTE-based; TS 38.322 conformance rework, cross-epoch PDU discard, TM TxDrop trace (**NR-v5.1**)                                                                |
+| [PDCP](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#pdcp-layer)                | ✅ Supported | Basic header compression                                                                                                                                       |
+| [5QI handling](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#qos-schedulers)    | ✅ Supported | QoS per flow; PDCP discard timer; RLC reordering window timer                                                                                                  |
+| [SDAP](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#sdap-layer)                | ⚙️ Ongoing   | Maybe will be contributed soon                                                                                                                                 |
+| [RRC](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#rrc-layer)                  | ✅ Supported | Ideal and real RRC; RLF and handover (**NR-v5.0**); TR 36.839 handover failure model (**NR-v5.1**) |
+| [Multi-flow per UE](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#architecture) | ✅ Supported | Independent bearers                                                                                                                                            |
+| [EPC/5GC integration](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#epc-model)  | ✅ Supported | Via LTE-EPC model                                                                                                                                              |
 
 ---
 
@@ -140,9 +140,10 @@ It is meant to be a compact, “at-a-glance” view, complementary to the detail
 | Feature                                                                                                                  | Status      | Notes                                                                                     |
 |--------------------------------------------------------------------------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------|
 | [Calibration examples](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#cttc-nr-3gpp-calibration)                    | ✅ Supported | Indoor/Outdoor (R1-1709828/RP-180524) and R1-1707360 (3GPP SU-MIMO) (**NR-v4.1**)         |
-| [Hexagonal wrap-around](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#cttc-nr-3gpp-calibration)                   | ✅ Supported | Wrap-around for up to 5 rings, 37-site/111-cell topology for RMa/UMa/UMi calibration      |
+| [Hexagonal wrap-around](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#cttc-nr-3gpp-calibration)                   | ✅ Supported | Wrap-around for up to 5 rings, 37-site/111-cell topology for RMa/UMa/UMi calibration; ring-1-only picocell placement (TR 36.839 dense-A) (**NR-v5.1**) |
 | [Wraparound model](https://www.nsnam.org/docs/models/html/spectrum.html#wraparound-models)                               | ✅ Supported | Simulates outer interference to the edge devices without having to simulate outer devices |
 | [FastFadingConstantPositionMobilityModel](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#cttc-nr-3gpp-calibration) | ✅ Supported | Calibration for static users with temporal fading                                         |
+| RandomDirectionDisc2dMobilityModel                                                                                       | ✅ Supported | Random-direction mobility bounded by a disc; disc UE placement in the hexagonal scenario helper (**NR-v5.1**) |
 | [REM maps (DL/UL)](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#nr-rem-helper)                                   | ✅ Supported | DL/UL REM maps, SIR/SNR/SINR for topology inspection                                      |
 
 ---
@@ -151,6 +152,9 @@ It is meant to be a compact, “at-a-glance” view, complementary to the detail
 
 | Feature                                                                                                      | Status    | Notes                                                               | Version     | Date         |
 |--------------------------------------------------------------------------------------------------------------|-----------|---------------------------------------------------------------------|-------------|--------------|
+| CI Valgrind memcheck                                                                                     | ✅ Checked | Weekly valgrind memcheck job                                                | **NR-v5.1** | Jul 29, 2026 |
+| CI MemorySanitizer                                                                                       | ✅ Checked | Weekly MemorySanitizer job                                                  | **NR-v5.1** | Jul 22, 2026 |
+| CI Lizard complexity                                                                                     | ✅ Checked | Fails MRs that raise max cyclomatic complexity or add duplicate code blocks | **NR-v5.0** | Jun 22, 2026 |
 | CI Check dead URLs                                                                                           | ✅ Checked | Detects dead URLs in source and documentation                       | **NR-v4.2** | Nov 28, 2025 |
 | [CI Calibration Regression testing](https://cttc-lena.gitlab.io/nr/manual/nr-module.html#validation)         | ✅ Checked | **Calibration regression testing** with 3GPP calibration campaign   | **NR-v4.1** | Jul 7, 2025  |
 | CI Mac OS                                                                                                    | ✅ Checked | Test NR on MAC OS                                                   | **NR-v4.1** | Jul 7, 2025  |

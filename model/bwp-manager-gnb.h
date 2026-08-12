@@ -5,6 +5,7 @@
 #ifndef BWP_MANAGER_H
 #define BWP_MANAGER_H
 
+#include "bwp-manager-algorithm.h"
 #include "nr-ccm-rrc-sap.h"
 #include "nr-no-op-component-carrier-manager.h"
 #include "nr-qos-flow.h"
@@ -18,7 +19,6 @@ namespace ns3
 {
 class NrUeManager;
 class NrCcmRrcSapProvider;
-class BwpManagerAlgorithm;
 class NrControlMessage;
 
 /**
@@ -92,6 +92,31 @@ class NR_EXPORT BwpManagerGnb : public NrRrComponentCarrierManager
      * Call it for each mapping you want to install.
      */
     void SetOutputLink(uint32_t sourceBwp, uint32_t outputBwp);
+
+    /**
+     * @brief Get the BWP manager algorithm
+     * @return const pointer to the algorithm
+     */
+    Ptr<const BwpManagerAlgorithm> GetAlgorithm() const
+    {
+        return m_algorithm;
+    }
+
+    /**
+     * @brief Get the installed output links
+     * @return the map between source BWP and output BWP
+     */
+    const std::unordered_map<uint32_t, uint32_t>& GetOutputLinks() const
+    {
+        return m_outputLinks;
+    }
+
+    /**
+     * @brief Check whether an output mapping is installed for a BWP
+     * @param sourceBwp the source BWP
+     * @return true if SetOutputLink was called for sourceBwp
+     */
+    bool HasOutputLink(uint32_t sourceBwp) const;
 
     /**
      * @brief Override the BWP a given UE's downlink traffic is scheduled on.

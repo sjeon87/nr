@@ -491,8 +491,9 @@ double
 NrAmc::CalcTblerForMimoMatrix(uint8_t mcs, const NrSinrMatrix& sinrMat) const
 {
     auto dummyRnti = uint16_t{0};
+    auto dummyCellId = uint16_t{0};
     auto duration = Time{1.0}; // Use an arbitrary non-zero time as the chunk duration
-    auto mimoChunk = MimoSinrChunk{sinrMat, dummyRnti, duration};
+    auto mimoChunk = MimoSinrChunk{sinrMat, dummyRnti, dummyCellId, duration};
     auto mimoChunks = std::vector<MimoSinrChunk>{mimoChunk};
     auto rank = sinrMat.GetRank();
 

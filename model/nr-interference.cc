@@ -129,6 +129,10 @@ NrInterference::ConditionallyEvaluateChunk()
     NS_LOG_DEBUG(this << " now " << Now() << " last " << m_lastChangeTime);
     if (m_receiving && (Now() > m_lastChangeTime))
     {
+        // Rebuild the sum of all signals from the live-signal list: the
+        // running sum can carry a permanent negative bias (absorption by a
+        // saturating signal) or NaN (an infinite signal) from expired signals.
+        RebuildAllSignals();
         NS_LOG_LOGIC(this << " signal = " << *m_rxSignal << " allSignals = " << *m_allSignals
                           << " noise = " << *m_noise);
         SpectrumValue interf = (*m_allSignals) - (*m_rxSignal) + (*m_noise);
@@ -159,18 +163,21 @@ NrInterference::ConditionallyEvaluateChunk()
             // Compute the MIMO SINR separately for each received signal.
             for (auto& rxSignal : m_rxSignalsMimo)
             {
-                // Use the UE's RNTI to distinguish multiple received signals
+                // Use the UE's RNTI and the cell it belongs to in order to distinguish multiple
+                // received signals. The cell is needed because RNTIs are per-cell values that
+                // are reused, so the RNTI on its own does not identify the signal.
                 auto nrRxSignal = DynamicCast<const NrSpectrumSignalParametersDataFrame>(rxSignal);
                 uint16_t rnti = nrRxSignal ? nrRxSignal->rnti : 0;
+                uint16_t cellId = nrRxSignal ? nrRxSignal->cellId : 0;
 
                 // MimoSinrChunk is used to store SINR and compute TBLER of the data transmission
                 auto sinrMatrix = ComputeSinr(outOfCellInterfCov, rxSignal);
-                MimoSinrChunk mimoSinr{sinrMatrix, rnti, duration};
+                MimoSinrChunk mimoSinr{sinrMatrix, rnti, cellId, duration};
                 cp->EvaluateChunk(mimoSinr);
 
                 // MimoSignalChunk is used to compute PMI feedback.
                 auto& chanSpct = *(rxSignal->spectrumChannelMatrix);
-                MimoSignalChunk mimoSignal{chanSpct, outOfCellInterfCov, rnti, duration};
+                MimoSignalChunk mimoSignal{chanSpct, outOfCellInterfCov, rnti, cellId, duration};
                 cp->EvaluateChunk(mimoSignal);
             }
         }

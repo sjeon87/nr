@@ -205,9 +205,8 @@ main(int argc, char* argv[])
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_CONV_VIDEO", UintegerValue(bwpIdForVideo));
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_GAMING", UintegerValue(bwpIdForGaming));
 
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_CONV_VOICE", UintegerValue(bwpIdForVoice));
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_CONV_VIDEO", UintegerValue(bwpIdForVideo));
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_GAMING", UintegerValue(bwpIdForGaming));
+    // The UE BWP manager mapping and the UL pairing of the FDD carriers are
+    // learned by the UE from the gNB's dedicated RRC configuration
 
     NetDeviceContainer gnbNetDev =
         nrHelper->InstallGnbDevice(gridScenario.GetBaseStations(), allBwps);
@@ -310,12 +309,9 @@ main(int argc, char* argv[])
     // Link the two FDD BWP:
     NrHelper::GetBwpManagerGnb(gnbNetDev.Get(3))->SetOutputLink(2, 1);
 
-    // Set the UE routing:
-
-    for (uint32_t i = 0; i < ueNetDev.GetN(); i++)
-    {
-        NrHelper::GetBwpManagerUe(ueNetDev.Get(i))->SetOutputLink(1, 2);
-    }
+    // No explicit UE routing: the gNB advertises the FDD pairing (inverted
+    // from its own output links) and its QoS flow to BWP mapping in dedicated
+    // RRC configuration, from which the UE derives its own routing
 
     // From here, it is standard NS3. In the future, we will create helpers
     // for this part as well.

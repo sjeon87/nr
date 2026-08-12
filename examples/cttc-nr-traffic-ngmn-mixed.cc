@@ -264,8 +264,8 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     uint8_t numBwpPerCc = 1;
     if (operationMode == "FDD")
     {
-        numBwpPerCc = 2; // FDD will have 2 BWPs per CC
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
+        numBwpPerCc = 2; // FDD will have 2 BWPs per CC; the UE derives its
+                         // primary UL BWP and routing from the cell configuration
     }
 
     CcBwpCreator::SimpleOperationBandConf bandConf1(centralFrequencyBand1,
@@ -388,10 +388,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                  UintegerValue(bwpIdForLowLat));
 
-    // Ue routing between QoS flow and bandwidth part
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
-                                                UintegerValue(bwpIdForLowLat));
-
     /*
      * We have configured the attributes we needed. Now, install and get the pointers
      * to the NetDevices, which contains all the NR stack:
@@ -458,9 +454,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
             NrHelper::GetGnbPhy(gnb, 1)->SetAttribute(
                 "Pattern",
                 StringValue("UL|UL|UL|UL|UL|UL|UL|UL|UL|UL|"));
-
-            // Link the two FDD BWP
-            NrHelper::GetBwpManagerGnb(gnb)->SetOutputLink(1, 0);
         }
 
         else
@@ -504,8 +497,6 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
             NrHelper::GetGnbPhy(gnb, 1)->SetAttribute(
                 "Pattern",
                 StringValue("UL|UL|UL|UL|UL|UL|UL|UL|UL|UL|"));
-            // Link the two FDD BWP
-            NrHelper::GetBwpManagerGnb(gnb)->SetOutputLink(1, 0);
         }
 
         else
@@ -549,33 +540,11 @@ Set5gLenaSimulatorParameters(HexagonalGridScenarioHelper gridScenario,
             NrHelper::GetGnbPhy(gnb, 1)->SetAttribute(
                 "Pattern",
                 StringValue("UL|UL|UL|UL|UL|UL|UL|UL|UL|UL|"));
-            // Link the two FDD BWP
-            NrHelper::GetBwpManagerGnb(gnb)->SetOutputLink(1, 0);
         }
 
         else
         {
             NS_ABORT_MSG("Incorrect number of BWPs per CC");
-        }
-    }
-
-    // Set the UE routing:
-
-    if (operationMode == "FDD")
-    {
-        for (uint32_t i = 0; i < ueSector1NetDev.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueSector1NetDev.Get(i))->SetOutputLink(0, 1);
-        }
-
-        for (uint32_t i = 0; i < ueSector2NetDev.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueSector2NetDev.Get(i))->SetOutputLink(0, 1);
-        }
-
-        for (uint32_t i = 0; i < ueSector3NetDev.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueSector3NetDev.Get(i))->SetOutputLink(0, 1);
         }
     }
 }
@@ -814,6 +783,10 @@ main(int argc, char* argv[])
     }
 
     Time simTime = MilliSeconds(simTimeMs);
+    // The applications start at 400 ms and stop 400 ms before the end of the
+    // simulation, and need time to transfer anything in between
+    NS_ABORT_MSG_IF(simTime <= MilliSeconds(800),
+                    "simTimeMs must be larger than 800 ms so the applications can run");
 
     std::cout << "\n  Traffic configuration selected is: " << trafficTypeConf << std::endl;
 
@@ -1969,13 +1942,11 @@ main(int argc, char* argv[])
         }
         outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
     }
+    // Only flows that received packets contributed a delay sample
+    delayValues.resize(cont);
+    NS_ABORT_MSG_IF(delayValues.empty(), "No flow received any packet during the simulation");
     std::stable_sort(delayValues.begin(), delayValues.end());
-    // for (uint32_t i = 0; i < stats.size(); i++)
-    //   {
-    //     std::cout << delayValues[i] << " ";
-    //   }
-    // double FiftyTileFlowDelay = (delayValues[stats.size()/2] + delayValues[stats.size()/2 -1])/2;
-    double FiftyTileFlowDelay = delayValues[stats.size() / 2];
+    double FiftyTileFlowDelay = delayValues[delayValues.size() / 2];
     // Make sure that traffic was actually transmitted
     NS_ASSERT(averageUpt != 0.0 && averageFlowThroughput != 0.0 && averageFlowDelay != 0.0);
     outFile << "\n\n  Mean flow throughput: " << averageFlowThroughput / stats.size() << " Mbps\n";

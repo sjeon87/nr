@@ -1202,16 +1202,10 @@ main(int argc, char* argv[])
                                                  UintegerValue(bwpIdForLowLat));
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_CONV_VOICE", UintegerValue(bwpIdForVoice));
 
-    // Ue routing between Bearer and bandwidth part
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(bwpIdForLowLat));
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_CONV_VOICE", UintegerValue(bwpIdForVoice));
-
     if (enableInterServ)
     {
         nrHelper->SetGnbBwpManagerAlgorithmAttribute("DGBR_INTER_SERV_87",
                                                      UintegerValue(bwpIdForVR));
-        nrHelper->SetUeBwpManagerAlgorithmAttribute("DGBR_INTER_SERV_87",
-                                                    UintegerValue(bwpIdForVR));
     }
 
     // Initialize nrHelper

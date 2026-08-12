@@ -55,6 +55,15 @@ class NR_EXPORT NrRlcUm : public NrRlc
     void ExpireReorderingTimer();
     /// Expire BSR timer
     void ExpireBsrTimer();
+    /**
+     * @brief Restart the buffer status report timer, or stop it if there is nothing left to send.
+     *
+     * Called whenever the buffer status is reported to the MAC. While data is waiting the timer
+     * keeps running, so its expiry triggers a new report (the equivalent of retxBSR-Timer of 3GPP
+     * TS 38.321, clause 5.4.5, whose expiry triggers a regular buffer status report); once the
+     * buffer is empty there is nothing to report and the timer is left stopped.
+     */
+    void RestartBsrTimer();
 
     /**
      * Is inside reordering window function
@@ -64,8 +73,16 @@ class NR_EXPORT NrRlcUm : public NrRlc
      */
     bool IsInsideReorderingWindow(nr::SequenceNumber10 seqNumber);
 
-    /// Reassemble outside window
-    void ReassembleOutsideWindow();
+    void ReestablishRxSide() override;
+
+    /**
+     * Reassemble outside window
+     *
+     * @param tombstoneDelivered if true, keep a null entry for each delivered SN in
+     *                           the reception buffer so late duplicates are
+     *                           recognised (used by out-of-order delivery)
+     */
+    void ReassembleOutsideWindow(bool tombstoneDelivered = false);
     /**
      * Reassemble SN interval function
      *
@@ -94,6 +111,20 @@ class NR_EXPORT NrRlcUm : public NrRlc
     friend class NrRlcUmTxPdcpDiscardTestCase;
     /// Grant the ReassembleSnInterval gap regression test access to private reception state
     friend class NrRlcUmReassembleGapTestCase;
+    /// Grant the reassembly state machine matrix test access to private reassembly state
+    friend class NrRlcUmReassemblyMatrixTestCase;
+    /// Grant the SN-alias resynchronisation regression test access to private reassembly state
+    friend class NrRlcUmSnAliasResyncTestCase;
+    /// Grant the Tx buffer overflow test access to private transmit buffer state
+    friend class NrRlcUmTxBufferOverflowTestCase;
+    /// Grant the Tx opportunity edge-case test access to private transmit buffer state
+    friend class NrRlcUmTxOpportunityEdgeTestCase;
+    /// Grant the t-Reordering timer test access to private timer and window state
+    friend class NrRlcUmReorderingTimerTestCase;
+    /// Grant the out-of-order delivery test access to private reception buffer state
+    friend class NrRlcUmOutOfOrderDeliveryTestCase;
+    /// Grant the severely-delayed-PDU test access to private window state
+    friend class NrRlcUmLatePduTestCase;
     uint32_t m_maxTxBufferSize; ///< maximum transmit buffer status
     uint32_t m_txBufferSize;    ///< transmit buffer size
 
@@ -121,7 +152,6 @@ class NR_EXPORT NrRlcUm : public NrRlc
 
     std::deque<TxPdu> m_txBuffer;               ///< Transmission buffer
     std::map<uint16_t, Ptr<Packet>> m_rxBuffer; ///< Reception buffer
-    std::vector<Ptr<Packet>> m_reasBuffer;      ///< Reassembling buffer
 
     std::list<Ptr<Packet>> m_sdusBuffer; ///< List of SDUs in a packet
 
@@ -145,10 +175,11 @@ class NR_EXPORT NrRlcUm : public NrRlc
     Time m_reorderingTimerValue;        ///< reordering timer value
     EventId m_reorderingTimer;          ///< reordering timer
     EventId m_bsrTimer;                 ///< BSR timer
+    Time m_bsrTimerValue;               ///< BSR timer value
     bool m_enablePdcpDiscarding{false}; //!< whether to use the PDCP discarding (perform discarding
                                         //!< at the moment of passing the PDCP SDU to RLC)
     uint32_t m_discardTimerMs{0};       //!< the discard timer value in milliseconds
-    bool m_outOfOrderDelivery{true};    //!< whether to deliver RLC SDUs without reordering timer
+    bool m_outOfOrderDelivery{false};   //!< whether to deliver RLC SDUs without reordering timer
 
     /**
      * Reassembling state
@@ -167,6 +198,14 @@ class NR_EXPORT NrRlcUm : public NrRlc
      * Expected Sequence Number
      */
     nr::SequenceNumber10 m_expectedSeqNumber;
+
+    /**
+     * Newest sender timestamp among the received PDUs. Used to tell a genuinely new
+     * out-of-window PDU (which slides the reordering window forward) from a PDU
+     * delayed by more than UM_Window_Size SNs that aliases to the same position:
+     * the newest transmission always carries the newest sender timestamp.
+     */
+    Time m_maxRxSenderTimestamp;
 
     bool m_expBsrTimer{false};
 };

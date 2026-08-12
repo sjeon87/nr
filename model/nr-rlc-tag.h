@@ -82,9 +82,28 @@ class NR_EXPORT NrRlcTag : public Tag
         this->m_txRnti = rnti;
     }
 
+    /**
+     * Get the unique identifier of the transmitting RLC entity
+     * @return the transmitting RLC entity identifier (0 if not set)
+     */
+    uint32_t GetTxEntityId() const
+    {
+        return m_txEntityId;
+    }
+
+    /**
+     * Set the unique identifier of the transmitting RLC entity
+     * @param entityId the transmitting RLC entity identifier
+     */
+    void SetTxEntityId(uint32_t entityId)
+    {
+        this->m_txEntityId = entityId;
+    }
+
   private:
     Time m_senderTimestamp;                                  ///< sender timestamp
     uint16_t m_txRnti{std::numeric_limits<uint16_t>::max()}; ///< rnti of transmitting UE
+    uint32_t m_txEntityId{0}; ///< unique identifier of the transmitting RLC entity (0 = not set)
 };
 
 } // namespace ns3

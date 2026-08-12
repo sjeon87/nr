@@ -11,6 +11,9 @@
 #include "ns3/log.h"
 #include "ns3/simulator.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace ns3
 {
 
@@ -38,6 +41,7 @@ NrInterferenceBase::DoDispose()
     m_interfChunkProcessorList.clear();
     m_rxSignal = nullptr;
     m_allSignals = nullptr;
+    m_allSignalsList.clear();
     m_noise = nullptr;
     Object::DoDispose();
 }
@@ -150,6 +154,7 @@ NrInterferenceBase::DoAddSignal(Ptr<const SpectrumValue> spd)
     NS_LOG_FUNCTION(this << *spd);
     ConditionallyEvaluateChunk();
     (*m_allSignals) += (*spd);
+    m_allSignalsList.push_back(spd);
 }
 
 void
@@ -157,14 +162,43 @@ NrInterferenceBase::DoSubtractSignal(Ptr<const SpectrumValue> spd, uint32_t sign
 {
     NS_LOG_FUNCTION(this << *spd);
     ConditionallyEvaluateChunk();
+    auto it = std::find(m_allSignalsList.begin(), m_allSignalsList.end(), spd);
+    if (it != m_allSignalsList.end())
+    {
+        m_allSignalsList.erase(it);
+    }
     int32_t deltaSignalId = signalId - m_lastSignalIdBeforeReset;
     if (deltaSignalId > 0)
     {
         (*m_allSignals) -= (*spd);
+        // The paired addition may have absorbed smaller co-resident signals
+        // (leaving a negative residue here), and subtracting an infinite
+        // signal leaves NaN. Heal the sum so the corruption cannot outlive
+        // the expired signal; a finite but silently wrong sum is corrected
+        // by the constructive rebuild in ConditionallyEvaluateChunk.
+        for (auto v = m_allSignals->ConstValuesBegin(); v != m_allSignals->ConstValuesEnd(); ++v)
+        {
+            if (!std::isfinite(*v) || *v < 0.0)
+            {
+                RebuildAllSignals();
+                break;
+            }
+        }
     }
     else
     {
         NS_LOG_INFO("ignoring signal scheduled for subtraction before last reset");
+    }
+}
+
+void
+NrInterferenceBase::RebuildAllSignals()
+{
+    NS_LOG_FUNCTION(this);
+    m_allSignals = Create<SpectrumValue>(m_noise->GetSpectrumModel());
+    for (const auto& spd : m_allSignalsList)
+    {
+        (*m_allSignals) += (*spd);
     }
 }
 
@@ -179,6 +213,13 @@ NrInterferenceBase::ConditionallyEvaluateChunk()
     NS_LOG_DEBUG(this << " now " << Now() << " last " << m_lastChangeTime);
     if (m_receiving && (Now() > m_lastChangeTime))
     {
+        // Rebuild the sum of all signals from the live-signal list instead of
+        // trusting the running sum: a saturating signal absorbs co-resident
+        // smaller signals when added (S + s rounds to S), so the paired
+        // subtractions leave a permanent negative bias, and an infinite
+        // signal leaves NaN. The MIMO covariance path already rebuilds per
+        // chunk from its own list for the same reason.
+        RebuildAllSignals();
         NS_LOG_LOGIC(this << " signal = " << *m_rxSignal << " allSignals = " << *m_allSignals
                           << " noise = " << *m_noise);
 
@@ -213,6 +254,7 @@ NrInterferenceBase::SetNoisePowerSpectralDensity(Ptr<const SpectrumValue> noiseP
     // reset m_allSignals (will reset if already set previously)
     // this is needed since this method can potentially change the SpectrumModel
     m_allSignals = Create<SpectrumValue>(noisePsd->GetSpectrumModel());
+    m_allSignalsList.clear();
     if (m_receiving)
     {
         // abort rx
