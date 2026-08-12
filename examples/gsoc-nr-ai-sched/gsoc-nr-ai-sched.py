@@ -32,10 +32,16 @@ import time
 import traceback
 
 # Make the binding (.so dropped next to this file) and ns3ai_utils importable.
+# nr and ns3-ai can each be installed under contrib/ or src/; both trees have
+# the same layout, so this file is always four levels below the ns-3 root and
+# only the module root differs. Look ns3ai_utils up in both - a path that does
+# not exist is harmless on sys.path.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _NS3_ROOT = os.path.abspath(os.path.join(_HERE, "..", "..", "..", ".."))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.join(_NS3_ROOT, "contrib", "ai", "python_utils"))
+_MODULE_ROOTS = ("contrib", "src")
+sys.path[:0] = [_HERE] + [
+    os.path.join(_NS3_ROOT, root, "ai", "python_utils") for root in _MODULE_ROOTS
+]
 
 import ns3ai_nr_sched_py as py_binding  # noqa: E402
 from ns3ai_utils import Experiment  # noqa: E402
@@ -177,10 +183,15 @@ def main():
     # Prefer launching the already-built executable directly (ns3ai_utils runs
     # a file path as-is). This avoids "./ns3 run" rebuilding the whole tree,
     # which is both slow and brittle if an unrelated contrib module fails to
-    # build.
-    exe = glob.glob(
-        os.path.join(_NS3_ROOT, "build", "contrib", "nr", "examples", "ns3*-gsoc-nr-ai-sched-*")
-    )
+    # build. build/ mirrors the source tree, so the binary follows nr into
+    # either build/contrib/nr or build/src/nr.
+    exe = [
+        path
+        for root in _MODULE_ROOTS
+        for path in glob.glob(
+            os.path.join(_NS3_ROOT, "build", root, "nr", "examples", "ns3*-gsoc-nr-ai-sched-*")
+        )
+    ]
     # NR_AI_SCHED_TARGET overrides the launch target (e.g. a timing wrapper
     # script around the executable, for transport benchmarks).
     target = os.environ.get("NR_AI_SCHED_TARGET") or (exe[0] if exe else "gsoc-nr-ai-sched")
