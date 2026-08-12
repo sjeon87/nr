@@ -129,7 +129,14 @@ def parse_args():
     return parser.parse_args()
 
 
-def _dump_exchange(idx, obs, act):
+def _snapshot_exchange(idx, obs, act):
+    """Copy one exchange out of shared memory into plain Python objects.
+
+    Must be called while the handshake window is still open (obs and act are
+    views on the shared segment), but it only reads scalars - the JSON
+    formatting and the print are left to the caller, which does them after
+    PySendEnd() so C++ is not blocked by them.
+    """
     ues = []
     for i in range(len(obs)):
         o = obs[i]
@@ -161,7 +168,7 @@ def _dump_exchange(idx, obs, act):
                 "action": {"rnti": act[i].rnti, "weight": round(act[i].weight, 3)},
             }
         )
-    print(json.dumps({"exchange": idx, "numUes": len(obs), "ues": ues}, indent=2))
+    return {"exchange": idx, "numUes": len(obs), "ues": ues}
 
 
 def main():
@@ -216,6 +223,7 @@ def main():
     exchanges = 0
     first_done = None  # perf_counter at the end of the first exchange
     last_done = None  # perf_counter at the end of the most recent exchange
+    dump_wall = 0.0  # time spent printing --verbose dumps, excluded below
     loop_t0 = time.perf_counter()
     try:
         while True:
@@ -240,8 +248,10 @@ def main():
                         weight += o.get_lc(k).bsr
                 act[i].rnti = o.rnti
                 act[i].weight = float(weight)
-            if exchanges < args.verbose:
-                _dump_exchange(exchanges, obs, act)
+            # Only copy the values out here; serializing and printing them
+            # inside the handshake window would stall C++ on every dumped
+            # exchange and land in the per-exchange figure.
+            dump = _snapshot_exchange(exchanges, obs, act) if exchanges < args.verbose else None
             exchanges += 1
             msgInterface.PyRecvEnd()
             msgInterface.PySendEnd()
@@ -256,6 +266,13 @@ def main():
             if first_done is None:
                 first_done = last_done
 
+            if dump is not None:
+                # Outside the window, and discounted from the timed region so
+                # a --verbose run stays comparable to a silent one.
+                dump_t0 = time.perf_counter()
+                print(json.dumps(dump, indent=2))
+                dump_wall += time.perf_counter() - dump_t0
+
     except Exception:
         print("Exception in gsoc-nr-ai-sched.py:")
         traceback.print_exc()
@@ -267,7 +284,7 @@ def main():
         # over the bracketed steady-state region only.
         loop_wall = time.perf_counter() - loop_t0
         timed_steps = max(exchanges - 1, 0)
-        timed_wall = last_done - first_done if timed_steps else 0.0
+        timed_wall = last_done - first_done - dump_wall if timed_steps else 0.0
         per_exchange_us = timed_wall / timed_steps * 1e6 if timed_steps else 0.0
         print(
             f"gsoc-nr-ai-sched.py: completed {exchanges} observation/action exchanges | "
