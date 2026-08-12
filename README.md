@@ -71,7 +71,7 @@ Inspired by [mmWave module by NYU/UniPD](https://github.com/nyuwireless-unipd/ns
 We would be very happy if you would contribute to 5G-LENA!
 
 If you identify a bug, please let us know through the
-[Gitlab issue page](https://gitlab.com/cttc-lena/nr/-/issues/).
+[Gitlab work items page](https://gitlab.com/cttc-lena/nr/-/work_items/).
 
 If you do some of the following with 5G-LENA, please open
 a [merge request](https://gitlab.com/cttc-lena/nr/-/merge_requests)
@@ -198,6 +198,7 @@ for each nr release.
 
 | nr version     | ns-3 version  | Build system  | Release date       |
 | :------------: | :-----------: | :-----------: | ------------------ |
+| 5g-lena-v5.1.y | ns-3.48       | cmake         | August 6, 2026     |
 | 5g-lena-v5.0.y | ns-3.48       | cmake         | July 3, 2026       |
 | 5g-lena-v4.2.y | ns-3.47       | cmake         | March 5, 2026      |
 | 5g-lena-v4.1.1 | ns-3.46       | cmake         | October 16, 2025   |

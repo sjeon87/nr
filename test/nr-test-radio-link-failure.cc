@@ -277,7 +277,6 @@ NrRadioLinkFailureTestCase::DoRun()
     Config::SetDefault("ns3::NrUePhy::EnableUplinkPowerControl", BooleanValue(true));
     Config::SetDefault("ns3::NrUePowerControl::ClosedLoop", BooleanValue(true));
     Config::SetDefault("ns3::NrUePowerControl::AccumulationEnabled", BooleanValue(true));
-    Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(m_setup == FDD ? 1 : 0));
     Config::SetDefault("ns3::ThreeGppPropagationLossModel::ShadowingEnabled", BooleanValue(false));
 
     //----frequency related----
@@ -379,7 +378,6 @@ NrRadioLinkFailureTestCase::DoRun()
                 break;
             case FDD:
                 gnbDev->GetPhy(j)->SetPattern((j % 2 == 0) ? "DL|DL|DL|DL|DL" : "UL|UL|UL|UL|UL");
-                NrHelper::GetBwpManagerGnb(gnbDev)->SetOutputLink(1, 0);
                 break;
             default:
                 NS_ABORT_MSG("Unknown setup type. Should be TDD_ALL_FLEXIBLE, TDD_DL_UL, or FDD");
@@ -392,15 +390,6 @@ NrRadioLinkFailureTestCase::DoRun()
     allUeNodes.Add(backgroundUeNodes);
 
     ueDevs = nrHelper->InstallUeDevice(allUeNodes, bandwidthAndBWPPair.second);
-
-    if (m_setup == FDD)
-    {
-        for (uint32_t i = 0; i < ueDevs.GetN(); i++)
-        {
-            const auto ueDev = DynamicCast<NrUeNetDevice>(ueDevs.Get(i));
-            NrHelper::GetBwpManagerUe(ueDev)->SetOutputLink(0, 1);
-        }
-    }
 
     // Install the IP stack on the UEs
     internet.Install(allUeNodes);

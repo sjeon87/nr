@@ -422,7 +422,6 @@ main(int argc, char* argv[])
         bwpul->m_centralFrequency = bwpul->m_lowerFrequency + bwpul->m_channelBandwidth / 2;
 
         cc2->AddBwp(std::move(bwpul));
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
     }
 
     band38.AddCc(std::move(cc1));
@@ -459,13 +458,6 @@ main(int argc, char* argv[])
                                                  UintegerValue(bwpIdForVideo));
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VOICE_VIDEO_GAMING",
                                                  UintegerValue(bwpIdForVideoGaming));
-
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(bwpIdForLowLat));
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_CONV_VOICE", UintegerValue(bwpIdForVoice));
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_PREMIUM",
-                                                UintegerValue(bwpIdForVideo));
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VOICE_VIDEO_GAMING",
-                                                UintegerValue(bwpIdForVideoGaming));
 
     // install nr net devices
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gNbNodes, allBwps);
@@ -525,12 +517,6 @@ main(int argc, char* argv[])
 
         // Link the two FDD BWP:
         NrHelper::GetBwpManagerGnb(gnbNetDev.Get(0))->SetOutputLink(3, 2);
-
-        // Set the UE routing:
-        for (uint32_t i = 0; i < ueNetDev.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueNetDev.Get(i))->SetOutputLink(2, 3);
-        }
 
         // enable 4rth flow
         enableGaming = true;
@@ -794,11 +780,16 @@ main(int argc, char* argv[])
             outFile << "  Mean jitter: 0 ms\n";
         }
         outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
+        NS_ABORT_MSG_IF(i->second.txPackets > 0 && i->second.rxPackets == 0,
+                        "flow " << i->first << " transmitted " << i->second.txPackets
+                                << " packets but received none");
     }
 
     outFile << "\n\n  Aggregated throughput: " << averageFlowThroughput << "\n";
     outFile << "  Mean flow throughput: " << averageFlowThroughput / stats.size() << "\n";
     outFile << "  Mean flow delay: " << averageFlowDelay / stats.size() << "\n";
+
+    NS_ABORT_MSG_IF(averageFlowThroughput == 0.0, "no flow received any packet");
 
     outFile.close();
 

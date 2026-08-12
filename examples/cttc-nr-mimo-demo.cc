@@ -451,8 +451,6 @@ main(int argc, char* argv[])
     uint32_t bwpId = 0;
     // gNb routing between QoS flow type and bandwidth part
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(bwpId));
-    // UE routing between QoS flow type and bandwidth part
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(bwpId));
     BandwidthPartInfoPtrVector allBwps;
     allBwps = CcBwpCreator::GetAllBwps({band});
 

@@ -59,10 +59,22 @@ class NR_EXPORT NrRlcTm : public NrRlc
   private:
     /// Expire BSR timer function
     void ExpireBsrTimer();
+    /**
+     * @brief Restart the buffer status report timer, or stop it if there is nothing left to send.
+     *
+     * Called whenever the buffer status is reported to the MAC. While data is waiting the timer
+     * keeps running, so its expiry triggers a new report (the equivalent of retxBSR-Timer of 3GPP
+     * TS 38.321, clause 5.4.5, whose expiry triggers a regular buffer status report); once the
+     * buffer is empty there is nothing to report and the timer is left stopped.
+     */
+    void RestartBsrTimer();
     /// Buffer status report
     void DoTransmitBufferStatusReport();
 
   private:
+    /// Grant the transparent-mode test access to private transmit buffer state
+    friend class NrRlcTmTestCase;
+
     /**
      * @brief Store an incoming (from layer above us) PDU, waiting to transmit it
      */
@@ -90,7 +102,8 @@ class NR_EXPORT NrRlcTm : public NrRlc
     uint32_t m_maxTxBufferSize; ///< maximum transmit buffer size
     uint32_t m_txBufferSize;    ///< transmit buffer size
 
-    EventId m_bsrTimer; ///< BSR timer
+    EventId m_bsrTimer;   ///< BSR timer
+    Time m_bsrTimerValue; ///< BSR timer value
 };
 
 } // namespace ns3

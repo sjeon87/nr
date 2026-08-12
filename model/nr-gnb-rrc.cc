@@ -34,6 +34,8 @@
 #include "ns3/pointer.h"
 #include "ns3/simulator.h"
 
+#include <optional>
+
 namespace ns3
 {
 
@@ -412,6 +414,12 @@ NrUeManager::SetSource(uint16_t sourceCellId, uint16_t sourceX2apId)
 {
     m_sourceX2apId = sourceX2apId;
     m_sourceCellId = sourceCellId;
+}
+
+uint16_t
+NrUeManager::GetSourceCellId() const
+{
+    return m_sourceCellId;
 }
 
 void
@@ -892,16 +900,28 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
     NrRrcSap::RrcConnectionReconfiguration result = BuildRrcConnectionReconfiguration();
 
     auto targetComponentCarrier = m_rrc->m_componentCarrierPhyConf.at(componentCarrierId);
+    // An FDD cell receives uplink on a dedicated UL-only carrier rather than on
+    // the (DL) primary one, and the UE has no other way to learn it: it never
+    // read this cell's system information. Point the UL parts of the handover
+    // command at that carrier, if there is one.
+    auto ulComponentCarrier = targetComponentCarrier;
+    for (auto& it : m_rrc->m_componentCarrierPhyConf)
+    {
+        if (!it.second->GetPhy()->HasDlSlot())
+        {
+            ulComponentCarrier = it.second;
+            break;
+        }
+    }
     result.haveMobilityControlInfo = true;
     result.mobilityControlInfo.targetPhysCellId = targetComponentCarrier->GetCellId();
     result.mobilityControlInfo.haveCarrierFreq = true;
     result.mobilityControlInfo.carrierFreq.dlCarrierFreq = targetComponentCarrier->GetArfcn();
-    result.mobilityControlInfo.carrierFreq.ulCarrierFreq = targetComponentCarrier->GetArfcn();
+    result.mobilityControlInfo.carrierFreq.ulCarrierFreq = ulComponentCarrier->GetArfcn();
     result.mobilityControlInfo.haveCarrierBandwidth = true;
     result.mobilityControlInfo.carrierBandwidth.dlBandwidth =
         targetComponentCarrier->GetDlBandwidth();
-    result.mobilityControlInfo.carrierBandwidth.ulBandwidth =
-        targetComponentCarrier->GetUlBandwidth();
+    result.mobilityControlInfo.carrierBandwidth.ulBandwidth = ulComponentCarrier->GetUlBandwidth();
 
     // Carry the target cell's broadcast PHY configuration in the handover
     // command so the UE re-tunes its target BWP to the *target* numerology,
@@ -913,6 +933,10 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
     result.mobilityControlInfo.haveServingCellConfigCommon = true;
     result.mobilityControlInfo.servingCellConfigCommon.numerology =
         targetComponentCarrier->GetPhy()->GetNumerology();
+    result.mobilityControlInfo.servingCellConfigCommon.ulNumerology =
+        ulComponentCarrier->GetPhy()->GetNumerology();
+    result.mobilityControlInfo.servingCellConfigCommon.ulCarrierFreq =
+        ulComponentCarrier->GetArfcn();
     result.mobilityControlInfo.servingCellConfigCommon.symbolsPerSlot =
         targetComponentCarrier->GetPhy()->GetSymbolsPerSlot();
     result.mobilityControlInfo.servingCellConfigCommon.dlCtrlSymsNum =
@@ -1122,6 +1146,18 @@ NrUeManager::RecvUeContextRelease(NrEpcX2SapUser::UeContextReleaseParams params)
     NS_LOG_FUNCTION(this);
     NS_ASSERT_MSG(m_state == HANDOVER_LEAVING, "method unexpected in state " << ToString(m_state));
     m_handoverLeavingTimeout.Cancel();
+
+    // Source-side handover completion: the target released the UE context back to us.
+    // Report the total handover time measured from the A3 trigger, if recorded.
+    auto triggerIt = m_rrc->m_handoverTriggerTime.find(m_imsi);
+    if (triggerIt != m_rrc->m_handoverTriggerTime.end())
+    {
+        m_rrc->m_handoverTotalTimeTrace(m_imsi,
+                                        params.sourceCellId,
+                                        params.targetCellId,
+                                        Simulator::Now() - triggerIt->second);
+        m_rrc->m_handoverTriggerTime.erase(triggerIt);
+    }
 }
 
 void
@@ -1183,6 +1219,20 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
         m_state = NrUeManager::INITIAL_RANDOM_ACCESS;
         // Fall through to handle as fresh connection
     }
+    case HANDOVER_JOINING:
+        // The target gNB is awaiting the incoming handover to complete, but the UE
+        // instead sends a fresh RRC Connection Request -- this happens when the UE
+        // declared RLF instead of joining (e.g. the TR 36.839 too-late handover
+        // model) and re-selected this cell during re-establishment. Re-attaching
+        // here would re-run the full S1 InitialContextSetup for an already-attached
+        // UE and drift the MME/RRC bearer (QFI) allocation. Instead ignore the
+        // request and let the already-scheduled handover-joining timeout perform the
+        // canonical failure cleanup (fire HO_FAIL_JOINING, notify the source over X2,
+        // release the UE context); the UE falls back to IDLE and re-attaches cleanly.
+        NS_LOG_INFO("Ignoring RRC Connection Request in HANDOVER_JOINING for RNTI "
+                    << m_rnti << "; handover join will be failed by its timeout");
+        break;
+
     case INITIAL_RANDOM_ACCESS: {
         m_connectionRequestTimeout.Cancel();
 
@@ -1194,6 +1244,11 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
             NrRrcSap::RrcConnectionSetup msg2;
             msg2.rrcTransactionIdentifier = GetNewRrcTransactionIdentifier();
             msg2.radioResourceConfigDedicated = BuildRadioResourceConfigDedicated();
+            // The setup message rides SRB0 (RLC-TM), which cannot segment and
+            // whose grant would not fit the BWP configuration: it is sent in
+            // the RRC connection reconfiguration (SRB1, RLC-AM) instead
+            msg2.radioResourceConfigDedicated.bwpConfigList.clear();
+            msg2.radioResourceConfigDedicated.qosFlowToBwpList.clear();
             m_rrc->m_rrcSapUser->SendRrcConnectionSetup(m_rnti, msg2);
 
             RecordDataRadioBearersToBeStarted();
@@ -1233,7 +1288,16 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
         break;
 
     default:
-        NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
+        // Any other (already-active) state receiving a fresh RRC Connection Request
+        // means an RLF'd UE re-selected this cell and re-attached before the gNB
+        // released its context -- e.g. mid-reconfiguration (CONNECTION_RECONFIGURATION)
+        // or during a handover path switch (HANDOVER_PATH_SWITCH), typically via the
+        // TR 36.839 too-late-handover RLF. As in HANDOVER_JOINING, ignore it:
+        // re-admitting would re-run S1 InitialContextSetup for an already-known UE and
+        // drift the bearer (QFI) allocation. The state's own timeout / RLF cleanup
+        // releases this context and the UE re-attaches cleanly.
+        NS_LOG_INFO("Ignoring RRC Connection Request in state " << ToString(m_state) << " for RNTI "
+                                                                << m_rnti);
         break;
     }
 }
@@ -1589,6 +1653,12 @@ NrUeManager::GetState() const
     return m_state;
 }
 
+Time
+NrUeManager::GetConnectedNormallyAt() const
+{
+    return m_connectedNormallyAt;
+}
+
 ns3::TracedCallback<uint64_t, uint16_t, uint16_t, NrUeManager::State, NrUeManager::State>
 NrUeManager::GetStateTransitionTrace() const
 {
@@ -1719,6 +1789,39 @@ NrUeManager::BuildRrcConnectionReconfiguration()
     return msg;
 }
 
+/**
+ * @brief Build the ServingCellConfigCommon describing a carrier
+ * @param cc the carrier
+ * @param fddUlCarrier the cell's dedicated UL-only carrier, if any
+ * @return the ServingCellConfigCommon of the carrier
+ *
+ * A DL-only carrier (FDD) points its UL fields at the cell's dedicated UL-only
+ * carrier; any UL-capable carrier points at itself.
+ */
+static NrRrcSap::ServingCellConfigCommon
+BuildServingCellConfigCommon(const Ptr<BandwidthPartGnb>& cc,
+                             const Ptr<BandwidthPartGnb>& fddUlCarrier)
+{
+    NrRrcSap::ServingCellConfigCommon scc;
+    scc.numerology = cc->GetPhy()->GetNumerology();
+    if (!cc->GetPhy()->HasUlSlot() && fddUlCarrier)
+    {
+        scc.ulNumerology = fddUlCarrier->GetPhy()->GetNumerology();
+        scc.ulCarrierFreq = fddUlCarrier->GetArfcn();
+    }
+    else
+    {
+        scc.ulNumerology = cc->GetPhy()->GetNumerology();
+        scc.ulCarrierFreq = cc->GetArfcn();
+    }
+    scc.symbolsPerSlot = cc->GetPhy()->GetSymbolsPerSlot();
+    scc.dlCtrlSymsNum = cc->GetMac()->GetDlCtrlSyms();
+    scc.ulCtrlSymsNum = cc->GetMac()->GetUlCtrlSyms();
+    scc.tddPattern = cc->GetPhy()->GetPattern();
+    scc.rbgSize = cc->GetPhy()->GetNumRbPerRbg();
+    return scc;
+}
+
 NrRrcSap::RadioResourceConfigDedicated
 NrUeManager::BuildRadioResourceConfigDedicated()
 {
@@ -1746,6 +1849,48 @@ NrUeManager::BuildRadioResourceConfigDedicated()
 
     rrcd.havePhysicalConfigDedicated = true;
     rrcd.physicalConfigDedicated = m_physicalConfigDedicated;
+
+    // Describe every BWP/carrier of the cell, so the UE configures its extra
+    // BWPs and derives the UL pairing of DL-only (FDD) carriers from dedicated
+    // signaling instead of manual UE-side configuration
+    Ptr<BandwidthPartGnb> fddUlCarrier;
+    for (const auto& it : m_rrc->m_componentCarrierPhyConf)
+    {
+        if (!it.second->GetPhy()->HasDlSlot())
+        {
+            fddUlCarrier = it.second;
+            break;
+        }
+    }
+    for (const auto& it : m_rrc->m_componentCarrierPhyConf)
+    {
+        NrRrcSap::BwpConfig bwpConfig;
+        bwpConfig.arfcn = it.second->GetArfcn();
+        bwpConfig.config = BuildServingCellConfigCommon(it.second, fddUlCarrier);
+        // A DL-only carrier paired explicitly (e.g. a secondary FDD pair in a
+        // mixed TDD/FDD carrier aggregation setup) points at its own UL
+        // carrier rather than the cell's default one
+        auto pairIt = m_rrc->m_ulCarrierPairing.find(bwpConfig.arfcn);
+        if (!it.second->GetPhy()->HasUlSlot() && pairIt != m_rrc->m_ulCarrierPairing.end())
+        {
+            bwpConfig.config.ulCarrierFreq = pairIt->second;
+            for (const auto& cc : m_rrc->m_componentCarrierPhyConf)
+            {
+                if (cc.second->GetArfcn() == pairIt->second)
+                {
+                    bwpConfig.config.ulNumerology = cc.second->GetPhy()->GetNumerology();
+                    break;
+                }
+            }
+        }
+        rrcd.bwpConfigList.push_back(bwpConfig);
+    }
+    // Mirror the gNB's QoS flow to BWP mapping, so the UE routes its uplink
+    // flows the way the network schedules them
+    for (const auto& [fiveQi, arfcn] : m_rrc->m_qosFlowToBwpArfcn)
+    {
+        rrcd.qosFlowToBwpList.push_back({fiveQi, arfcn});
+    }
     return rrcd;
 }
 
@@ -1784,6 +1929,10 @@ NrUeManager::SwitchToState(State newState)
         break;
 
     case CONNECTED_NORMALLY: {
+        // Record when the UE became actively served by this cell (initial connection
+        // or handover completion). Used by the minimum-time-of-stay handover guard to
+        // suppress ping-pong (a UE handed in then immediately handed back out).
+        m_connectedNormallyAt = Simulator::Now();
         if (m_pendingRrcConnectionReconfiguration)
         {
             ScheduleRrcConnectionReconfiguration();
@@ -2060,6 +2209,17 @@ NrGnbRrc::GetTypeId()
                           TimeValue(MilliSeconds(200)),
                           MakeTimeAccessor(&NrGnbRrc::m_handoverJoiningTimeoutDuration),
                           MakeTimeChecker())
+            .AddAttribute("HandoverMinTimeOfStay",
+                          "Reversal-only ping-pong handover guard: a handover is suppressed "
+                          "only if it would send the UE BACK to the cell it just came from "
+                          "(the source of the handover that brought it here) less than this "
+                          "long after arriving. This breaks A->B->A oscillation -- which the "
+                          "A3 algorithm alone does not prevent when the net A3 margin is near "
+                          "zero -- without stranding a UE that genuinely needs to move forward "
+                          "(A->B->C is still allowed). 0 (the default) disables the guard.",
+                          TimeValue(MilliSeconds(0)),
+                          MakeTimeAccessor(&NrGnbRrc::m_handoverMinTimeOfStay),
+                          MakeTimeChecker())
             .AddAttribute("HandoverLeavingTimeoutDuration",
                           "After issuing a Handover Command, if neither RRC "
                           "CONNECTION RE-ESTABLISHMENT nor X2 UE Context Release has "
@@ -2168,6 +2328,12 @@ NrGnbRrc::GetTypeId()
                             "trace fired upon successful termination of a handover procedure",
                             MakeTraceSourceAccessor(&NrGnbRrc::m_handoverEndOkTrace),
                             "ns3::NrGnbRrc::ConnectionHandoverTracedCallback")
+            .AddTraceSource("HandoverTotalTime",
+                            "total time from the A3 handover trigger (condition met at the "
+                            "source gNB) to handover completion, fired at the source gNB "
+                            "on successful handover",
+                            MakeTraceSourceAccessor(&NrGnbRrc::m_handoverTotalTimeTrace),
+                            "ns3::NrGnbRrc::HandoverTotalTimeTracedCallback")
             .AddTraceSource("RecvMeasurementReport",
                             "trace fired when measurement report is received",
                             MakeTraceSourceAccessor(&NrGnbRrc::m_recvMeasurementReportTrace),
@@ -2660,6 +2826,18 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
     m_ueMeasConfig.haveSmeasure = false;
     m_ueMeasConfig.haveSpeedStatePars = false;
 
+    // The UL carrier advertised in SIB1: a DL-only carrier points at the cell's
+    // dedicated UL-only carrier (FDD); any UL-capable carrier points at itself
+    Ptr<BandwidthPartGnb> fddUlCarrier;
+    for (const auto& it : ccPhyConf)
+    {
+        if (!it.second->GetPhy()->HasDlSlot())
+        {
+            fddUlCarrier = it.second;
+            break;
+        }
+    }
+
     m_sib1.clear();
     m_sib1.reserve(ccPhyConf.size());
     for (const auto& it : ccPhyConf)
@@ -2679,12 +2857,7 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
         sib1.cellAccessRelatedInfo.plmnIdentityInfo.plmnIdentity = 0; // not used
         sib1.cellSelectionInfo.qQualMin = -34;          // not used, set as minimum value
         sib1.cellSelectionInfo.qRxLevMin = m_qRxLevMin; // set as minimum value
-        sib1.servingCellConfigCommon.numerology = it.second->GetPhy()->GetNumerology();
-        sib1.servingCellConfigCommon.dlCtrlSymsNum = it.second->GetMac()->GetDlCtrlSyms();
-        sib1.servingCellConfigCommon.ulCtrlSymsNum = it.second->GetMac()->GetUlCtrlSyms();
-        sib1.servingCellConfigCommon.symbolsPerSlot = it.second->GetPhy()->GetSymbolsPerSlot();
-        sib1.servingCellConfigCommon.tddPattern = it.second->GetPhy()->GetPattern();
-        sib1.servingCellConfigCommon.rbgSize = it.second->GetPhy()->GetNumRbPerRbg();
+        sib1.servingCellConfigCommon = BuildServingCellConfigCommon(it.second, fddUlCarrier);
         m_sib1.push_back(sib1);
         m_cphySapProvider.at(it.first)->SetSystemInformationBlockType1(sib1);
     }
@@ -3112,8 +3285,20 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
     Ptr<NrUeManager> ueManager = GetUeManager(rnti);
     ueManager->SetSource(req.sourceCellId, req.oldGnbUeX2apId);
     ueManager->SetImsi(req.mmeUeS1apId);
+    // The handover random access arrives on the cell's UL carrier, so the
+    // non-contention preamble must be reserved on that carrier's MAC (which
+    // differs from the target CC's for FDD)
+    uint8_t ulComponentCarrierId = componentCarrierId;
+    for (auto& it : m_componentCarrierPhyConf)
+    {
+        if (!it.second->GetPhy()->HasDlSlot())
+        {
+            ulComponentCarrierId = it.first;
+            break;
+        }
+    }
     NrGnbCmacSapProvider::AllocateNcRaPreambleReturnValue anrcrv =
-        m_cmacSapProvider.at(componentCarrierId)->AllocateNcRaPreamble(rnti);
+        m_cmacSapProvider.at(ulComponentCarrierId)->AllocateNcRaPreamble(rnti);
     if (!anrcrv.valid)
     {
         NS_LOG_INFO(
@@ -3410,6 +3595,14 @@ NrGnbRrc::DoTriggerHandover(uint16_t rnti, uint16_t targetCellId)
 {
     NS_LOG_FUNCTION(this << rnti << targetCellId);
 
+    // Stamp the A3-trigger instant (condition met at the source gNB) so the total
+    // handover time can be measured when the handover completes. This precedes the
+    // triggering delay, so that delay is included in the reported total.
+    if (HasUeManager(rnti))
+    {
+        m_handoverTriggerTime[GetUeManager(rnti)->GetImsi()] = Simulator::Now();
+    }
+
     if (m_handoverTriggeringDelay.IsStrictlyPositive())
     {
         NS_LOG_INFO("Scheduling handover for RNTI " << rnti << " to cell " << targetCellId
@@ -3470,10 +3663,36 @@ NrGnbRrc::ExecuteHandover(uint16_t rnti, uint16_t targetCellId)
                           << " state");
     }
 
+    // Reversal-only ping-pong guard: suppress a handover only if it sends the UE BACK to
+    // the cell it just came from (target == the source of the handover that brought the UE
+    // here) within HandoverMinTimeOfStay of arriving. This breaks A->B->A oscillation -- the
+    // A3 algorithm alone does not prevent it when the net A3 margin is near zero (e.g. a
+    // small/negative offset with no hysteresis) -- WITHOUT stranding a UE that genuinely needs
+    // to move forward (A->B->C is still allowed, unlike a blunt suppress-any-handover guard).
+    if (isHandoverAllowed && m_handoverMinTimeOfStay.IsStrictlyPositive() &&
+        targetCellId == ueManager->GetSourceCellId())
+    {
+        const Time timeOfStay = Simulator::Now() - ueManager->GetConnectedNormallyAt();
+        if (timeOfStay < m_handoverMinTimeOfStay)
+        {
+            isHandoverAllowed = false;
+            NS_LOG_LOGIC(this << " handover of rnti=" << rnti << " back to source cell "
+                              << targetCellId << " suppressed by reversal ping-pong guard: "
+                              << "time of stay " << timeOfStay.As(Time::MS) << " < "
+                              << m_handoverMinTimeOfStay.As(Time::MS));
+        }
+    }
+
     if (isHandoverAllowed)
     {
         // initiate handover execution
         ueManager->PrepareHandover(targetCellId);
+    }
+    else
+    {
+        // Handover was triggered but suppressed: drop the pending trigger timestamp
+        // so it does not leak or later mismatch a subsequent handover.
+        m_handoverTriggerTime.erase(ueManager->GetImsi());
     }
 }
 
@@ -3540,6 +3759,9 @@ NrGnbRrc::RemoveUe(uint16_t rnti)
     NS_ASSERT_MSG(it != m_ueMap.end(), "request to remove UE info with unknown rnti " << rnti);
     uint64_t imsi = it->second->GetImsi();
     uint16_t srsCi = (*it).second->GetSrsConfigurationIndex();
+    // Drop any pending handover-trigger timestamp for a UE that leaves without
+    // completing a handover (e.g. handover failure), so the map does not leak.
+    m_handoverTriggerTime.erase(imsi);
     // cancel pending events
     it->second->CancelPendingEvents();
     // fire trace upon connection release

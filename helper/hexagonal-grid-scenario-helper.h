@@ -137,6 +137,43 @@ class NR_EXPORT HexagonalGridScenarioHelper : public NodeDistributionScenarioInt
 
     void InstallPicoCells(bool installPicoCells);
 
+    /**
+     * @brief Restrict picocell deployment to ring-1 sites only.
+     *
+     * Follows the 3GPP TR 36.839 no-wraparound dense-A layout: with numRings >= 1,
+     * picocells are placed only around the 6 ring-1 sites (sites at distance ISD from
+     * the central site). The central site (ring 0) and ring-2 sites get no picos.
+     *
+     * @param ringOnePicosOnly true to restrict picos to ring-1 sites.
+     */
+    void SetRingOneOnlyPicos(bool ringOnePicosOnly);
+
+    /**
+     * @brief Restrict initial UE placement (and outdoor RandomDirection2d bounds) to a
+     *        disc centred on the central site.
+     *
+     * When set to a positive value, UEs are sampled uniformly within a disc of this
+     * radius around the central site instead of around their per-sector hexagons, and
+     * the outdoor mobility bounds are clamped to the circumscribing square of the disc.
+     * Set to 0 (default) to keep the legacy per-sector behavior.
+     *
+     * Note: ns-3's RandomDirection2dMobilityModel only supports rectangular bounds, so
+     * the outdoor confinement is approximated by the 2R x 2R square that circumscribes
+     * the disc. UEs can briefly enter the corners of that square; this is acceptable
+     * for TR 36.839-style handover calibration.
+     *
+     * @param radius UE disc radius in metres (0 disables disc-mode).
+     */
+    void SetUeDiscRadius(double radius);
+
+    /**
+     * @brief Number of "inner" sites (central + ring-1), i.e. sites at distance <= 1 ISD
+     *        from the central site. Used by the TR 36.839 no-wraparound layout where the
+     *        outermost sites act as interference-only and do not host any UEs.
+     * @return Inner-site count.
+     */
+    uint16_t GetNumInnerSites() const;
+
   private:
     uint8_t m_numRings{0}; //!< Number of outer rings of sites around the central site
     Vector m_centralPos{Vector(0, 0, 0)}; //!< Central site position
@@ -160,6 +197,13 @@ class NR_EXPORT HexagonalGridScenarioHelper : public NodeDistributionScenarioInt
     //!< Whether to install pico-cells according to TR 36.839, used for large-scale handover
     //!< evaluation
     bool m_installPicoCells{false};
+
+    //!< Whether to place picos only on the 6 ring-1 sites (TR 36.839 no-wraparound layout)
+    bool m_ringOnePicosOnly{false};
+
+    //!< When > 0, UEs are initially placed uniformly in a disc of this radius around the central
+    //!< site and outdoor mobility bounds are clamped to the disc's circumscribing square.
+    double m_ueDiscRadius{0.0};
 };
 
 } // namespace ns3

@@ -120,6 +120,17 @@ class NR_EXPORT NrInterferenceBase : public Object
      */
     virtual void DoSubtractSignal(Ptr<const SpectrumValue> spd, uint32_t signalId);
 
+    /**
+     * Recompute m_allSignals constructively from the list of live signals.
+     *
+     * The running sum kept in m_allSignals is not exact in floating point:
+     * a saturating signal absorbs co-resident smaller signals when added, and
+     * subtracting an infinite signal yields NaN. Rebuilding from the tracked
+     * per-signal list (the same pattern used by the MIMO covariance path)
+     * removes any such residue left by expired signals.
+     */
+    void RebuildAllSignals();
+
     bool m_receiving{false}; ///< are we receiving?
 
     Ptr<SpectrumValue> m_rxSignal{nullptr}; /**< stores the power spectral density of
@@ -134,6 +145,13 @@ class NR_EXPORT NrInterferenceBase : public Object
                    */
 
     Ptr<const SpectrumValue> m_noise{nullptr}; ///< the noise value
+
+    /**
+     * The live (not yet expired) signals backing m_allSignals; used to
+     * recompute the sum constructively so that floating-point residue of
+     * expired signals cannot persist.
+     */
+    std::list<Ptr<const SpectrumValue>> m_allSignalsList;
 
     Time m_lastChangeTime{Seconds(0)}; /**< the time of the last change in
                                         * m_TotalPower

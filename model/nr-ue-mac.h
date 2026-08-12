@@ -10,6 +10,7 @@
 #include "nr-ue-cmac-sap.h"
 
 #include "ns3/nr-export.h"
+#include "ns3/nstime.h"
 #include "ns3/traced-callback.h"
 
 #include <unordered_map>
@@ -475,6 +476,11 @@ class NR_EXPORT NrUeMac : public Object
         m_ulBsrReceived; //!< BSR received from RLC (the last one)
 
     SrBsrMachine m_srState{INACTIVE}; //!< Current state for the SR/BSR machine.
+
+    Time m_srProhibitTimer{MilliSeconds(10)}; //!< sr-ProhibitTimer (TS 38.331), 0 disables it
+    Time m_lastSrSent{Time::Min()};           //!< When the last scheduling request was transmitted
+    uint32_t m_srTransMax{64}; //!< sr-TransMax (TS 38.331): transmissions before giving up
+    uint32_t m_srCounter{0};   //!< SR_COUNTER: transmissions of the currently pending request
 
     Ptr<UniformRandomVariable> m_raPreambleUniformVariable;
     uint8_t m_raPreambleId{255}; //!< The RA Preamble ID (255 = none sent; valid IDs 0..63)

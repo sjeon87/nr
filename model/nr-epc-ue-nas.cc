@@ -59,6 +59,10 @@ NrEpcUeNas::DoDispose()
 {
     NS_LOG_FUNCTION(this);
     delete m_asSapUser;
+    // Both refer back to the NrUeNetDevice owning this NAS. Release them to break the reference
+    // cycle.
+    m_device = nullptr;
+    m_forwardUpCallback = MakeNullCallback<void, Ptr<Packet>>();
 }
 
 TypeId

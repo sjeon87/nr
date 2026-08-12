@@ -16,6 +16,7 @@
 
 #include "ns3/boolean.h"
 #include "ns3/pointer.h"
+#include "ns3/simulator.h"
 #include "ns3/uniform-planar-array.h"
 
 #include <algorithm>
@@ -489,6 +490,10 @@ void
 NrPhy::EncodeCtrlMsg(const Ptr<NrControlMessage>& msg)
 {
     NS_LOG_FUNCTION(this);
+    if (m_ctrlMsgs.empty())
+    {
+        m_ctrlMsgsEncodedAt = Simulator::Now();
+    }
     m_ctrlMsgs.push_back(msg);
 }
 

@@ -433,7 +433,7 @@ class NrUeMeasurementsPiecewiseTestSuite3 : public TestSuite
  *        and it is impossible to cancel its events later on.
  *
  *        These buggy behaviors generated an issue reported in
- *        https://gitlab.com/nsnam/ns-3-dev/-/issues/224, where a UE try to
+ *        https://gitlab.com/nsnam/ns-3-dev/-/work_items/224, where a UE try to
  *        send measurement reports after the RLF, even though all the measurement
  *        events are properly cancelled upon detecting RLF.
  *

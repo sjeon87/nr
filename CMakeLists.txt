@@ -258,6 +258,7 @@ set(source_files
     utils/distance-based-three-gpp-spectrum-propagation-loss-model.cc
     utils/fast-fading-constant-position-mobility-model.cc
     utils/parse-string-to-vector.cc
+    utils/random-direction-disc-2d-mobility-model.cc
     utils/traffic-generators/helper/traffic-generator-helper.cc
     utils/traffic-generators/helper/xr-traffic-mixer-helper.cc
     utils/traffic-generators/model/traffic-generator-3gpp-audio-data.cc
@@ -479,6 +480,7 @@ set(header_files
     utils/fast-fading-constant-position-mobility-model.h
     utils/nr-json.hpp
     utils/parse-string-to-vector.h
+    utils/random-direction-disc-2d-mobility-model.h
     utils/traffic-generators/helper/traffic-generator-helper.h
     utils/traffic-generators/helper/xr-traffic-mixer-helper.h
     utils/traffic-generators/model/traffic-generator-3gpp-audio-data.h
@@ -531,7 +533,10 @@ set(test_sources
     test/nr-test-qos-rule-classifier.cc
     test/nr-test-fdm-of-numerologies.cc
     test/nr-test-harq.cc
+    test/nr-test-harq-flush.cc
+    test/nr-ul-sr-retransmission-test.cc
     test/nr-interference-overlap-test.cc
+    test/nr-interference-saturating-signal-test.cc
     test/nr-ue-handover-interference-test.cc
     test/nr-x2-forwarding-drop-test.cc
     test/nr-test-ipv6-routing.cc
@@ -541,12 +546,15 @@ set(test_sources
     test/nr-test-phy.cc
     test/nr-test-resource-assignment-matrix.cc
     test/nr-test-rlc-am-e2e.cc
+    test/nr-test-rlc-am-status.cc
     test/nr-test-rlc-am-transmitter.cc
     test/nr-test-rlc-header.cc
+    test/nr-test-rlc-tm.cc
     test/nr-test-rlc-um-e2e.cc
     test/nr-test-rlc-um-transmitter.cc
     test/nr-test-rlc-um-rx.cc
     test/nr-test-rrc.cc
+    test/nr-test-sched-released-ue.cc
     test/nr-test-sched-harq.cc
     test/nr-test-sched-lc.cc
     test/nr-test-sched-msg3-retx.cc
@@ -575,10 +583,20 @@ set(test_sources
     test/nr-test-handover-delay.cc
     test/nr-test-handover-failure.cc
     test/nr-test-handover-rach-config.cc
+    test/nr-test-rbg-data-path.cc
+    test/nr-test-fdd-ul-routing.cc
     test/nr-test-handover-target.cc
     test/nr-test-handover-scenarios.cc
     test/nr-test-cell-individual-offset.cc
     test/nr-test-cell-selection-with-rlf.cc
+    test/nr-test-attach-window.cc
+    test/nr-test-random-direction-disc-2d-mobility.cc
+    test/nr-test-tr36839-handover-failure.cc
+    test/nr-test-handover-metrics-guards.cc
+    test/nr-test-handover-target-admission.cc
+    test/nr-test-mib-wait-reselection.cc
+    test/nr-test-stray-rrc-request.cc
+    test/nr-test-mobility-state-ttt.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover

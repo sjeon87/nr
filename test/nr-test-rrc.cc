@@ -317,10 +317,6 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
     BandwidthPartInfoPtrVector allBwps;
     allBwps = CcBwpCreator::GetAllBwps({band});
 
-    if (m_isFdd)
-    {
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
-    }
     NodeContainer gnbNodes;
     NodeContainer ueNodes;
 
@@ -367,15 +363,6 @@ NrRrcConnectionEstablishmentTestCase::DoRun()
 
             NrHelper::GetGnbPhy(gnbDevs.Get(i), 1)
                 ->SetAttribute("Pattern", StringValue("UL|UL|UL|UL|UL|UL|UL|UL|UL|UL|"));
-
-            // Link the two FDD BWPs at gNBs
-            NrHelper::GetBwpManagerGnb(gnbDevs.Get(i))->SetOutputLink(1, 0);
-        }
-
-        // Link the two FDD BWPs at UEs
-        for (uint32_t i = 0; i < ueDevs.GetN(); i++)
-        {
-            NrHelper::GetBwpManagerUe(ueDevs.Get(i))->SetOutputLink(0, 1);
         }
     }
     else
@@ -736,11 +723,6 @@ NrRrcConnectionEstablishmentErrorTestCase::DoRun()
     // Create bandwidth part from band
     BandwidthPartInfoPtrVector allBwps;
     allBwps = CcBwpCreator::GetAllBwps({band});
-
-    if (m_isFdd)
-    {
-        Config::SetDefault("ns3::NrUeNetDevice::PrimaryUlIndex", UintegerValue(1));
-    }
 
     NodeContainer gnbNodes;
     NodeContainer ueNodes;

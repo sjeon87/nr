@@ -92,7 +92,7 @@ Validation
 Open issues and future work
 ---------------------------
 
-Known open issues of the 'NR' module are tracked in the issue tracker of the 'NR' GitLab repository: https://gitlab.com/cttc-lena/nr/-/issues. Please refer to it for the list of currently open issues, and use it to report any new issue you may find.
+Known open issues of the 'NR' module are tracked in the issue tracker of the 'NR' GitLab repository: https://gitlab.com/cttc-lena/nr/-/work_items. Please refer to it for the list of currently open issues, and use it to report any new issue you may find.
 
 Regarding future work, the list of supported, partially supported, and planned features of the 'NR' module is maintained in the ``FEATURES.md`` file, located at the root directory of the 'NR' repository and available online at the 5G-LENA website: https://5g-lena.cttc.es/features/. That file provides an at-a-glance view of the status of each feature, organized per layer, together with the calibration and testing framework, and the extensions built on top of the 'NR' module (Sidelink and NR-V2X, O-RAN, and NR-U). It also contains the planned roadmap with the pending and ongoing enhancements.
 
@@ -161,7 +161,7 @@ References
 
 .. [interf-whitening] "Whitening transformation": https://en.wikipedia.org/wiki/Whitening_transformation
 
-.. [eigen3] Eigen library: https://eigen.tuxfamily.org/
+.. [eigen3] Eigen library: https://libeigen.gitlab.io
 
 .. [ComNetFhControl] Katerina Koutlia, Sandra Lagén. "On the impact of Open RAN Fronthaul Control in scenarios with XR Traffic". Computer Networks, Volume 253, August 2024.
 

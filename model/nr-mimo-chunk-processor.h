@@ -21,7 +21,12 @@ struct NR_EXPORT MimoSinrChunk
 {
     NrSinrMatrix mimoSinr; ///< The MIMO SINR values, dimensions rank * nRBs
     uint16_t rnti{0};      ///< RNTI, required in OFDMA UL to filter received signals by UEs
-    Time dur;              ///< Duration of the signal
+    /// Cell that this signal belongs to. RNTIs are allocated per cell and are reused across
+    /// cells, so the RNTI alone does not identify a signal: after a handover a chunk measured
+    /// against the previous cell can carry the same RNTI as a transport block expected from
+    /// the new one, and averaging them together mixes unrelated signals (and ranks).
+    uint16_t cellId{0};
+    Time dur; ///< Duration of the signal
 };
 
 /// @brief MIMO signal information used to compute CQI feedback including rank and precoding matrix
@@ -30,6 +35,7 @@ struct NR_EXPORT MimoSignalChunk
     ComplexMatrixArray chanSpct; ///< Frequency-domain channel matrix
     NrCovMat interfNoiseCov;     ///< Interference-and-noise-covariance matrix
     uint16_t rnti{0};            ///< RNTI, required in OFDMA UL to filter received signals by UEs
+    uint16_t cellId{0};          ///< Cell that this signal belongs to, see MimoSinrChunk::cellId
     Time dur;                    ///< Duration of the signal
 };
 
