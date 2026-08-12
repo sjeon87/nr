@@ -221,7 +221,14 @@ def main():
         py_binding,
         handleFinish=True,
         useVector=True,
+        # This side creates the segment (ns-3 only attaches), so it sizes it.
+        # One element per UE is the largest an exchange can get: C++ resizes
+        # the observation vector to the UEs active in that iteration.
         vectorSize=args.ueNum,
+        # A UE costs 76 bytes here (68 observation + 8 action). Measured
+        # capacity is 27 UEs with the 4 KiB ns3ai_utils default and 4078 with
+        # 512 KiB. Headroom is nearly free (virtual memory), and an undersized
+        # segment fails obscurely, as a Boost bad_alloc when a vector grows.
         shmSize=512 * 1024,
         # Must match the C++ singleton Ns3AiMsgInterface::BuildSegmentName(),
         # which is "ns3-ai_<trialName>" with the default trialName
