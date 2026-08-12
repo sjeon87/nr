@@ -13,13 +13,13 @@ get_lc() bounds-checks and returns a reference into the parent observation.
 
 The Ns3AiMsgInterfaceImpl handshake itself is not exercised here: Python is
 the shared-memory accessor, so it needs a live C++ creator (covered by
-running the nr-ai-sched example end to end).
+running the gsoc-nr-ai-sched example end to end).
 
 Run manually with the same Python interpreter the bindings were compiled
 against (the one active when CMake configured the build. A mismatch shows
 up as an ImportError for the .so):
 
-    python contrib/nr/examples/nr-ai-sched/test_bindings.py
+    python contrib/nr/examples/gsoc-nr-ai-sched/test_bindings.py
 """
 
 import os
@@ -76,7 +76,7 @@ class BindingCompleteness(unittest.TestCase):
                 self.assertTrue(
                     hasattr(obj, accessor),
                     f"{struct_name}.{field} exists in the header but is not bound"
-                    " (new field added without updating nr-ai-sched_py.cc?)",
+                    " (new field added without updating gsoc-nr-ai-sched_py.cc?)",
                 )
 
 

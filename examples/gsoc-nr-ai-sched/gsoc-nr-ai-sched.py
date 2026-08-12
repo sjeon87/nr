@@ -5,7 +5,7 @@
 
 """Python agent driving the gsoc-nr-rl-based-sched scenario over the ns3-ai message interface.
 
-Launches nr-ai-sched.cc (the gsoc-nr-rl-based-sched scenario wired to the
+Launches gsoc-nr-ai-sched.cc (the gsoc-nr-rl-based-sched scenario wired to the
 shared-memory Message Interface) with --ueLevelSchedulerType=Ai and answers
 the per-iteration observation/action handshakes with one scheduling weight
 per UE. This is a smoke-test / baseline driver, not a real RL agent: the
@@ -19,13 +19,14 @@ example with the same arguments.
 
 Run from this directory with the interpreter the bindings were built
 against (see the cpython tag on ns3ai_nr_sched_py.*.so):
-    python3 nr-ai-sched.py --ueNum 2 --simTag ai-msg-run
+    python3 gsoc-nr-ai-sched.py --ueNum 2 --simTag ai-msg-run
 """
 
 import argparse
 import glob
 import json
 import os
+import subprocess
 import sys
 import time
 import traceback
@@ -38,6 +39,50 @@ sys.path.insert(0, os.path.join(_NS3_ROOT, "contrib", "ai", "python_utils"))
 
 import ns3ai_nr_sched_py as py_binding  # noqa: E402
 from ns3ai_utils import Experiment  # noqa: E402
+
+# If ns-3 dies without raising the finish flag - any
+# NS_ABORT_MSG/NS_FATAL_ERROR, which ends in std::terminate() and therefore
+# never unwinds the stack to run ~Ns3AiMsgInterfaceImpl(), or a hard crash -
+# this driver spins forever and no Python thread, signal handler or timeout can
+# ever run to notice. Only a separate process can end it, so watch the ns-3
+# process from one.
+_WATCHDOG = """
+import os
+import sys
+import time
+
+import psutil
+
+ns3, driver = int(sys.argv[1]), int(sys.argv[2])
+while psutil.pid_exists(driver):
+    time.sleep(0.5)
+    try:
+        # A dead child of a blocked parent is never reaped, and a zombie still
+        # answers pid_exists(), so the status has to be checked explicitly.
+        alive = psutil.Process(ns3).status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        alive = False
+    if alive:
+        continue
+    # ns-3 also exits before the driver on a normal shutdown, so give the
+    # driver a moment to finish on its own before assuming it is stuck.
+    time.sleep(5)
+    if psutil.pid_exists(driver):
+        print(
+            "gsoc-nr-ai-sched.py: ns-3 exited without raising the finish flag; the "
+            "driver is blocked in PyRecvBegin(). Killing it.",
+            file=sys.stderr,
+        )
+        # SIGKILL, not SIGTERM: Python's SIGTERM handling also needs the
+        # interpreter to run bytecode, which the held GIL prevents.
+        os.kill(driver, 9)
+    break
+"""
+
+
+def _start_watchdog(exp):
+    """Watch the ns-3 process so its death cannot leave this driver spinning."""
+    return subprocess.Popen([sys.executable, "-c", _WATCHDOG, str(exp.proc.pid), str(os.getpid())])
 
 
 def parse_args():
@@ -57,7 +102,7 @@ def parse_args():
         metavar="N",
         help="Dump the full contents of the first N exchanges (default 5)",
     )
-    # Scenario knobs forwarded to nr-ai-sched.cc (defaults match
+    # Scenario knobs forwarded to gsoc-nr-ai-sched.cc (defaults match
     # gsoc-nr-rl-based-sched.cc so runs are comparable out of the box).
     parser.add_argument("--ueNum", type=int, default=2, help="Number of UEs")
     parser.add_argument(
@@ -127,17 +172,15 @@ def main():
     # which is both slow and brittle if an unrelated contrib module fails to
     # build.
     exe = glob.glob(
-        os.path.join(
-            _NS3_ROOT, "build", "contrib", "nr", "examples", "nr-ai-sched", "ns3*-nr-ai-sched*"
-        )
+        os.path.join(_NS3_ROOT, "build", "contrib", "nr", "examples", "ns3*-gsoc-nr-ai-sched-*")
     )
     # NR_AI_SCHED_TARGET overrides the launch target (e.g. a timing wrapper
     # script around the executable, for transport benchmarks).
-    target = os.environ.get("NR_AI_SCHED_TARGET") or (exe[0] if exe else "nr-ai-sched")
+    target = os.environ.get("NR_AI_SCHED_TARGET") or (exe[0] if exe else "gsoc-nr-ai-sched")
 
     # Scenario arguments forwarded to the C++ program. The scheduler algorithm
     # is forced to Ai: the standalone baselines (Qos/PF/RR) are run directly
-    # with ./ns3 run nr-ai-sched, without this driver.
+    # with ./ns3 run gsoc-nr-ai-sched, without this driver.
     setting = {
         "ueNum": args.ueNum,
         "priorityTrafficScenario": args.priorityTrafficScenario,
@@ -168,6 +211,7 @@ def main():
         segName="ns3-ai_single_trial",
     )
     msgInterface = exp.run(setting=setting, show_output=True)
+    watchdog = _start_watchdog(exp)
 
     exchanges = 0
     loop_t0 = time.perf_counter()
@@ -201,17 +245,18 @@ def main():
             msgInterface.PySendEnd()
 
     except Exception:
-        print("Exception in nr-ai-sched.py:")
+        print("Exception in gsoc-nr-ai-sched.py:")
         traceback.print_exc()
         sys.exit(1)
 
     finally:
         loop_wall = time.perf_counter() - loop_t0
         print(
-            f"nr-ai-sched.py: completed {exchanges} observation/action exchanges | "
+            f"gsoc-nr-ai-sched.py: completed {exchanges} observation/action exchanges | "
             f"MSG_RESULT steps={exchanges} loop_wall_s={loop_wall:.3f} "
             f"per_exchange_us={loop_wall / max(exchanges, 1) * 1e6:.1f}"
         )
+        watchdog.terminate()
         del exp
 
 

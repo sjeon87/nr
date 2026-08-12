@@ -4,8 +4,8 @@ Copyright (c) 2026 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
 SPDX-License-Identifier: GPL-2.0-only
 
 
-nr-ai-sched Bindings Installation
-=================================
+gsoc-nr-ai-sched Bindings Installation
+======================================
 
 This chapter describes how to build and verify ``ns3ai_nr_sched_py``, the
 pybind11 module that mirrors the ns3-ai message-interface scheduler structs
@@ -50,7 +50,7 @@ then install pybind11, the only Python-side requirement:
    python3.12 -m venv .venv
    source .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install -r contrib/nr/examples/nr-ai-sched/requirements.txt
+   python -m pip install -r contrib/nr/examples/gsoc-nr-ai-sched/requirements.txt
 
 .. note::
 
@@ -74,7 +74,7 @@ cache in the meantime; do not rely on it.)
 
    ./ns3 configure --build-profile debug --enable-examples --enable-tests -- \
        -Dpybind11_DIR=$(python -m pybind11 --cmakedir)
-   ./ns3 build nr nr-ai-sched
+   ./ns3 build nr gsoc-nr-ai-sched
 
 The module list printed by configure must contain ``ai`` and ``nr``. If
 CMake still selects a different interpreter than the one you activated, run
@@ -85,7 +85,7 @@ CMake still selects a different interpreter than the one you activated, run
        -DPython_EXECUTABLE=$PWD/.venv/bin/python3 \
        -DPython3_EXECUTABLE=$PWD/.venv/bin/python3
 
-The built module is written into ``contrib/nr/examples/nr-ai-sched/``, named
+The built module is written into ``contrib/nr/examples/gsoc-nr-ai-sched/``, named
 after the ABI it targets, for example
 ``ns3ai_nr_sched_py.cpython-312-x86_64-linux-gnu.so``.
 
@@ -97,7 +97,7 @@ interpreter:
 
 .. code-block:: bash
 
-   python contrib/nr/examples/nr-ai-sched/test_bindings.py
+   python contrib/nr/examples/gsoc-nr-ai-sched/test_bindings.py
 
 Expected Output
 ===============
@@ -115,7 +115,7 @@ exposed, that each field round-trips a value, that ``get_lc()``
 bounds-checks its index and returns a reference into the parent observation,
 and that the ``Ns3AiMsgInterfaceImpl`` accessor API is present. The tests do
 not touch shared memory; the live handshake is exercised by running the
-nr-ai-sched example end to end.
+gsoc-nr-ai-sched example end to end.
 
 Failure output
 --------------
@@ -131,7 +131,7 @@ Check whether the module exists and matches your interpreter:
 
 .. code-block:: bash
 
-   ls contrib/nr/examples/nr-ai-sched/ns3ai_nr_sched_py*.so
+   ls contrib/nr/examples/gsoc-nr-ai-sched/ns3ai_nr_sched_py*.so
    python -c "import sys; print(sys.version_info[:2])"
 
 If the module does not exist, ``ai`` was not enabled at configure time; see
@@ -149,7 +149,7 @@ branches or changing the struct layout:
 
 .. code-block:: bash
 
-   rm -f contrib/nr/examples/nr-ai-sched/ns3ai_nr_sched_py*.so
+   rm -f contrib/nr/examples/gsoc-nr-ai-sched/ns3ai_nr_sched_py*.so
 
 When running the full example, the shared-memory segment names must match:
 the simulation attaches to ``"ns3-ai_" + trialName`` (default

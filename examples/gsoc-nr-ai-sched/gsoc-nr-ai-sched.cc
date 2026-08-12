@@ -6,7 +6,7 @@
 
 /**
  * @ingroup examples
- * @file nr-ai-sched.cc
+ * @file gsoc-nr-ai-sched.cc
  * @brief The gsoc-nr-rl-based-sched scenario driven through the ns3-ai message interface.
  *
  * This is the scenario of gsoc-nr-rl-based-sched.cc (GSoC 2024, Hyerin Kim),
@@ -29,16 +29,16 @@
  * Baseline (no Python, standalone) runs:
  *
  * \code{.unparsed}
- * $ ./ns3 run nr-ai-sched -- --enableLcLevelQos=1                         # Qos scheduler
- * $ ./ns3 run nr-ai-sched -- --ueLevelSchedulerType=PF                    # PF scheduler
+ * $ ./ns3 run gsoc-nr-ai-sched -- --enableLcLevelQos=1                         # Qos scheduler
+ * $ ./ns3 run gsoc-nr-ai-sched -- --ueLevelSchedulerType=PF                    # PF scheduler
  * @endcode
  *
- * AI runs must be launched by the companion Python driver (nr-ai-sched.py),
+ * AI runs must be launched by the companion Python driver (gsoc-nr-ai-sched.py),
  * which creates the shared memory, starts this program with
  * --ueLevelSchedulerType=Ai, and answers the observation/action handshakes:
  *
  * \code{.unparsed}
- * $ cd contrib/nr/examples/nr-ai-sched && python3 nr-ai-sched.py
+ * $ cd contrib/nr/examples/gsoc-nr-ai-sched && python3 gsoc-nr-ai-sched.py
  * @endcode
  *
  * The example prints the end-to-end result of the QoS flows on-screen and
@@ -247,7 +247,7 @@ main(int argc, char* argv[])
 #ifdef HAVE_NS3_AI
     // Bind the ns3-ai message-interface environment to the AI scheduler. The
     // env joins the shared-memory segment created by the Python driver, so it
-    // must only be created when this program was launched by nr-ai-sched.py
+    // must only be created when this program was launched by gsoc-nr-ai-sched.py
     // (i.e. when the Ai scheduler was requested).
     Ptr<NrMacSchedulerAiNs3MsgInterfaceEnv> aiEnv;
     if (schedulerType == "Ai")

@@ -202,10 +202,20 @@ if(opengym
   )
 endif()
 
-# ns3-ai message-interface scheduler example (requires the ai module).
+# ns3-ai message-interface scheduler example (requires the ai module). The
+# example is declared here, like every other one, so that its executable lands
+# in the module examples directory; the subdirectory only adds the pybind11
+# bindings the Python driver imports.
 if(ai
    IN_LIST
    ns3-all-enabled-modules
 )
-  add_subdirectory(nr-ai-sched)
+  build_lib_example(
+    NAME gsoc-nr-ai-sched
+    SOURCE_FILES gsoc-nr-ai-sched/gsoc-nr-ai-sched.cc
+    LIBRARIES_TO_LINK ${libnr}
+                      ${libflow-monitor}
+                      ${libai}
+  )
+  add_subdirectory(gsoc-nr-ai-sched)
 endif()

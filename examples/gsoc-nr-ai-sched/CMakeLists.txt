@@ -3,18 +3,11 @@
 #
 # SPDX-License-Identifier: GPL-2.0-only
 
-# ns3-ai message-interface NR scheduler example: the gsoc-nr-rl-based-sched
-# scenario driven over shared memory, plus the pybind11 struct bindings.
-# Built only when the ai module is available (the parent gates this with
-# add_subdirectory under the same condition).
-
-build_lib_example(
-  NAME nr-ai-sched
-  SOURCE_FILES nr-ai-sched.cc
-  LIBRARIES_TO_LINK ${libnr}
-                    ${libflow-monitor}
-                    ${libai}
-)
+# pybind11 struct bindings of the ns3-ai message-interface NR scheduler
+# example. The example itself is declared by the parent CMakeLists.txt, so that
+# its executable lands in the module examples directory like every other one
+# and test.py can find it; only the binding is built here. Both are gated on
+# the ai module being available.
 
 # pybind11_add_module and its imported targets are only set up in the directory
 # scope that ran find_package(pybind11) (contrib/ai). This example lives under
@@ -24,7 +17,7 @@ find_package(pybind11 CONFIG)
 
 # pybind11 module mirroring the observation/action structs, dropped next to the
 # Python driver so it can be imported as ns3ai_nr_sched_py.
-pybind11_add_module(ns3ai_nr_sched_py nr-ai-sched_py.cc)
+pybind11_add_module(ns3ai_nr_sched_py gsoc-nr-ai-sched_py.cc)
 # The binding pulls in ns-3 core symbols (via ai-module.h), so link the ns-3
 # libraries it references (mirrors the ai gym binding linking ${libcore}).
 target_link_libraries(ns3ai_nr_sched_py PRIVATE ${libcore} ${libai})
@@ -35,4 +28,8 @@ set_target_properties(
 # The binding needs the nr/ai headers generated first, and the Python driver
 # launches the C++ example alongside the binding, so tie them together.
 add_dependencies(ns3ai_nr_sched_py ${libnr} ${libai})
-add_dependencies(nr-ai-sched ns3ai_nr_sched_py)
+# The example target is skipped when module examples are filtered out
+# (NS3_FILTER_MODULE_EXAMPLES_AND_TESTS), so only tie it in when it exists.
+if(TARGET gsoc-nr-ai-sched)
+  add_dependencies(gsoc-nr-ai-sched ns3ai_nr_sched_py)
+endif()
