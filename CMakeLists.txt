@@ -123,8 +123,10 @@ set(source_files
     model/nr-fh-phy-sap.cc
     model/nr-fh-sched-sap.cc
     model/nr-gnb-component-carrier-manager.cc
+    model/nr-gnb-energy-model.cc
     model/nr-gnb-mac.cc
     model/nr-gnb-net-device.cc
+    model/nr-gnb-phy-energy-listener.cc
     model/nr-gnb-phy.cc
     model/nr-gnb-rrc.cc
     model/nr-handover-algorithm.cc
@@ -208,8 +210,10 @@ set(source_files
     model/nr-spectrum-phy.cc
     model/nr-spectrum-signal-parameters.cc
     model/nr-ue-component-carrier-manager.cc
+    model/nr-ue-energy-model.cc
     model/nr-ue-mac.cc
     model/nr-ue-net-device.cc
+    model/nr-ue-phy-energy-listener.cc
     model/nr-ue-phy.cc
     model/nr-ue-power-control.cc
     model/nr-ue-rrc.cc
@@ -324,8 +328,10 @@ set(header_files
     model/nr-gnb-cmac-sap.h
     model/nr-gnb-component-carrier-manager.h
     model/nr-gnb-cphy-sap.h
+    model/nr-gnb-energy-model.h
     model/nr-gnb-mac.h
     model/nr-gnb-net-device.h
+    model/nr-gnb-phy-energy-listener.h
     model/nr-gnb-phy.h
     model/nr-gnb-rrc.h
     model/nr-handover-algorithm.h
@@ -425,8 +431,10 @@ set(header_files
     model/nr-ue-cmac-sap.h
     model/nr-ue-component-carrier-manager.h
     model/nr-ue-cphy-sap.h
+    model/nr-ue-energy-model.h
     model/nr-ue-mac.h
     model/nr-ue-net-device.h
+    model/nr-ue-phy-energy-listener.h
     model/nr-ue-phy.h
     model/nr-ue-power-control.h
     model/nr-ue-rrc.h
@@ -504,6 +512,7 @@ set(test_sources
     test/nr-test-ipv6-routing.cc
     test/nr-test-l2sm-eesm.cc
     test/nr-test-notching.cc
+    test/nr-test-gnb-phy-energy-listener.cc
     test/nr-test-numerology-delay.cc
     test/nr-test-phy.cc
     test/nr-test-resource-assignment-matrix.cc
@@ -533,6 +542,7 @@ set(test_sources
     test/ul-scheduling-test.cc
     utils/traffic-generators/test/traffic-generator-test.cc
     test/nr-test-hexagonal-grid-scenario-helper.cc
+    test/nr-test-ue-phy-energy-listener.cc
     test/nr-test-ue-measurements.cc
     test/nr-test-radio-link-failure.cc
     test/nr-test-rrc-reestablishment.cc
