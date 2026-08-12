@@ -10,3 +10,4 @@ public/
 tutorial/build
 .idea
 .gitlab-ci-local
+.DS_Store
