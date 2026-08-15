@@ -35,6 +35,18 @@ NrMacSchedulerTdmaAi::GetTypeId()
                           CallbackValue(MakeNullCallback<NrMacSchedulerUeInfoAi::NotifyCb>()),
                           MakeCallbackAccessor(&NrMacSchedulerTdmaAi::m_notifyCbUl),
                           MakeCallbackChecker())
+            .AddAttribute("NotifyCbDlMsg",
+                          "The message-interface callback to notify the AI model for the "
+                          "downlink (also carries the active-UE vector)",
+                          CallbackValue(MakeNullCallback<NrMacSchedulerUeInfoAi::NotifyCbMsg>()),
+                          MakeCallbackAccessor(&NrMacSchedulerTdmaAi::m_notifyCbDlMsg),
+                          MakeCallbackChecker())
+            .AddAttribute("NotifyCbUlMsg",
+                          "The message-interface callback to notify the AI model for the "
+                          "uplink (also carries the active-UE vector)",
+                          CallbackValue(MakeNullCallback<NrMacSchedulerUeInfoAi::NotifyCbMsg>()),
+                          MakeCallbackAccessor(&NrMacSchedulerTdmaAi::m_notifyCbUlMsg),
+                          MakeCallbackChecker())
             .AddAttribute("ActiveDlAi",
                           "The flag to activate the AI model for the downlink",
                           BooleanValue(false),
@@ -100,6 +112,22 @@ NrMacSchedulerTdmaAi::SetNotifyCbUl(NrMacSchedulerUeInfoAi::NotifyCb notifyCb)
 {
     NS_LOG_FUNCTION(this);
     m_notifyCbUl = notifyCb;
+    m_activeUlAi = true;
+}
+
+void
+NrMacSchedulerTdmaAi::SetNotifyCbDlMsg(NrMacSchedulerUeInfoAi::NotifyCbMsg notifyCb)
+{
+    NS_LOG_FUNCTION(this);
+    m_notifyCbDlMsg = notifyCb;
+    m_activeDlAi = true;
+}
+
+void
+NrMacSchedulerTdmaAi::SetNotifyCbUlMsg(NrMacSchedulerUeInfoAi::NotifyCbMsg notifyCb)
+{
+    NS_LOG_FUNCTION(this);
+    m_notifyCbUlMsg = notifyCb;
     m_activeUlAi = true;
 }
 
@@ -194,6 +222,21 @@ NrMacSchedulerTdmaAi::CallNotifyDlFn(
                      extraInfo,
                      updateWeightsFn);
     }
+    if (!m_notifyCbDlMsg.IsNull())
+    {
+        std::string extraInfo = "";
+        NrMacSchedulerUeInfoAi::UpdateAllUeWeightsFn updateWeightsFn =
+            std::bind(&NrMacSchedulerTdmaAi::UpdateAllUeWeightsDl,
+                      this,
+                      std::placeholders::_1,
+                      ueVector);
+        m_notifyCbDlMsg(GetUeObservationsDl(ueVector),
+                        GetIsGameOverDl(),
+                        GetUeRewardsDl(ueVector),
+                        extraInfo,
+                        updateWeightsFn,
+                        ueVector);
+    }
 }
 
 void
@@ -214,6 +257,21 @@ NrMacSchedulerTdmaAi::CallNotifyUlFn(
                      GetUeRewardsUl(ueVector),
                      extraInfo,
                      updateWeightsFn);
+    }
+    if (!m_notifyCbUlMsg.IsNull())
+    {
+        std::string extraInfo = "";
+        NrMacSchedulerUeInfoAi::UpdateAllUeWeightsFn updateWeightsFn =
+            std::bind(&NrMacSchedulerTdmaAi::UpdateAllUeWeightsUl,
+                      this,
+                      std::placeholders::_1,
+                      ueVector);
+        m_notifyCbUlMsg(GetUeObservationsUl(ueVector),
+                        GetIsGameOverUl(),
+                        GetUeRewardsUl(ueVector),
+                        extraInfo,
+                        updateWeightsFn,
+                        ueVector);
     }
 }
 

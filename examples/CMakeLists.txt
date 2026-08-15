@@ -201,3 +201,11 @@ if(opengym
                       ${libflow-monitor}
   )
 endif()
+
+# ns3-ai message-interface scheduler example (requires the ai module).
+if(ai
+   IN_LIST
+   ns3-all-enabled-modules
+)
+  add_subdirectory(nr-ai-sched)
+endif()
