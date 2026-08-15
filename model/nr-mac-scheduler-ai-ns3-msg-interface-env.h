@@ -25,7 +25,7 @@ namespace ns3
  * @ingroup scheduler
  * @brief ns3-ai message-interface environment for the RL-based NR scheduler.
  *
- * Shared-memory counterpart of NrMacSchedulerAiNs3GymEnv. Instead of OpenGym
+ * Shared-memory counterpart of NrMacSchedulerAiNs3GymEnv. Instead of ns3-gym
  * it exchanges observations and actions with a Python agent
  * through the ns3-ai Message Interface (vector mode). It
  * implements the NrMacSchedulerUeInfoAi::NotifyCbMsg callback and is bound to a
