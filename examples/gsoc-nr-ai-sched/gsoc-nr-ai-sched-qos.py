@@ -3,28 +3,31 @@
 #
 # SPDX-License-Identifier: GPL-2.0-only
 
-"""Python agent driving the gsoc-nr-rl-based-sched scenario over the ns3-ai message interface.
+"""QoS scheduler agent driving the NR MAC scheduler over the ns3-ai message interface.
 
-Launches gsoc-nr-ai-sched.cc (the gsoc-nr-rl-based-sched scenario wired to the
-shared-memory Message Interface) with --ueLevelSchedulerType=Ai and answers
-the per-iteration observation/action handshakes with one scheduling weight
-per UE. This is a smoke-test / baseline driver, not a real RL agent: the
-default heuristic weights each UE by the sum of its bearer buffer sizes
-(bsr), i.e. serve the most-backlogged UE first; pass --constant to weight
-all UEs equally instead (Round-Robin-like behaviour on the AI transport).
+Launches gsoc-nr-ai-sched.cc with --ueLevelSchedulerType=Ai and reimplements the
+built-in C++ QoS scheduler (NrMacSchedulerUeInfoQos::CalculateDlWeight) in
+Python, computing each UE's scheduling weight from the shared-memory
+observation:
 
-The scenario knobs mirror gsoc-nr-rl-based-sched.cc / the drill-q gym
-drivers, so a run here is directly comparable to a run of the ns3-gym
-example with the same arguments.
+    weight = sum over the UE's active bearers of
+             (100 - priority) * potentialTput**alpha / max(1e-9, avgTput) * dbf
 
-Run from this directory with the interpreter the bindings were built
-against (see the cpython tag on ns3ai_nr_sched_py.*.so):
-    python3 gsoc-nr-ai-sched.py --ueNum 2 --simTag ai-msg-run
+where dbf is the delay budget factor applied to Delay-Critical GBR bearers.
+Every input comes from the observation structs, so agreement with the built-in
+scheduler is evidence that the observation carries the full state the C++
+formula uses.
+
+Verified: the FlowMonitor output of this agent is byte-identical
+to a standalone run with --ueLevelSchedulerType=Qos.
+
+Run from this directory with the interpreter the bindings were built against
+(see the cpython tag on ns3ai_nr_sched_py.*.so):
+    python3 gsoc-nr-ai-sched-qos.py --ueNum 2 --simTag qos-run
 """
 
 import argparse
 import glob
-import json
 import os
 import subprocess
 import sys
@@ -45,6 +48,14 @@ sys.path[:0] = [_HERE] + [
 
 import ns3ai_nr_sched_py as py_binding  # noqa: E402
 from ns3ai_utils import Experiment  # noqa: E402
+
+#: nr::LogicalChannelConfigListElement_s::QBT_DGBR (0 = non-GBR, 1 = GBR, 2 = DC-GBR)
+QBT_DGBR = 2
+
+#: PF fairness exponent. The scheduler's "FairnessIndex" attribute defaults to 1
+#: (traditional 3GPP PF) and overwrites the NrMacSchedulerUeInfoQos::m_alpha{0.0}
+#: member initializer at construction since the example does not change the attribute.
+QOS_ALPHA = 1.0
 
 # If ns-3 dies without raising the finish flag - any
 # NS_ABORT_MSG/NS_FATAL_ERROR, which ends in std::terminate() and therefore
@@ -75,7 +86,7 @@ while psutil.pid_exists(driver):
     time.sleep(5)
     if psutil.pid_exists(driver):
         print(
-            "gsoc-nr-ai-sched.py: ns-3 exited without raising the finish flag; the "
+            "gsoc-nr-ai-sched-qos.py: ns-3 exited without raising the finish flag; the "
             "driver is blocked in PyRecvBegin(). Killing it.",
             file=sys.stderr,
         )
@@ -93,21 +104,6 @@ def _start_watchdog(exp):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    # Agent knobs
-    parser.add_argument(
-        "--constant",
-        action="store_true",
-        help="Weight all UEs equally instead of by total bearer backlog",
-    )
-    parser.add_argument(
-        "--verbose",
-        type=int,
-        nargs="?",
-        const=5,
-        default=0,
-        metavar="N",
-        help="Dump the full contents of the first N exchanges (default 5)",
-    )
     # Scenario knobs forwarded to gsoc-nr-ai-sched.cc (defaults match
     # gsoc-nr-rl-based-sched.cc so runs are comparable out of the box).
     parser.add_argument("--ueNum", type=int, default=2, help="Number of UEs")
@@ -135,46 +131,32 @@ def parse_args():
     return parser.parse_args()
 
 
-def _snapshot_exchange(idx, obs, act):
-    """Copy one exchange out of shared memory into plain Python objects.
+def delay_budget_factor(pdb_ms, hol_ms):
+    """Port of NrMacSchedulerUeInfoQos::CalculateDelayBudgetFactor.
 
-    Must be called while the handshake window is still open (obs and act are
-    views on the shared segment), but it only reads scalars - the JSON
-    formatting and the print are left to the caller, which does them after
-    PySendEnd() so C++ is not blocked by them.
+    A head-of-line delay at or past the packet delay budget collapses the
+    denominator to 0.1 rather than zero, which is what gives an over-budget
+    DC-GBR bearer its very large weight.
     """
-    ues = []
-    for i in range(len(obs)):
-        o = obs[i]
-        lcs = []
-        for k in range(o.numLcs):
-            lc = o.get_lc(k)
-            lcs.append(
-                {
-                    "lcId": lc.lcId,
-                    "fiveQI": lc.fiveQI,
-                    "priority": lc.priority,
-                    "resourceType": lc.resourceType,
-                    "holDelay": lc.holDelay,
-                    "delayBudgetMs": lc.delayBudgetMs,
-                    "bsr": round(lc.bsr, 2),
-                }
-            )
-        ues.append(
-            {
-                "observation": {
-                    "rnti": o.rnti,
-                    "cqi": round(o.cqi, 2),
-                    "avgTput": round(o.avgTput, 4),
-                    "potentialTput": round(o.potentialTput, 4),
-                    "assignedBytes": o.assignedBytes,
-                    "numLcs": o.numLcs,
-                    "lc": lcs,
-                },
-                "action": {"rnti": act[i].rnti, "weight": round(act[i].weight, 3)},
-            }
-        )
-    return {"exchange": idx, "numUes": len(obs), "ues": ues}
+    denominator = 0.1 if hol_ms >= pdb_ms else float(pdb_ms) - float(hol_ms)
+    return float(pdb_ms) / denominator
+
+
+def qos_weight(o):
+    """Reproduce NrMacSchedulerUeInfoQos::CalculateDlWeight from the observation.
+
+    Note the C++ sums over *all* active LCs while the struct reports at most
+    MAX_LCS_PER_UE (4) of them, so the two can only agree exactly when a UE
+    has no more than 4 active bearers.
+    """
+    weight = 0.0
+    for k in range(o.numLcs):
+        lc = o.get_lc(k)
+        dbf = 1.0
+        if lc.resourceType == QBT_DGBR:
+            dbf = delay_budget_factor(lc.delayBudgetMs, lc.holDelay)
+        weight += (100.0 - lc.priority) * (o.potentialTput**QOS_ALPHA) / max(1e-9, o.avgTput) * dbf
+    return weight
 
 
 def main():
@@ -196,9 +178,6 @@ def main():
     # script around the executable, for transport benchmarks).
     target = os.environ.get("NR_AI_SCHED_TARGET") or (exe[0] if exe else "gsoc-nr-ai-sched")
 
-    # Scenario arguments forwarded to the C++ program. The scheduler algorithm
-    # is forced to Ai: the standalone baselines (Qos/PF/RR) are run directly
-    # with ./ns3 run gsoc-nr-ai-sched, without this driver.
     setting = {
         "ueNum": args.ueNum,
         "priorityTrafficScenario": args.priorityTrafficScenario,
@@ -241,7 +220,6 @@ def main():
     exchanges = 0
     first_done = None  # perf_counter at the end of the first exchange
     last_done = None  # perf_counter at the end of the most recent exchange
-    dump_wall = 0.0  # time spent printing --verbose dumps, excluded below
     loop_t0 = time.perf_counter()
     try:
         while True:
@@ -250,26 +228,14 @@ def main():
             if msgInterface.PyGetFinished():
                 break
 
-            # Compute and send actions back to C++.
+            # Compute the QoS weight for each UE and send it back.
             msgInterface.PySendBegin()
             obs = msgInterface.GetCpp2PyVector()
             act = msgInterface.GetPy2CppVector()
             act.resize(len(obs))
             for i in range(len(obs)):
-                o = obs[i]
-                if args.constant:
-                    weight = 1.0
-                else:
-                    # Weight by total backlog across the UE's reported bearers.
-                    weight = 1.0
-                    for k in range(o.numLcs):
-                        weight += o.get_lc(k).bsr
-                act[i].rnti = o.rnti
-                act[i].weight = float(weight)
-            # Only copy the values out here; serializing and printing them
-            # inside the handshake window would stall C++ on every dumped
-            # exchange and land in the per-exchange figure.
-            dump = _snapshot_exchange(exchanges, obs, act) if exchanges < args.verbose else None
+                act[i].rnti = obs[i].rnti
+                act[i].weight = float(qos_weight(obs[i]))
             exchanges += 1
             msgInterface.PyRecvEnd()
             msgInterface.PySendEnd()
@@ -284,15 +250,8 @@ def main():
             if first_done is None:
                 first_done = last_done
 
-            if dump is not None:
-                # Outside the window, and discounted from the timed region so
-                # a --verbose run stays comparable to a silent one.
-                dump_t0 = time.perf_counter()
-                print(json.dumps(dump, indent=2))
-                dump_wall += time.perf_counter() - dump_t0
-
     except Exception:
-        print("Exception in gsoc-nr-ai-sched.py:")
+        print("Exception in gsoc-nr-ai-sched-qos.py:")
         traceback.print_exc()
         sys.exit(1)
 
@@ -302,10 +261,10 @@ def main():
         # over the bracketed steady-state region only.
         loop_wall = time.perf_counter() - loop_t0
         timed_steps = max(exchanges - 1, 0)
-        timed_wall = last_done - first_done - dump_wall if timed_steps else 0.0
+        timed_wall = last_done - first_done if timed_steps else 0.0
         per_exchange_us = timed_wall / timed_steps * 1e6 if timed_steps else 0.0
         print(
-            f"gsoc-nr-ai-sched.py: completed {exchanges} observation/action exchanges | "
+            f"gsoc-nr-ai-sched-qos.py: completed {exchanges} observation/action exchanges | "
             f"MSG_RESULT steps={exchanges} loop_wall_s={loop_wall:.3f} "
             f"timed_steps={timed_steps} timed_wall_s={timed_wall:.3f} "
             f"per_exchange_us={per_exchange_us:.1f}"

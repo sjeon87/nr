@@ -14,7 +14,7 @@
  * when the scheduler algorithm is "Ai", the observation/action exchange goes
  * through the ns3-ai shared-memory Message Interface
  * (NrMacSchedulerAiNs3MsgInterfaceEnv bound to the scheduler's NotifyCbDlMsg
- * attribute) instead of the OpenGym (ZMQ + Protobuf) interface.
+ * attribute) instead of the ns3-gym (ZMQ + Protobuf) interface.
  *
  * The scenario: a gNB connected to multiple UEs, divided into two different
  * NodeContainers according to the traffic type. Even UEs receive one flow
@@ -33,12 +33,16 @@
  * $ ./ns3 run gsoc-nr-ai-sched -- --ueLevelSchedulerType=PF                    # PF scheduler
  * @endcode
  *
- * AI runs must be launched by the companion Python driver (gsoc-nr-ai-sched.py),
- * which creates the shared memory, starts this program with
- * --ueLevelSchedulerType=Ai, and answers the observation/action handshakes:
+ * AI runs must be launched by one of the companion Python drivers, which
+ * create the shared memory, start this program with
+ * --ueLevelSchedulerType=Ai, and answer the observation/action handshakes.
+ * gsoc-nr-ai-sched.py answers with a backlog heuristic, while the -qos and
+ * -pf drivers reimplement the built-in QoS and PF metrics in Python:
  *
  * \code{.unparsed}
  * $ cd contrib/nr/examples/gsoc-nr-ai-sched && python3 gsoc-nr-ai-sched.py
+ * $ cd contrib/nr/examples/gsoc-nr-ai-sched && python3 gsoc-nr-ai-sched-qos.py
+ * $ cd contrib/nr/examples/gsoc-nr-ai-sched && python3 gsoc-nr-ai-sched-pf.py
  * @endcode
  *
  * The example prints the end-to-end result of the QoS flows on-screen and
@@ -247,7 +251,7 @@ main(int argc, char* argv[])
 #ifdef HAVE_NS3_AI
     // Bind the ns3-ai message-interface environment to the AI scheduler. The
     // env joins the shared-memory segment created by the Python driver, so it
-    // must only be created when this program was launched by gsoc-nr-ai-sched.py
+    // must only be created when this program was launched by a Python driver
     // (i.e. when the Ai scheduler was requested).
     Ptr<NrMacSchedulerAiNs3MsgInterfaceEnv> aiEnv;
     if (schedulerType == "Ai")
