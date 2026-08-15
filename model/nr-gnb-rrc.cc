@@ -2284,7 +2284,11 @@ NrGnbRrc::GetTypeId()
                           "instead of the stock GBR/non-GBR LCG mapping. The UL BSR reports "
                           "buffered data per LCG (3GPP TS 38.321 section 6.1.3.1); this module's "
                           "Short BSR (NrMacShortBsrCe) carries only 4 LCGs (0..3) and LCG 0 "
-                          "is reserved for SRBs, so at most 3 DRBs per UE are distinguished.",
+                          "is reserved for SRBs, so at most 3 DRBs per UE are distinguished in "
+                          "UL. Configuring more DRBs is allowed: the UE sums the extra bearer's "
+                          "buffer into an earlier bearer's LCG, and the scheduler registers only "
+                          "the first logical channel of each UL LCG, so the extra bearer has no "
+                          "UL buffer, 5QI or priority of its own at the scheduler.",
                           BooleanValue(false),
                           MakeBooleanAccessor(&NrGnbRrc::m_perBearerUlLcg),
                           MakeBooleanChecker())
@@ -3926,8 +3930,13 @@ NrGnbRrc::GetLogicalChannelGroupPerBearer(NrQosFlow flow, uint8_t lcid)
     //    module LCID == DRBID, so "lcid - 1" indexes DRBs from 0.
     //    "+ 1" shifts the result past the SRB-reserved LCG 0.
     //
-    // Limitation: with only 3 DRB LCGs, a UE's 4th DRB aliases onto its 1st
-    // DRB's LCG, so at most 3 DRBs per UE get distinct UL BSR buckets.
+    // WARNING: with only 3 DRB LCGs, a UE's 4th DRB aliases onto its 1st DRB's
+    // LCG, so at most 3 DRBs per UE get distinct UL BSR buckets. The aliased
+    // bearer's bytes are credited to the first bearer registered in that LCG
+    // and, since the scheduler keeps a single LC per UL LCG (see
+    // NrMacSchedulerLCG), the aliased bearer's 5QI and priority never reach the
+    // UL scheduler. Keep to 3 DRBs per UE when per-bearer UL observations
+    // matter. The DL is unaffected: every LC is registered in its DL LCG.
     return 1 + ((lcid - 1) % 3);
 }
 

@@ -1673,6 +1673,16 @@ class NR_EXPORT NrGnbRrc : public Object
      * (TS 38.321 section 6.2.1). A UE's 4th DRB therefore aliases onto its 1st DRB's
      * LCG (at most 3 DRBs per UE are distinguished in UL).
      *
+     * @warning Configure at most 3 DRBs per UE when relying on per-bearer UL
+     * observations. A UE's 4th and further DRBs alias onto the LCG of its 1st,
+     * 2nd, ... DRB: the aliased bearer's buffered bytes are added to that LCG's
+     * bucket, so neither bearer's UL buffer is visible on its own. The scheduler
+     * keeps a single LC per UL LCG (see NrMacSchedulerLCG), so the aliased bearer
+     * is never registered and its 5QI and priority do not reach the UL scheduler.
+     * This is not worse than the stock GetLogicalChannelGroup() mapping, which
+     * distinguishes only 2 buckets (GBR / non-GBR); the downlink is unaffected in
+     * either case, since every LC is registered in its DL LCG.
+     *
      * @param flow the QoS characteristics of the flow
      * @param lcid the logical channel id of the bearer
      *
