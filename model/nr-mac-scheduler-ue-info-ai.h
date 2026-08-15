@@ -107,7 +107,7 @@ class NR_EXPORT NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
      * active UEs of the current assignment iteration. This lets the consumer
      * (the ns3-ai message-interface bridge) reach the full per-UE/per-LC
      * scheduler state (CQI, throughput, buffer sizes, QoS fields) directly.
-     * NotifyCb and the OpenGym path are left unchanged.
+     * NotifyCb and the ns3-gym path are left unchanged.
      */
     typedef Callback<void,
                      const std::vector<LcObservation>&,
