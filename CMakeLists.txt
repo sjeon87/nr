@@ -23,7 +23,7 @@ endif()
 # AI scheduler core. These classes only use the NotifyCb/NotifyCbMsg callback
 # abstraction and have no dependency on the opengym or ai modules, so they are
 # always built as part of nr. The transport-specific environments below bind to
-# them: the OpenGym env (opengym) and the ns3-ai message-interface bridge (ai).
+# them: the ns3-gym env (opengym) and the ns3-ai message-interface bridge (ai).
 set(ai_sched_core_sources
     model/nr-mac-scheduler-ofdma-ai.cc
     model/nr-mac-scheduler-tdma-ai.cc
