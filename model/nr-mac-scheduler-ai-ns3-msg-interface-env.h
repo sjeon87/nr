@@ -33,9 +33,14 @@ namespace ns3
  * attribute (or SetNotifyCbDlMsg()).
  *
  * Downlink only: NotifyCurrentIteration() reads the UE's downlink scheduler
- * state (m_dlLCG, DL CQI, DL throughput, DL TB size).
- * It would send downlink observations for an uplink
- * decision.
+ * state (m_dlCqi, m_avgTputDl, m_potentialTputDl, m_dlTbSize, m_dlLCG) and
+ * returns weights keyed by that UE's active downlink logical channels. Binding
+ * it to the uplink (the NotifyCbUlMsg attribute or SetNotifyCbUlMsg()) is not
+ * supported: the agent would receive downlink observations for an uplink
+ * decision, and because NrMacSchedulerUeInfoAi::CalculateUlWeight() looks up
+ * every active uplink LC in the weight map, any uplink LC that is not also an
+ * active downlink LC trips its "Weight not found for LC" assertion. Bind
+ * through NotifyCbDlMsg / SetNotifyCbDlMsg() only.
  *
  * Single instance per process: the ns3-ai message interface is a process-wide
  * singleton, so creating a second env would share the same shared-memory
