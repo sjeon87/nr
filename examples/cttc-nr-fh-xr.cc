@@ -1315,27 +1315,12 @@ main(int argc, char* argv[])
 
     // create the internet and install the IP stack on the UEs
     // get SGW/PGW and create a single RemoteHost
-    Ptr<Node> pgw = epcHelper->GetPgwNode();
+    auto [remoteHost, remoteHostIpv4Address] =
+        epcHelper->SetupRemoteHost("100Gb/s", 1000, Seconds(0.000));
     NodeContainer remoteHostContainer;
-    remoteHostContainer.Create(1);
-    Ptr<Node> remoteHost = remoteHostContainer.Get(0);
+    remoteHostContainer.Add(remoteHost);
+
     InternetStackHelper internet;
-    internet.Install(remoteHostContainer);
-
-    // connect a remoteHost to pgw. Setup routing too
-    PointToPointHelper p2ph;
-    p2ph.SetDeviceAttribute("DataRate", DataRateValue(DataRate("100Gb/s")));
-    p2ph.SetDeviceAttribute("Mtu", UintegerValue(1000));
-    p2ph.SetChannelAttribute("Delay", TimeValue(Seconds(0.000)));
-    NetDeviceContainer internetDevices = p2ph.Install(pgw, remoteHost);
-    Ipv4AddressHelper ipv4h;
-    ipv4h.SetBase("1.0.0.0", "255.0.0.0");
-    Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign(internetDevices);
-
-    Ipv4StaticRoutingHelper ipv4RoutingHelper;
-    Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
-        ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>());
-    remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
     internet.Install(ueNodes);
 
     Ipv4InterfaceContainer ueVoiceSector1IpIface;
@@ -1589,7 +1574,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
 
         /* Ptr<TrafficGenerator3gppGenericVideo> app =
@@ -1625,7 +1610,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
     }
     for (uint32_t i = 0; i < ueArSector3Container.GetN(); ++i)
@@ -1652,7 +1637,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
     }
 
@@ -1683,7 +1668,7 @@ main(int argc, char* argv[])
                            vrDataRate,
                            vrFps,
                            cgDataRate,
-                           internetIpIfaces.GetAddress(1),
+                           remoteHostIpv4Address,
                            remoteHostPort);
             remoteHostPort += 3;
         }
@@ -1711,7 +1696,7 @@ main(int argc, char* argv[])
                            vrDataRate,
                            vrFps,
                            cgDataRate,
-                           internetIpIfaces.GetAddress(1),
+                           remoteHostIpv4Address,
                            remoteHostPort);
             remoteHostPort += 3;
         }
@@ -1739,7 +1724,7 @@ main(int argc, char* argv[])
                            vrDataRate,
                            vrFps,
                            cgDataRate,
-                           internetIpIfaces.GetAddress(1),
+                           remoteHostIpv4Address,
                            remoteHostPort);
             remoteHostPort += 3;
         }
@@ -1769,7 +1754,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
     }
     for (uint32_t i = 0; i < ueVrSector2Container.GetN(); ++i)
@@ -1796,7 +1781,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
     }
     for (uint32_t i = 0; i < ueVrSector3Container.GetN(); ++i)
@@ -1823,7 +1808,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
     }
 
@@ -1851,7 +1836,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
     }
     for (uint32_t i = 0; i < ueCgSector2Container.GetN(); ++i)
@@ -1878,7 +1863,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
     }
     for (uint32_t i = 0; i < ueCgSector3Container.GetN(); ++i)
@@ -1905,7 +1890,7 @@ main(int argc, char* argv[])
                        vrDataRate,
                        vrFps,
                        cgDataRate,
-                       internetIpIfaces.GetAddress(1),
+                       remoteHostIpv4Address,
                        0);
     }
 
