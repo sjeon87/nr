@@ -238,6 +238,7 @@ set(source_files
     utils/traffic-generators/model/traffic-generator-ngmn-voip.cc
     utils/traffic-generators/model/traffic-generator.cc
     utils/nr-wraparound-utils.cc
+        utils/three-gpp-no-ff-channel-model.cc
 )
 
 set(header_files
@@ -456,6 +457,7 @@ set(header_files
     utils/traffic-generators/model/traffic-generator-ngmn-voip.h
     utils/traffic-generators/model/traffic-generator.h
     utils/nr-wraparound-utils.h
+        utils/three-gpp-no-ff-channel-model.h
 )
 
 set(test_sources
