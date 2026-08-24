@@ -628,10 +628,6 @@ observation with one weight per UE. The scripts import the pybind11 module
 observation and action structures; ``examples/gsoc-nr-ai-sched/setup.rst``
 describes how to build and verify it.
 
-..
- The complete details of the simulation script are provided in
- https://cttc-lena.gitlab.io/nr/html/gsoc-nr-ai-sched_8cc.html.
-
 gsoc-nr-ai-sched.py
 ###################
 
