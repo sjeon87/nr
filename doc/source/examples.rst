@@ -639,9 +639,9 @@ Simple script for testing the ``gsoc-nr-ai-sched`` example. The script runs the
 example with a backlog heuristic, weighting each UE by the sum of its bearer
 buffer sizes; ``--constant`` answers every exchange with the same weight (1.0)
 for every UE instead, so that the agent expresses no preference between UEs. It
-is the counterpart of ``rl-sched-gym-env-intro.py``: since both make the same
-scheduling decisions on the same scenario, the two runs can be compared to
-measure the cost of each interface.
+plays the same role for the message interface that ``rl-sched-gym-env-intro.py``
+plays for the ns3-gym interface: a minimal driver that closes the
+observation/action loop without a learned policy.
 
 gsoc-nr-ai-sched-qos.py
 #######################
