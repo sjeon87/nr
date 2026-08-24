@@ -277,6 +277,9 @@ cpp_examples = [
         "TAKES_FOREVER",
     ),
     ("gsoc-nr-rl-based-sched", "True", "True"),
+    # Standalone (Qos) run of the ns3-ai example: the Ai scheduler type needs
+    # the Python driver, which holds the shared memory, so it cannot run here.
+    ("gsoc-nr-ai-sched", "True", "True"),
     ("gsoc-nr-channel-models", "True", "True"),
     ("gsoc-nr-channel-models --channelModel=Friis", "True", "True"),
     ("cttc-nr-mimo-demo --enableMimoFeedback=0", "True", "True"),

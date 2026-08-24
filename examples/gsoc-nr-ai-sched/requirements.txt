@@ -1,0 +1,19 @@
+# Copyright (c) 2026 University of Peradeniya (UoP)
+# Copyright (c) 2026 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
+#
+# SPDX-License-Identifier: GPL-2.0-only
+
+# Python-side requirements for building the ns3ai_nr_sched_py bindings and for
+# running the drivers. Install into the same interpreter the bindings will be
+# compiled against (CMake locates pybind11 via find_package(pybind11 CONFIG),
+# which resolves to the pip-installed package of the active environment).
+#
+#     python -m pip install -r requirements.txt
+#
+# The bindings themselves and test_bindings.py have no runtime dependencies
+# beyond the Python standard library.
+pybind11>=2.12,<4
+
+# The drivers put ns3ai_utils on sys.path instead of installing it, so its own
+# dependency on psutil has to be declared here.
+psutil

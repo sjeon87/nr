@@ -99,6 +99,26 @@ class NR_EXPORT NrMacSchedulerUeInfoAi : public NrMacSchedulerUeInfoQos
         NotifyCb;
 
     /**
+     * @typedef NotifyCbMsg
+     * @brief Callback variant that also carries the active-UE vector.
+     *
+     * Same parameters as NotifyCb, plus a trailing
+     * const std::vector<NrMacSchedulerNs3::UePtrAndBufferReq>& holding the
+     * active UEs of the current assignment iteration. This lets the consumer
+     * (the ns3-ai message-interface bridge) reach the full per-UE/per-LC
+     * scheduler state (CQI, throughput, buffer sizes, QoS fields) directly.
+     * NotifyCb and the ns3-gym path are left unchanged.
+     */
+    typedef Callback<void,
+                     const std::vector<LcObservation>&,
+                     bool,
+                     float,
+                     const std::string&,
+                     const UpdateAllUeWeightsFn&,
+                     const std::vector<NrMacSchedulerNs3::UePtrAndBufferReq>&>
+        NotifyCbMsg;
+
+    /**
      * @brief Reset DL AI scheduler info
      *
      * Clear the weights for the downlink.

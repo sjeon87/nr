@@ -598,6 +598,70 @@ The script runs the example with the PPO model under the ``Ns3Env`` environment.
 iteration, the model is trained with the collected data from the simulation and send the
 selected actions to the simulator through the ``Ns3Env`` environment.
 
+gsoc-nr-ai-sched
+================
+
+The ``gsoc-nr-ai-sched`` directory contains a program that drives the RL-based
+schedulers (see :ref:`RLScheduler`) through the ns3-ai Message Interface, which
+exchanges the observations and the actions over shared memory instead of the
+ns3-gym (ZMQ and Protobuf) interface. The scenario is the one of
+``gsoc-nr-rl-based-sched``, reproduced so that the results obtained with the two
+interfaces are directly comparable: a single-cell scenario in which one UE has a
+single flow with NON-GBR traffic (5QI=80), while the second UE has multiple flows
+with NON-GBR traffic (5QI=80) and delay-critical (DC)-GBR traffic (5QI=87).
+
+As in ``gsoc-nr-rl-based-sched``, users can compare the performance of the
+RL-based schedulers with other schedulers, such as the QoS schedulers (see
+:ref:`QosSchedulers`) set up with either LC QoS Assignment (see
+:ref:`LcAssignment`) or LC RR assignment, by configuring the
+``ueLevelSchedulerType`` parameter. The number of UEs, the numerology, the
+central frequency, the bandwidth, the total Tx power, the scheduler type (TDMA or
+OFDMA) and the priority traffic scenario (saturation or medium-load) can also be
+configured from the command line.
+
+To enable the RL-based scheduler, the ns3-ai module must be installed and the
+``ueLevelSchedulerType`` parameter must be set to ``Ai``. In that case the program
+is not run directly: it is launched by one of the Python scripts described below,
+which create the shared-memory segment, start the program and answer every
+observation with one weight per UE. The scripts import the pybind11 module
+``ns3ai_nr_sched_py``, built from ``gsoc-nr-ai-sched_py.cc``, which mirrors the
+observation and action structures; ``examples/gsoc-nr-ai-sched/setup.rst``
+describes how to build and verify it.
+
+gsoc-nr-ai-sched.py
+###################
+
+Simple script for testing the ``gsoc-nr-ai-sched`` example. The script runs the
+example with a backlog heuristic, weighting each UE by the sum of its bearer
+buffer sizes; ``--constant`` answers every exchange with the same weight (1.0)
+for every UE instead, so that the agent expresses no preference between UEs. It
+plays the same role for the message interface that ``rl-sched-gym-env-intro.py``
+plays for the ns3-gym interface: a minimal driver that closes the
+observation/action loop without a learned policy.
+
+gsoc-nr-ai-sched-qos.py
+#######################
+
+Script that reimplements the built-in QoS scheduler
+(``NrMacSchedulerUeInfoQos::CalculateDlWeight``) in Python, on top of the
+observations received through the message interface. The weight of a UE is the
+sum, over its active logical channels, of
+``(100 - priority) * potentialTput**alpha / max(1e-9, avgTput)``, scaled by the
+delay budget factor applied to the DC-GBR bearers. Every input is taken from the
+observation, so the agreement with a run configured with
+``ueLevelSchedulerType`` set to ``Qos`` shows that the observation carries the
+state used by the C++ formula.
+
+gsoc-nr-ai-sched-pf.py
+######################
+
+Script that reimplements the built-in Proportional Fair scheduler
+(``NrMacSchedulerUeInfoPF::CompareUeWeightsDl``) in Python, computing the weight
+of a UE as ``potentialTput**alpha / max(1e-9, avgTput)``. It is the same
+experiment as ``gsoc-nr-ai-sched-qos.py``, one level simpler, since the QoS
+weight is this metric summed over the bearers of the UE and scaled by the
+priority and the delay budget factor.
+
 cttc-nr-mimo-demo.cc
 =====================
 The program ``examples/cttc-nr-mimo-demo`` is an example that shows how to setup and
