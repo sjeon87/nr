@@ -30,9 +30,9 @@ struct DrxRefConfig
 // TR 38.840 Section 8.2 traffic-model reference configurations, indexed to
 // NrUeDrxModel::ReferenceConfig - 1 (CUSTOM has no entry).
 const DrxRefConfig DRX_REF_CONFIG[] = {
-    {MilliSeconds(160), MilliSeconds(8), MilliSeconds(4), MilliSeconds(100)},  // FTP_160MS
-    {MilliSeconds(320), MilliSeconds(10), MilliSeconds(5), MilliSeconds(80)},  // INSTANT_MSG_320MS
-    {MilliSeconds(40), MilliSeconds(4), MilliSeconds(2), MilliSeconds(10)},    // VOIP_40MS
+    {MilliSeconds(160), MilliSeconds(8), MilliSeconds(4), MilliSeconds(100)}, // FTP_160MS
+    {MilliSeconds(320), MilliSeconds(10), MilliSeconds(5), MilliSeconds(80)}, // INSTANT_MSG_320MS
+    {MilliSeconds(40), MilliSeconds(4), MilliSeconds(2), MilliSeconds(10)},   // VOIP_40MS
 };
 NS_LOG_COMPONENT_DEFINE("NrUeDrxModel");
 NS_OBJECT_ENSURE_REGISTERED(NrUeDrxModel);

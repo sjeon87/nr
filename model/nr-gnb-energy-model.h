@@ -12,9 +12,12 @@
 #define NR_GNB_ENERGY_MODEL_H
 
 #include "ns3/device-energy-model.h"
+#include "ns3/event-id.h"
 #include "ns3/nstime.h"
 #include "ns3/traced-value.h"
 
+#include <bit>
+#include <map>
 #include <vector>
 
 namespace ns3
@@ -26,9 +29,9 @@ namespace ns3
  */
 enum class NrGnbPowerState
 {
-    DeepSleep,     //!< TR 38.864: Deep sleep  (P1)
-    LightSleep,    //!< TR 38.864: Light sleep (P2)
-    MicroSleep,    //!< TR 38.864: Micro sleep (P3) - static baseline
+    DeepSleep,  //!< TR 38.864: Deep sleep  (P1)
+    LightSleep, //!< TR 38.864: Light sleep (P2)
+    MicroSleep, //!< TR 38.864: Micro sleep (P3) - static baseline
     ActiveDl,   //!< TR 38.864: Active DL   (P_DL formula)
     ActiveUl,   //!< TR 38.864: Active UL   (P_UL formula)
     Guard,      //!< DL/UL turnaround inside a slot. NOT a 3GPP sleep transition:
@@ -206,6 +209,68 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
      */
     void FinalizeSlotEnergy();
 
+    // ----- Carrier-level occupancy path (driven by NrGnbPhyEnergyListener) -----
+
+    /**
+     * @brief One bandwidth part's activity over one slot.
+     *
+     * Deliberately carries only what the PHY measured. No sf and no power: the
+     * scaling factors are properties of the whole carrier, which a single BWP
+     * cannot know, so they are formed by the model.
+     */
+    struct BwpOccupancy
+    {
+        uint32_t rbCount{0};             //!< RBs of this BWP
+        uint16_t dlDataMask{0};          //!< Symbols carrying DL data, one bit per symbol
+        uint32_t dlDataReg{0};           //!< DL data REGs (RB x symbols)
+        uint16_t dlCtrlMask{0};          //!< Symbols carrying DL control (PDCCH)
+        uint32_t dlCtrlReg{0};           //!< DL control REGs (RB x symbols)
+        uint16_t ulMask{0};              //!< Symbols carrying UL data or UL control
+        bool dlCapable{true};            //!< False for an uplink-only BWP, which sits
+                                         //!< outside the carrier's DL reference bandwidth
+        double txPowerLin{0.0};          //!< Tx power of this BWP, linear and on the same
+                                         //!< scale as the model's reference Tx power.
+        uint32_t symbolsPerSlot{0};      //!< Symbols in the slot (12 or 14)
+        Time symbolDuration{Seconds(0)}; //!< OFDM symbol duration, i.e. the numerology
+        Time validUntil{Seconds(0)};     //!< Entry is stale after this instant
+    };
+
+    /**
+     * @brief Report one BWP's slot occupancy and refresh the carrier power.
+     *
+     * A gNB carrier may be split into several bandwidth parts, each with its own
+     * PHY and its own listener. Their contributions cannot be combined after the
+     * power formula has been applied: P_DL contains the static baseline P3 and
+     * the load-independent share A, so evaluating per BWP and then summing or
+     * averaging counts both once per BWP. TR 38.864 Section 5.1 instead defines
+     * the scaling on the "occupied BW/RBs [...] in one CC", so the occupancies
+     * are aggregated first and the formula is evaluated once for the carrier.
+     *
+     * Follows the same ordering as every other accounting boundary: the elapsed
+     * interval is committed at the power that was actually drawn over it, and
+     * only then is the recomputed power installed. Several BWPs reporting at the
+     * same instant therefore commit over zero elapsed time, which makes the
+     * result independent of the order their listeners fire in.
+     *
+     * @param bwpIndex Identifies the reporting BWP within this carrier.
+     * @param occupancy What that BWP did over the slot about to run.
+     */
+    void ReportBwpOccupancy(uint32_t bwpIndex, const BwpOccupancy& occupancy);
+
+    /**
+     * @brief Slot-average power of the whole carrier [W].
+     *
+     * Walks the slot symbol by symbol, classifying each from the union of the
+     * live BWP records' masks, and evaluates the TR 38.864 formulas once per
+     * CARRIER rather than once per bandwidth part: P_DL carries the baseline P3
+     * and the load-independent share A, so a second evaluation counts both a
+     * second time. Pure - it writes nothing.
+     * Public so tests and the analytical reference can reproduce it.
+     *
+     * @return Carrier power in Watts, or 0 if nothing has been reported.
+     */
+    double EvaluateCarrierPowerW() const;
+
     // ----- Dynamic scaling-factor setters -----
 
     /**
@@ -219,6 +284,27 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
      * @param txPowerDbm Current total Tx power in dBm.
      */
     void SetTxPowerDbm(double txPowerDbm);
+
+    /**
+     * @brief Bandwidth utilization factor sf for a scheduled region.
+     *
+     * TR 38.864 Section 5.1 defines sf as "the ratio between the RF bandwidth and
+     * the maximum system BW", so the denominator is the carrier's reference system
+     * bandwidth, NOT the bandwidth of the BWP that happens to report the
+     * allocation. Normalising against the reporting BWP would yield sf ~= 1 for any
+     * fully used BWP however narrow, which makes BWP adaptation
+     * (TR 38.864 Section 6.2.2) show no energy saving at all.
+     *
+     * The reference comes from the ReferenceRbCount attribute; when it is left at 0
+     * the reporting BWP's own RB count is used, which is correct only when that BWP
+     * spans the whole carrier.
+     *
+     * @param usedReg     REGs occupied in the region.
+     * @param symbols     Symbols the region spans.
+     * @param bwpRbCount  RBs of the reporting BWP, used when no reference is set.
+     * @return sf in [0,1].
+     */
+    double CalcSf(uint32_t usedReg, uint32_t symbols, uint32_t bwpRbCount) const;
 
     // ----- State machine -----
 
@@ -249,6 +335,18 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
      * @return Cumulative energy in Joules (includes the open state interval).
      */
     double GetTotalEnergyJ() const;
+
+    /**
+     * @brief Instantaneous power drawn now, including any sleep transient [W].
+     *
+     * The single source of truth for both DoGetCurrentA() and GetTotalEnergyJ(),
+     * so the attached EnergySource integrates exactly what the model accounts.
+     * Public because a device-level aggregator has to read each carrier's power
+     * to form the multi-carrier sum of TR 38.864 Section 5.1.
+     *
+     * @return Power in Watts.
+     */
+    double GetInstantaneousPowerW() const;
 
     /**
      * @brief True if a state is one of the three TR 38.864 sleep levels.
@@ -325,6 +423,35 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
     double ToWatts(double relative) const;
 
     /**
+     * @brief Is this one of the two states the BS actually powers down into?
+     *
+     * Deliberately narrower than IsSleepState(), which also covers micro sleep
+     * because Tables 5.1-4 and 5.1-5 tabulate a (zero) row for it. Micro sleep is
+     * the P3 static baseline the BS sits at while awake and between symbols, so
+     * it is neither a state worth charging a transition into nor one in which the
+     * symbol-level accounting should be suppressed.
+     *
+     * @param state State to classify.
+     * @return True for deep sleep and light sleep only.
+     */
+    static bool IsDeepOrLightSleep(NrGnbPowerState state);
+
+    /**
+     * @brief Commit the interval that has run at the current power, and advance.
+     *
+     * Charges the elapsed time at GetInstantaneousPowerW() and refreshes the
+     * energy source while that power is still installed. Must be called *before*
+     * changing the state, the slot power, or the transient, so the source closes
+     * its interval at the power that was actually drawn over it.
+     */
+    void CommitInterval();
+
+    /**
+     * @brief End of a sleep transition: commit it, then drop the transient.
+     */
+    void EndTransition();
+
+    /**
      * @brief Reconcile the model with the selected TR 38.864 Table 5.1-1 set.
      *
      * No-op for Custom. Otherwise the set is authoritative for the reference Tx
@@ -345,17 +472,26 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
     double m_powerUnitW;      //!< Absolute scale: W per relative power-unit
     Time m_symbolDuration;    //!< OFDM symbol duration (set from NrGnbPhy::GetSymbolPeriod)
     double m_refTxPowerDbm;   //!< Reference Tx power for sp [dBm]
+    uint32_t m_refRbCount;    //!< Reference system RBs for sf; 0 = derive from the BWPs
+    bool m_neglectUlDuringDl; //!< TR 38.864 5.1: drop UL power when it coincides with DL
+    std::map<uint32_t, BwpOccupancy> m_bwpOccupancy; //!< Live per-BWP slot records
     bool m_symbolDurationFromPhy{false}; //!< SetSymbolDuration() was called by the listener
-    double m_sa;              //!< Active TRxRU ratio; fixed at 1.0 until antenna muting is modelled
-    double m_sf;              //!< Current bandwidth utilization factor
-    double m_sp;              //!< Current Tx power ratio
+    double m_sa; //!< Active TRxRU ratio; fixed at 1.0 until antenna muting is modelled
+    double m_sf; //!< Current bandwidth utilization factor
+    double m_sp; //!< Current Tx power ratio
 
     NrGnbPowerState m_currentState; //!< Current discrete power state
     Time m_lastUpdateTime;          //!< Time of last state change
 
     double m_slotEnergyAccumJ;   //!< Energy being accumulated for the slot about to start [J]
     double m_slotAccumDurationS; //!< Time span accumulated for that slot [s]
-    double m_currentSlotPowerW;  //!< Average power of the slot currently elapsing [W]
+    double m_currentPowerW;      //!< Canonical power currently drawn [W]. Written by both
+                                 //!< the symbol path (slot average) and the state path, and
+                                 //!< the single quantity DoGetCurrentA() exposes, so the
+                                 //!< attached EnergySource and GetTotalEnergyJ() agree.
+    double m_transitionExtraW;   //!< TR 38.864 Table 5.1-5 transient riding on top [W]
+    Time m_transitionEndTime;    //!< End of the current sleep transition
+    EventId m_transitionEvent;   //!< Pending EndTransition event
 
     TracedValue<int> m_stateTrace;      //!< Fires on each discrete state change
     TracedValue<double> m_powerTrace;   //!< Fires with instantaneous power [W] on each change

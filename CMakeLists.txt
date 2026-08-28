@@ -123,6 +123,7 @@ set(source_files
     model/nr-fh-phy-sap.cc
     model/nr-fh-sched-sap.cc
     model/nr-gnb-component-carrier-manager.cc
+    model/nr-gnb-energy-aggregator.cc
     model/nr-gnb-energy-model.cc
     model/nr-gnb-mac.cc
     model/nr-gnb-net-device.cc
@@ -329,6 +330,7 @@ set(header_files
     model/nr-gnb-cmac-sap.h
     model/nr-gnb-component-carrier-manager.h
     model/nr-gnb-cphy-sap.h
+    model/nr-gnb-energy-aggregator.h
     model/nr-gnb-energy-model.h
     model/nr-gnb-mac.h
     model/nr-gnb-net-device.h
@@ -514,6 +516,7 @@ set(test_sources
     test/nr-test-ipv6-routing.cc
     test/nr-test-l2sm-eesm.cc
     test/nr-test-notching.cc
+    test/nr-test-energy-integration.cc
     test/nr-test-energy-models.cc
     test/nr-test-gnb-phy-energy-listener.cc
     test/nr-test-numerology-delay.cc

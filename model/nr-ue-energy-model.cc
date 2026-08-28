@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 namespace ns3
 {
@@ -59,23 +60,20 @@ constexpr double UE_UL_POWER_FR1_23DBM = 700.0;  // TR 38.840 Table 18
 constexpr double UE_BWP_TRANSITION_FLOOR = 50.0; // TR 38.840 Section 8.1.3
 
 // TR 38.840 Table 19: additional transition energy [relative power x ms] and
-// total transition time, indexed by NrUePowerState. Only the three sleep states
-// carry a transition; micro sleep is immediate (zero), everything else is zero.
-// (Time is not constexpr-constructible, so this is a runtime-const array.)
+// total transition time, keyed by the state being entered. Only states that HAVE
+// a transition appear: a lookup miss means zero, so the "only sleep costs
+// anything" rule is structural rather than five rows of padding. Micro sleep is
+// absent because it is entered and left immediately.
+// (Time is not constexpr-constructible, so this is a runtime-const map.)
 struct SleepTransition
 {
     double energyRelMs; //!< additional transition energy [relative power x ms]
     Time totalTime;     //!< total transition time
 };
 
-const SleepTransition UE_TRANSITION[NR_UE_NUM_STATES] = {
-    {450.0, MilliSeconds(20)}, // NR_UE_DEEP_SLEEP
-    {100.0, MilliSeconds(6)},  // NR_UE_LIGHT_SLEEP
-    {0.0, MilliSeconds(0)},    // NR_UE_MICRO_SLEEP (immediate)
-    {0.0, MilliSeconds(0)},    // NR_UE_PDCCH_ONLY
-    {0.0, MilliSeconds(0)},    // NR_UE_SSB_CSI_RS
-    {0.0, MilliSeconds(0)},    // NR_UE_PDCCH_PDSCH
-    {0.0, MilliSeconds(0)},    // NR_UE_UL_TX
+const std::map<NrUePowerState, SleepTransition> UE_TRANSITIONS{
+    {NR_UE_DEEP_SLEEP, {450.0, MilliSeconds(20)}},
+    {NR_UE_LIGHT_SLEEP, {100.0, MilliSeconds(6)}},
 };
 } // namespace
 
@@ -140,7 +138,9 @@ NrUeEnergyModel::GetTypeId()
                             MakeTraceSourceAccessor(&NrUeEnergyModel::m_stateTrace),
                             "ns3::TracedValueCallback::Int32")
             .AddTraceSource("InstantaneousPower",
-                            "Instantaneous UE power draw [W] at each state change.",
+                            "Instantaneous UE power draw [W]. Fires on every change of the "
+                            "drawn power: state changes, scaling changes and the start and "
+                            "end of a transition transient.",
                             MakeTraceSourceAccessor(&NrUeEnergyModel::m_powerTrace),
                             "ns3::TracedValueCallback::Double")
             .AddTraceSource("TotalEnergyConsumption",
@@ -247,9 +247,8 @@ NrUeEnergyModel::ScaleBwp(uint32_t bandwidthMhz) const
     // Section 8.1.3 FR1 curve, expressed against the reference BWP (default 100 MHz):
     constexpr double kMinBwpMhz = 20.0;
     double span = static_cast<double>(m_refBwpMhz) - kMinBwpMhz; // 80 MHz for the 100 MHz ref
-    double scale = (span > 0.0)
-                       ? 0.4 + 0.6 * (static_cast<double>(bandwidthMhz) - kMinBwpMhz) / span
-                       : 1.0;
+    double scale =
+        (span > 0.0) ? 0.4 + 0.6 * (static_cast<double>(bandwidthMhz) - kMinBwpMhz) / span : 1.0;
     const double* tbl = (m_freqRange == FR2) ? UE_POWER_FR2 : UE_POWER_FR1;
     double floorFactor = UE_BWP_TRANSITION_FLOOR / tbl[NR_UE_PDCCH_PDSCH];
     return std::clamp(scale, floorFactor, 1.0);
@@ -261,6 +260,7 @@ NrUeEnergyModel::ApplyBwpScaling(uint32_t bandwidthMhz)
     NS_LOG_FUNCTION(this << bandwidthMhz);
     CommitOpenInterval(); // the scaling changes the current state's power
     m_bwpScale = ScaleBwp(bandwidthMhz);
+    m_powerTrace = GetCurrentPowerW();
 }
 
 void
@@ -279,6 +279,7 @@ NrUeEnergyModel::ApplyAntennaScaling(uint32_t activeAntennas)
         ant /= 2;
     }
     m_antennaScale = factor;
+    m_powerTrace = GetCurrentPowerW();
 }
 
 void
@@ -289,6 +290,7 @@ NrUeEnergyModel::ApplyBdReduction(double alpha)
     CommitOpenInterval(); // the reduction changes the current state's power
     // TR 38.840 Section 8.1.3: P(alpha) = alpha*Pt + (1-alpha)*0.7*Pt.
     m_bdScale = alpha + (1.0 - alpha) * 0.7;
+    m_powerTrace = GetCurrentPowerW();
 }
 
 void
@@ -299,12 +301,14 @@ NrUeEnergyModel::SetUlTxPowerDbm(double txPowerDbm)
     if (m_freqRange == FR2)
     {
         m_ulRelativePower = UE_POWER_FR2[NR_UE_UL_TX];
+        m_powerTrace = GetCurrentPowerW();
         return;
     }
     // FR1: linearly interpolate between the 0 dBm and 23 dBm anchors.
     double frac = std::clamp(txPowerDbm / 23.0, 0.0, 1.0);
     m_ulRelativePower =
         UE_UL_POWER_FR1_0DBM + frac * (UE_UL_POWER_FR1_23DBM - UE_UL_POWER_FR1_0DBM);
+    m_powerTrace = GetCurrentPowerW();
 }
 
 void
@@ -337,7 +341,12 @@ NrUeEnergyModel::GetTransitionEnergyJ(NrUePowerState state) const
 {
     // TR 38.840 Table 19 energy is [relative power x ms]. Convert to Joules:
     // relative x PowerUnit_mW -> mW, then mW x ms -> mW.ms -> J (factor 1e-6).
-    return UE_TRANSITION[state].energyRelMs * m_powerUnitMw * 1e-6;
+    const auto it = UE_TRANSITIONS.find(state);
+    if (it == UE_TRANSITIONS.end())
+    {
+        return 0.0; // no tabulated transition: micro sleep, and every awake state
+    }
+    return it->second.energyRelMs * m_powerUnitMw * 1e-6;
 }
 
 void
@@ -355,11 +364,22 @@ NrUeEnergyModel::ChangeState(int newState)
     CommitOpenInterval();
     NrUePowerState oldState = m_currentState;
     m_currentState = static_cast<NrUePowerState>(newState);
-    // TR 38.840 Table 19: charge the additional transition energy once when
-    // entering a sleep state from a non-sleep (active) state.
+    // TR 38.840 Table 19: entering a sleep state from a non-sleep state costs an
+    // additional transition energy E over a total transition time T. Spread it as
+    // an E/T transient rather than adding it as a lump to m_totalEnergyJ: a lump
+    // is invisible to the attached EnergySource, which can only integrate the
+    // current reported by DoGetCurrentA(), so the model and the source would
+    // disagree by exactly E. Riding it on the transient keeps them consistent and
+    // still totals P_sleep*T + E over the transition.
     if (IsSleepState(m_currentState) && !IsSleepState(oldState))
     {
-        m_totalEnergyJ = m_totalEnergyJ + GetTransitionEnergyJ(m_currentState);
+        const auto it = UE_TRANSITIONS.find(m_currentState);
+        Time transitionTime = (it != UE_TRANSITIONS.end()) ? it->second.totalTime : Seconds(0);
+        if (transitionTime > Seconds(0))
+        {
+            TriggerTransition(GetTransitionEnergyJ(m_currentState) / transitionTime.GetSeconds(),
+                              transitionTime);
+        }
     }
     m_stateTrace = newState;
     m_powerTrace = GetCurrentPowerW();

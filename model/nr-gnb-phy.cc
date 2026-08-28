@@ -1087,14 +1087,39 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
             dlCtrlReg += reg;
         }
     }
+    // Report positions, not just counts. Bit s is set when symbol s carries that
+    // class. UL data and UL control are folded together because P_UL has no sf
+    // dependence, so nothing downstream needs to tell them apart.
+    uint16_t dlDataMask = 0;
+    uint16_t dlCtrlMask = 0;
+    uint16_t ulMask = 0;
+    for (size_t sym = 0; sym < symClass.size() && sym < 16; ++sym)
+    {
+        const auto bit = static_cast<uint16_t>(1U << sym);
+        switch (symClass[sym])
+        {
+        case 1:
+            dlDataMask |= bit;
+            break;
+        case 3:
+            dlCtrlMask |= bit;
+            break;
+        case 2:
+        case 4:
+            ulMask |= bit;
+            break;
+        default:
+            break; // idle
+        }
+    }
+
     m_phySlotEnergyStats(allocInfo.m_sfnSf,
                          availRb,
-                         std::count(symClass.begin(), symClass.end(), 1),
+                         dlDataMask,
                          dlDataReg,
-                         std::count(symClass.begin(), symClass.end(), 2),
-                         std::count(symClass.begin(), symClass.end(), 3),
+                         ulMask,
+                         dlCtrlMask,
                          dlCtrlReg,
-                         std::count(symClass.begin(), symClass.end(), 4),
                          GetBwpId(),
                          GetCellId());
 }

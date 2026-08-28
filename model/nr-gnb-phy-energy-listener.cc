@@ -18,7 +18,9 @@
 #include "ns3/simulator.h"
 
 #include <algorithm>
-
+#include <bit>
+#include <cmath>
+#include <string>
 
 namespace ns3
 {
@@ -42,6 +44,7 @@ NrGnbPhyEnergyListener::NrGnbPhyEnergyListener()
       m_lastSp(1.0), // Default: full power (sp=1)
       m_lastSa(1.0), // Default: all antennas active (sa=1)
       m_totalBwpRbs(0),
+      m_dlCapable(true),
       m_symbolsPerSlot(14) // Pre-attach default, matching NrPhy's own
 {
     NS_LOG_FUNCTION(this);
@@ -62,6 +65,13 @@ NrGnbPhyEnergyListener::SetPhy(Ptr<NrGnbPhy> phy)
     // NrGnbPhy builds the slot's symbol-class map from GetSymbolsPerSlot(), so the
     // idle count below must be derived against the same value (12 or 14).
     m_symbolsPerSlot = phy->GetSymbolsPerSlot();
+    // A bandwidth part whose pattern contains no downlink slot is uplink-only, so
+    // it sits outside the carrier's DL reference bandwidth and must not widen the
+    // sf denominator. Only LteNrTddSlotType::UL carries no downlink - DL, S and F
+    // all include DL control and DL data.
+    const std::string pattern = phy->GetPattern();
+    m_dlCapable = pattern.find("DL") != std::string::npos ||
+                  pattern.find('F') != std::string::npos || pattern.find('S') != std::string::npos;
     if (m_model)
     {
         m_model->SetSymbolDuration(phy->GetSymbolPeriod());
@@ -96,65 +106,45 @@ NrGnbPhyEnergyListener::DoDispose()
 void
 NrGnbPhyEnergyListener::SlotEnergyStatsCallback(const SfnSf& sfnSf,
                                                 uint32_t availableRb,
-                                                uint32_t dlDataSym,
+                                                uint16_t dlDataMask,
                                                 uint32_t dlDataReg,
-                                                uint32_t ulDataSym,
-                                                uint32_t dlCtrlSym,
+                                                uint16_t ulMask,
+                                                uint16_t dlCtrlMask,
                                                 uint32_t dlCtrlReg,
-                                                uint32_t ulCtrlSym,
                                                 uint16_t bwpId,
                                                 uint16_t cellId)
 {
-    NS_LOG_FUNCTION(this << sfnSf << availableRb << dlDataSym << ulDataSym << dlCtrlSym << ulCtrlSym
-                         << bwpId << cellId);
+    NS_LOG_FUNCTION(this << sfnSf << availableRb << dlDataMask << ulMask << dlCtrlMask << bwpId
+                         << cellId);
     if (!m_model)
     {
         return;
     }
     RefreshSp();
 
-    // sf = used REGs / (RBs in band * used symbols): the fraction of the band
-    // occupied during the active symbols (TR 38.864 Section 5.1 definition of sf).
-    // Computed separately for the DL data region and the DL control (PDCCH)
-    // region; the UL power formula has no sf dependence.
-    auto sf = [availableRb](uint32_t reg, uint32_t sym) {
-        return (availableRb > 0 && sym > 0)
-                   ? std::min(1.0,
-                              static_cast<double>(reg) / (static_cast<double>(availableRb) * sym))
-                   : 0.0;
-    };
-    double sfData = sf(dlDataReg, dlDataSym);
-    double sfCtrl = sf(dlCtrlReg, dlCtrlSym);
-    m_lastDlSf = sfData;
+    // Report what this BWP did and let the model apply TR 38.864: sf is a property
+    // of the whole carrier, which one BWP cannot see. Several BWPs of one carrier
+    // can drive the same model this way, and their occupancies are combined before
+    // the power formula is applied, so the carrier's static baseline P3 and its
+    // load-independent share A are counted once rather than once per BWP
+    // (Section 5.1: scaling on "occupied BW/RBs [...] in one CC").
+    NrGnbEnergyModel::BwpOccupancy occ;
+    occ.rbCount = m_totalBwpRbs;
+    occ.dlDataMask = dlDataMask;
+    occ.dlDataReg = dlDataReg;
+    occ.dlCtrlMask = dlCtrlMask;
+    occ.dlCtrlReg = dlCtrlReg;
+    occ.ulMask = ulMask;
+    occ.dlCapable = m_dlCapable;
+    occ.txPowerLin = std::pow(10.0, m_phy->GetTxPower() / 10.0);
+    occ.symbolsPerSlot = m_symbolsPerSlot;
+    occ.symbolDuration = m_phy->GetSymbolPeriod();
+    // A BWP that stops reporting must stop contributing rather than linger with
+    // its last slot's occupancy.
+    occ.validUntil = Simulator::Now() + m_phy->GetSlotPeriod();
 
-    // Direction-aware per-symbol timeline (TR 38.864 Section 5.2). The gNB
-    // transmits during DL data and DL control (PDCCH), and receives during UL
-    // data and UL control (PUCCH/SRS), so DL symbols use P_DL(sf) and UL symbols
-    // use P_UL. Symbols carrying no allocation are idle (micro-sleep, P3). sa is
-    // held at 1.0 until antenna muting is modelled.
-    uint32_t scheduled = dlDataSym + ulDataSym + dlCtrlSym + ulCtrlSym;
-    uint32_t idleSym = (scheduled < m_symbolsPerSlot) ? (m_symbolsPerSlot - scheduled) : 0;
-    for (uint32_t s = 0; s < dlDataSym; ++s)
-    {
-        m_model->UpdateSymbolPower(m_lastSa, sfData, m_lastSp, NrGnbSymbolType::Dl);
-    }
-    for (uint32_t s = 0; s < dlCtrlSym; ++s)
-    {
-        m_model->UpdateSymbolPower(m_lastSa, sfCtrl, m_lastSp, NrGnbSymbolType::Dl);
-    }
-    for (uint32_t s = 0; s < ulDataSym; ++s)
-    {
-        m_model->UpdateSymbolPower(m_lastSa, 0.0, m_lastSp, NrGnbSymbolType::Ul);
-    }
-    for (uint32_t s = 0; s < ulCtrlSym; ++s)
-    {
-        m_model->UpdateSymbolPower(m_lastSa, 0.0, m_lastSp, NrGnbSymbolType::Ul);
-    }
-    for (uint32_t s = 0; s < idleSym; ++s)
-    {
-        m_model->UpdateSymbolPower(m_lastSa, 0.0, m_lastSp, NrGnbSymbolType::Idle);
-    }
-    m_model->FinalizeSlotEnergy();
+    m_lastDlSf = m_model->CalcSf(dlDataReg, std::popcount(dlDataMask), availableRb);
+    m_model->ReportBwpOccupancy(bwpId, occ);
 }
 
 void
@@ -193,6 +183,12 @@ double
 NrGnbPhyEnergyListener::GetLastSa() const
 {
     return m_lastSa;
+}
+
+bool
+NrGnbPhyEnergyListener::IsDlCapable() const
+{
+    return m_dlCapable;
 }
 
 } // namespace ns3

@@ -26,22 +26,22 @@ NS_OBJECT_ENSURE_REGISTERED(NrUePhyEnergyListener);
 TypeId
 NrUePhyEnergyListener::GetTypeId()
 {
-    static TypeId tid = TypeId("ns3::NrUePhyEnergyListener")
-                            .SetParent<Object>()
-                            .SetGroupName("Nr")
-                            .AddConstructor<NrUePhyEnergyListener>()
-                            .AddAttribute("UseRankAsRxChains",
-                                          "OPTIONAL non-3GPP approximation: treat the reported "
-                                          "MIMO rank as the number of powered receive chains and "
-                                          "re-apply the TR 38.840 Table 21 antenna scaling on each "
-                                          "downlink transport block. Spatial layers and RF chains "
-                                          "are different quantities and the spec defines no such "
-                                          "mapping, so this is off by default; the 3GPP behaviour "
-                                          "is the static NrUeEnergyModel::ActiveRxChains.",
-                                          BooleanValue(false),
-                                          MakeBooleanAccessor(
-                                              &NrUePhyEnergyListener::m_useRankAsRxChains),
-                                          MakeBooleanChecker());
+    static TypeId tid =
+        TypeId("ns3::NrUePhyEnergyListener")
+            .SetParent<Object>()
+            .SetGroupName("Nr")
+            .AddConstructor<NrUePhyEnergyListener>()
+            .AddAttribute("UseRankAsRxChains",
+                          "OPTIONAL non-3GPP approximation: treat the reported "
+                          "MIMO rank as the number of powered receive chains and "
+                          "re-apply the TR 38.840 Table 21 antenna scaling on each "
+                          "downlink transport block. Spatial layers and RF chains "
+                          "are different quantities and the spec defines no such "
+                          "mapping, so this is off by default; the 3GPP behaviour "
+                          "is the static NrUeEnergyModel::ActiveRxChains.",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrUePhyEnergyListener::m_useRankAsRxChains),
+                          MakeBooleanChecker());
     return tid;
 }
 

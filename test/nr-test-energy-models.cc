@@ -5,8 +5,11 @@
 //
 // Authors: Nipuna Dulara (nipuna.21@cse.mrt.ac.lk)
 
+#include "ns3/basic-energy-source.h"
+#include "ns3/boolean.h"
 #include "ns3/double.h"
 #include "ns3/enum.h"
+#include "ns3/nr-gnb-energy-aggregator.h"
 #include "ns3/nr-gnb-energy-model.h"
 #include "ns3/nr-ue-drx-model.h"
 #include "ns3/nr-ue-energy-model.h"
@@ -16,6 +19,7 @@
 #include "ns3/test.h"
 #include "ns3/uinteger.h"
 
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -161,6 +165,82 @@ NrUeEnergyModelRxChainScalingTestCase::DoRun()
  * one is in flight extends the window rather than being cut short by the pending
  * end event.
  */
+/**
+ * @brief TR 38.840 Table 19 sleep transition energy, by value.
+ *
+ * Entering deep or light sleep costs an additional transition energy on top of
+ * the sleep power itself. Nothing asserted those two numbers, so a wrong or
+ * missing row was invisible: the model reports zero for any state with no
+ * tabulated transition, which is correct for micro sleep and every awake state
+ * and silently wrong for these two.
+ *
+ * The expectation is built from public accessors plus the one Table 19 constant
+ * under test, so it pins that constant and nothing else.
+ */
+class NrUeEnergyModelTable19TestCase : public TestCase
+{
+  public:
+    NrUeEnergyModelTable19TestCase()
+        : TestCase("NrUeEnergyModel TR 38.840 Table 19 sleep transition energy")
+    {
+    }
+
+  private:
+    void DoRun() override;
+    /// Energy [J] of: awake until t1, then @p sleep until t2.
+    static double Run(NrUePowerState sleep, Time t1, Time t2);
+};
+
+double
+NrUeEnergyModelTable19TestCase::Run(NrUePowerState sleep, Time t1, Time t2)
+{
+    Ptr<NrUeEnergyModel> ue = CreateObject<NrUeEnergyModel>();
+    ue->ChangeState(NR_UE_PDCCH_ONLY);
+    Simulator::Schedule(t1, [ue, sleep]() { ue->ChangeState(sleep); });
+    Simulator::Stop(t2);
+    Simulator::Run();
+    const double energyJ = ue->GetTotalEnergyJ();
+    Simulator::Destroy();
+    return energyJ;
+}
+
+void
+NrUeEnergyModelTable19TestCase::DoRun()
+{
+    const Time t1 = MilliSeconds(100);
+    const Time t2 = MilliSeconds(300); // well past the 20 ms deep-sleep transition
+
+    Ptr<NrUeEnergyModel> ref = CreateObject<NrUeEnergyModel>();
+    const double pAwake = ref->GetStatePowerW(NR_UE_PDCCH_ONLY);
+
+    // PowerUnit defaults to 1 mW, and Table 19 energy is [relative power x ms],
+    // so E[J] = relative x 1e-3 W x 1e-3 s.
+    struct Expected
+    {
+        NrUePowerState state;
+        double energyRelMs;
+        const char* name;
+    };
+
+    const Expected rows[] = {
+        {NR_UE_DEEP_SLEEP, 450.0, "deep sleep"},
+        {NR_UE_LIGHT_SLEEP, 100.0, "light sleep"},
+        {NR_UE_MICRO_SLEEP, 0.0, "micro sleep (immediate, no transition)"},
+    };
+
+    for (const auto& r : rows)
+    {
+        const double pSleep = ref->GetStatePowerW(r.state);
+        const double stateJ = pAwake * t1.GetSeconds() + pSleep * (t2 - t1).GetSeconds();
+        const double transitionJ = r.energyRelMs * 1e-6;
+
+        NS_TEST_ASSERT_MSG_EQ_TOL(Run(r.state, t1, t2),
+                                  stateJ + transitionJ,
+                                  1e-12,
+                                  "Table 19 transition energy for " << r.name);
+    }
+}
+
 class NrUeEnergyModelTransientTestCase : public TestCase
 {
   public:
@@ -482,22 +562,688 @@ NrGnbEnergyModelTransitionTestCase::DoRun()
                               1e-12,
                               "Guard is not a 3GPP sleep transition");
 
-    // Entering deep sleep from active charges the transition once; waking does not
-    // charge it again, since the tabulated value covers both ramp directions.
+    // Entering deep sleep from active charges the Table 5.1-5 energy E once. It is
+    // not a lump: TR 38.864 Section 5.1 says the sleep power is drawn throughout
+    // the transition and E is *additional* over the total transition time T, so
+    // the transition window costs P_sleep*T + E. Spreading it as an E/T transient
+    // is also what makes it visible to an attached EnergySource, which can only
+    // integrate the current reported by DoGetCurrentA().
     Ptr<NrGnbEnergyModel> gnb = CreateObject<NrGnbEnergyModel>();
-    gnb->ChangeState(static_cast<int>(NrGnbPowerState::ActiveDl));
-    double before = gnb->GetTotalEnergyJ();
-    gnb->ChangeState(static_cast<int>(NrGnbPowerState::DeepSleep));
-    double afterSleep = gnb->GetTotalEnergyJ();
-    NS_TEST_ASSERT_MSG_EQ_TOL(afterSleep - before,
+    gnb->Initialize();
+    const Time transitionTime = gnb->GetTransitionTime(NrGnbPowerState::DeepSleep);
+    const double transitionEnergyJ = gnb->GetTransitionEnergyJ(NrGnbPowerState::DeepSleep);
+    const Time postWake = MilliSeconds(20);
+    double before = 0.0;
+    double afterTransition = 0.0;
+    double afterWake = 0.0;
+    double sleepPowerW = 0.0;
+
+    Simulator::Schedule(MilliSeconds(100), [&]() {
+        before = gnb->GetTotalEnergyJ();
+        gnb->ChangeState(static_cast<int>(NrGnbPowerState::DeepSleep));
+        sleepPowerW = gnb->GetCurrentPowerW(); // state power, without the transient
+    });
+    Simulator::Schedule(MilliSeconds(100) + transitionTime,
+                        [&]() { afterTransition = gnb->GetTotalEnergyJ(); });
+    Simulator::Schedule(MilliSeconds(100) + transitionTime + postWake, [&]() {
+        afterWake = gnb->GetTotalEnergyJ();
+        gnb->ChangeState(static_cast<int>(NrGnbPowerState::ActiveDl));
+    });
+    Simulator::Stop(MilliSeconds(100) + transitionTime + postWake + MilliSeconds(1));
+    Simulator::Run();
+
+    NS_TEST_ASSERT_MSG_EQ_TOL(afterTransition - before,
+                              sleepPowerW * transitionTime.GetSeconds() + transitionEnergyJ,
+                              1e-12,
+                              "the transition window costs P_sleep*T plus the Table 5.1-5 energy");
+    // Past the transient, only the plain sleep power is drawn: E is charged once,
+    // and waking does not charge it again since the tabulated value covers both
+    // ramp directions.
+    NS_TEST_ASSERT_MSG_EQ_TOL(afterWake - afterTransition,
+                              sleepPowerW * postWake.GetSeconds(),
+                              1e-12,
+                              "after the transition only the sleep power is drawn");
+    Simulator::Destroy();
+}
+
+/**
+ * @brief TR 38.864 Section 5.1 sf normalisation.
+ *
+ * sf is "the ratio between the RF bandwidth and the maximum system BW", so the
+ * denominator is the carrier's reference bandwidth and NOT the bandwidth of the BWP
+ * reporting the allocation. If it were the reporting BWP, numerator and denominator
+ * would shrink together and a fully loaded BWP would always give sf = 1 however
+ * narrow it is -- which would make BWP adaptation (Section 6.2.2) show no saving.
+ */
+class NrGnbEnergyModelSfNormalizationTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyModelSfNormalizationTestCase()
+        : TestCase("NrGnbEnergyModel sf is normalised to the reference bandwidth")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrGnbEnergyModelSfNormalizationTestCase::DoRun()
+{
+    Ptr<NrGnbEnergyModel> gnb = CreateObject<NrGnbEnergyModel>();
+    gnb->SetAttribute("ReferenceRbCount", UintegerValue(100)); // whole carrier = 100 RBs
+
+    // A 50-RB BWP, fully allocated over 14 symbols, occupies half the carrier.
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->CalcSf(50 * 14, 14, 50),
+                              0.5,
+                              1e-12,
+                              "a saturated half-width BWP must give sf = 0.5, not 1.0");
+    // The same BWP spanning the whole carrier saturates sf.
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->CalcSf(100 * 14, 14, 100),
                               1.0,
                               1e-12,
-                              "entering deep sleep charges the Table 5.1-5 energy once");
-    gnb->ChangeState(static_cast<int>(NrGnbPowerState::ActiveDl));
-    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->GetTotalEnergyJ() - afterSleep,
-                              0.0,
+                              "a saturated full-width BWP must give sf = 1");
+    // Partial load scales linearly, and the reporting BWP's own width is irrelevant.
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->CalcSf(25 * 14, 14, 50),
+                              0.25,
                               1e-12,
-                              "waking must not charge the transition energy a second time");
+                              "sf must scale with occupancy of the carrier, not of the BWP");
+
+    // sf = 1 must reproduce P4 exactly, which is what makes "Active DL" the P4 state
+    // of Table 5.1-2. This is the check that settles what belongs in the denominator.
+    double p4W = gnb->GetRelativePower(NrGnbPowerState::ActiveDl);
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->CalcDlPowerW(1.0, 1.0, 1.0),
+                              p4W,
+                              1e-12,
+                              "sa = sf = sp = 1 must yield exactly P4");
+
+    // Left unset, the reference falls back to the reporting BWP (legacy behaviour).
+    Ptr<NrGnbEnergyModel> unset = CreateObject<NrGnbEnergyModel>();
+    NS_TEST_ASSERT_MSG_EQ_TOL(unset->CalcSf(50 * 14, 14, 50),
+                              1.0,
+                              1e-12,
+                              "with no reference set, the reporting BWP is the denominator");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @brief Aggregating the bandwidth parts of one carrier (TR 38.864 Section 5.1).
+ *
+ * P_DL contains the static baseline P3 and the load-independent share A, so
+ * evaluating it per BWP and then summing or averaging counts both once per BWP.
+ * The occupancies must be aggregated first and the formula evaluated once for
+ * the carrier: REGs add, symbol counts take the union, and the sf denominator is
+ * the whole carrier.
+ */
+class NrGnbEnergyModelCarrierAggregationTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyModelCarrierAggregationTestCase()
+        : TestCase("NrGnbEnergyModel aggregates BWP occupancy before applying the formula")
+    {
+    }
+
+  private:
+    void DoRun() override;
+
+    /// Build one BWP's slot record. 100 RBs, 14 symbols, DL on the given symbols.
+    static NrGnbEnergyModel::BwpOccupancy Bwp(uint16_t dlMask, uint32_t dlReg)
+    {
+        NrGnbEnergyModel::BwpOccupancy o;
+        o.rbCount = 100;
+        o.dlDataMask = dlMask;
+        o.dlDataReg = dlReg;
+        o.symbolsPerSlot = 14;
+        return o;
+    }
+
+    static constexpr uint16_t ALL14 = 0x3FFF;  //!< symbols 0..13
+    static constexpr uint16_t FIRST7 = 0x007F; //!< symbols 0..6
+    static constexpr uint16_t LAST7 = 0x3F80;  //!< symbols 7..13
+};
+
+void
+NrGnbEnergyModelCarrierAggregationTestCase::DoRun()
+{
+    // Cat 1 / Set 1 defaults: P3 = 55, P4 = 280, A = 0.4, sa = sp = eta = 1.
+    // Two 100-RB BWPs, so the carrier is 200 RBs and is derived from them.
+    Ptr<NrGnbEnergyModel> gnb = CreateObject<NrGnbEnergyModel>();
+    gnb->Initialize();
+
+    // Both idle: the carrier draws P3 ONCE, not once per BWP.
+    gnb->ReportBwpOccupancy(0, Bwp(0, 0));
+    gnb->ReportBwpOccupancy(1, Bwp(0, 0));
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->EvaluateCarrierPowerW(),
+                              55.0,
+                              1e-9,
+                              "two idle BWPs are one idle carrier: P3 once, not 2 x P3");
+
+    // BWP 0 saturated, BWP 1 silent. Half the carrier is occupied, so sf = 0.5.
+    // The symbol count is the UNION (14, not 0 + 14), and the REGs add.
+    gnb->ReportBwpOccupancy(0, Bwp(ALL14, 100 * 14));
+    gnb->ReportBwpOccupancy(1, Bwp(0, 0));
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->EvaluateCarrierPowerW(),
+                              212.5, // 55 + 225 * (0.4 + 0.5 * 0.6)
+                              1e-9,
+                              "half-occupied carrier must evaluate P_DL once at sf = 0.5");
+
+    // The two ways of combining per-BWP powers both give something else, which is
+    // the whole reason the aggregation happens before the formula:
+    //   summing   -> 280 + 55  = 335
+    //   averaging -> (280 + 55) / 2 = 167.5
+    NS_TEST_ASSERT_MSG_GT(std::abs(gnb->EvaluateCarrierPowerW() - 335.0),
+                          1.0,
+                          "must not be the SUM of the per-BWP powers");
+    NS_TEST_ASSERT_MSG_GT(std::abs(gnb->EvaluateCarrierPowerW() - 167.5),
+                          1.0,
+                          "must not be the AVERAGE of the per-BWP powers");
+
+    // Both saturated: the carrier is full, so sf = 1 and the power is exactly P4.
+    gnb->ReportBwpOccupancy(0, Bwp(ALL14, 100 * 14));
+    gnb->ReportBwpOccupancy(1, Bwp(ALL14, 100 * 14));
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->EvaluateCarrierPowerW(),
+                              280.0,
+                              1e-9,
+                              "a fully occupied carrier must reach exactly P4");
+
+    // Partial overlap: BWP 0 uses all 14 symbols, BWP 1 only 7. The union is 14
+    // symbols and sf is the mean occupancy over them, 0.75. That equals the true
+    // per-symbol answer ((1.0 x 7 + 0.5 x 7) / 14) because P_DL is affine in sf.
+    gnb->ReportBwpOccupancy(0, Bwp(ALL14, 100 * 14));
+    gnb->ReportBwpOccupancy(1, Bwp(FIRST7, 100 * 7));
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->EvaluateCarrierPowerW(),
+                              246.25, // 7 symbols at sf 1.0, 7 at sf 0.5
+                              1e-9,
+                              "nested spans: 7 symbols fully occupied, 7 half occupied");
+
+    // DISJOINT spans. The counts here are identical to a case where the two BWPs
+    // overlap - 7 active symbols each, 700 REGs each - so counts alone cannot tell
+    // the two apart. Positions can: every symbol has exactly one BWP active at
+    // 100 of the carrier's 200 RBs, so sf = 0.5 throughout and the carrier draws
+    // 212.5 W. Combining by symbol COUNT gave 167.50 W here, a 21% under-count.
+    gnb->ReportBwpOccupancy(0, Bwp(FIRST7, 100 * 7));
+    gnb->ReportBwpOccupancy(1, Bwp(LAST7, 100 * 7));
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->EvaluateCarrierPowerW(),
+                              212.5,
+                              1e-9,
+                              "disjoint spans: every symbol half occupied, so sf = 0.5 "
+                              "throughout - counts cannot distinguish this from overlap");
+
+    // A BWP that stops reporting must stop contributing rather than linger.
+    Ptr<NrGnbEnergyModel> stale = CreateObject<NrGnbEnergyModel>();
+    stale->Initialize();
+    auto expiring = Bwp(ALL14, 100 * 14);
+    expiring.validUntil = MicroSeconds(1); // 0 would mean "never expires"
+    stale->ReportBwpOccupancy(0, expiring);
+    stale->ReportBwpOccupancy(1, Bwp(0, 0));
+    Simulator::Schedule(MilliSeconds(1), [stale, this]() {
+        NS_TEST_ASSERT_MSG_EQ_TOL(stale->EvaluateCarrierPowerW(),
+                                  55.0,
+                                  1e-9,
+                                  "an expired BWP record must not keep contributing");
+    });
+    Simulator::Stop(MilliSeconds(2));
+    Simulator::Run();
+    Simulator::Destroy();
+}
+
+/**
+ * @brief A carrier rejects bandwidth parts that do not share its numerology.
+ *
+ * RB width is SCS x 12, so RB counts at different subcarrier spacings are not the
+ * same unit and the carrier total would be meaningless; the symbol grids would
+ * not line up either. The model carries a single symbol duration, and
+ * SetSymbolDuration() simply overwrites, so without this check the last listener
+ * to attach would silently win.
+ */
+class NrGnbEnergyModelMixedNumerologyTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyModelMixedNumerologyTestCase()
+        : TestCase("NrGnbEnergyModel rejects BWPs of a carrier with different numerologies")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrGnbEnergyModelMixedNumerologyTestCase::DoRun()
+{
+    Ptr<NrGnbEnergyModel> gnb = CreateObject<NrGnbEnergyModel>();
+    gnb->Initialize();
+
+    NrGnbEnergyModel::BwpOccupancy mu0;
+    mu0.rbCount = 100;
+    mu0.dlDataMask = 0x3FFF;
+    mu0.dlDataReg = 100 * 14;
+    mu0.symbolsPerSlot = 14;
+    mu0.symbolDuration = NanoSeconds(71429); // numerology 0: 1 ms / 14
+
+    // Same numerology on a second BWP is fine and aggregates normally.
+    auto sameMu = mu0;
+    gnb->ReportBwpOccupancy(0, mu0);
+    gnb->ReportBwpOccupancy(1, sameMu);
+    NS_TEST_ASSERT_MSG_GT(gnb->EvaluateCarrierPowerW(),
+                          0.0,
+                          "matching numerologies must aggregate without complaint");
+
+    // A BWP that reports no numerology at all (the default) must not trip the
+    // check, so that hand-built records and older callers keep working.
+    NrGnbEnergyModel::BwpOccupancy unspecified;
+    unspecified.rbCount = 100;
+    unspecified.symbolsPerSlot = 14;
+    gnb->ReportBwpOccupancy(2, unspecified);
+    NS_TEST_ASSERT_MSG_GT(gnb->EvaluateCarrierPowerW(),
+                          0.0,
+                          "an unspecified numerology must not be treated as a mismatch");
+
+    // Reporting a DIFFERENT numerology on the same carrier aborts by design: the
+    // RB counts could not be summed and the symbol grids would not line up, so
+    // any number produced would be meaningless. That path is deliberately fatal
+    // and therefore not exercised here - an NS_ABORT cannot be caught in-process.
+
+    Simulator::Destroy();
+}
+
+/**
+ * @brief FDD: a downlink and an uplink BWP sharing a carrier (TR 38.864 5.1).
+ *
+ * Reporting symbol POSITIONS rather than counts locates simultaneous DL and UL
+ * exactly, so the spec's rule can be applied where it actually applies:
+ * "For simultaneous DL and UL transmission for FDD, the power for UL reception
+ * is neglected in this study." The uplink-only BWP is also excluded from the DL
+ * reference bandwidth, so a saturated downlink still reaches exactly P4.
+ */
+class NrGnbEnergyModelFddCarrierTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyModelFddCarrierTestCase()
+        : TestCase("NrGnbEnergyModel resolves simultaneous DL and UL on one carrier")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrGnbEnergyModelFddCarrierTestCase::DoRun()
+{
+    Ptr<NrGnbEnergyModel> gnb = CreateObject<NrGnbEnergyModel>();
+    gnb->Initialize();
+
+    // An all-downlink BWP alongside an all-uplink one: the FDD layout. Together
+    // they claim 28 symbols of a 14-symbol slot.
+    NrGnbEnergyModel::BwpOccupancy dl;
+    dl.rbCount = 100;
+    dl.dlDataMask = 0x3FFF; // all 14 symbols downlink
+    dl.dlDataReg = 100 * 14;
+    dl.symbolsPerSlot = 14;
+
+    NrGnbEnergyModel::BwpOccupancy ul;
+    ul.rbCount = 100;
+    ul.ulMask = 0x3FFF; // the same 14 symbols, uplink
+    ul.dlCapable = false;
+    ul.symbolsPerSlot = 14;
+
+    gnb->ReportBwpOccupancy(0, dl);
+    gnb->ReportBwpOccupancy(1, ul);
+
+    // Every symbol carries both directions. TR 38.864 Section 5.1 resolves it:
+    // "For simultaneous DL and UL transmission for FDD, the power for UL
+    // reception is neglected in this study." So the carrier draws P_DL, and the
+    // uplink-only BWP does not widen the sf denominator - the downlink BWP alone
+    // is the DL reference bandwidth, so a saturated DL still reaches exactly P4.
+    const double p4 = gnb->GetRelativePower(NrGnbPowerState::ActiveDl);
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->EvaluateCarrierPowerW(),
+                              p4,
+                              1e-9,
+                              "simultaneous DL and UL draws P_DL with the UL neglected, and "
+                              "a saturated DL must still reach exactly P4");
+
+    // The study assumption is overridable, because a real FDD base station does
+    // consume power receiving while transmitting. Only the UL DYNAMIC part is
+    // added: P_UL carries the same P3 baseline as P_DL.
+    Ptr<NrGnbEnergyModel> both = CreateObject<NrGnbEnergyModel>();
+    both->SetAttribute("NeglectUlDuringDl", BooleanValue(false));
+    both->Initialize();
+    both->ReportBwpOccupancy(0, dl);
+    both->ReportBwpOccupancy(1, ul);
+    const double p3 = both->GetRelativePower(NrGnbPowerState::MicroSleep);
+    const double p5 = both->GetRelativePower(NrGnbPowerState::ActiveUl);
+    NS_TEST_ASSERT_MSG_EQ_TOL(both->EvaluateCarrierPowerW(),
+                              p4 + (p5 - p3),
+                              1e-9,
+                              "with the assumption off, only the UL dynamic part is added, "
+                              "so P3 is not counted twice");
+
+    // UL alone is still charged at P_UL: it is neglected only when it OVERLAPS DL.
+    Ptr<NrGnbEnergyModel> ulOnly = CreateObject<NrGnbEnergyModel>();
+    ulOnly->Initialize();
+    ulOnly->ReportBwpOccupancy(0, ul);
+    NS_TEST_ASSERT_MSG_EQ_TOL(ulOnly->EvaluateCarrierPowerW(),
+                              ulOnly->CalcUlPowerW(1.0),
+                              1e-9,
+                              "uplink on its own still costs P_UL");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @brief Multi-carrier aggregation (TR 38.864 Section 5.1).
+ *
+ * "For multi-carrier, the total power consumption of BS is calculated as is the
+ * sum of the power consumption of each CC; for intra-band multi-carrier with
+ * contiguous CCs, the power consumption of each additional CC is scaled by 0.7."
+ *
+ * Each carrier keeps its own full power, P3 baseline included: the sharing
+ * between carriers is the 0.7 factor, not a dropped baseline. This is the
+ * opposite of how BWPs combine inside one carrier, and the two must not be
+ * confused.
+ */
+class NrGnbEnergyAggregatorTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyAggregatorTestCase()
+        : TestCase("NrGnbEnergyAggregator sums carrier power with the TR 38.864 weights")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrGnbEnergyAggregatorTestCase::DoRun()
+{
+    // Cat 1 / Set 1 defaults: an idle carrier sits at P3 = 55 W (PowerUnit 1 W).
+    const double p3 = 55.0;
+
+    // Two carriers, intra-band contiguous: the anchor at 1.0, the additional at 0.7.
+    Ptr<NrGnbEnergyModel> cc0 = CreateObject<NrGnbEnergyModel>();
+    Ptr<NrGnbEnergyModel> cc1 = CreateObject<NrGnbEnergyModel>();
+    Ptr<NrGnbEnergyAggregator> agg = CreateObject<NrGnbEnergyAggregator>();
+    agg->AddCarrierWithWeight(cc0, 1.0);
+    agg->AddCarrierWithWeight(cc1, 0.7);
+    agg->Initialize();
+
+    NS_TEST_ASSERT_MSG_EQ(agg->GetNCarriers(), 2, "both carriers registered");
+    NS_TEST_ASSERT_MSG_EQ_TOL(agg->ComputeDevicePowerW(),
+                              p3 + 0.7 * p3, // 93.5
+                              1e-9,
+                              "two idle intra-band contiguous carriers: P3 + 0.7 x P3");
+
+    // Neither the plain sum nor a single carrier: the weight has to be applied,
+    // and the baseline is NOT collapsed to one.
+    NS_TEST_ASSERT_MSG_GT(std::abs(agg->ComputeDevicePowerW() - 2 * p3),
+                          1.0,
+                          "must not be the unweighted sum");
+    NS_TEST_ASSERT_MSG_GT(std::abs(agg->ComputeDevicePowerW() - p3),
+                          1.0,
+                          "must not collapse the baseline to a single carrier");
+
+    // Inter-band: no discount, so both carriers count fully.
+    Ptr<NrGnbEnergyModel> b0 = CreateObject<NrGnbEnergyModel>();
+    Ptr<NrGnbEnergyModel> b1 = CreateObject<NrGnbEnergyModel>();
+    Ptr<NrGnbEnergyAggregator> inter = CreateObject<NrGnbEnergyAggregator>();
+    inter->AddCarrierWithWeight(b0, 1.0);
+    inter->AddCarrierWithWeight(b1, 1.0);
+    inter->Initialize();
+    NS_TEST_ASSERT_MSG_EQ_TOL(inter->ComputeDevicePowerW(),
+                              2 * p3,
+                              1e-9,
+                              "two idle inter-band carriers get no 0.7 discount");
+
+    // Loading one carrier moves the device power by that carrier's weighted share.
+    // A fully occupied carrier draws exactly P4 = 280 W.
+    NrGnbEnergyModel::BwpOccupancy full;
+    full.rbCount = 100;
+    full.dlDataMask = 0x3FFF;
+    full.dlDataReg = 100 * 14;
+    full.symbolsPerSlot = 14;
+    cc1->ReportBwpOccupancy(0, full);
+    NS_TEST_ASSERT_MSG_EQ_TOL(agg->ComputeDevicePowerW(),
+                              p3 + 0.7 * 280.0, // 55 + 196 = 251
+                              1e-9,
+                              "the loaded carrier enters at its own weight");
+
+    Simulator::Destroy();
+}
+
+/**
+ * @brief The 0.7 is DERIVED from the spectrum, not supplied (TR 38.864 5.1).
+ *
+ * "For intra-band multi-carrier with contiguous CCs, the power consumption of
+ * each additional CC is scaled by 0.7." Being a rule of the specification, it
+ * belongs with the formulas: the caller says where each carrier sits and the
+ * model decides what that costs. This pins the three ways a carrier can fail to
+ * earn the discount - a different band, a gap in the same band, or being the
+ * first of a run - and that the answer does not depend on registration order.
+ */
+class NrGnbEnergyAggregatorContiguityTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyAggregatorContiguityTestCase()
+        : TestCase("NrGnbEnergyAggregator derives the contiguity weights from the spectrum")
+    {
+    }
+
+  private:
+    void DoRun() override;
+
+    /// A carrier of width w starting at f, in band b.
+    static Ptr<NrGnbEnergyModel> Cc(Ptr<NrGnbEnergyAggregator> agg, uint8_t b, double f, double w)
+    {
+        Ptr<NrGnbEnergyModel> m = CreateObject<NrGnbEnergyModel>();
+        agg->AddCarrier(m, b, f, f + w);
+        return m;
+    }
+};
+
+void
+NrGnbEnergyAggregatorContiguityTestCase::DoRun()
+{
+    const double p3 = 55.0;  // Cat 1 / Set 1 idle power
+    const double bw = 100e6; // 100 MHz carriers, laid out edge to edge
+
+    // Three carriers of one band, touching: 3.5 GHz - 3.6 - 3.7 - 3.8.
+    // One anchor and two additional CCs.
+    {
+        Ptr<NrGnbEnergyAggregator> agg = CreateObject<NrGnbEnergyAggregator>();
+        Cc(agg, 1, 3.5e9, bw);
+        Cc(agg, 1, 3.6e9, bw);
+        Cc(agg, 1, 3.7e9, bw);
+        agg->Initialize();
+
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(0), 1.0, 1e-12, "the anchor keeps 1.0");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(1), 0.7, 1e-12, "second CC of the run");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(2), 0.7, 1e-12, "third CC of the run");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->ComputeDevicePowerW(),
+                                  p3 + 0.7 * p3 + 0.7 * p3, // 132
+                                  1e-9,
+                                  "P3 + 0.7 P3 + 0.7 P3, the baseline kept per carrier");
+    }
+
+    // Same band, but a 100 MHz gap between them. Not contiguous, so no discount:
+    // this is the case a naive "same band => 0.7" test would get wrong.
+    {
+        Ptr<NrGnbEnergyAggregator> agg = CreateObject<NrGnbEnergyAggregator>();
+        Cc(agg, 1, 3.5e9, bw);
+        Cc(agg, 1, 3.7e9, bw);
+        agg->Initialize();
+
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(1),
+                                  1.0,
+                                  1e-12,
+                                  "a gap in the same band earns no discount");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->ComputeDevicePowerW(), 2 * p3, 1e-9, "so both count fully");
+    }
+
+    // Touching edges but different bands: inter-band CA, no discount.
+    {
+        Ptr<NrGnbEnergyAggregator> agg = CreateObject<NrGnbEnergyAggregator>();
+        Cc(agg, 1, 3.5e9, bw);
+        Cc(agg, 2, 3.6e9, bw);
+        agg->Initialize();
+
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(1),
+                                  1.0,
+                                  1e-12,
+                                  "adjacent frequencies in DIFFERENT bands are not intra-band");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->ComputeDevicePowerW(), 2 * p3, 1e-9, "no discount");
+    }
+
+    // Registration order must not matter: the anchor is the lowest carrier of the
+    // run, whichever order the helper happened to walk the band in.
+    {
+        Ptr<NrGnbEnergyAggregator> agg = CreateObject<NrGnbEnergyAggregator>();
+        Cc(agg, 1, 3.7e9, bw); // registered first, but highest
+        Cc(agg, 1, 3.5e9, bw); // registered last, but lowest
+        Cc(agg, 1, 3.6e9, bw);
+        agg->Initialize();
+
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(1),
+                                  1.0,
+                                  1e-12,
+                                  "the LOWEST carrier is the anchor, not the first registered");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(0), 0.7, 1e-12, "highest is additional");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(2), 0.7, 1e-12, "middle is additional");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->ComputeDevicePowerW(),
+                                  p3 + 0.7 * p3 + 0.7 * p3,
+                                  1e-9,
+                                  "and the total is order-independent");
+    }
+
+    // Two bands at once: a contiguous pair in band 1, a lone carrier in band 2.
+    // Each band is scanned separately, so band 2 gets its own anchor.
+    {
+        Ptr<NrGnbEnergyAggregator> agg = CreateObject<NrGnbEnergyAggregator>();
+        Cc(agg, 1, 3.5e9, bw);
+        Cc(agg, 1, 3.6e9, bw);
+        Cc(agg, 2, 28.0e9, bw);
+        agg->Initialize();
+
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(2),
+                                  1.0,
+                                  1e-12,
+                                  "a band of its own always starts a new run");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->ComputeDevicePowerW(),
+                                  p3 + 0.7 * p3 + p3, // 148.5
+                                  1e-9,
+                                  "one discounted CC, two anchors");
+    }
+
+    // A carrier added later can extend an existing run, which is why the weights
+    // are re-derived over the whole set rather than fixed at registration.
+    {
+        Ptr<NrGnbEnergyAggregator> agg = CreateObject<NrGnbEnergyAggregator>();
+        Cc(agg, 1, 3.5e9, bw);
+        Cc(agg, 1, 3.7e9, bw); // a gap for now, so an anchor
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(1), 1.0, 1e-12, "anchor while isolated");
+
+        Cc(agg, 1, 3.6e9, bw); // fills the gap: now all three touch
+        agg->Initialize();
+
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(1),
+                                  0.7,
+                                  1e-12,
+                                  "filling the gap demotes the former anchor to an additional CC");
+        NS_TEST_ASSERT_MSG_EQ_TOL(agg->ComputeDevicePowerW(),
+                                  p3 + 0.7 * p3 + 0.7 * p3,
+                                  1e-9,
+                                  "one run of three");
+    }
+
+    Simulator::Destroy();
+}
+
+/**
+ * @brief The aggregator and its EnergySource must account the same energy.
+ *
+ * The reconciliation established for the single-carrier model has to survive
+ * aggregation. The specific way it could break is by appending the per-carrier
+ * models to the source as well: BasicEnergySource sums DoGetCurrentA() without
+ * weights, so it would integrate the unweighted sum while the aggregator reports
+ * the weighted one.
+ */
+class NrGnbEnergyAggregatorSourceTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyAggregatorSourceTestCase()
+        : TestCase("NrGnbEnergyAggregator and its BasicEnergySource agree")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrGnbEnergyAggregatorSourceTestCase::DoRun()
+{
+    const double initialJ = 1e6;
+
+    Ptr<energy::BasicEnergySource> src = CreateObject<energy::BasicEnergySource>();
+    src->SetInitialEnergy(initialJ);
+    src->SetSupplyVoltage(12.0); // non-unity, so a W/A confusion would show
+
+    Ptr<NrGnbEnergyModel> cc0 = CreateObject<NrGnbEnergyModel>();
+    Ptr<NrGnbEnergyModel> cc1 = CreateObject<NrGnbEnergyModel>();
+    Ptr<NrGnbEnergyAggregator> agg = CreateObject<NrGnbEnergyAggregator>();
+    agg->AddCarrierWithWeight(cc0, 1.0);
+    agg->AddCarrierWithWeight(cc1, 0.7);
+
+    // ONLY the aggregator is appended. The carriers keep a null source.
+    agg->SetEnergySource(src);
+    src->AppendDeviceEnergyModel(agg);
+    agg->Initialize();
+
+    // Load one carrier part-way through, so the device power really changes.
+    NrGnbEnergyModel::BwpOccupancy busy;
+    busy.rbCount = 100;
+    busy.dlDataMask = 0x3FFF;
+    busy.dlDataReg = 100 * 14;
+    busy.symbolsPerSlot = 14;
+    Simulator::Schedule(MilliSeconds(100), &NrGnbEnergyModel::ReportBwpOccupancy, cc0, 0, busy);
+
+    double modelJ = 0.0;
+    double drainedJ = 0.0;
+    Simulator::Schedule(MilliSeconds(300), [&]() {
+        modelJ = agg->GetTotalEnergyJ();
+        drainedJ = initialJ - src->GetRemainingEnergy();
+    });
+    Simulator::Stop(MilliSeconds(301));
+    Simulator::Run();
+
+    // An independent analytical reference. Model-vs-source agreement alone cannot
+    // catch a commit-ordering error: if the new power were installed BEFORE the
+    // interval was committed, both sides would charge the elapsed time at the new
+    // power and still agree with each other. Only a third, independently derived
+    // number exposes that.
+    //   [0, 100ms)   both carriers idle:  1.0 x 55 + 0.7 x 55        =  93.5 W
+    //   [100, 300ms) cc0 saturated:       1.0 x 280 + 0.7 x 55       = 318.5 W
+    const double expectedJ = 93.5 * 0.100 + 318.5 * 0.200; // 73.05 J
+
+    NS_TEST_ASSERT_MSG_GT(modelJ, 0.0, "the device must consume energy");
+    NS_TEST_ASSERT_MSG_EQ_TOL(modelJ,
+                              expectedJ,
+                              expectedJ * 1e-9,
+                              "the aggregator must charge each interval at the power drawn over "
+                              "it, so the commit has to precede the new power being installed");
+    NS_TEST_ASSERT_MSG_EQ_TOL(drainedJ,
+                              modelJ,
+                              modelJ * 1e-9,
+                              "the source must drain exactly what the aggregator accounts");
+
+    // And the total is the weighted one, not the unweighted sum of the carriers.
+    const double unweighted = cc0->GetTotalEnergyJ() + cc1->GetTotalEnergyJ();
+    NS_TEST_ASSERT_MSG_GT(std::abs(modelJ - unweighted),
+                          modelJ * 1e-6,
+                          "the device total must differ from the unweighted carrier sum");
+
     Simulator::Destroy();
 }
 
@@ -717,10 +1463,18 @@ class NrEnergyModelsTestSuite : public TestSuite
         AddTestCase(new NrUeEnergyModelPowerTestCase(), Duration::QUICK);
         AddTestCase(new NrUeEnergyModelRxChainScalingTestCase(), Duration::QUICK);
         AddTestCase(new NrUeEnergyModelTransientTestCase(), Duration::QUICK);
+        AddTestCase(new NrUeEnergyModelTable19TestCase(), Duration::QUICK);
         AddTestCase(new NrUeEnergyModelAccountingTestCase(), Duration::QUICK);
         AddTestCase(new NrGnbEnergyModelPowerTableTestCase(), Duration::QUICK);
         AddTestCase(new NrGnbEnergyModelRefConfigBundleTestCase(), Duration::QUICK);
         AddTestCase(new NrGnbEnergyModelTransitionTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyModelSfNormalizationTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyModelCarrierAggregationTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyModelMixedNumerologyTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyModelFddCarrierTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyAggregatorTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyAggregatorContiguityTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyAggregatorSourceTestCase(), Duration::QUICK);
         AddTestCase(new NrGnbEnergyModelFormulaTestCase(), Duration::QUICK);
         AddTestCase(new NrGnbEnergyModelSlotAccumTestCase(), Duration::QUICK);
         AddTestCase(new NrUeDrxModelCycleTestCase(), Duration::QUICK);

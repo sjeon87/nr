@@ -315,11 +315,11 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
 
     Ptr<energy::EnergySource> m_source; //!< Attached energy source (may be null)
 
-    FreqRange m_freqRange;    //!< FR1 or FR2 power table selector
-    double m_powerUnitMw;     //!< Absolute scale: mW per relative power-unit
+    FreqRange m_freqRange;     //!< FR1 or FR2 power table selector
+    double m_powerUnitMw;      //!< Absolute scale: mW per relative power-unit
     uint32_t m_refRxAntennas;  //!< Reference receive antennas (TR 38.840 8.1.3)
     uint32_t m_activeRxChains; //!< Powered receive chains; 0 = same as reference
-    uint32_t m_refBwpMhz;     //!< Reference BWP bandwidth in MHz (100)
+    uint32_t m_refBwpMhz;      //!< Reference BWP bandwidth in MHz (100)
 
     NrUePowerState m_currentState; //!< Current power state
     Time m_lastUpdateTime;         //!< Time of last state change
@@ -341,7 +341,7 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
     TracedValue<int> m_stateTrace;      //!< Fires on each state change
     TracedValue<double> m_powerTrace;   //!< Fires with instantaneous power [W] on each change
     TracedValue<double> m_totalEnergyJ; //!< Accumulated energy [J], excl. open interval
-    
+
     void DoInitialize() override;
 };
 

@@ -115,6 +115,56 @@ class NrGnbPhyEnergyListener : public Object
      */
     double GetLastSa() const;
 
+    /**
+     * @brief Whether this bandwidth part can carry downlink.
+     *
+     * Derived from the PHY's TDD pattern when SetPhy() attaches. The model keeps
+     * a bandwidth part that cannot transmit out of the carrier's downlink
+     * reference bandwidth: counting it would cap sf below 1 and put P4 out of
+     * reach, contradicting TR 38.864 Table 5.1-2.
+     *
+     * @return True unless the pattern is uplink only.
+     */
+    bool IsDlCapable() const;
+
+    /**
+     * @brief Per-slot gNB driver, connected to NrGnbPhy "SlotEnergyStats".
+     *
+     * Translates one slot's reported occupancy into an NrGnbEnergyModel
+     * BwpOccupancy record (TR 38.864 Section 5.2). The symbol masks say WHICH
+     * symbols carry DL data, DL control and UL, so the model can classify each
+     * symbol from the union across the carrier's bandwidth parts:
+     *   - DL data / DL control (PDCCH) -> DL active power at the measured sf;
+     *   - UL data / UL control (PUCCH/SRS) -> UL power, which has no sf/sp term;
+     *   - unallocated -> micro sleep (P3).
+     * "Idle" is not the 3GPP "flexible" (F) slot type: F is a dually-schedulable
+     * slot already resolved to DL/UL directions, so a fully-scheduled F slot has
+     * no idle symbols at all.
+     *
+     * Public so a test can drive one slot directly, as NrUePhyEnergyListener
+     * does with its own trace sinks. Production code never calls this: SetPhy()
+     * connects it to the PHY's trace source.
+     *
+     * @param sfnSf       The current system frame / slot number.
+     * @param availableRb Resource blocks available in the BWP.
+     * @param dlDataMask  Symbols carrying DL data, one bit per symbol.
+     * @param dlDataReg   DL data REGs (RB x symbols) over the slot.
+     * @param ulMask      Symbols carrying UL data or UL control.
+     * @param dlCtrlMask  Symbols carrying DL control (PDCCH).
+     * @param dlCtrlReg   DL control REGs (RB x symbols) over the slot.
+     * @param bwpId       BWP id, which keys the record inside the model.
+     * @param cellId      Cell id.
+     */
+    void SlotEnergyStatsCallback(const SfnSf& sfnSf,
+                                 uint32_t availableRb,
+                                 uint16_t dlDataMask,
+                                 uint32_t dlDataReg,
+                                 uint16_t ulMask,
+                                 uint16_t dlCtrlMask,
+                                 uint32_t dlCtrlReg,
+                                 uint16_t bwpId,
+                                 uint16_t cellId);
+
   protected:
     /**
      * @brief Release attached pointers. Inherited from Object.
@@ -122,41 +172,6 @@ class NrGnbPhyEnergyListener : public Object
     void DoDispose() override;
 
   private:
-    /**
-     * @brief Per-slot gNB driver, connected to NrGnbPhy "SlotEnergyStats".
-     *
-     * Builds a direction-aware per-symbol power timeline (TR 38.864 Section 5.2):
-     *   - DL data / DL control (PDCCH) symbols -> DL active power at the measured
-     *     sf (the gNB is transmitting, PA on);
-     *   - UL data / UL control (PUCCH/SRS) symbols -> UL power (the gNB is
-     *     receiving), which has no sf/sp dependence;
-     *   - unallocated symbols -> micro-sleep (P3).
-     * "Idle" is not the 3GPP "flexible" (F) slot type: F is a dually-schedulable
-     * slot already resolved to DL/UL directions, so a fully-scheduled F slot has
-     * no idle symbols at all. After the 14 symbols the slot energy is committed.
-     *
-     * @param sfnSf       The current system frame / slot number.
-     * @param availableRb Resource blocks available in the BWP.
-     * @param dlDataSym   DL data symbols in the slot.
-     * @param dlDataReg   DL data REGs (RB x symbols), for the DL data sf.
-     * @param ulDataSym   UL data symbols in the slot.
-     * @param dlCtrlSym   DL control (PDCCH) symbols.
-     * @param dlCtrlReg   DL control REGs (RB x symbols), for the PDCCH sf.
-     * @param ulCtrlSym   UL control (PUCCH/SRS) symbols.
-     * @param bwpId       BWP id.
-     * @param cellId      Cell id.
-     */
-    void SlotEnergyStatsCallback(const SfnSf& sfnSf,
-                                 uint32_t availableRb,
-                                 uint32_t dlDataSym,
-                                 uint32_t dlDataReg,
-                                 uint32_t ulDataSym,
-                                 uint32_t dlCtrlSym,
-                                 uint32_t dlCtrlReg,
-                                 uint32_t ulCtrlSym,
-                                 uint16_t bwpId,
-                                 uint16_t cellId);
-
     /**
      * @brief Push the gNB's current Tx power to the energy model and cache sp.
      *
@@ -176,6 +191,7 @@ class NrGnbPhyEnergyListener : public Object
                        //!< until antenna muting is added (no source in PHY yet).
 
     uint32_t m_totalBwpRbs;    //!< Total RBs in active BWP (from NrGnbPhy)
+    bool m_dlCapable;          //!< This BWP can transmit DL (from the PHY slot pattern)
     uint32_t m_symbolsPerSlot; //!< OFDM symbols per slot (from NrGnbPhy, 12 or 14)
 };
 
