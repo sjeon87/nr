@@ -14,12 +14,12 @@
 #include "nr-ue-energy-model.h"
 #include "nr-ue-phy.h"
 
+#include "ns3/boolean.h"
 #include "ns3/log.h"
 #include "ns3/simulator.h"
 
 namespace ns3
 {
-constexpr int64_t NR_SYMBOLS_PER_SLOT = 14; //!< OFDM symbols per NR slot
 NS_LOG_COMPONENT_DEFINE("NrUePhyEnergyListener");
 NS_OBJECT_ENSURE_REGISTERED(NrUePhyEnergyListener);
 
@@ -29,13 +29,26 @@ NrUePhyEnergyListener::GetTypeId()
     static TypeId tid = TypeId("ns3::NrUePhyEnergyListener")
                             .SetParent<Object>()
                             .SetGroupName("Nr")
-                            .AddConstructor<NrUePhyEnergyListener>();
+                            .AddConstructor<NrUePhyEnergyListener>()
+                            .AddAttribute("UseRankAsRxChains",
+                                          "OPTIONAL non-3GPP approximation: treat the reported "
+                                          "MIMO rank as the number of powered receive chains and "
+                                          "re-apply the TR 38.840 Table 21 antenna scaling on each "
+                                          "downlink transport block. Spatial layers and RF chains "
+                                          "are different quantities and the spec defines no such "
+                                          "mapping, so this is off by default; the 3GPP behaviour "
+                                          "is the static NrUeEnergyModel::ActiveRxChains.",
+                                          BooleanValue(false),
+                                          MakeBooleanAccessor(
+                                              &NrUePhyEnergyListener::m_useRankAsRxChains),
+                                          MakeBooleanChecker());
     return tid;
 }
 
 NrUePhyEnergyListener::NrUePhyEnergyListener()
     : m_slotDuration(MilliSeconds(1)),
-      m_lastBwpMhz(0)
+      m_lastBwpMhz(0),
+      m_useRankAsRxChains(false)
 {
     NS_LOG_FUNCTION(this);
 }
@@ -122,10 +135,10 @@ NrUePhyEnergyListener::DlTbReceivedCallback(uint64_t imsi,
         m_model->TriggerSetupTransition();
     }
     RefreshBwpScaling();
-    // Scale active-reception power by the spatial layers actually in use.
-    // TR 38.840 Section 8.1.3 antenna scaling is over Rx branches; rank <= Rx
-    // branches, so this refines the existing antenna knob (active-layer scaling).
-    if (rank >= 1)
+    // Table 21 scales with powered receive chains, which 5G-LENA does not model;
+    // that count is a static configuration on the energy model. Rank counts
+    // spatial layers, so it drives the scaling only if the user opts in.
+    if (m_useRankAsRxChains && rank >= 1)
     {
         m_model->ApplyAntennaScaling(rank);
     }
@@ -134,13 +147,11 @@ NrUePhyEnergyListener::DlTbReceivedCallback(uint64_t imsi,
     {
         m_drx->NotifyDataActivity();
     }
-    // Hold full DL reception only for the allocated symbols, then fall back
-    // to PDCCH-only monitoring for the rest of the slot.
-    Time active = (numSym > 0) ? m_slotDuration * static_cast<int64_t>(numSym) / NR_SYMBOLS_PER_SLOT
-                               : m_slotDuration;
-    Time end = Simulator::Now() + active;
+    // TR 38.840 Table 18/20 values are averaged over the operations within a slot
+    // (Release 16, p.63), so the active value is charged for the whole slot.
+    Time end = Simulator::Now() + m_slotDuration;
     m_activeUntil = std::max(m_activeUntil, end);
-    Simulator::Schedule(active, &NrUePhyEnergyListener::ReturnToMonitoring, this);
+    Simulator::Schedule(m_slotDuration, &NrUePhyEnergyListener::ReturnToMonitoring, this);
 }
 
 void
@@ -165,12 +176,9 @@ NrUePhyEnergyListener::UlTbSentCallback(uint64_t imsi,
     {
         m_drx->NotifyDataActivity();
     }
-    // Active only for the allocated UL symbols.
-    Time active = (numSym > 0) ? m_slotDuration * static_cast<int64_t>(numSym) / NR_SYMBOLS_PER_SLOT
-                               : m_slotDuration;
-    Time end = Simulator::Now() + active;
+    Time end = Simulator::Now() + m_slotDuration;
     m_activeUntil = std::max(m_activeUntil, end);
-    Simulator::Schedule(active, &NrUePhyEnergyListener::ReturnToMonitoring, this);
+    Simulator::Schedule(m_slotDuration, &NrUePhyEnergyListener::ReturnToMonitoring, this);
 }
 
 void

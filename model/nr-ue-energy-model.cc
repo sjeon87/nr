@@ -93,16 +93,30 @@ NrUeEnergyModel::GetTypeId()
                           MakeEnumAccessor<FreqRange>(&NrUeEnergyModel::m_freqRange),
                           MakeEnumChecker(FR1, "FR1", FR2, "FR2"))
             .AddAttribute("PowerUnit",
-                          "Absolute power of one TR 38.840 relative power-unit, in mW.",
+                          "Absolute power of one TR 38.840 relative power-unit, in mW. "
+                          "PowerUnit is a user-supplied calibration assumption. 3GPP "
+                          "provides only relative power, and does not provide the default "
+                          "value for the absolute value of the unit. Hence the result "
+                          "obtained with this default value do not represent the absolute "
+                          "energy consumption per 3GPP model.",
                           DoubleValue(1.0),
                           MakeDoubleAccessor(&NrUeEnergyModel::m_powerUnitMw),
                           MakeDoubleChecker<double>(0.0))
             .AddAttribute("ReferenceRxAntennas",
                           "Reference receive-chain count (TR 38.840 Table 21). 0 = derive "
                           "from FreqRange (4 for FR1, 2 for FR2).",
-                          UintegerValue(0)
+                          UintegerValue(0),
                           MakeUintegerAccessor(&NrUeEnergyModel::m_refRxAntennas),
-                          MakeUintegerChecker<uint32_t>(1))
+                          MakeUintegerChecker<uint32_t>())
+            .AddAttribute("ActiveRxChains",
+                          "Powered UE receive chains for the TR 38.840 Table 21 antenna "
+                          "scaling (one 0.7 factor per halving relative to "
+                          "ReferenceRxAntennas). 0 = equal to ReferenceRxAntennas, i.e. no "
+                          "scaling. 5G-LENA does not model receive-chain adaptation, so this "
+                          "is a static configuration, not a simulated quantity.",
+                          UintegerValue(0),
+                          MakeUintegerAccessor(&NrUeEnergyModel::m_activeRxChains),
+                          MakeUintegerChecker<uint32_t>())
             .AddAttribute("ReferenceBwpBandwidth",
                           "Reference BWP bandwidth in MHz (TR 38.840 Section 8.1.3).",
                           UintegerValue(100),
@@ -141,6 +155,7 @@ NrUeEnergyModel::NrUeEnergyModel()
       m_freqRange(FR1),
       m_powerUnitMw(1.0),
       m_refRxAntennas(4),
+      m_activeRxChains(0),
       m_refBwpMhz(100),
       m_currentState(NR_UE_DEEP_SLEEP),
       m_lastUpdateTime(Seconds(0)),
@@ -169,11 +184,23 @@ NrUeEnergyModel::~NrUeEnergyModel()
 void
 NrUeEnergyModel::DoInitialize()
 {
-    if (m_refRxAntennas == 0)
+    m_refRxAntennas = GetRefRxAntennas();
+    // Chain adaptation is not modelled, so unset means all reference chains on.
+    if (m_activeRxChains == 0)
     {
-        m_refRxAntennas = (m_freqRange == FR2) ? 2 : 4; // TR 38.840 Table 21
+        m_activeRxChains = m_refRxAntennas;
     }
+    ApplyAntennaScaling(m_activeRxChains);
     energy::DeviceEnergyModel::DoInitialize();
+}
+
+uint32_t
+NrUeEnergyModel::GetRefRxAntennas() const
+{
+    // The attribute default is a 0 sentinel meaning "derive from FreqRange".
+    // Resolve it on demand so the scaling is correct even before DoInitialize().
+    return (m_refRxAntennas != 0) ? m_refRxAntennas
+                                  : ((m_freqRange == FR2) ? 2 : 4); // TR 38.840 Table 21
 }
 
 double
@@ -232,6 +259,7 @@ void
 NrUeEnergyModel::ApplyBwpScaling(uint32_t bandwidthMhz)
 {
     NS_LOG_FUNCTION(this << bandwidthMhz);
+    CommitOpenInterval(); // the scaling changes the current state's power
     m_bwpScale = ScaleBwp(bandwidthMhz);
 }
 
@@ -239,11 +267,12 @@ void
 NrUeEnergyModel::ApplyAntennaScaling(uint32_t activeAntennas)
 {
     NS_LOG_FUNCTION(this << activeAntennas);
-    NS_ASSERT_MSG(activeAntennas >= 1, "At least one receive antenna required");
+    NS_ASSERT_MSG(activeAntennas >= 1, "At least one receive chain required");
+    CommitOpenInterval(); // the scaling changes the current state's power
     // Each halving of the receive chains relative to the reference applies one
     // 0.7 factor (TR 38.840 Section 8.1.3: P_2Rx = 0.7 * P_4Rx, etc.).
     double factor = 1.0;
-    uint32_t ant = m_refRxAntennas;
+    uint32_t ant = GetRefRxAntennas();
     while (ant > activeAntennas && ant > 1)
     {
         factor *= 0.7;
@@ -257,6 +286,7 @@ NrUeEnergyModel::ApplyBdReduction(double alpha)
 {
     NS_LOG_FUNCTION(this << alpha);
     NS_ASSERT_MSG(alpha > 0.0 && alpha <= 1.0, "alpha must be in (0, 1]");
+    CommitOpenInterval(); // the reduction changes the current state's power
     // TR 38.840 Section 8.1.3: P(alpha) = alpha*Pt + (1-alpha)*0.7*Pt.
     m_bdScale = alpha + (1.0 - alpha) * 0.7;
 }
@@ -265,6 +295,7 @@ void
 NrUeEnergyModel::SetUlTxPowerDbm(double txPowerDbm)
 {
     NS_LOG_FUNCTION(this << txPowerDbm);
+    CommitOpenInterval(); // the level changes the UL state's power
     if (m_freqRange == FR2)
     {
         m_ulRelativePower = UE_POWER_FR2[NR_UE_UL_TX];
@@ -274,6 +305,25 @@ NrUeEnergyModel::SetUlTxPowerDbm(double txPowerDbm)
     double frac = std::clamp(txPowerDbm / 23.0, 0.0, 1.0);
     m_ulRelativePower =
         UE_UL_POWER_FR1_0DBM + frac * (UE_UL_POWER_FR1_23DBM - UE_UL_POWER_FR1_0DBM);
+}
+
+void
+NrUeEnergyModel::CommitOpenInterval()
+{
+    NS_LOG_FUNCTION(this);
+    // Close the interval that has been running at the current power, before
+    // anything changes that power. Callers must invoke this *before* mutating the
+    // state or any scaling factor, so the elapsed time is charged at the power
+    // that was actually in effect over it.
+    Time now = Simulator::Now();
+    double durationS = (now - m_lastUpdateTime).GetSeconds();
+    m_totalEnergyJ = m_totalEnergyJ + GetCurrentPowerW() * durationS;
+    m_stateTimeS[m_currentState] += durationS;
+    m_lastUpdateTime = now;
+    if (m_source)
+    {
+        m_source->UpdateEnergySource();
+    }
 }
 
 bool
@@ -296,16 +346,13 @@ NrUeEnergyModel::ChangeState(int newState)
     NS_LOG_FUNCTION(this << newState);
     NS_ASSERT_MSG(newState >= 0 && newState < NR_UE_NUM_STATES, "Invalid UE state");
 
-    Time now = Simulator::Now();
-    double durationS = (now - m_lastUpdateTime).GetSeconds();
-    // Accrue the energy and the occupancy time of the state we are leaving.
-    m_totalEnergyJ = m_totalEnergyJ + GetCurrentPowerW() * durationS;
-    m_stateTimeS[m_currentState] += durationS;
-    m_lastUpdateTime = now;
-    if (m_source)
+    if (static_cast<NrUePowerState>(newState) == m_currentState)
     {
-        m_source->UpdateEnergySource();
+        return;
     }
+
+    // Accrue the energy and the occupancy time of the state we are leaving.
+    CommitOpenInterval();
     NrUePowerState oldState = m_currentState;
     m_currentState = static_cast<NrUePowerState>(newState);
     // TR 38.840 Table 19: charge the additional transition energy once when
@@ -329,7 +376,11 @@ NrUeEnergyModel::GetCurrentPowerW() const
 {
     NS_LOG_FUNCTION(this);
     double w = GetStatePowerW(m_currentState);
-    if (Simulator::Now() < m_transitionEndTime)
+    // The transient covers [trigger, end]. This value charges the interval that
+    // ends at "now", so the bound is inclusive: an accrual landing exactly on the
+    // end time still had the transient active for the whole interval it commits.
+    // EndTransition() splits the interval there, so no interval ever straddles.
+    if (Simulator::Now() <= m_transitionEndTime)
     {
         w += m_transitionExtraW; // transition transient riding on top of the state
     }
@@ -357,7 +408,11 @@ NrUeEnergyModel::TriggerTransition(double extraPowerW, Time duration)
     m_transitionExtraW = extraPowerW;
     m_transitionEndTime = now + duration;
     m_powerTrace = GetCurrentPowerW();
-    Simulator::Schedule(duration, &NrUeEnergyModel::EndTransition, this);
+    // Re-triggering while a transient is in flight extends it. Drop the pending
+    // end event first: otherwise it would fire at the original end time and clear
+    // the extended transient early.
+    m_transitionEvent.Cancel();
+    m_transitionEvent = Simulator::Schedule(duration, &NrUeEnergyModel::EndTransition, this);
 }
 
 void
@@ -486,6 +541,7 @@ void
 NrUeEnergyModel::DoDispose()
 {
     NS_LOG_FUNCTION(this);
+    m_transitionEvent.Cancel();
     m_source = nullptr;
     energy::DeviceEnergyModel::DoDispose();
 }

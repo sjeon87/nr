@@ -18,18 +18,13 @@
 #include "ns3/simulator.h"
 
 #include <algorithm>
-#include <cmath>
+
 
 namespace ns3
 {
 
 NS_LOG_COMPONENT_DEFINE("NrGnbPhyEnergyListener");
 NS_OBJECT_ENSURE_REGISTERED(NrGnbPhyEnergyListener);
-
-namespace
-{
-constexpr uint32_t SYMBOLS_PER_SLOT = 14; //!< OFDM symbols per NR slot (normal CP)
-} // namespace
 
 TypeId
 NrGnbPhyEnergyListener::GetTypeId()
@@ -47,7 +42,7 @@ NrGnbPhyEnergyListener::NrGnbPhyEnergyListener()
       m_lastSp(1.0), // Default: full power (sp=1)
       m_lastSa(1.0), // Default: all antennas active (sa=1)
       m_totalBwpRbs(0),
-      m_referenceTxPowerDbm(55.0) // TR 38.864 Set 1 reference; refreshed at attach
+      m_symbolsPerSlot(14) // Pre-attach default, matching NrPhy's own
 {
     NS_LOG_FUNCTION(this);
 }
@@ -64,7 +59,9 @@ NrGnbPhyEnergyListener::SetPhy(Ptr<NrGnbPhy> phy)
     NS_ASSERT_MSG(phy, "NrGnbPhy pointer must not be null");
     m_phy = phy;
     m_totalBwpRbs = phy->GetRbNum();
-    m_referenceTxPowerDbm = phy->GetTxPower();
+    // NrGnbPhy builds the slot's symbol-class map from GetSymbolsPerSlot(), so the
+    // idle count below must be derived against the same value (12 or 14).
+    m_symbolsPerSlot = phy->GetSymbolsPerSlot();
     if (m_model)
     {
         m_model->SetSymbolDuration(phy->GetSymbolPeriod());
@@ -136,7 +133,7 @@ NrGnbPhyEnergyListener::SlotEnergyStatsCallback(const SfnSf& sfnSf,
     // use P_UL. Symbols carrying no allocation are idle (micro-sleep, P3). sa is
     // held at 1.0 until antenna muting is modelled.
     uint32_t scheduled = dlDataSym + ulDataSym + dlCtrlSym + ulCtrlSym;
-    uint32_t idleSym = (scheduled < SYMBOLS_PER_SLOT) ? (SYMBOLS_PER_SLOT - scheduled) : 0;
+    uint32_t idleSym = (scheduled < m_symbolsPerSlot) ? (m_symbolsPerSlot - scheduled) : 0;
     for (uint32_t s = 0; s < dlDataSym; ++s)
     {
         m_model->UpdateSymbolPower(m_lastSa, sfData, m_lastSp, NrGnbSymbolType::Dl);
@@ -164,17 +161,14 @@ void
 NrGnbPhyEnergyListener::RefreshSp()
 {
     NS_LOG_FUNCTION(this);
-    if (!m_phy)
+    if (!m_phy || !m_model)
     {
         return;
     }
-    // sp = current Tx power / reference Tx power (linear). The reference is
-    // captured from m_phy->GetTxPower() at attach time in SetPhy(); the
-    // current value below is re-read each slot so runtime Tx-power changes
-    // (e.g. power control) are reflected.
-    double curLin = std::pow(10.0, m_phy->GetTxPower() / 10.0);
-    double refLin = std::pow(10.0, m_referenceTxPowerDbm / 10.0);
-    m_lastSp = (refLin > 0.0) ? std::min(1.0, curLin / refLin) : 1.0;
+    // The energy model owns the configured 3GPP reference Tx power, so it
+    // computes sp; the listener only reports the current Tx power.
+    m_model->SetTxPowerDbm(m_phy->GetTxPower());
+    m_lastSp = m_model->GetSp();
 }
 
 double

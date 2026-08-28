@@ -25,8 +25,9 @@ namespace ns3
 class NrUePhy;
 class NrUeEnergyModel;
 class NrUeDrxModel;
-class NrUePhyEnergyListenerDlDurationTestCase;
-class NrUePhyEnergyListenerRankScalingTestCase;
+class NrUePhyEnergyListenerSlotAveragedDurationTestCase;
+class NrUePhyEnergyListenerRankDefaultOffTestCase;
+class NrUePhyEnergyListenerRankOptInTestCase;
 
 /**
  * @ingroup nr
@@ -45,6 +46,11 @@ class NrUePhyEnergyListenerRankScalingTestCase;
  * 8.1.3): on each transport block the listener re-reads the PHY channel
  * bandwidth and re-applies NrUeEnergyModel::ApplyBwpScaling() when it
  * changed, so BWP switches are reflected in the UE power draw.
+ *
+ * The TR 38.840 Table 21 receive-chain scaling is NOT driven from here by
+ * default: 5G-LENA has no receive-chain adaptation, so the powered-chain count
+ * is the static NrUeEnergyModel::ActiveRxChains configuration. UseRankAsRxChains
+ * enables an optional, explicitly non-3GPP mapping of MIMO rank onto it instead.
  *
  * Design rationale:
  *   - This class must NOT be aware of the energy formula internals.
@@ -111,8 +117,9 @@ class NrUePhyEnergyListener : public Object
 
   private:
     // Unit tests drive the private PHY callbacks directly.
-    friend class NrUePhyEnergyListenerDlDurationTestCase;
-    friend class NrUePhyEnergyListenerRankScalingTestCase;
+    friend class NrUePhyEnergyListenerSlotAveragedDurationTestCase;
+    friend class NrUePhyEnergyListenerRankDefaultOffTestCase;
+    friend class NrUePhyEnergyListenerRankOptInTestCase;
 
     /**
      * @brief UE DL driver, connected to NrUePhy "ReportDownlinkTbSize".
@@ -125,8 +132,9 @@ class NrUePhyEnergyListener : public Object
      * @param imsi     UE IMSI.
      * @param tbSize   Downlink transport block size in bytes (0 = nothing).
      * @param symStart First OFDM symbol of the DL allocation.
-     * @param numSym   Number of OFDM symbols in the DL allocation.
-     * @param rank     Number of MIMO layers (receive chains) in use.
+     * @param numSym   OFDM symbols in the DL allocation. Not used for the active
+     *                 duration: Table 18/20 powers are already slot-averaged.
+     * @param rank     Number of MIMO layers in use.
      */
     void DlTbReceivedCallback(uint64_t imsi,
                               uint32_t tbSize,
@@ -145,8 +153,9 @@ class NrUePhyEnergyListener : public Object
      * @param imsi     UE IMSI.
      * @param tbSize   Uplink transport block size in bytes (0 = nothing).
      * @param symStart First OFDM symbol of the UL allocation.
-     * @param numSym   Number of OFDM symbols in the UL allocation.
-     * @param rank     Number of MIMO layers (transmit chains) in use.
+     * @param numSym   OFDM symbols in the UL allocation. Not used for the active
+     *                 duration: Table 18/20 powers are already slot-averaged.
+     * @param rank     Number of MIMO layers in use.
      */
     void UlTbSentCallback(uint64_t imsi,
                           uint32_t tbSize,
@@ -177,7 +186,8 @@ class NrUePhyEnergyListener : public Object
 
     Time m_slotDuration; //!< Cached slot period (for the return timer)
     Time m_activeUntil{Seconds(0)};
-    uint32_t m_lastBwpMhz; //!< Last BWP bandwidth applied to the model [MHz]
+    uint32_t m_lastBwpMhz;    //!< Last BWP bandwidth applied to the model [MHz]
+    bool m_useRankAsRxChains; //!< Opt-in: map MIMO rank onto the Table 21 scaling
 };
 
 } // namespace ns3

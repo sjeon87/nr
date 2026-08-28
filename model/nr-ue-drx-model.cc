@@ -12,6 +12,7 @@
 
 #include "nr-ue-energy-model.h"
 
+#include "ns3/enum.h"
 #include "ns3/log.h"
 #include "ns3/nstime.h"
 #include "ns3/simulator.h"
@@ -71,7 +72,7 @@ NrUeDrxModel::GetTypeId()
                           "micro sleep (zero transition, TR 38.840 Table 19) is used instead.",
                           TimeValue(MilliSeconds(6)),
                           MakeTimeAccessor(&NrUeDrxModel::m_lightSleepThreshold),
-                          MakeTimeChecker());
+                          MakeTimeChecker())
             .AddAttribute("FreqRange",
                           "Frequency range, used to pick the FR-appropriate onDuration "
                           "when ReferenceConfig is not CUSTOM (TR 38.840 Section 8.2).",
@@ -91,8 +92,7 @@ NrUeDrxModel::GetTypeId()
                                           INSTANT_MSG_320MS,
                                           "INSTANT_MSG_320MS",
                                           VOIP_40MS,
-                                          "VOIP_40MS"))
-
+                                          "VOIP_40MS"));
     return tid;
 }
 

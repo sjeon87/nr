@@ -12,6 +12,7 @@
 #define NR_UE_ENERGY_MODEL_H
 
 #include "ns3/device-energy-model.h"
+#include "ns3/event-id.h"
 #include "ns3/nstime.h"
 #include "ns3/traced-value.h"
 
@@ -116,16 +117,21 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
      * with linear interpolation between. Result is not allowed to scale the
      * active power below the BWP transition floor (50 power-units).
      *
+     * This is the spec curve on its own: const and free of side effects, so the
+     * formula can be asserted directly against the TR 38.840 anchors without
+     * mutating the model. ApplyBwpScaling() is the command that caches it.
+     *
      * @param bandwidthMhz Active BWP bandwidth in MHz.
      * @return Multiplicative scaling factor in (0, 1].
      */
     double ScaleBwp(uint32_t bandwidthMhz) const;
 
     /**
-     * @brief Cache the BWP scaling factor for the active reception states.
+     * @brief Cache the ScaleBwp() factor for the active reception states.
      *
-     * Called by NrUePhyEnergyListener whenever the active BWP bandwidth
-     * changes, so a BWP switch is reflected in the UE power draw.
+     * The command half of the pair above: called by NrUePhyEnergyListener
+     * whenever the active BWP bandwidth changes, so a BWP switch is reflected in
+     * the UE power draw.
      *
      * @param bandwidthMhz New active BWP bandwidth in MHz.
      */
@@ -137,7 +143,10 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
      * FR1: P_2Rx = 0.7 * P_4Rx. FR2: P_1Rx = 0.7 * P_2Rx. Each halving of the
      * active receive chains relative to the reference applies one 0.7 factor.
      *
-     * @param activeAntennas Number of active receive antennas.
+     * Takes powered RF receive chains, NOT the MIMO rank: spatial layers are
+     * unrelated to how many chains are on, and Table 21 scales with the latter.
+     *
+     * @param activeAntennas Number of powered receive chains (>= 1).
      */
     void ApplyAntennaScaling(uint32_t activeAntennas);
 
@@ -220,22 +229,13 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
     // ----- Transition transients -----
 
     /**
-     * @brief Charge a transition transient (e.g. the RRC connection-setup spike).
-     *
-     * Adds @p extraPowerW on top of the current state power for @p duration,
-     * then settles back, modelling the high-power burst hardware shows on a
-     * sleep->active transition.
-     *
-     * @param extraPowerW Additional transient power [W].
-     * @param duration    How long the transient lasts.
-     */
-    void TriggerTransition(double extraPowerW, Time duration);
-
-    /**
      * @brief Fire the configured setup/RRC transient (SetupTransitionPower/Time).
      *
-     * Convenience wrapper used by NrUePhyEnergyListener when the UE wakes from
-     * deep sleep on a transport block. No-op if SetupTransitionPower is 0.
+     * Called by NrUePhyEnergyListener when the UE wakes from deep sleep on a
+     * transport block. This is the public entry point: the transient is
+     * configured through the SetupTransitionPower / SetupTransitionTime
+     * attributes, so callers do not supply the values themselves. No-op if
+     * SetupTransitionPower is 0.
      */
     void TriggerSetupTransition();
 
@@ -258,11 +258,41 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
     double DoGetCurrentA() const override;
 
     /**
+     * @brief Reference receive-chain count, resolving the 0 = derive sentinel.
+     * @return m_refRxAntennas, or the FreqRange default if it is still unset.
+     */
+    uint32_t GetRefRxAntennas() const;
+
+    /**
      * @brief True if a state is an active DL reception state (gets scaled).
      * @param state The state to classify.
      * @return True for PDCCH_ONLY / SSB_CSI_RS / PDCCH_PDSCH.
      */
     static bool IsActiveDlState(NrUePowerState state);
+
+    /**
+     * @brief Charge a transition transient (e.g. the RRC connection-setup spike).
+     *
+     * Adds @p extraPowerW on top of the current state power for @p duration,
+     * then settles back, modelling the high-power burst hardware shows on a
+     * sleep->active transition. This is the general mechanism; the transients
+     * the model actually fires are driven through TriggerSetupTransition(), so
+     * that the values stay owned by the attributes rather than by callers.
+     *
+     * @param extraPowerW Additional transient power [W].
+     * @param duration    How long the transient lasts.
+     */
+    void TriggerTransition(double extraPowerW, Time duration);
+
+    /**
+     * @brief Commit the interval running at the current power, and advance.
+     *
+     * Must be called *before* changing the state or any scaling factor, so the
+     * elapsed time is charged at the power actually in effect over it. Without
+     * it, a mid-state change to a scaling factor would retroactively re-price the
+     * whole open interval, and GetTotalEnergyJ() could even decrease.
+     */
+    void CommitOpenInterval();
 
     /**
      * @brief End the current transition transient: commit its energy, settle.
@@ -287,7 +317,8 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
 
     FreqRange m_freqRange;    //!< FR1 or FR2 power table selector
     double m_powerUnitMw;     //!< Absolute scale: mW per relative power-unit
-    uint32_t m_refRxAntennas; //!< Reference receive antennas (TR 38.840 8.1.3)
+    uint32_t m_refRxAntennas;  //!< Reference receive antennas (TR 38.840 8.1.3)
+    uint32_t m_activeRxChains; //!< Powered receive chains; 0 = same as reference
     uint32_t m_refBwpMhz;     //!< Reference BWP bandwidth in MHz (100)
 
     NrUePowerState m_currentState; //!< Current power state
@@ -303,6 +334,7 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
 
     double m_transitionExtraW;      //!< Transient extra power during a transition [W]
     Time m_transitionEndTime;       //!< End time of the current transition transient
+    EventId m_transitionEvent;      //!< Pending EndTransition event (cancelled on re-trigger)
     double m_setupTransitionPowerW; //!< Default setup/RRC transient power [W] (0 = off)
     Time m_setupTransitionTime;     //!< Default setup/RRC transient duration
 

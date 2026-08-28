@@ -67,7 +67,7 @@ class NrGnbPhyEnergyListener : public Object
      * @brief Attach this listener to a gNB PHY instance.
      *
      * Subscribes to the NrGnbPhy "SlotEnergyStats" trace and caches the total
-     * BWP RBs and the reference Tx power for the sp computation.
+     * BWP RBs and the slot symbol count used to classify the reported symbols.
      *
      * @param phy Pointer to the NrGnbPhy on the gNB node.
      */
@@ -158,10 +158,11 @@ class NrGnbPhyEnergyListener : public Object
                                  uint16_t cellId);
 
     /**
-     * @brief Recompute m_lastSp from the gNB's current Tx power.
+     * @brief Push the gNB's current Tx power to the energy model and cache sp.
      *
-     * sp = currentTxPower_lin / referenceTxPower_lin. Tx power can change at
-     * runtime, so this is called per slot rather than computed once.
+     * The energy model owns the configured 3GPP reference Tx power, so it
+     * computes sp; this only reports the current Tx power and reads sp back.
+     * Tx power can change at runtime, so this is called per slot.
      */
     void RefreshSp();
 
@@ -174,8 +175,8 @@ class NrGnbPhyEnergyListener : public Object
     double m_lastSa;   //!< Last sa: activeTRxRUs / totalTRxRUs. Fixed at 1.0
                        //!< until antenna muting is added (no source in PHY yet).
 
-    uint32_t m_totalBwpRbs;       //!< Total RBs in active BWP (from NrGnbPhy)
-    double m_referenceTxPowerDbm; //!< Reference Tx power for sp computation
+    uint32_t m_totalBwpRbs;    //!< Total RBs in active BWP (from NrGnbPhy)
+    uint32_t m_symbolsPerSlot; //!< OFDM symbols per slot (from NrGnbPhy, 12 or 14)
 };
 
 } // namespace ns3

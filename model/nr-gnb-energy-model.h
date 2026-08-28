@@ -29,10 +29,13 @@ enum class NrGnbPowerState
     DeepSleep,     //!< TR 38.864: Deep sleep  (P1)
     LightSleep,    //!< TR 38.864: Light sleep (P2)
     MicroSleep,    //!< TR 38.864: Micro sleep (P3) - static baseline
-    ActiveDl,      //!< TR 38.864: Active DL   (P_DL formula)
-    ActiveUl,      //!< TR 38.864: Active UL   (P_UL formula)
-    Transitioning, //!< Wake-up transition (T)
-    NumStates      //!< sentinel
+    ActiveDl,   //!< TR 38.864: Active DL   (P_DL formula)
+    ActiveUl,   //!< TR 38.864: Active UL   (P_UL formula)
+    Guard,      //!< DL/UL turnaround inside a slot. NOT a 3GPP sleep transition:
+                //!< the symbol carries neither transmission nor reception, so it
+                //!< is approximated at P3. Sleep transitions are charged as an
+                //!< energy transient instead, see GetTransitionEnergyJ().
+    NumStates   //!< sentinel
 };
 
 /**
@@ -72,8 +75,9 @@ enum class NrGnbSymbolType
  *     for symbol-accurate active slots; do not mix it with ChangeState() over
  *     the same time interval or energy will be double counted.
  *
- * P1..P5 are stored as spec-derived tables keyed by (BsCategory, RefConfig);
- * a single attribute default cannot encode the per-category/set values.
+ * P1..P5 are stored as spec-derived tables keyed by (BsCategory, RefConfigSet).
+ * These are two independent axes of TR 38.864 Table 5.1-3 and every combination
+ * is tabulated; a single attribute default cannot encode them.
  */
 class NrGnbEnergyModel : public energy::DeviceEnergyModel
 {
@@ -83,8 +87,8 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
      */
     enum BsCategory
     {
-        BsCat1, //!< Macro / large-scale BS (e.g. 64 TxRU, 55 dBm)
-        BsCat2  //!< Small cell / distributed unit (e.g. 2 TxRU, 33 dBm)
+        BsCat1, //!< BS Category 1 per TR 38.864 Tables 5.1-3 to 5.1-5
+        BsCat2  //!< BS Category 2 per TR 38.864 Tables 5.1-3 to 5.1-5
     };
 
     /**
@@ -92,9 +96,10 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
      */
     enum RefConfigSet
     {
-        Set1, //!< FR1 TDD, 100 MHz, 30 kHz SCS, 64 DL TxRU
-        Set2, //!< FR1 FDD, 20 MHz, 15 kHz SCS, 32 DL TxRU
-        Set3  //!< FR2 TDD, 100 MHz, 120 kHz SCS, 2 DL TxRU
+        Custom, //!< No preset: every reference parameter as configured directly
+        Set1,   //!< FR1 TDD, 100 MHz, 30 kHz SCS, 64 DL TxRU, 55 dBm
+        Set2,   //!< FR1 FDD, 20 MHz, 15 kHz SCS, 32 DL TxRU, 49 dBm
+        Set3    //!< FR2 TDD, 100 MHz, 120 kHz SCS, 2 DL TxRU, 33 dBm
     };
 
     /**
@@ -244,6 +249,49 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
      * @return Cumulative energy in Joules (includes the open state interval).
      */
     double GetTotalEnergyJ() const;
+
+    /**
+     * @brief True if a state is one of the three TR 38.864 sleep levels.
+     * @param state The state to classify.
+     * @return True for DeepSleep / LightSleep / MicroSleep.
+     */
+    static bool IsSleepState(NrGnbPowerState state);
+
+    /**
+     * @brief Additional transition energy for a sleep state [J].
+     *
+     * TR 38.864 Table 5.1-5, in (relative power) x (duration in ms), scaled by
+     * PowerUnit. The tabulated value covers ramping down and ramping up together,
+     * so it is charged once when the sleep state is entered rather than at both
+     * ends. Micro sleep is immediate and costs nothing. This mirrors how
+     * NrUeEnergyModel applies the TR 38.840 Table 19 transients.
+     *
+     * @param state The sleep state being entered (0 for non-sleep states).
+     * @return Transition energy in Joules.
+     */
+    double GetTransitionEnergyJ(NrGnbPowerState state) const;
+
+    /**
+     * @brief Total transition time for a sleep state (TR 38.864 Table 5.1-4).
+     *
+     * Also covers ramping down and up together. A sleep interval shorter than
+     * this does not pay for itself, so a DRX-style controller can use it to pick
+     * a sleep depth.
+     *
+     * @param state The sleep state (zero for non-sleep states).
+     * @return Total transition time.
+     */
+    Time GetTransitionTime(NrGnbPowerState state) const;
+
+    /**
+     * @brief Get the most recently computed Tx power ratio sp.
+     *
+     * sp = currentTxPower_linear / referenceTxPower_linear, computed by
+     * SetTxPowerDbm() against the configured ReferenceTxPowerDbm attribute.
+     *
+     * @return Last sp value in [0.0, 1.0].
+     */
+    double GetSp() const;
     /**
      * @brief Set the OFDM symbol duration (sourced from the PHY by the listener).
      * @param symbolDuration Duration of one OFDM symbol.
@@ -260,6 +308,7 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
 
   protected:
     void DoDispose() override;
+    void DoInitialize() override;
 
   private:
     /**
@@ -275,6 +324,18 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
      */
     double ToWatts(double relative) const;
 
+    /**
+     * @brief Reconcile the model with the selected TR 38.864 Table 5.1-1 set.
+     *
+     * No-op for Custom. Otherwise the set is authoritative for the reference Tx
+     * power, which nothing else in the scenario supplies. The symbol duration is
+     * validated against the set's SCS rather than overwritten: the PHY is the
+     * source of truth for what is actually simulated, so a disagreement means the
+     * scenario and the selected reference set describe different base stations,
+     * and overwriting it would hide that.
+     */
+    void ApplyReferenceConfigSet();
+
     Ptr<energy::EnergySource> m_source; //!< Attached energy source (may be null)
 
     BsCategory m_bsCategory;  //!< BS hardware category
@@ -284,6 +345,7 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
     double m_powerUnitW;      //!< Absolute scale: W per relative power-unit
     Time m_symbolDuration;    //!< OFDM symbol duration (set from NrGnbPhy::GetSymbolPeriod)
     double m_refTxPowerDbm;   //!< Reference Tx power for sp [dBm]
+    bool m_symbolDurationFromPhy{false}; //!< SetSymbolDuration() was called by the listener
     double m_sa;              //!< Active TRxRU ratio; fixed at 1.0 until antenna muting is modelled
     double m_sf;              //!< Current bandwidth utilization factor
     double m_sp;              //!< Current Tx power ratio

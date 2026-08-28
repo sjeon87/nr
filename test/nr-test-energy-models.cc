@@ -5,13 +5,16 @@
 //
 // Authors: Nipuna Dulara (nipuna.21@cse.mrt.ac.lk)
 
+#include "ns3/double.h"
 #include "ns3/enum.h"
 #include "ns3/nr-gnb-energy-model.h"
 #include "ns3/nr-ue-drx-model.h"
 #include "ns3/nr-ue-energy-model.h"
 #include "ns3/nstime.h"
 #include "ns3/simulator.h"
+#include "ns3/string.h"
 #include "ns3/test.h"
+#include "ns3/uinteger.h"
 
 #include <string>
 #include <vector>
@@ -106,12 +109,133 @@ NrUeEnergyModelPowerTestCase::DoRun()
     Ptr<NrUeEnergyModel> fr2 = CreateObject<NrUeEnergyModel>();
     fr2->SetAttribute("FreqRange", EnumValue(NrUeEnergyModel::FR2));
     NS_TEST_ASSERT_MSG_EQ_TOL(fr2->GetRelativePower(NR_UE_PDCCH_ONLY), 175.0, 1e-9, "FR2 PDCCH");
-    NS_TEST_ASSERT_MSG_EQ_TOL(fr2->GetRelativePower(NR_UE_MICRO_SLEEP), 38.0, 1e-9, "FR2 micro");
+    NS_TEST_ASSERT_MSG_EQ_TOL(fr2->GetRelativePower(NR_UE_MICRO_SLEEP), 45.0, 1e-9, "FR2 micro");
     fr2->SetUlTxPowerDbm(5.0);
     NS_TEST_ASSERT_MSG_EQ_TOL(fr2->GetRelativePower(NR_UE_UL_TX),
                               350.0,
                               1e-9,
                               "FR2 UL is level-independent");
+}
+
+/**
+ * @brief TR 38.840 Table 21 receive-chain scaling from an explicit configuration.
+ *
+ * Halving the powered chains relative to the reference applies one 0.7 factor,
+ * so FR1 with 2 of the reference 4 chains draws 0.7 of the 4Rx power.
+ */
+class NrUeEnergyModelRxChainScalingTestCase : public TestCase
+{
+  public:
+    NrUeEnergyModelRxChainScalingTestCase()
+        : TestCase("NrUeEnergyModel Table 21 scaling from ActiveRxChains")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrUeEnergyModelRxChainScalingTestCase::DoRun()
+{
+    // Unset ActiveRxChains means all reference chains powered -> no scaling.
+    Ptr<NrUeEnergyModel> full = CreateObject<NrUeEnergyModel>();
+    full->Initialize();
+    double p4Rx = full->GetStatePowerW(NR_UE_PDCCH_PDSCH);
+
+    Ptr<NrUeEnergyModel> half = CreateObject<NrUeEnergyModel>();
+    half->SetAttribute("ActiveRxChains", UintegerValue(2));
+    half->Initialize();
+    double p2Rx = half->GetStatePowerW(NR_UE_PDCCH_PDSCH);
+
+    NS_TEST_ASSERT_MSG_GT(p4Rx, 0.0, "reference active power must be positive");
+    NS_TEST_ASSERT_MSG_EQ_TOL(p2Rx / p4Rx, 0.7, 1e-9, "FR1 P_2Rx must be 0.7 * P_4Rx");
+}
+
+/**
+ * @brief A transition transient costs extraPower x duration, once.
+ *
+ * The transient rides on top of the state power, so every power query inside its
+ * window includes it. That must not turn into extra energy: interleaved state
+ * changes only split the interval, they do not re-charge it. Re-triggering while
+ * one is in flight extends the window rather than being cut short by the pending
+ * end event.
+ */
+class NrUeEnergyModelTransientTestCase : public TestCase
+{
+  public:
+    NrUeEnergyModelTransientTestCase()
+        : TestCase("NrUeEnergyModel transition transient charges exactly once")
+    {
+    }
+
+  private:
+    void DoRun() override;
+    /// Run one scenario and return the total energy [J].
+    double Run(uint32_t nChanges, bool transient, bool reTrigger);
+};
+
+double
+NrUeEnergyModelTransientTestCase::Run(uint32_t nChanges, bool transient, bool reTrigger)
+{
+    Ptr<NrUeEnergyModel> ue = CreateObject<NrUeEnergyModel>();
+    if (transient)
+    {
+        ue->SetAttribute("SetupTransitionPower", DoubleValue(1.0)); // 1 W extra
+        ue->SetAttribute("SetupTransitionTime", TimeValue(MilliSeconds(5)));
+    }
+    Simulator::Schedule(MilliSeconds(100), [ue, transient]() {
+        if (transient)
+        {
+            ue->TriggerSetupTransition();
+        }
+        ue->ChangeState(NR_UE_PDCCH_PDSCH);
+    });
+    // Redundant state changes across and past the transient window. The last of
+    // these lands exactly on the transition end time, which is the case that used
+    // to lose the final sliver of transient energy.
+    for (uint32_t i = 1; i <= nChanges; ++i)
+    {
+        Simulator::Schedule(MilliSeconds(100) + MicroSeconds(100 * i),
+                            [ue]() { ue->ChangeState(NR_UE_PDCCH_PDSCH); });
+    }
+    if (reTrigger)
+    {
+        Simulator::Schedule(MilliSeconds(102), [ue]() { ue->TriggerSetupTransition(); });
+    }
+    Simulator::Stop(MilliSeconds(200));
+    Simulator::Run();
+    double energyJ = ue->GetTotalEnergyJ();
+    Simulator::Destroy();
+    return energyJ;
+}
+
+void
+NrUeEnergyModelTransientTestCase::DoRun()
+{
+    double base = Run(0, false, false);
+
+    // 1 W for 5 ms = 5 mJ on top of the state energy, however the interval is cut.
+    NS_TEST_ASSERT_MSG_EQ_TOL(Run(0, true, false) - base,
+                              0.005,
+                              1e-12,
+                              "transient alone must cost extraPower x duration");
+    NS_TEST_ASSERT_MSG_EQ_TOL(Run(60, true, false) - base,
+                              0.005,
+                              1e-12,
+                              "interleaved state changes must not change the transient cost");
+
+    // Re-triggering at 102 ms extends the window to 107 ms: 7 ms in total.
+    NS_TEST_ASSERT_MSG_EQ_TOL(Run(0, true, true) - base,
+                              0.007,
+                              1e-12,
+                              "re-triggering must extend the transient, not truncate it");
+
+    // Interleaved state changes must not change the no-transient baseline either.
+    NS_TEST_ASSERT_MSG_EQ_TOL(Run(60, false, false),
+                              base,
+                              1e-12,
+                              "state changes alone must not create energy");
 }
 
 /**
@@ -149,8 +273,10 @@ NrUeEnergyModelAccountingTestCase::DoRun()
     Simulator::Stop(Seconds(3));
     Simulator::Run();
 
-    // E = 1e-3*1 + 0.1*1 + 1e-3*1 = 0.102 J (open interval included).
-    NS_TEST_ASSERT_MSG_EQ_TOL(m_ue->GetTotalEnergyJ(), 0.102, 1e-9, "integrated energy");
+    // State energy: 1e-3*1 + 0.1*1 + 1e-3*1 = 0.102 J (open interval included),
+    // plus the TR 38.840 Table 19 deep-sleep transition charged on entering deep
+    // sleep at t=2: 450 [relative power x ms] x 1 mW/unit = 4.5e-4 J.
+    NS_TEST_ASSERT_MSG_EQ_TOL(m_ue->GetTotalEnergyJ(), 0.10245, 1e-9, "integrated energy");
     NS_TEST_ASSERT_MSG_EQ_TOL(m_ue->GetStateTimeFraction(NR_UE_DEEP_SLEEP),
                               2.0 / 3.0,
                               1e-9,
@@ -162,6 +288,216 @@ NrUeEnergyModelAccountingTestCase::DoRun()
     // Average relative power = 2/3 * 1 + 1/3 * 100 = 34 power-units.
     NS_TEST_ASSERT_MSG_EQ_TOL(m_ue->GetAverageRelativePower(), 34.0, 1e-9, "average power");
 
+    Simulator::Destroy();
+}
+
+/**
+ * @brief Full TR 38.864 Table 5.1-3 coverage over both table axes.
+ *
+ * BS category and reference configuration set are independent axes and every
+ * combination is tabulated, so all six rows must be distinct and ordered
+ * P1 < P2 < P3 < P5 < P4. Deep and light sleep are merged cells in the table:
+ * one value per category, shared by all three sets.
+ */
+class NrGnbEnergyModelPowerTableTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyModelPowerTableTestCase()
+        : TestCase("NrGnbEnergyModel TR 38.864 Table 5.1-3 for every category and set")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrGnbEnergyModelPowerTableTestCase::DoRun()
+{
+    // TR 38.864 Table 5.1-3, indexed [category][set] as {P1, P2, P3, P4, P5}.
+    const double table[2][3][5] = {
+        {{1.0, 25.0, 55.0, 280.0, 110.0},
+         {1.0, 25.0, 50.0, 200.0, 90.0},
+         {1.0, 25.0, 38.0, 152.0, 80.0}},
+        {{1.0, 2.1, 5.5, 32.0, 6.5}, {1.0, 2.1, 5.0, 26.0, 5.8}, {1.0, 2.1, 3.0, 17.6, 4.2}},
+    };
+    const std::string cats[2] = {"BsCat1", "BsCat2"};
+    const std::string sets[3] = {"Set1", "Set2", "Set3"};
+
+    for (uint32_t c = 0; c < 2; ++c)
+    {
+        for (uint32_t s = 0; s < 3; ++s)
+        {
+            Ptr<NrGnbEnergyModel> gnb = CreateObject<NrGnbEnergyModel>();
+            gnb->SetAttribute("BsCategory", StringValue(cats[c]));
+            gnb->SetAttribute("RefConfigSet", StringValue(sets[s]));
+            std::string ctx = cats[c] + "/" + sets[s];
+
+            double p1 = gnb->GetRelativePower(NrGnbPowerState::DeepSleep);
+            double p2 = gnb->GetRelativePower(NrGnbPowerState::LightSleep);
+            double p3 = gnb->GetRelativePower(NrGnbPowerState::MicroSleep);
+            double p4 = gnb->GetRelativePower(NrGnbPowerState::ActiveDl);
+            double p5 = gnb->GetRelativePower(NrGnbPowerState::ActiveUl);
+
+            NS_TEST_ASSERT_MSG_EQ_TOL(p1, table[c][s][0], 1e-9, "P1 " << ctx);
+            NS_TEST_ASSERT_MSG_EQ_TOL(p2, table[c][s][1], 1e-9, "P2 " << ctx);
+            NS_TEST_ASSERT_MSG_EQ_TOL(p3, table[c][s][2], 1e-9, "P3 " << ctx);
+            NS_TEST_ASSERT_MSG_EQ_TOL(p4, table[c][s][3], 1e-9, "P4 " << ctx);
+            NS_TEST_ASSERT_MSG_EQ_TOL(p5, table[c][s][4], 1e-9, "P5 " << ctx);
+
+            // Sleep depths and the DL/UL split must stay ordered in every row.
+            NS_TEST_ASSERT_MSG_LT(p1, p2, "P1 must be below P2 for " << ctx);
+            NS_TEST_ASSERT_MSG_LT(p2, p3, "P2 must be below P3 for " << ctx);
+            NS_TEST_ASSERT_MSG_LT(p3, p5, "P3 must be below P5 for " << ctx);
+            NS_TEST_ASSERT_MSG_LT(p5, p4, "P5 must be below P4 for " << ctx);
+        }
+    }
+}
+
+/**
+ * @brief A named TR 38.864 Table 5.1-1 set fixes the reference Tx power.
+ *
+ * The set is authoritative for the reference power, which nothing in the
+ * scenario supplies; Custom (the default) leaves it as configured, so existing
+ * configurations keep their meaning.
+ */
+class NrGnbEnergyModelRefConfigBundleTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyModelRefConfigBundleTestCase()
+        : TestCase("NrGnbEnergyModel named reference set fixes the reference Tx power")
+    {
+    }
+
+  private:
+    void DoRun() override;
+    /// sp at a given actual Tx power, for the model under test.
+    double SpAt(Ptr<NrGnbEnergyModel> gnb, double txDbm);
+};
+
+double
+NrGnbEnergyModelRefConfigBundleTestCase::SpAt(Ptr<NrGnbEnergyModel> gnb, double txDbm)
+{
+    gnb->SetTxPowerDbm(txDbm);
+    return gnb->GetSp();
+}
+
+void
+NrGnbEnergyModelRefConfigBundleTestCase::DoRun()
+{
+    // Set 3 is the FR2 small cell: 33 dBm reference. A gNB transmitting at its
+    // own reference power must report sp = 1, not the ~0.006 it would get if the
+    // reference were left at the Set 1 macro value of 55 dBm.
+    Ptr<NrGnbEnergyModel> set3 = CreateObject<NrGnbEnergyModel>();
+    set3->SetAttribute("RefConfigSet", StringValue("Set3"));
+    set3->Initialize();
+    NS_TEST_ASSERT_MSG_EQ_TOL(SpAt(set3, 33.0), 1.0, 1e-9, "Set 3 reference must be 33 dBm");
+
+    Ptr<NrGnbEnergyModel> set2 = CreateObject<NrGnbEnergyModel>();
+    set2->SetAttribute("RefConfigSet", StringValue("Set2"));
+    set2->Initialize();
+    NS_TEST_ASSERT_MSG_EQ_TOL(SpAt(set2, 49.0), 1.0, 1e-9, "Set 2 reference must be 49 dBm");
+
+    Ptr<NrGnbEnergyModel> set1 = CreateObject<NrGnbEnergyModel>();
+    set1->SetAttribute("RefConfigSet", StringValue("Set1"));
+    set1->Initialize();
+    NS_TEST_ASSERT_MSG_EQ_TOL(SpAt(set1, 55.0), 1.0, 1e-9, "Set 1 reference must be 55 dBm");
+
+    // Custom is the default and must not touch a user-supplied reference.
+    Ptr<NrGnbEnergyModel> custom = CreateObject<NrGnbEnergyModel>();
+    custom->SetAttribute("ReferenceTxPowerDbm", DoubleValue(40.0));
+    custom->Initialize();
+    NS_TEST_ASSERT_MSG_EQ_TOL(SpAt(custom, 40.0), 1.0, 1e-9, "Custom must keep the set value");
+
+    // Custom must also keep the pre-existing Set 1 power row, so that defaulting
+    // to Custom does not change what an existing configuration computes.
+    NS_TEST_ASSERT_MSG_EQ_TOL(custom->GetRelativePower(NrGnbPowerState::ActiveDl),
+                              280.0,
+                              1e-9,
+                              "Custom must keep the Set 1 power row");
+}
+
+/**
+ * @brief TR 38.864 Table 5.1-4 / 5.1-5 sleep transitions, and the Guard state.
+ *
+ * The transition is an energy and a time charged when a sleep state is entered,
+ * not a power level. Guard is the DL/UL turnaround and is unrelated to it.
+ */
+class NrGnbEnergyModelTransitionTestCase : public TestCase
+{
+  public:
+    NrGnbEnergyModelTransitionTestCase()
+        : TestCase("NrGnbEnergyModel TR 38.864 sleep transition energy and Guard state")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrGnbEnergyModelTransitionTestCase::DoRun()
+{
+    Ptr<NrGnbEnergyModel> cat1 = CreateObject<NrGnbEnergyModel>();
+
+    // Table 5.1-5, BS Category 1, PowerUnit = 1 W: energy is [relative x ms].
+    NS_TEST_ASSERT_MSG_EQ_TOL(cat1->GetTransitionEnergyJ(NrGnbPowerState::DeepSleep),
+                              1.0,
+                              1e-12,
+                              "Cat 1 deep sleep: 1000 x 1 W x 1 ms");
+    NS_TEST_ASSERT_MSG_EQ_TOL(cat1->GetTransitionEnergyJ(NrGnbPowerState::LightSleep),
+                              0.09,
+                              1e-12,
+                              "Cat 1 light sleep: 90 x 1 W x 1 ms");
+    NS_TEST_ASSERT_MSG_EQ_TOL(cat1->GetTransitionEnergyJ(NrGnbPowerState::MicroSleep),
+                              0.0,
+                              1e-12,
+                              "micro sleep is immediate");
+    // Table 5.1-4 total transition times.
+    NS_TEST_ASSERT_MSG_EQ(cat1->GetTransitionTime(NrGnbPowerState::DeepSleep),
+                          MilliSeconds(50),
+                          "Cat 1 deep sleep transition time");
+    NS_TEST_ASSERT_MSG_EQ(cat1->GetTransitionTime(NrGnbPowerState::LightSleep),
+                          MilliSeconds(6),
+                          "Cat 1 light sleep transition time");
+
+    Ptr<NrGnbEnergyModel> cat2 = CreateObject<NrGnbEnergyModel>();
+    cat2->SetAttribute("BsCategory", StringValue("BsCat2"));
+    NS_TEST_ASSERT_MSG_EQ_TOL(cat2->GetTransitionEnergyJ(NrGnbPowerState::DeepSleep),
+                              17.0,
+                              1e-12,
+                              "Cat 2 deep sleep: 17000 x 1 W x 1 ms");
+    NS_TEST_ASSERT_MSG_EQ(cat2->GetTransitionTime(NrGnbPowerState::DeepSleep),
+                          Seconds(10),
+                          "Cat 2 deep sleep transition time");
+
+    // Guard is the DL/UL turnaround: charged at P3, and it is not a sleep state,
+    // so entering it must not charge any transition energy.
+    NS_TEST_ASSERT_MSG_EQ_TOL(cat1->GetRelativePower(NrGnbPowerState::Guard),
+                              cat1->GetRelativePower(NrGnbPowerState::MicroSleep),
+                              1e-12,
+                              "Guard is charged at P3");
+    NS_TEST_ASSERT_MSG_EQ_TOL(cat1->GetTransitionEnergyJ(NrGnbPowerState::Guard),
+                              0.0,
+                              1e-12,
+                              "Guard is not a 3GPP sleep transition");
+
+    // Entering deep sleep from active charges the transition once; waking does not
+    // charge it again, since the tabulated value covers both ramp directions.
+    Ptr<NrGnbEnergyModel> gnb = CreateObject<NrGnbEnergyModel>();
+    gnb->ChangeState(static_cast<int>(NrGnbPowerState::ActiveDl));
+    double before = gnb->GetTotalEnergyJ();
+    gnb->ChangeState(static_cast<int>(NrGnbPowerState::DeepSleep));
+    double afterSleep = gnb->GetTotalEnergyJ();
+    NS_TEST_ASSERT_MSG_EQ_TOL(afterSleep - before,
+                              1.0,
+                              1e-12,
+                              "entering deep sleep charges the Table 5.1-5 energy once");
+    gnb->ChangeState(static_cast<int>(NrGnbPowerState::ActiveDl));
+    NS_TEST_ASSERT_MSG_EQ_TOL(gnb->GetTotalEnergyJ() - afterSleep,
+                              0.0,
+                              1e-12,
+                              "waking must not charge the transition energy a second time");
     Simulator::Destroy();
 }
 
@@ -229,12 +565,26 @@ class NrGnbEnergyModelSlotAccumTestCase : public TestCase
 
   private:
     void DoRun() override;
+    /// Assert the committed slot energy once the slot has actually elapsed.
+    void CheckCommitted(double expectedJ);
+
+    Ptr<NrGnbEnergyModel> m_gnb; //!< Model under test
 };
+
+void
+NrGnbEnergyModelSlotAccumTestCase::CheckCommitted(double expectedJ)
+{
+    NS_TEST_ASSERT_MSG_EQ_TOL(m_gnb->GetTotalEnergyJ(),
+                              expectedJ,
+                              1e-12,
+                              "full DL slot energy committed");
+}
 
 void
 NrGnbEnergyModelSlotAccumTestCase::DoRun()
 {
-    Ptr<NrGnbEnergyModel> gnb = CreateObject<NrGnbEnergyModel>();
+    Ptr<NrGnbEnergyModel>& gnb = m_gnb;
+    gnb = CreateObject<NrGnbEnergyModel>();
 
     // Numerology 1: slot = 0.5 ms, symbol = 0.5 ms / 14. GetSymbolDuration()
     // returns an ns-3 Time, which is quantized to the simulator resolution
@@ -258,12 +608,21 @@ NrGnbEnergyModelSlotAccumTestCase::DoRun()
         gnb->UpdateSymbolPower(1.0, 1.0, 1.0, NrGnbSymbolType::Dl);
     }
     gnb->FinalizeSlotEnergy();
+    // FinalizeSlotEnergy() converts the accumulated symbols into an average power
+    // for the slot that follows, rather than adding the energy up front, so the
+    // total is only observable once that slot has actually elapsed.
     NS_TEST_ASSERT_MSG_EQ_TOL(gnb->GetTotalEnergyJ(),
-                              280.0 * slotS,
+                              0.0,
                               1e-12,
-                              "full DL slot energy committed");
-
+                              "no energy is committed in advance of the slot");
+    Simulator::Schedule(Seconds(slotS),
+                        &NrGnbEnergyModelSlotAccumTestCase::CheckCommitted,
+                        this,
+                        280.0 * slotS);
+    Simulator::Stop(Seconds(slotS));
+    Simulator::Run();
     Simulator::Destroy();
+    m_gnb = nullptr;
 }
 
 /**
@@ -356,7 +715,12 @@ class NrEnergyModelsTestSuite : public TestSuite
         : TestSuite("nr-energy-models", Type::UNIT)
     {
         AddTestCase(new NrUeEnergyModelPowerTestCase(), Duration::QUICK);
+        AddTestCase(new NrUeEnergyModelRxChainScalingTestCase(), Duration::QUICK);
+        AddTestCase(new NrUeEnergyModelTransientTestCase(), Duration::QUICK);
         AddTestCase(new NrUeEnergyModelAccountingTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyModelPowerTableTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyModelRefConfigBundleTestCase(), Duration::QUICK);
+        AddTestCase(new NrGnbEnergyModelTransitionTestCase(), Duration::QUICK);
         AddTestCase(new NrGnbEnergyModelFormulaTestCase(), Duration::QUICK);
         AddTestCase(new NrGnbEnergyModelSlotAccumTestCase(), Duration::QUICK);
         AddTestCase(new NrUeDrxModelCycleTestCase(), Duration::QUICK);
