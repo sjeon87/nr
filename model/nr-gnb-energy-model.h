@@ -291,7 +291,9 @@ class NrGnbEnergyModel : public energy::DeviceEnergyModel
     NrGnbPowerState m_currentState; //!< Current discrete power state
     Time m_lastUpdateTime;          //!< Time of last state change
 
-    double m_slotEnergyAccumJ; //!< Per-symbol energy accumulated for current slot
+    double m_slotEnergyAccumJ;   //!< Energy being accumulated for the slot about to start [J]
+    double m_slotAccumDurationS; //!< Time span accumulated for that slot [s]
+    double m_currentSlotPowerW;  //!< Average power of the slot currently elapsing [W]
 
     TracedValue<int> m_stateTrace;      //!< Fires on each discrete state change
     TracedValue<double> m_powerTrace;   //!< Fires with instantaneous power [W] on each change

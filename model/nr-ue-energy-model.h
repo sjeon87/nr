@@ -269,6 +269,20 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
      */
     void EndTransition();
 
+    /**
+     * @brief True if a state is one of the three TR 38.840 sleep states.
+     * @param state The state to classify.
+     * @return True for DEEP_SLEEP / LIGHT_SLEEP / MICRO_SLEEP.
+     */
+    static bool IsSleepState(NrUePowerState state);
+
+    /**
+     * @brief TR 38.840 Table 19 additional transition energy for a sleep state.
+     * @param state The sleep state being entered.
+     * @return Additional transition energy [J]; 0 for non-sleep / micro sleep.
+     */
+    double GetTransitionEnergyJ(NrUePowerState state) const;
+
     Ptr<energy::EnergySource> m_source; //!< Attached energy source (may be null)
 
     FreqRange m_freqRange;    //!< FR1 or FR2 power table selector
@@ -295,6 +309,8 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
     TracedValue<int> m_stateTrace;      //!< Fires on each state change
     TracedValue<double> m_powerTrace;   //!< Fires with instantaneous power [W] on each change
     TracedValue<double> m_totalEnergyJ; //!< Accumulated energy [J], excl. open interval
+    
+    void DoInitialize() override;
 };
 
 } // namespace ns3

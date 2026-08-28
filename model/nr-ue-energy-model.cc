@@ -33,6 +33,7 @@ NS_OBJECT_ENSURE_REGISTERED(NrUeEnergyModel);
 namespace
 {
 // Index by NrUePowerState (excluding the NR_UE_NUM_STATES sentinel).
+// TR 38.840 Table 18 (FR1) relative power values
 constexpr double UE_POWER_FR1[NR_UE_NUM_STATES] = {
     1.0,   // NR_UE_DEEP_SLEEP
     20.0,  // NR_UE_LIGHT_SLEEP
@@ -42,10 +43,11 @@ constexpr double UE_POWER_FR1[NR_UE_NUM_STATES] = {
     300.0, // NR_UE_PDCCH_PDSCH
     250.0  // NR_UE_UL_TX (0 dBm anchor; 23 dBm anchor = 700, see SetUlTxPowerDbm)
 };
+// TR 38.840 Table 20 (FR2) relative power value
 constexpr double UE_POWER_FR2[NR_UE_NUM_STATES] = {
     1.0,   // NR_UE_DEEP_SLEEP
     20.0,  // NR_UE_LIGHT_SLEEP
-    38.0,  // NR_UE_MICRO_SLEEP
+    45.0,  // NR_UE_MICRO_SLEEP
     175.0, // NR_UE_PDCCH_ONLY
     175.0, // NR_UE_SSB_CSI_RS
     350.0, // NR_UE_PDCCH_PDSCH
@@ -55,6 +57,26 @@ constexpr double UE_POWER_FR2[NR_UE_NUM_STATES] = {
 constexpr double UE_UL_POWER_FR1_0DBM = 250.0;   // TR 38.840 Table 18
 constexpr double UE_UL_POWER_FR1_23DBM = 700.0;  // TR 38.840 Table 18
 constexpr double UE_BWP_TRANSITION_FLOOR = 50.0; // TR 38.840 Section 8.1.3
+
+// TR 38.840 Table 19: additional transition energy [relative power x ms] and
+// total transition time, indexed by NrUePowerState. Only the three sleep states
+// carry a transition; micro sleep is immediate (zero), everything else is zero.
+// (Time is not constexpr-constructible, so this is a runtime-const array.)
+struct SleepTransition
+{
+    double energyRelMs; //!< additional transition energy [relative power x ms]
+    Time totalTime;     //!< total transition time
+};
+
+const SleepTransition UE_TRANSITION[NR_UE_NUM_STATES] = {
+    {450.0, MilliSeconds(20)}, // NR_UE_DEEP_SLEEP
+    {100.0, MilliSeconds(6)},  // NR_UE_LIGHT_SLEEP
+    {0.0, MilliSeconds(0)},    // NR_UE_MICRO_SLEEP (immediate)
+    {0.0, MilliSeconds(0)},    // NR_UE_PDCCH_ONLY
+    {0.0, MilliSeconds(0)},    // NR_UE_SSB_CSI_RS
+    {0.0, MilliSeconds(0)},    // NR_UE_PDCCH_PDSCH
+    {0.0, MilliSeconds(0)},    // NR_UE_UL_TX
+};
 } // namespace
 
 TypeId
@@ -76,8 +98,9 @@ NrUeEnergyModel::GetTypeId()
                           MakeDoubleAccessor(&NrUeEnergyModel::m_powerUnitMw),
                           MakeDoubleChecker<double>(0.0))
             .AddAttribute("ReferenceRxAntennas",
-                          "Reference number of receive antennas (TR 38.840 Section 8.1.3).",
-                          UintegerValue(4),
+                          "Reference receive-chain count (TR 38.840 Table 21). 0 = derive "
+                          "from FreqRange (4 for FR1, 2 for FR2).",
+                          UintegerValue(0)
                           MakeUintegerAccessor(&NrUeEnergyModel::m_refRxAntennas),
                           MakeUintegerChecker<uint32_t>(1))
             .AddAttribute("ReferenceBwpBandwidth",
@@ -86,8 +109,10 @@ NrUeEnergyModel::GetTypeId()
                           MakeUintegerAccessor(&NrUeEnergyModel::m_refBwpMhz),
                           MakeUintegerChecker<uint32_t>(1))
             .AddAttribute("SetupTransitionPower",
-                          "Transient extra power [W] for a sleep->active (RRC setup) transition. "
-                          "0 = disabled (instantaneous, free transitions).",
+                          "OPTIONAL empirical override: extra transient power [W] on a "
+                          "sleep->active (RRC setup) transition. NOT a 3GPP value - the "
+                          "TR 38.840 Table 19 transition energy is applied automatically on "
+                          "sleep entry (see GetTransitionEnergyJ). 0 = disabled.",
                           DoubleValue(0.0),
                           MakeDoubleAccessor(&NrUeEnergyModel::m_setupTransitionPowerW),
                           MakeDoubleChecker<double>(0.0))
@@ -141,6 +166,16 @@ NrUeEnergyModel::~NrUeEnergyModel()
     NS_LOG_FUNCTION(this);
 }
 
+void
+NrUeEnergyModel::DoInitialize()
+{
+    if (m_refRxAntennas == 0)
+    {
+        m_refRxAntennas = (m_freqRange == FR2) ? 2 : 4; // TR 38.840 Table 21
+    }
+    energy::DeviceEnergyModel::DoInitialize();
+}
+
 double
 NrUeEnergyModel::GetRelativePower(NrUePowerState state) const
 {
@@ -177,12 +212,19 @@ double
 NrUeEnergyModel::ScaleBwp(uint32_t bandwidthMhz) const
 {
     NS_LOG_FUNCTION(this << bandwidthMhz);
-    // TR 38.840 Section 8.1.3: scale(X) = 0.4 + 0.6 * (X - 20) / 80.
-    double scale = 0.4 + 0.6 * (static_cast<double>(bandwidthMhz) - 20.0) / 80.0;
-    // The scaled active power must not fall below the BWP transition floor.
-    // Express the floor relative to the reference PDCCH+PDSCH power so the
-    // factor stays in (0, 1].
-    double floorFactor = UE_BWP_TRANSITION_FLOOR / UE_POWER_FR1[NR_UE_PDCCH_PDSCH];
+    if (m_freqRange == FR2)
+    {
+        NS_LOG_WARN("ScaleBwp: the 0.4 + 0.6*(X-20)/80 anchors are the TR 38.840 "
+                    "FR1 curve; FR2 BWP scaling is not modelled - result is approximate.");
+    }
+    // Section 8.1.3 FR1 curve, expressed against the reference BWP (default 100 MHz):
+    constexpr double kMinBwpMhz = 20.0;
+    double span = static_cast<double>(m_refBwpMhz) - kMinBwpMhz; // 80 MHz for the 100 MHz ref
+    double scale = (span > 0.0)
+                       ? 0.4 + 0.6 * (static_cast<double>(bandwidthMhz) - kMinBwpMhz) / span
+                       : 1.0;
+    const double* tbl = (m_freqRange == FR2) ? UE_POWER_FR2 : UE_POWER_FR1;
+    double floorFactor = UE_BWP_TRANSITION_FLOOR / tbl[NR_UE_PDCCH_PDSCH];
     return std::clamp(scale, floorFactor, 1.0);
 }
 
@@ -234,6 +276,20 @@ NrUeEnergyModel::SetUlTxPowerDbm(double txPowerDbm)
         UE_UL_POWER_FR1_0DBM + frac * (UE_UL_POWER_FR1_23DBM - UE_UL_POWER_FR1_0DBM);
 }
 
+bool
+NrUeEnergyModel::IsSleepState(NrUePowerState state)
+{
+    return state == NR_UE_DEEP_SLEEP || state == NR_UE_LIGHT_SLEEP || state == NR_UE_MICRO_SLEEP;
+}
+
+double
+NrUeEnergyModel::GetTransitionEnergyJ(NrUePowerState state) const
+{
+    // TR 38.840 Table 19 energy is [relative power x ms]. Convert to Joules:
+    // relative x PowerUnit_mW -> mW, then mW x ms -> mW.ms -> J (factor 1e-6).
+    return UE_TRANSITION[state].energyRelMs * m_powerUnitMw * 1e-6;
+}
+
 void
 NrUeEnergyModel::ChangeState(int newState)
 {
@@ -246,14 +302,20 @@ NrUeEnergyModel::ChangeState(int newState)
     m_totalEnergyJ = m_totalEnergyJ + GetCurrentPowerW() * durationS;
     m_stateTimeS[m_currentState] += durationS;
     m_lastUpdateTime = now;
-    m_currentState = static_cast<NrUePowerState>(newState);
-
-    m_stateTrace = newState;
-    m_powerTrace = GetCurrentPowerW();
     if (m_source)
     {
         m_source->UpdateEnergySource();
     }
+    NrUePowerState oldState = m_currentState;
+    m_currentState = static_cast<NrUePowerState>(newState);
+    // TR 38.840 Table 19: charge the additional transition energy once when
+    // entering a sleep state from a non-sleep (active) state.
+    if (IsSleepState(m_currentState) && !IsSleepState(oldState))
+    {
+        m_totalEnergyJ = m_totalEnergyJ + GetTransitionEnergyJ(m_currentState);
+    }
+    m_stateTrace = newState;
+    m_powerTrace = GetCurrentPowerW();
 }
 
 NrUePowerState
@@ -288,13 +350,13 @@ NrUeEnergyModel::TriggerTransition(double extraPowerW, Time duration)
     m_totalEnergyJ = m_totalEnergyJ + GetCurrentPowerW() * durationS;
     m_stateTimeS[m_currentState] += durationS;
     m_lastUpdateTime = now;
-    m_transitionExtraW = extraPowerW;
-    m_transitionEndTime = now + duration;
-    m_powerTrace = GetCurrentPowerW();
     if (m_source)
     {
         m_source->UpdateEnergySource();
     }
+    m_transitionExtraW = extraPowerW;
+    m_transitionEndTime = now + duration;
+    m_powerTrace = GetCurrentPowerW();
     Simulator::Schedule(duration, &NrUeEnergyModel::EndTransition, this);
 }
 
@@ -316,13 +378,13 @@ NrUeEnergyModel::EndTransition()
     m_totalEnergyJ = m_totalEnergyJ + powerW * durationS;
     m_stateTimeS[m_currentState] += durationS;
     m_lastUpdateTime = now;
-    m_transitionExtraW = 0.0;
-    m_transitionEndTime = now;
-    m_powerTrace = GetCurrentPowerW();
     if (m_source)
     {
         m_source->UpdateEnergySource();
     }
+    m_transitionExtraW = 0.0;
+    m_transitionEndTime = now;
+    m_powerTrace = GetCurrentPowerW();
 }
 
 double
@@ -370,6 +432,8 @@ void
 NrUeEnergyModel::ResetOccupancy()
 {
     NS_LOG_FUNCTION(this);
+    double durationS = (Simulator::Now() - m_lastUpdateTime).GetSeconds();
+    m_totalEnergyJ = m_totalEnergyJ + GetCurrentPowerW() * durationS;
     for (int s = 0; s < NR_UE_NUM_STATES; ++s)
     {
         m_stateTimeS[s] = 0.0;

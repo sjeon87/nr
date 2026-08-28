@@ -119,6 +119,8 @@ NrGnbEnergyModel::NrGnbEnergyModel()
       m_currentState(NrGnbPowerState::MicroSleep),
       m_lastUpdateTime(Seconds(0)),
       m_slotEnergyAccumJ(0.0),
+      m_currentSlotPowerW(0.0),
+      m_slotAccumDurationS(0.0),
       m_stateTrace(static_cast<int>(NrGnbPowerState::MicroSleep)),
       m_powerTrace(0.0),
       m_totalEnergyJ(0.0)
@@ -278,14 +280,23 @@ NrGnbEnergyModel::UpdateSymbolPower(double sa, double sf, double sp, NrGnbSymbol
         NS_ABORT_MSG("Invalid symbol type");
     }
     m_slotEnergyAccumJ += powerW * tSym;
+    m_slotAccumDurationS += tSym;
 }
 
 void
 NrGnbEnergyModel::FinalizeSlotEnergy()
 {
     NS_LOG_FUNCTION(this << m_slotEnergyAccumJ);
-    m_totalEnergyJ = m_totalEnergyJ + m_slotEnergyAccumJ;
+    Time now = Simulator::Now();
+    // Commit only the interval that has actually elapsed since the last update,
+    // charged at the power of the slot that was in progress. never in advance.
+    m_totalEnergyJ = m_totalEnergyJ + m_currentSlotPowerW * (now - m_lastUpdateTime).GetSeconds();
+    m_lastUpdateTime = now;
+    m_currentSlotPowerW =
+        (m_slotAccumDurationS > 0.0) ? (m_slotEnergyAccumJ / m_slotAccumDurationS) : 0.0;
     m_slotEnergyAccumJ = 0.0;
+    m_slotAccumDurationS = 0.0;
+
     if (m_source)
     {
         m_source->UpdateEnergySource();
@@ -354,8 +365,11 @@ double
 NrGnbEnergyModel::GetTotalEnergyJ() const
 {
     NS_LOG_FUNCTION(this);
+    // Energy for already-elapsed slots, plus the fraction of the in-progress slot
+    // that has elapsed so far. m_slotEnergyAccumJ is deliberately NOT added: it is
+    // the next slot's energy, committed at its own FinalizeSlotEnergy().
     double durationS = (Simulator::Now() - m_lastUpdateTime).GetSeconds();
-    return m_totalEnergyJ + GetCurrentPowerW() * durationS + m_slotEnergyAccumJ;
+    return m_totalEnergyJ + m_currentSlotPowerW * durationS;
 }
 
 void

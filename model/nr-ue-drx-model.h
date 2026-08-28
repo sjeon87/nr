@@ -83,6 +83,32 @@ class NrUeDrxModel : public Object
      */
     void NotifyDataActivity();
 
+    /**
+     * @brief Frequency range selector (TR 38.840 Section 8.2), used to pick the
+     * FR-appropriate onDuration for a named reference configuration.
+     */
+    enum FreqRange
+    {
+        FR1, //!< Sub-6 GHz
+        FR2  //!< mmWave
+    };
+    /**
+     * @brief Named TR 38.840 Section 8.2 reference DRX configurations.
+     *
+     * Each non-CUSTOM entry atomically fixes LongCycle, OnDuration (FR-aware)
+     * and InactivityTimer to one coherent, spec-cited combination (TR 38.840
+     * Section 8.2 traffic-model table). CUSTOM leaves LongCycle/OnDuration/
+     * InactivityTimer exactly as configured. The caller is then responsible
+     * for supplying a self-consistent set.
+     */
+    enum ReferenceConfig
+    {
+        CUSTOM,            //!< No preset; LongCycle/OnDuration/InactivityTimer as set directly
+        FTP_160MS,         //!< TR 38.840 8.2: cycle 160 ms, inactivity 100 ms (FTP traffic)
+        INSTANT_MSG_320MS, //!< TR 38.840 8.2: cycle 320 ms, inactivity 80 ms (instant messaging)
+        VOIP_40MS          //!< TR 38.840 8.2: cycle 40 ms, inactivity 10 ms (VoIP)
+    };
+
   protected:
     void DoDispose() override;
 
@@ -107,19 +133,32 @@ class NrUeDrxModel : public Object
      */
     void GoToSleep();
 
+    /**
+     * @brief Apply the selected named ReferenceConfig (no-op if CUSTOM).
+     *
+     * Overwrites m_longCycle, m_onDuration (FR-aware) and m_inactivityTimer with
+     * one coherent TR 38.840 Section 8.2 combination.
+     */
+    void ApplyReferenceConfig();
+
     Ptr<NrUeEnergyModel> m_energyModel; //!< Driven UE energy model (may be null)
 
     Time m_longCycle;          //!< DRX long cycle period
     Time m_onDuration;         //!< onDuration window length
     Time m_inactivityTimer;    //!< drx-InactivityTimer length
-    Time m_deepSleepThreshold; //!< Gap >= this -> deep sleep, else light sleep
+    Time m_deepSleepThreshold;  //!< Gap >= this -> deep sleep (TR 38.840 Table 19: 20 ms)
+    Time m_lightSleepThreshold; //!< Gap >= this -> light sleep, else micro sleep
 
     Time m_nextCycleTime;     //!< Absolute time of the next onDuration start
     bool m_inactivityRunning; //!< True while the inactivity timer is armed
+    bool m_onDurationRunning;  //!< True while the onDuration window is open
 
     EventId m_cycleEvent;      //!< Next StartCycle event
     EventId m_onDurationEvent; //!< EndOnDuration event
     EventId m_inactivityEvent; //!< InactivityExpired event
+
+    FreqRange m_freqRange; //!< FR1/FR2, selects OnDuration for ReferenceConfig
+    ReferenceConfig m_referenceConfig; //!< Selected named reference config (CUSTOM = none)
 };
 
 } // namespace ns3
