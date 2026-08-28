@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// Authors: nipuna dulara (nipuna.21@cse.mrt.ac.lk)
+// Authors: Nipuna Dulara (nipuna.21@cse.mrt.ac.lk)
 
 #include "ns3/nr-gnb-phy-energy-listener.h"
 #include "ns3/test.h"
@@ -68,7 +68,7 @@ class NrGnbPhyEnergyListenerDefaultsTestCase : public TestCase
 {
   public:
     NrGnbPhyEnergyListenerDefaultsTestCase()
-        : TestCase("NrGnbPhyEnergyListener default sa/sf/sp values")
+        : TestCase("NrGnbPhyEnergyListener default sa, sf, sp values")
     {
     }
 

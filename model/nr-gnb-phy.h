@@ -437,6 +437,34 @@ class NR_EXPORT NrGnbPhy : public NrPhy
                                           uint16_t cellId);
 
     /**
+     * @brief TracedCallback signature for per-direction slot energy statistics
+     *
+     * Splits the slot's used symbols by direction so an energy listener can
+     * charge each at the correct TR 38.864 power (DL active vs UL vs micro-sleep).
+     *
+     * @param [in] sfnSf Slot number
+     * @param [in] availableRb Available RBs in the BWP
+     * @param [in] dlDataSym DL data symbols in the slot
+     * @param [in] dlDataReg DL data REGs (RB x symbols), for the DL sf
+     * @param [in] ulDataSym UL data symbols in the slot
+     * @param [in] dlCtrlSym DL control (PDCCH) symbols
+     * @param [in] dlCtrlReg DL control REGs (RB x symbols), for the PDCCH sf
+     * @param [in] ulCtrlSym UL control (PUCCH/SRS) symbols
+     * @param [in] bwpId BWP ID
+     * @param [in] cellId Cell ID
+     */
+    typedef void (*SlotEnergyStatsTracedCallback)(const SfnSf& sfnSf,
+                                                  uint32_t availableRb,
+                                                  uint32_t dlDataSym,
+                                                  uint32_t dlDataReg,
+                                                  uint32_t ulDataSym,
+                                                  uint32_t dlCtrlSym,
+                                                  uint32_t dlCtrlReg,
+                                                  uint32_t ulCtrlSym,
+                                                  uint16_t bwpId,
+                                                  uint16_t cellId);
+
+    /**
      * @brief Retrieve the number of RB per RBG
      * @return the number of RB per RBG
      *
@@ -897,6 +925,24 @@ class NR_EXPORT NrGnbPhy : public NrPhy
                    uint16_t,
                    uint16_t>
         m_phySlotDataStats;
+
+    /**
+     * @brief Per-direction slot statistics for the energy framework: splits the
+     * used symbols into DL/UL data and DL/UL control so a listener can charge
+     * each at the correct TR 38.864 power. Additive; does not affect the
+     * aggregate SlotData/SlotCtrl stats.
+     */
+    TracedCallback<const SfnSf&,
+                   uint32_t,
+                   uint32_t,
+                   uint32_t,
+                   uint32_t,
+                   uint32_t,
+                   uint32_t,
+                   uint32_t,
+                   uint16_t,
+                   uint16_t>
+        m_phySlotEnergyStats;
 
     TracedCallback<const SfnSf&, uint8_t, const std::vector<int>&, uint16_t, uint16_t>
         m_rbStatistics;

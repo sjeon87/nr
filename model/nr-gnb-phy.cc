@@ -29,6 +29,7 @@
 #include "ns3/uinteger.h"
 
 #include <algorithm>
+#include <array>
 #include <functional>
 #include <random>
 #include <string>
@@ -197,6 +198,12 @@ NrGnbPhy::GetTypeId()
                             "used symbols, available RBs, available symbols, bwp ID, cell ID",
                             MakeTraceSourceAccessor(&NrGnbPhy::m_phySlotCtrlStats),
                             "ns3::NrGnbPhy::SlotStatsTracedCallback")
+            .AddTraceSource("SlotEnergyStats",
+                            "Per-direction slot statistics for the energy framework: SfnSf, "
+                            "available RBs, DL data symbols, DL data REGs, UL data symbols, DL "
+                            "ctrl symbols, DL ctrl REGs, UL ctrl symbols, bwp ID, cell ID",
+                            MakeTraceSourceAccessor(&NrGnbPhy::m_phySlotEnergyStats),
+                            "ns3::NrGnbPhy::SlotEnergyStatsTracedCallback")
             .AddTraceSource(
                 "RBDataStats",
                 "Resource Block used for data: SfnSf, symbol, RB PHY map, bwp ID, cell ID",
@@ -1046,6 +1053,50 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
                        GetSymbolsPerSlot() - dataSym,
                        GetBwpId(),
                        GetCellId());
+
+    // Per-direction split for the energy framework (additive; the aggregate
+    // stats above are untouched). DL/UL data and DL/UL control occupy disjoint
+    // symbol ranges within a slot, so a per-symbol class map is exac. It
+    // captures F slots (DL data + UL data) and HARQ retransmissions, which the
+    // MAC scheduling traces do not.
+    std::vector<uint8_t> symClass(GetSymbolsPerSlot(),
+                                  0); // 0 idle, 1 DL data, 2 UL data, 3 DL ctrl, 4 UL ctrl
+    uint32_t dlDataReg = 0;
+    uint32_t dlCtrlReg = 0;
+    for (const auto& allocation : allocInfo.m_varTtiAllocInfo)
+    {
+        const auto& dci = allocation.m_dci;
+        const bool ul = (dci->m_format == DciInfoElementTdma::UL);
+        const bool isData =
+            (dci->m_type & (DciInfoElementTdma::DATA | DciInfoElementTdma::MSG3)) != 0;
+        const uint8_t cls = isData ? (ul ? 2 : 1) : (ul ? 4 : 3);
+        const uint32_t rbg = std::count(dci->m_rbgBitmask.begin(), dci->m_rbgBitmask.end(), 1);
+        const uint32_t reg = rbg * GetNumRbPerRbg() * dci->m_numSym;
+        for (uint32_t s = dci->m_symStart;
+             s < dci->m_symStart + dci->m_numSym && s < symClass.size();
+             ++s)
+        {
+            symClass[s] = cls;
+        }
+        if (isData && !ul)
+        {
+            dlDataReg += reg;
+        }
+        else if (!isData && !ul)
+        {
+            dlCtrlReg += reg;
+        }
+    }
+    m_phySlotEnergyStats(allocInfo.m_sfnSf,
+                         availRb,
+                         std::count(symClass.begin(), symClass.end(), 1),
+                         dlDataReg,
+                         std::count(symClass.begin(), symClass.end(), 2),
+                         std::count(symClass.begin(), symClass.end(), 3),
+                         dlCtrlReg,
+                         std::count(symClass.begin(), symClass.end(), 4),
+                         GetBwpId(),
+                         GetCellId());
 }
 
 void

@@ -210,6 +210,7 @@ set(source_files
     model/nr-spectrum-phy.cc
     model/nr-spectrum-signal-parameters.cc
     model/nr-ue-component-carrier-manager.cc
+    model/nr-ue-drx-model.cc
     model/nr-ue-energy-model.cc
     model/nr-ue-mac.cc
     model/nr-ue-net-device.cc
@@ -431,6 +432,7 @@ set(header_files
     model/nr-ue-cmac-sap.h
     model/nr-ue-component-carrier-manager.h
     model/nr-ue-cphy-sap.h
+    model/nr-ue-drx-model.h
     model/nr-ue-energy-model.h
     model/nr-ue-mac.h
     model/nr-ue-net-device.h
@@ -512,6 +514,7 @@ set(test_sources
     test/nr-test-ipv6-routing.cc
     test/nr-test-l2sm-eesm.cc
     test/nr-test-notching.cc
+    test/nr-test-energy-models.cc
     test/nr-test-gnb-phy-energy-listener.cc
     test/nr-test-numerology-delay.cc
     test/nr-test-phy.cc
@@ -630,6 +633,7 @@ build_lib(
     ${libinternet-apps}
     ${libflow-monitor}
     ${libspectrum}
+    ${libenergy}
     ${libbuildings}
     ${libvirtual-net-device}
     ${libpoint-to-point}

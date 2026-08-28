@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// Authors: nipuna dulara (nipuna.21@cse.mrt.ac.lk)
+// Authors: Nipuna Dulara (nipuna.21@cse.mrt.ac.lk)
 //
 // 3GPP References:
 //   TR 38.840 V16.0.0 (2019-06): Section 8 - UE energy consumption evaluation
@@ -11,36 +11,48 @@
 #ifndef NR_UE_PHY_ENERGY_LISTENER_H
 #define NR_UE_PHY_ENERGY_LISTENER_H
 
-#include "ns3/object.h"
-#include "ns3/ptr.h"
 #include "ns3/callback.h"
 #include "ns3/nstime.h"
-#include "ns3/sfnsf.h"
+#include "ns3/object.h"
+#include "ns3/ptr.h"
+
+#include <algorithm>
+
 namespace ns3
 {
 
 // Forward declarations
 class NrUePhy;
 class NrUeEnergyModel;
-
+class NrUeDrxModel;
+class NrUePhyEnergyListenerDlDurationTestCase;
+class NrUePhyEnergyListenerRankScalingTestCase;
 
 /**
  * @ingroup nr
  * @brief Callback bridge between NR UE PHY layer events and the UE energy model.
  *
  * This class is the decoupling layer between the UE's PHY event stream and the
- * UE energy model state machine. It subscribes to trace sources on NrUePhy,
- * extracts the state transitions required by the 3GPP TR 38.840 UE power
- * states, and forwards energy model state-change calls to NrUeEnergyModel.
+ * UE energy model state machine. It subscribes to existing trace sources on
+ * NrUePhy and drives the TR 38.840 Section 8.1 UE power states:
+ *   ReportDownlinkTbSize - DL TB delivered -> NR_UE_PDCCH_PDSCH
+ *   ReportUplinkTbSize   - UL TB sent      -> NR_UE_UL_TX
+ * One slot after an active DL/UL slot the UE returns to PDCCH-only
+ * monitoring. Sleep transitions are owned by the NrUeDrxModel,
+ * whose inactivity timer this listener restarts on each transport block.
+ *
+ * Active-state power scaling is BWP-bandwidth based (TR 38.840 Section
+ * 8.1.3): on each transport block the listener re-reads the PHY channel
+ * bandwidth and re-applies NrUeEnergyModel::ApplyBwpScaling() when it
+ * changed, so BWP switches are reflected in the UE power draw.
  *
  * Design rationale:
  *   - This class must NOT be aware of the energy formula internals.
- *     It only knows: "event occurred, extract parameters, notify model."
+ *     It only knows: event occurred, extract parameters, notify model.
  *   - It must be usable both with and without an energy model installed
  *     (if no model is attached, callbacks are no-ops).
  *   - It has a single responsibility: the UE side of the mapping. The gNB side
  *     lives in a separate listener.
- *
  */
 class NrUePhyEnergyListener : public Object
 {
@@ -64,10 +76,10 @@ class NrUePhyEnergyListener : public Object
      * @brief Attach this listener to a UE PHY instance.
      *
      * Subscribes to the following trace sources on phy:
-     *   - SlotIndication     - fires each slot start
-     *   - PhyRxCtrlEndOk     - PDCCH successfully decoded (state -> PDCCH_ONLY or PDCCH_PDSCH)
-     *   - PhyTxEnd           - UL transmission completed (state -> back to PDCCH or sleep)
-     *   - DlHarqFeedback     - HARQ ACK/NACK for state tracking
+     *   - ReportDownlinkTbSize - DL transport block delivered
+     *   - ReportUplinkTbSize   - UL transport block sent
+     * Also caches the slot period for the return-to-monitoring timer and
+     * applies the initial BWP scaling from the PHY channel bandwidth.
      *
      * @param phy Pointer to the NrUePhy on the UE node.
      */
@@ -79,6 +91,18 @@ class NrUePhyEnergyListener : public Object
      */
     void SetEnergyModel(Ptr<NrUeEnergyModel> model);
 
+    /**
+     * @brief Connect a DRX model to be notified of UE data activity.
+     *
+     * When set, each DL/UL transport block restarts the DRX inactivity timer
+     * via NrUeDrxModel::NotifyDataActivity(), so the DRX model owns the sleep
+     * transitions while this listener owns the active reception/transmission
+     * states.
+     *
+     * @param drx Pointer to the NrUeDrxModel instance.
+     */
+    void SetDrxModel(Ptr<NrUeDrxModel> drx);
+
   protected:
     /**
      * @brief Release attached pointers. Inherited from Object.
@@ -86,54 +110,74 @@ class NrUePhyEnergyListener : public Object
     void DoDispose() override;
 
   private:
-    /**
-     * @brief Called each time a new slot starts (UE side).
-     *
-     * Responsibilities:
-     *   1. Determine UE DRX state from MAC DRX timer state.
-     *   2. Set UE energy model state to PDCCH_ONLY if in DRX ON.
-     *   3. Set UE energy model state to MICRO_SLEEP/LIGHT_SLEEP if in DRX OFF.
-     *
-     * @param sfnSf The current system frame / slot number.
-     */
-    void SlotIndicationCallback(const SfnSf& sfnSf);
+    // Unit tests drive the private PHY callbacks directly.
+    friend class NrUePhyEnergyListenerDlDurationTestCase;
+    friend class NrUePhyEnergyListenerRankScalingTestCase;
 
     /**
-     * @brief Called when PDCCH decoding succeeds on the UE.
+     * @brief UE DL driver, connected to NrUePhy "ReportDownlinkTbSize".
      *
-     * Transitions UE energy model:
-     *   - If DCI has DL grant: state -> NR_UE_PDCCH_PDSCH
-     *   - If DCI has UL grant: state will transition to NR_UE_UL_TX at grant time
-     *   - Otherwise:           state -> NR_UE_PDCCH_ONLY
+     * Refreshes the BWP scaling, moves the UE energy model to
+     * NR_UE_PDCCH_PDSCH for the active slot and schedules a return to
+     * NR_UE_PDCCH_ONLY one slot later (TR 38.840 Table 18). When the UE wakes
+     * from deep sleep, the configured setup transient is charged first.
      *
-     * @param hasDownlinkGrant True if the decoded DCI contains a PDSCH grant.
-     * @param hasUplinkGrant True if the decoded DCI contains a PUSCH grant.
+     * @param imsi     UE IMSI.
+     * @param tbSize   Downlink transport block size in bytes (0 = nothing).
+     * @param symStart First OFDM symbol of the DL allocation.
+     * @param numSym   Number of OFDM symbols in the DL allocation.
+     * @param rank     Number of MIMO layers (receive chains) in use.
      */
-    void PdcchDecodeSuccessCallback(bool hasDownlinkGrant, bool hasUplinkGrant);
+    void DlTbReceivedCallback(uint64_t imsi,
+                              uint32_t tbSize,
+                              uint32_t symStart,
+                              uint32_t numSym,
+                              uint32_t rank);
 
     /**
-     * @brief Called when UL transmission starts on the UE.
+     * @brief UE UL driver, connected to NrUePhy "ReportUplinkTbSize".
      *
-     * Transitions UE energy model state to NR_UE_UL_TX.
-     * Power depends on Tx power level:
-     *   - If txPowerDbm <= 0 dBm  -> UlPower0dBm
-     *   - If txPowerDbm > 0 dBm   -> interpolate or use UlPower23dBm
-     *   Source: TR 38.840 Table 18.
+     * Selects the UL relative power from the current PHY Tx power
+     * (TR 38.840 Table 18: 250 units at 0 dBm to 700 units at 23 dBm), moves
+     * the UE energy model to NR_UE_UL_TX and schedules a return to
+     * NR_UE_PDCCH_ONLY one slot later.
      *
-     * @param txPowerDbm Current UL transmission power in dBm.
+     * @param imsi     UE IMSI.
+     * @param tbSize   Uplink transport block size in bytes (0 = nothing).
+     * @param symStart First OFDM symbol of the UL allocation.
+     * @param numSym   Number of OFDM symbols in the UL allocation.
+     * @param rank     Number of MIMO layers (transmit chains) in use.
      */
-    void UlTxStartCallback(double txPowerDbm);
+    void UlTbSentCallback(uint64_t imsi,
+                          uint32_t tbSize,
+                          uint32_t symStart,
+                          uint32_t numSym,
+                          uint32_t rank);
 
     /**
-     * @brief Called when UL transmission ends on the UE.
+     * @brief Return the UE energy model to PDCCH-only monitoring.
      *
-     * Transitions UE energy model state back from NR_UE_UL_TX to
-     * NR_UE_PDCCH_ONLY or NR_UE_MICRO_SLEEP depending on DRX state.
+     * Scheduled one slot after an active DL/UL slot.
      */
-    void UlTxEndCallback();
+    void ReturnToMonitoring();
 
-    Ptr<NrUePhy> m_phy;             //!< Attached UE PHY (may be null)
-    Ptr<NrUeEnergyModel> m_model;   //!< Attached UE energy model (may be null)
+    /**
+     * @brief Re-apply the BWP scaling if the active BWP bandwidth changed.
+     *
+     * Reads the PHY channel bandwidth and calls
+     * NrUeEnergyModel::ApplyBwpScaling() when it differs from the last applied
+     * value (TR 38.840 Section 8.1.3). This is how BWP switches reach the
+     * energy model without any PHY-side hook.
+     */
+    void RefreshBwpScaling();
+
+    Ptr<NrUePhy> m_phy;           //!< Attached UE PHY (may be null)
+    Ptr<NrUeEnergyModel> m_model; //!< Attached UE energy model (may be null)
+    Ptr<NrUeDrxModel> m_drx;      //!< Attached DRX model (may be null)
+
+    Time m_slotDuration; //!< Cached slot period (for the return timer)
+    Time m_activeUntil{Seconds(0)};
+    uint32_t m_lastBwpMhz; //!< Last BWP bandwidth applied to the model [MHz]
 };
 
 } // namespace ns3
