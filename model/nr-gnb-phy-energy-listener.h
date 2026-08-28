@@ -90,12 +90,6 @@ class NrGnbPhyEnergyListener : public Object
     double GetLastDlSf() const;
 
     /**
-     * @brief Get the most recently computed UL bandwidth utilization sf.
-     * @return Last UL sf value in [0.0, 1.0].
-     */
-    double GetLastUlSf() const;
-
-    /**
      * @brief Get the most recently computed Tx power ratio sp.
      *
      * sp = currentTxPower_linear / referenceTxPower_linear
@@ -185,7 +179,6 @@ class NrGnbPhyEnergyListener : public Object
     Ptr<NrGnbEnergyModel> m_model; //!< Attached gNB energy model (may be null)
 
     double m_lastDlSf; //!< Last DL sf computed: used_REGs / (available_RBs * used_sym)
-    double m_lastUlSf; //!< Last UL sf computed
     double m_lastSp;   //!< Last sp computed: currentTxPower_lin / refTxPower_lin
     double m_lastSa;   //!< Last sa: activeTRxRUs / totalTRxRUs. Fixed at 1.0
                        //!< until antenna muting is added (no source in PHY yet).

@@ -1244,6 +1244,7 @@ NrGnbEnergyAggregatorSourceTestCase::DoRun()
                           modelJ * 1e-6,
                           "the device total must differ from the unweighted carrier sum");
 
+    agg->Dispose();
     Simulator::Destroy();
 }
 
@@ -1446,7 +1447,27 @@ NrUeDrxModelCycleTestCase::DoRun()
                         NR_UE_DEEP_SLEEP,
                         std::string("sleeps again after inactivity expiry"));
 
-    Simulator::Stop(MilliSeconds(200));
+    // Third cycle boundary: activity 1 ms before the 320 ms cycle start, so
+    // the inactivity timer it arms (expires at 329 ms) is still pending when
+    // StartCycle() runs at 320 ms. TS 38.321 5.7: Active Time is onDuration OR
+    // inactivity running - StartCycle() must not clear a still-pending
+    // inactivity condition just because a new cycle began.
+    Simulator::Schedule(MilliSeconds(319), &NrUeDrxModel::NotifyDataActivity, m_drx);
+    // Past this cycle's onDuration end (328 ms) the still-pending inactivity
+    // timer (due 329 ms) must keep the UE awake, not asleep.
+    Simulator::Schedule(MilliSeconds(328) + MicroSeconds(500),
+                        &NrUeDrxModelCycleTestCase::CheckState,
+                        this,
+                        NR_UE_PDCCH_ONLY,
+                        std::string("pending inactivity timer survives the cycle boundary"));
+    // Once the inactivity timer actually expires, sleep follows.
+    Simulator::Schedule(MilliSeconds(329) + MicroSeconds(500),
+                        &NrUeDrxModelCycleTestCase::CheckState,
+                        this,
+                        NR_UE_DEEP_SLEEP,
+                        std::string("sleeps once the pending inactivity timer expires"));
+
+    Simulator::Stop(MilliSeconds(340));
     Simulator::Run();
     Simulator::Destroy();
 }

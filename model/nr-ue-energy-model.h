@@ -204,7 +204,10 @@ class NrUeEnergyModel : public energy::DeviceEnergyModel
     /**
      * @brief Average relative power over the tracked window [power-units].
      *
-     * sum_state ( occupancy(state) * relativePower(state) ). This is the
+     * sum_state ( occupancy(state) * relativePower(state) ), with the active DL
+     * states' relative power scaled by the same BWP/antenna/blind-decoding
+     * factors GetStatePowerW() applies, so this matches the power actually
+     * accounted rather than the unscaled TR 38.840 table value. This is the
      * quantity TR 38.840 reports for power-saving comparisons.
      *
      * @return Average relative power in power-units.

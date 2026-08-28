@@ -1055,73 +1055,79 @@ NrGnbPhy::GenerateAllocationStatistics(const SlotAllocInfo& allocInfo) const
                        GetCellId());
 
     // Per-direction split for the energy framework (additive; the aggregate
-    // stats above are untouched). DL/UL data and DL/UL control occupy disjoint
-    // symbol ranges within a slot, so a per-symbol class map is exac. It
-    // captures F slots (DL data + UL data) and HARQ retransmissions, which the
-    // MAC scheduling traces do not.
-    std::vector<uint8_t> symClass(GetSymbolsPerSlot(),
-                                  0); // 0 idle, 1 DL data, 2 UL data, 3 DL ctrl, 4 UL ctrl
-    uint32_t dlDataReg = 0;
-    uint32_t dlCtrlReg = 0;
-    for (const auto& allocation : allocInfo.m_varTtiAllocInfo)
+    // stats above are untouched). Skipped entirely when nothing is listening,
+    // so a simulation that doesn't use the energy framework pays nothing for
+    // it beyond this one check.
+    if (!m_phySlotEnergyStats.IsEmpty())
     {
-        const auto& dci = allocation.m_dci;
-        const bool ul = (dci->m_format == DciInfoElementTdma::UL);
-        const bool isData =
-            (dci->m_type & (DciInfoElementTdma::DATA | DciInfoElementTdma::MSG3)) != 0;
-        const uint8_t cls = isData ? (ul ? 2 : 1) : (ul ? 4 : 3);
-        const uint32_t rbg = std::count(dci->m_rbgBitmask.begin(), dci->m_rbgBitmask.end(), 1);
-        const uint32_t reg = rbg * GetNumRbPerRbg() * dci->m_numSym;
-        for (uint32_t s = dci->m_symStart;
-             s < dci->m_symStart + dci->m_numSym && s < symClass.size();
-             ++s)
+        // DL/UL data and DL/UL control occupy disjoint symbol ranges within a
+        // slot, so a per-symbol class map is exact. It captures F slots (DL
+        // data + UL data) and HARQ retransmissions, which the MAC scheduling
+        // traces do not.
+        std::vector<uint8_t> symClass(GetSymbolsPerSlot(),
+                                      0); // 0 idle, 1 DL data, 2 UL data, 3 DL ctrl, 4 UL ctrl
+        uint32_t dlDataReg = 0;
+        uint32_t dlCtrlReg = 0;
+        for (const auto& allocation : allocInfo.m_varTtiAllocInfo)
         {
-            symClass[s] = cls;
+            const auto& dci = allocation.m_dci;
+            const bool ul = (dci->m_format == DciInfoElementTdma::UL);
+            const bool isData =
+                (dci->m_type & (DciInfoElementTdma::DATA | DciInfoElementTdma::MSG3)) != 0;
+            const uint8_t cls = isData ? (ul ? 2 : 1) : (ul ? 4 : 3);
+            const uint32_t rbg = std::count(dci->m_rbgBitmask.begin(), dci->m_rbgBitmask.end(), 1);
+            const uint32_t reg = rbg * GetNumRbPerRbg() * dci->m_numSym;
+            for (uint32_t s = dci->m_symStart;
+                 s < dci->m_symStart + dci->m_numSym && s < symClass.size();
+                 ++s)
+            {
+                symClass[s] = cls;
+            }
+            if (isData && !ul)
+            {
+                dlDataReg += reg;
+            }
+            else if (!isData && !ul)
+            {
+                dlCtrlReg += reg;
+            }
         }
-        if (isData && !ul)
+        // Report positions, not just counts. Bit s is set when symbol s carries
+        // that class. UL data and UL control are folded together because P_UL
+        // has no sf dependence, so nothing downstream needs to tell them apart.
+        uint16_t dlDataMask = 0;
+        uint16_t dlCtrlMask = 0;
+        uint16_t ulMask = 0;
+        for (size_t sym = 0; sym < symClass.size() && sym < 16; ++sym)
         {
-            dlDataReg += reg;
+            const auto bit = static_cast<uint16_t>(1U << sym);
+            switch (symClass[sym])
+            {
+            case 1:
+                dlDataMask |= bit;
+                break;
+            case 3:
+                dlCtrlMask |= bit;
+                break;
+            case 2:
+            case 4:
+                ulMask |= bit;
+                break;
+            default:
+                break; // idle
+            }
         }
-        else if (!isData && !ul)
-        {
-            dlCtrlReg += reg;
-        }
-    }
-    // Report positions, not just counts. Bit s is set when symbol s carries that
-    // class. UL data and UL control are folded together because P_UL has no sf
-    // dependence, so nothing downstream needs to tell them apart.
-    uint16_t dlDataMask = 0;
-    uint16_t dlCtrlMask = 0;
-    uint16_t ulMask = 0;
-    for (size_t sym = 0; sym < symClass.size() && sym < 16; ++sym)
-    {
-        const auto bit = static_cast<uint16_t>(1U << sym);
-        switch (symClass[sym])
-        {
-        case 1:
-            dlDataMask |= bit;
-            break;
-        case 3:
-            dlCtrlMask |= bit;
-            break;
-        case 2:
-        case 4:
-            ulMask |= bit;
-            break;
-        default:
-            break; // idle
-        }
-    }
 
-    m_phySlotEnergyStats(allocInfo.m_sfnSf,
-                         availRb,
-                         dlDataMask,
-                         dlDataReg,
-                         ulMask,
-                         dlCtrlMask,
-                         dlCtrlReg,
-                         GetBwpId(),
-                         GetCellId());
+        m_phySlotEnergyStats(allocInfo.m_sfnSf,
+                             availRb,
+                             dlDataMask,
+                             dlDataReg,
+                             ulMask,
+                             dlCtrlMask,
+                             dlCtrlReg,
+                             GetBwpId(),
+                             GetCellId());
+    }
 }
 
 void

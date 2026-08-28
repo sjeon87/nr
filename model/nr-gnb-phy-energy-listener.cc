@@ -40,7 +40,6 @@ NrGnbPhyEnergyListener::GetTypeId()
 
 NrGnbPhyEnergyListener::NrGnbPhyEnergyListener()
     : m_lastDlSf(0.0),
-      m_lastUlSf(0.0),
       m_lastSp(1.0), // Default: full power (sp=1)
       m_lastSa(1.0), // Default: all antennas active (sa=1)
       m_totalBwpRbs(0),
@@ -165,12 +164,6 @@ double
 NrGnbPhyEnergyListener::GetLastDlSf() const
 {
     return m_lastDlSf;
-}
-
-double
-NrGnbPhyEnergyListener::GetLastUlSf() const
-{
-    return m_lastUlSf;
 }
 
 double

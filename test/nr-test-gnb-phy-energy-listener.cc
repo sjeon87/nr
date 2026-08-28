@@ -98,10 +98,6 @@ NrGnbPhyEnergyListenerDefaultsTestCase::DoRun()
                               0.0,
                               1e-12,
                               "Default DL sf should be 0 (no allocation yet)");
-    NS_TEST_ASSERT_MSG_EQ_TOL(listener->GetLastUlSf(),
-                              0.0,
-                              1e-12,
-                              "Default UL sf should be 0 (no allocation yet)");
     NS_TEST_ASSERT_MSG_EQ_TOL(listener->GetLastSp(),
                               1.0,
                               1e-12,
@@ -195,8 +191,8 @@ class NrGnbPhyEnergyListenerSlotTestCase : public TestCase
  *
  * TR 38.864 Table 5.1-2 defines Active DL as the P4 state, so a slot occupying
  * the whole carrier in every symbol must report P4 and nothing else. This fails
- * if the listener mis-scales the REGs, reports the wrong sf, or never reaches
- * the model at all.
+ * if the listener scales the REGs incorrectly, reports the wrong sf, or never
+ * reaches the model at all.
  */
 class NrGnbPhyEnergyListenerFullDlTestCase : public NrGnbPhyEnergyListenerSlotTestCase
 {

@@ -154,7 +154,13 @@ NrUeDrxModel::StartCycle()
     {
         m_energyModel->ChangeState(NR_UE_PDCCH_ONLY);
     }
-    m_inactivityRunning = false;
+    // Do NOT reset m_inactivityRunning here. TS 38.321 5.7 defines Active Time
+    // as onDurationTimer OR InactivityTimer running - these are independent
+    // conditions. Activity late in the previous cycle can leave a real,
+    // still-scheduled InactivityExpired() event pending past this cycle's
+    // start; clearing the flag would desync it from that event and let
+    // EndOnDuration() sleep early. Only InactivityExpired() clears it, when
+    // the timer it actually tracks fires.
     m_onDurationRunning = true;
     m_nextCycleTime = Simulator::Now() + m_longCycle;
     m_onDurationEvent = Simulator::Schedule(m_onDuration, &NrUeDrxModel::EndOnDuration, this);

@@ -497,8 +497,18 @@ NrUeEnergyModel::GetAverageRelativePower() const
     double avg = 0.0;
     for (int s = 0; s < NR_UE_NUM_STATES; ++s)
     {
-        avg += GetStateTimeFraction(static_cast<NrUePowerState>(s)) *
-               GetRelativePower(static_cast<NrUePowerState>(s));
+        const auto state = static_cast<NrUePowerState>(s);
+        // Same scaling GetStatePowerW() applies to the active DL states, minus
+        // the PowerUnit conversion to Watts: this stays in relative power-units,
+        // but must reflect the same BWP/antenna/blind-decoding factors actually
+        // charged, or it under-reports whenever the modelled BWP is narrower
+        // than the reference bandwidth.
+        double relative = GetRelativePower(state);
+        if (IsActiveDlState(state))
+        {
+            relative *= m_bwpScale * m_antennaScale * m_bdScale;
+        }
+        avg += GetStateTimeFraction(state) * relative;
     }
     return avg;
 }
