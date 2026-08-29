@@ -61,6 +61,7 @@ set(source_files
     helper/nr-bearer-stats-connector.cc
     helper/nr-bearer-stats-simple.cc
     helper/nr-channel-helper.cc
+    helper/nr-energy-helper.cc
     helper/nr-epc-helper.cc
     helper/nr-helper.cc
     helper/nr-mac-rx-trace.cc
@@ -258,6 +259,7 @@ set(header_files
     helper/nr-bearer-stats-connector.h
     helper/nr-bearer-stats-simple.h
     helper/nr-channel-helper.h
+    helper/nr-energy-helper.h
     helper/nr-epc-helper.h
     helper/nr-helper.h
     helper/nr-mac-rx-trace.h
