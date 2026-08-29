@@ -132,8 +132,8 @@ per-commit-gcc-default:
   variables:
     MODE: default
     COMPILER: g++
-  tags:
-    - CTTC
+  # tags:
+  #   - CTTC
 
 per-commit-gcc-release-no-lte:
   extends: .base-per-commit-compile
@@ -156,8 +156,8 @@ per-commit-gcc-release-sanitizers:
     MODE: release
     COMPILER: g++
     EXTRAS: --enable-sanitizers
-  tags:
-    - CTTC
+  # tags:
+  #   - CTTC
 
 # MemorySanitizer catches reads of uninitialized memory, which the other
 # sanitizers and valgrind miss. It requires every linked C++ library to be

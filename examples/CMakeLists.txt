@@ -37,6 +37,22 @@ foreach(
   )
 endforeach()
 
+# Energy framework example: also needs the ns-3 energy module for the
+# BasicEnergySource the scenario feeds into NrEnergyHelper.
+build_lib_example(
+  NAME gsoc-nr-energy-example
+  SOURCE_FILES gsoc-nr-energy-example.cc
+  LIBRARIES_TO_LINK ${libnr}
+                    ${libenergy}
+)
+
+build_lib_example(
+  NAME gsoc-nr-energy-ca-example
+  SOURCE_FILES gsoc-nr-energy-ca-example.cc
+  LIBRARIES_TO_LINK ${libnr}
+                    ${libenergy}
+)
+
 check_deps(
   nr_sionna_deps
   PYTHON_PACKAGES
