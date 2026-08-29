@@ -727,6 +727,305 @@ NrGnbEnergyAggregatorIntegrationTestCase::DoRun()
 }
 
 /**
+ * @brief NrEnergyHelper wires the whole stack, for one carrier and for several.
+ *
+ * The helper is the only place that sees the band topology, so it is the only
+ * place that can decide how many energy models a device needs. This runs the
+ * same scenario at one and at two component carriers and checks that the shape
+ * of what comes back changes accordingly, that a multi-carrier device gets its
+ * TR 38.864 weights, and that the source still agrees in both cases.
+ */
+class NrEnergyHelperInstallTestCase : public TestCase
+{
+  public:
+    /**
+     * @brief Constructor.
+     * @param numCc Component carriers to build the band with.
+     * @param name  Test case name.
+     */
+    NrEnergyHelperInstallTestCase(uint8_t numCc, std::string name)
+        : TestCase(name),
+          m_numCc(numCc)
+    {
+    }
+
+  private:
+    void DoRun() override;
+    uint8_t m_numCc; //!< Component carriers under test
+};
+
+void
+NrEnergyHelperInstallTestCase::DoRun()
+{
+    constexpr double INITIAL_J = 1.0e6;
+    const Time SIM_TIME = MilliSeconds(150);
+
+    NodeContainer gnbNodes;
+    NodeContainer ueNodes;
+    gnbNodes.Create(1);
+    ueNodes.Create(1);
+
+    MobilityHelper mobility;
+    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    Ptr<ListPositionAllocator> pos = CreateObject<ListPositionAllocator>();
+    pos->Add(Vector(0.0, 0.0, 10.0));
+    pos->Add(Vector(20.0, 0.0, 1.5));
+    mobility.SetPositionAllocator(pos);
+    mobility.Install(gnbNodes);
+    mobility.Install(ueNodes);
+
+    Ptr<NrPointToPointEpcHelper> epcHelper = CreateObject<NrPointToPointEpcHelper>();
+    Ptr<IdealBeamformingHelper> bfHelper = CreateObject<IdealBeamformingHelper>();
+    Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
+    Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
+    channelHelper->ConfigureFactories("UMi", "LOS");
+    channelHelper->SetPathlossAttribute("ShadowingEnabled", BooleanValue(false));
+    nrHelper->SetBeamformingHelper(bfHelper);
+    nrHelper->SetEpcHelper(epcHelper);
+
+    CcBwpCreator ccBwpCreator;
+    CcBwpCreator::SimpleOperationBandConf bandConf(3.5e9, 40e6, m_numCc);
+    OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+    channelHelper->AssignChannelsToBands({band});
+    BandwidthPartInfoPtrVector allBwps = CcBwpCreator::GetAllBwps({band});
+
+    nrHelper->SetGnbAntennaAttribute("AntennaElement",
+                                     PointerValue(CreateObject<IsotropicAntennaModel>()));
+    nrHelper->SetUeAntennaAttribute("AntennaElement",
+                                    PointerValue(CreateObject<IsotropicAntennaModel>()));
+    nrHelper->SetGnbPhyAttribute("Numerology", UintegerValue(1));
+    nrHelper->SetGnbPhyAttribute("TxPower", DoubleValue(30.0));
+
+    NetDeviceContainer gnbDev = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
+    NetDeviceContainer ueDev = nrHelper->InstallUeDevice(ueNodes, allBwps);
+
+    Ptr<Node> pgw = epcHelper->GetPgwNode();
+    NodeContainer remoteHostContainer;
+    remoteHostContainer.Create(1);
+    Ptr<Node> remoteHost = remoteHostContainer.Get(0);
+    InternetStackHelper internet;
+    internet.Install(remoteHostContainer);
+
+    PointToPointHelper p2ph;
+    p2ph.SetDeviceAttribute("DataRate", DataRateValue(DataRate("100Gb/s")));
+    p2ph.SetDeviceAttribute("Mtu", UintegerValue(2500));
+    p2ph.SetChannelAttribute("Delay", TimeValue(Seconds(0)));
+    NetDeviceContainer internetDevices = p2ph.Install(pgw, remoteHost);
+    Ipv4AddressHelper ipv4h;
+    ipv4h.SetBase("1.0.0.0", "255.0.0.0");
+    Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign(internetDevices);
+    Ipv4StaticRoutingHelper ipv4RoutingHelper;
+    ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>())
+        ->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
+    internet.Install(ueNodes);
+    Ipv4InterfaceContainer ueIpIface = epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDev));
+    ipv4RoutingHelper.GetStaticRouting(ueNodes.Get(0)->GetObject<Ipv4>())
+        ->SetDefaultRoute(epcHelper->GetUeDefaultGatewayAddress(), 1);
+    nrHelper->AttachToClosestGnb(ueDev, gnbDev);
+
+    UdpClientHelper client(ueIpIface.GetAddress(0), 1234);
+    client.SetAttribute("MaxPackets", UintegerValue(100000));
+    client.SetAttribute("Interval", TimeValue(MicroSeconds(200)));
+    client.SetAttribute("PacketSize", UintegerValue(1000));
+    ApplicationContainer clientApp = client.Install(remoteHost);
+    clientApp.Start(MilliSeconds(20));
+    clientApp.Stop(SIM_TIME);
+    PacketSinkHelper sink("ns3::UdpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 1234));
+    ApplicationContainer sinkApp = sink.Install(ueNodes.Get(0));
+    sinkApp.Start(Seconds(0));
+    sinkApp.Stop(SIM_TIME);
+
+    // ----- the helper does all the energy wiring -----
+
+    Ptr<energy::BasicEnergySource> source = CreateObject<energy::BasicEnergySource>();
+    source->SetInitialEnergy(INITIAL_J);
+    source->SetSupplyVoltage(12.0);
+    source->SetNode(gnbNodes.Get(0));
+    gnbNodes.Get(0)->AggregateObject(source);
+    energy::EnergySourceContainer sources;
+    sources.Add(source);
+
+    NrEnergyHelper energyHelper;
+    energy::DeviceEnergyModelContainer models = energyHelper.InstallGnb(gnbDev, sources, {band});
+
+    NS_TEST_ASSERT_MSG_EQ(models.GetN(), 1, "one device model per gNB device");
+    Ptr<NrGnbEnergyAggregator> agg = DynamicCast<NrGnbEnergyAggregator>(models.Get(0));
+    // PeekPointer: the test macros stream their operands, and streaming a null
+    // Ptr<> dereferences it, turning a clean failure into an abort.
+    const bool isAggregator = (PeekPointer(agg) != nullptr);
+
+    // EXPECT rather than ASSERT: a failing ASSERT returns from DoRun before
+    // Simulator::Destroy(), and the next test case then starts on a live
+    // simulator and aborts. These record the failure and let cleanup happen.
+    if (m_numCc == 1)
+    {
+        NS_TEST_EXPECT_MSG_EQ(isAggregator,
+                              false,
+                              "a single-carrier device must not get an aggregator");
+        NS_TEST_EXPECT_MSG_EQ(PeekPointer(DynamicCast<NrGnbEnergyModel>(models.Get(0))) != nullptr,
+                              true,
+                              "it gets the carrier model directly");
+    }
+    else
+    {
+        NS_TEST_EXPECT_MSG_EQ(isAggregator,
+                              true,
+                              "a multi-carrier device gets an aggregator: a helper that wired "
+                              "only one bandwidth part would fall back to a single model");
+        if (isAggregator)
+        {
+            NS_TEST_EXPECT_MSG_EQ(agg->GetNCarriers(), m_numCc, "one model per component carrier");
+            NS_TEST_EXPECT_MSG_EQ_TOL(agg->GetCarrierWeight(0), 1.0, 1e-12, "anchor carrier");
+            NS_TEST_EXPECT_MSG_EQ_TOL(agg->GetCarrierWeight(1),
+                                      NrGnbEnergyAggregator::CONTIGUOUS_CC_SCALING,
+                                      1e-12,
+                                      "the helper's band data must yield the 0.7 for the "
+                                      "second CC of a contiguous pair");
+        }
+    }
+
+    Simulator::Stop(SIM_TIME);
+    Simulator::Run();
+
+    const double modelJ = models.Get(0)->GetTotalEnergyConsumption();
+    const double drainedJ = INITIAL_J - source->GetRemainingEnergy();
+
+    NS_TEST_ASSERT_MSG_GT(modelJ, 1.0, "the gNB should have drawn real energy");
+    NS_TEST_ASSERT_MSG_EQ_TOL(drainedJ,
+                              modelJ,
+                              1e-6,
+                              "whatever the helper built, the source and the device model "
+                              "must still account the same energy");
+
+    if (isAggregator)
+    {
+        // Every bandwidth part must actually be feeding its carrier: a helper
+        // that wired only BWP 0 would leave the second carrier at its idle
+        // baseline and still pass every assertion above.
+        for (uint32_t cc = 0; cc < agg->GetNCarriers(); ++cc)
+        {
+            // A carrier with no listener is not zero-energy: it sits at the P3
+            // baseline for the whole run. Compare against exactly that, which is
+            // what a helper wiring only BWP 0 would leave behind.
+            const double idleJ =
+                agg->GetCarrier(cc)->CalcDlPowerW(0.0, 0.0, 0.0) * SIM_TIME.GetSeconds();
+            NS_TEST_ASSERT_MSG_GT(agg->GetCarrier(cc)->GetTotalEnergyJ(),
+                                  idleJ * 1.0001,
+                                  "carrier " << cc
+                                             << " never rose above its idle baseline, so no "
+                                                "listener was wired to its bandwidth part");
+        }
+    }
+
+    Simulator::Destroy();
+}
+
+/**
+ * @brief Carriers in different frequency ranges take different 3GPP configs.
+ *
+ * TR 38.864 Table 5.1-1 defines separate reference configurations per frequency
+ * range, and Table 5.1-3 keys P1..P5 off them, so a device whose carriers span
+ * FR1 and FR2 cannot use one power table for both. This builds exactly that -
+ * an FR1 band and an FR2 band on one gNB - gives each carrier its own
+ * RefConfigSet through the helper, and checks the carriers really do sit at
+ * different idle powers.
+ */
+class NrEnergyHelperMixedFrTestCase : public TestCase
+{
+  public:
+    NrEnergyHelperMixedFrTestCase()
+        : TestCase("NrEnergyHelper gives each carrier its own 3GPP configuration")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrEnergyHelperMixedFrTestCase::DoRun()
+{
+    NodeContainer gnbNodes;
+    NodeContainer ueNodes;
+    gnbNodes.Create(1);
+    ueNodes.Create(1);
+
+    MobilityHelper mobility;
+    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    Ptr<ListPositionAllocator> pos = CreateObject<ListPositionAllocator>();
+    pos->Add(Vector(0.0, 0.0, 10.0));
+    pos->Add(Vector(15.0, 0.0, 1.5));
+    mobility.SetPositionAllocator(pos);
+    mobility.Install(gnbNodes);
+    mobility.Install(ueNodes);
+
+    Ptr<NrPointToPointEpcHelper> epcHelper = CreateObject<NrPointToPointEpcHelper>();
+    Ptr<IdealBeamformingHelper> bfHelper = CreateObject<IdealBeamformingHelper>();
+    Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
+    Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
+    channelHelper->ConfigureFactories("UMi", "LOS");
+    channelHelper->SetPathlossAttribute("ShadowingEnabled", BooleanValue(false));
+    nrHelper->SetBeamformingHelper(bfHelper);
+    nrHelper->SetEpcHelper(epcHelper);
+
+    // Two bands: one FR1 carrier and one FR2 carrier on the same gNB. Separate
+    // bands also mean these are NOT intra-band contiguous, so neither earns the
+    // 0.7 - which the weights below confirm.
+    CcBwpCreator ccBwpCreator;
+    CcBwpCreator::SimpleOperationBandConf fr1Conf(3.5e9, 40e6, 1);
+    CcBwpCreator::SimpleOperationBandConf fr2Conf(28.0e9, 100e6, 1);
+    OperationBandInfo fr1 = ccBwpCreator.CreateOperationBandContiguousCc(fr1Conf);
+    OperationBandInfo fr2 = ccBwpCreator.CreateOperationBandContiguousCc(fr2Conf);
+    channelHelper->AssignChannelsToBands({fr1, fr2});
+    BandwidthPartInfoPtrVector allBwps = CcBwpCreator::GetAllBwps({fr1, fr2});
+
+    nrHelper->SetGnbAntennaAttribute("AntennaElement",
+                                     PointerValue(CreateObject<IsotropicAntennaModel>()));
+    nrHelper->SetUeAntennaAttribute("AntennaElement",
+                                    PointerValue(CreateObject<IsotropicAntennaModel>()));
+
+    NetDeviceContainer gnbDev = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
+    NetDeviceContainer ueDev = nrHelper->InstallUeDevice(ueNodes, allBwps);
+
+    // Set1 is FR1 TDD 30 kHz, Set3 is FR2 TDD 120 kHz; the PHY numerology has to
+    // match the set's subcarrier spacing or the model rejects it.
+    NrHelper::GetGnbPhy(gnbDev.Get(0), 0)->SetAttribute("Numerology", UintegerValue(1));
+    NrHelper::GetGnbPhy(gnbDev.Get(0), 1)->SetAttribute("Numerology", UintegerValue(3));
+
+    Ptr<energy::BasicEnergySource> source = CreateObject<energy::BasicEnergySource>();
+    source->SetInitialEnergy(1.0e6);
+    source->SetSupplyVoltage(12.0);
+    source->SetNode(gnbNodes.Get(0));
+    gnbNodes.Get(0)->AggregateObject(source);
+    energy::EnergySourceContainer sources;
+    sources.Add(source);
+
+    NrEnergyHelper energyHelper;
+    energyHelper.SetGnbEnergyModelAttributeForCc(0, "RefConfigSet", StringValue("Set1"));
+    energyHelper.SetGnbEnergyModelAttributeForCc(1, "RefConfigSet", StringValue("Set3"));
+    energy::DeviceEnergyModelContainer models =
+        energyHelper.InstallGnb(gnbDev, sources, {fr1, fr2});
+
+    Ptr<NrGnbEnergyAggregator> agg = DynamicCast<NrGnbEnergyAggregator>(models.Get(0));
+    const bool isAggregator = (PeekPointer(agg) != nullptr);
+    NS_TEST_ASSERT_MSG_EQ(isAggregator, true, "two carriers must produce an aggregator");
+
+    // Table 5.1-3 micro sleep: Set1 gives 55, Set3 gives 38. An idle carrier
+    // sits exactly there, so the two carriers must differ - which is only true
+    // if the per-carrier override actually reached the model.
+    const double p1 = agg->GetCarrier(0)->CalcDlPowerW(0.0, 0.0, 0.0);
+    const double p2 = agg->GetCarrier(1)->CalcDlPowerW(0.0, 0.0, 0.0);
+    NS_TEST_ASSERT_MSG_EQ_TOL(p1, 55.0, 1e-9, "carrier 0 must use the FR1 Set1 table");
+    NS_TEST_ASSERT_MSG_EQ_TOL(p2, 38.0, 1e-9, "carrier 1 must use the FR2 Set3 table");
+
+    // Different bands, so no intra-band contiguity and no 0.7 for either.
+    NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(0), 1.0, 1e-12, "inter-band: no discount");
+    NS_TEST_ASSERT_MSG_EQ_TOL(agg->GetCarrierWeight(1), 1.0, 1e-12, "inter-band: no discount");
+
+    Simulator::Destroy();
+}
+
+/**
  * @brief Energy framework integration test suite.
  */
 class NrEnergyIntegrationTestSuite : public TestSuite
@@ -738,6 +1037,11 @@ class NrEnergyIntegrationTestSuite : public TestSuite
         AddTestCase(new NrGnbEnergyIntegrationTestCase(), Duration::QUICK);
         AddTestCase(new NrUeEnergyIntegrationTestCase(), Duration::QUICK);
         AddTestCase(new NrGnbEnergyAggregatorIntegrationTestCase(), Duration::QUICK);
+        AddTestCase(new NrEnergyHelperInstallTestCase(1, "NrEnergyHelper wires a one-carrier gNB"),
+                    Duration::QUICK);
+        AddTestCase(new NrEnergyHelperInstallTestCase(2, "NrEnergyHelper wires a two-carrier gNB"),
+                    Duration::QUICK);
+        AddTestCase(new NrEnergyHelperMixedFrTestCase(), Duration::QUICK);
     }
 };
 
