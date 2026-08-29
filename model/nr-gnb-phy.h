@@ -437,6 +437,40 @@ class NR_EXPORT NrGnbPhy : public NrPhy
                                           uint16_t cellId);
 
     /**
+     * @brief TracedCallback signature for per-direction slot energy statistics
+     *
+     * Splits the slot's used symbols by direction so an energy listener can
+     * charge each at the correct TR 38.864 power (DL active vs UL vs micro-sleep).
+     *
+     * The symbol occupancy is reported as bitmasks rather than counts, bit s
+     * being set when symbol s of the slot carries that class. A count is only
+     * std::popcount() of a mask, but positions cannot be recovered from counts,
+     * and positions are what a carrier made of several bandwidth parts needs:
+     * the carrier is transmitting in a symbol if ANY of its BWPs is, so the
+     * active span is the union of the masks, and a downlink mask overlapping an
+     * uplink one locates simultaneous DL/UL exactly instead of inferring it.
+     *
+     * @param [in] sfnSf Slot number
+     * @param [in] availableRb Available RBs in the BWP
+     * @param [in] dlDataMask Symbols carrying DL data, one bit per symbol
+     * @param [in] dlDataReg DL data REGs (RB x symbols), for the DL sf
+     * @param [in] ulMask Symbols carrying UL data or UL control
+     * @param [in] dlCtrlMask Symbols carrying DL control (PDCCH)
+     * @param [in] dlCtrlReg DL control REGs (RB x symbols), for the PDCCH sf
+     * @param [in] bwpId BWP ID
+     * @param [in] cellId Cell ID
+     */
+    typedef void (*SlotEnergyStatsTracedCallback)(const SfnSf& sfnSf,
+                                                  uint32_t availableRb,
+                                                  uint16_t dlDataMask,
+                                                  uint32_t dlDataReg,
+                                                  uint16_t ulMask,
+                                                  uint16_t dlCtrlMask,
+                                                  uint32_t dlCtrlReg,
+                                                  uint16_t bwpId,
+                                                  uint16_t cellId);
+
+    /**
      * @brief Retrieve the number of RB per RBG
      * @return the number of RB per RBG
      *
@@ -897,6 +931,23 @@ class NR_EXPORT NrGnbPhy : public NrPhy
                    uint16_t,
                    uint16_t>
         m_phySlotDataStats;
+
+    /**
+     * @brief Per-direction slot statistics for the energy framework: splits the
+     * used symbols into DL/UL data and DL/UL control so a listener can charge
+     * each at the correct TR 38.864 power. Additive; does not affect the
+     * aggregate SlotData/SlotCtrl stats.
+     */
+    TracedCallback<const SfnSf&,
+                   uint32_t,
+                   uint16_t,
+                   uint32_t,
+                   uint16_t,
+                   uint16_t,
+                   uint32_t,
+                   uint16_t,
+                   uint16_t>
+        m_phySlotEnergyStats;
 
     TracedCallback<const SfnSf&, uint8_t, const std::vector<int>&, uint16_t, uint16_t>
         m_rbStatistics;

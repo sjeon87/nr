@@ -185,6 +185,16 @@ NrUePhy::GetTypeId()
                             "Report allocated downlink TB size for trace.",
                             MakeTraceSourceAccessor(&NrUePhy::m_reportDlTbSize),
                             "ns3::DlTbSize::TracedCallback")
+            .AddTraceSource("DlDataStats",
+                            "Per-TB DL allocation detail for the energy model "
+                            "(imsi, tbSize, symStart, numSym, rank).",
+                            MakeTraceSourceAccessor(&NrUePhy::m_reportDlDataStats),
+                            "ns3::NrUePhy::DataStatsTracedCallback")
+            .AddTraceSource("UlDataStats",
+                            "Per-TB UL allocation detail for the energy model "
+                            "(imsi, tbSize, symStart, numSym, rank).",
+                            MakeTraceSourceAccessor(&NrUePhy::m_reportUlDataStats),
+                            "ns3::NrUePhy::DataStatsTracedCallback")
             .AddTraceSource("ReportRsrp",
                             "RSRP statistics.",
                             MakeTraceSourceAccessor(&NrUePhy::m_reportRsrpTrace),
@@ -1211,6 +1221,11 @@ NrUePhy::DlData(const std::shared_ptr<DciInfoElementTdma>& dci)
                                   dci->m_numSym,
                                   m_currentSlot});
     m_reportDlTbSize(m_netDevice->GetObject<NrUeNetDevice>()->GetImsi(), dci->m_tbSize);
+    m_reportDlDataStats(m_netDevice->GetObject<NrUeNetDevice>()->GetImsi(),
+                        dci->m_tbSize,
+                        dci->m_symStart,
+                        dci->m_numSym,
+                        dci->m_rank);
     NS_LOG_INFO("UE" << m_rnti << " RXing DL DATA frame for symbols " << +dci->m_symStart << "-"
                      << +(dci->m_symStart + dci->m_numSym - 1) << " num of rbg assigned: "
                      << FromRBGBitmaskToRBAssignment(dci->m_rbgBitmask).size()
@@ -1262,6 +1277,11 @@ NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma>& dci)
         }
     }
     m_reportUlTbSize(m_netDevice->GetObject<NrUeNetDevice>()->GetImsi(), dci->m_tbSize);
+    m_reportUlDataStats(m_netDevice->GetObject<NrUeNetDevice>()->GetImsi(),
+                        dci->m_tbSize,
+                        dci->m_symStart,
+                        dci->m_numSym,
+                        dci->m_rank);
 
     NS_LOG_DEBUG("UE" << m_rnti << " TXing UL DATA frame for"
                       << " symbols " << +dci->m_symStart << "-"
