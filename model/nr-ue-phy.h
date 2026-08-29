@@ -515,6 +515,20 @@ class NR_EXPORT NrUePhy : public NrPhy
                                            bool isServingCell,
                                            uint8_t componentCarrierId);
 
+    /**
+     * @brief TracedCallback signature for the per-TB DL/UL data-stats traces.
+     * @param [in] imsi     UE IMSI
+     * @param [in] tbSize   Transport block size [bytes]
+     * @param [in] symStart Starting OFDM symbol of the allocation
+     * @param [in] numSym   Number of OFDM symbols in the allocation
+     * @param [in] rank     Number of MIMO layers (spatial streams)
+     */
+    typedef void (*DataStatsTracedCallback)(uint64_t imsi,
+                                            uint32_t tbSize,
+                                            uint32_t symStart,
+                                            uint32_t numSym,
+                                            uint32_t rank);
+
     /// @brief Generate DL CQI, PMI, and RI (channel quality precoding matrix and rank indicators)
     /// @param cqiMimoFeedbackSignal a vector of parameters of the received signals and interference
     /// @param pmiUpdateParams struct that defines if WB/SB PMIs need to be updated
@@ -1069,6 +1083,10 @@ class NR_EXPORT NrUePhy : public NrPhy
     TracedCallback<uint16_t, uint16_t, double, uint16_t> m_dlCtrlSinrTrace;
     TracedCallback<uint64_t, uint64_t> m_reportUlTbSize; //!< Report the UL TBS
     TracedCallback<uint64_t, uint64_t> m_reportDlTbSize; //!< Report the DL TBS
+    //!< Per-TB DL allocation detail (imsi, tbSize, symStart, numSym, rank)
+    TracedCallback<uint64_t, uint32_t, uint32_t, uint32_t, uint32_t> m_reportDlDataStats;
+    //!< Per-TB UL allocation detail (imsi, tbSize, symStart, numSym, rank)
+    TracedCallback<uint64_t, uint32_t, uint32_t, uint32_t, uint32_t> m_reportUlDataStats;
     TracedCallback<const SfnSf&,
                    Ptr<const SpectrumValue>,
                    const Time&,
