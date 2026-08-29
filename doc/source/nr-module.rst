@@ -65,6 +65,7 @@ In this section, we present the design of the different features and procedures 
    epc
    interfaces
    helpers
+   energy
    application-layer
    extensions
 
@@ -142,6 +143,12 @@ References
 .. [SigProc5G] F.-L. Luo and C. J. Zhang. "Signal Processing for 5G: Algorithms and Implementations". John Wiley & Sons., Aug. 2016.
 
 .. [TS38331]  3GPP. "TS 38.331, Radio Resource Control (RRC), (Rel. 15)". 2018.
+
+.. [TR38864] 3GPP. "TR 38.864 Study on network energy savings for NR (Release 18)". V18.1.0, 2023.
+
+.. [TR38840] 3GPP. "TR 38.840 Study on User Equipment (UE) power saving in NR (Release 16)". V16.0.0, 2019.
+
+.. [TS38321] 3GPP. "TS 38.321 NR; Medium Access Control (MAC) protocol specification".
 
 .. [IMT-2020] ITU-R. "Submission, evaluation process and consensus building for IMT-2020, ITU-R IMT-2020/2-E". 2019.
 

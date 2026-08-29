@@ -726,3 +726,31 @@ To execute it:
 .. sourcecode:: bash
 
     $ ./ns3 run gsoc-leo-demo-example -- --application=vsat --realisticPower --duration=4
+
+gsoc-nr-energy-example.cc
+=========================
+The program ``examples/gsoc-nr-energy-example`` shows how to add the energy
+consumption model (see :ref:`Energy consumption model`) to a scenario using
+``NrEnergyHelper``. It builds a standard downlink scenario (one gNB and a few
+UEs with UDP traffic on an FR1 band matching the gNB model's TR 38.864 Set 1
+defaults), installs one ``BasicEnergySource`` per node, and wires the whole
+energy stack with ``InstallGnb`` / ``InstallUe``. Downlink traffic stops halfway
+through the run so the UEs have an idle tail: with DRX enabled they sleep through
+it and with DRX off they keep monitoring PDCCH, which makes the ``EnableDrx``
+knob visible in the reported UE energy. At the end the example prints, per
+device, the total energy and the average power, plus the network energy
+efficiency, read from the model containers returned by the helper.
+
+gsoc-nr-energy-ca-example.cc
+=============================
+The program ``examples/gsoc-nr-energy-ca-example`` is the carrier-aggregation
+companion to the example above: it builds several component carriers, each
+split into one or more bandwidth parts (``--numCc`` and ``--numBwpPerCc``),
+and installs the energy stack through the bands-aware ``InstallGnb``
+overload, which wires an ``NrGnbEnergyAggregator`` for the gNB automatically
+(see :ref:`Multi-carrier and multi-BWP gNBs`). Traffic is split across
+carriers by mapping two QoS flow types to bandwidth parts on different
+carriers, so the per-carrier energies differ and the aggregation is actually
+exercised, not just configured. Run it with, for example,
+``./ns3 run "gsoc-nr-energy-ca-example --numCc=3 --numBwpPerCc=1"``.
+

@@ -414,3 +414,89 @@ the original location:
  - the RRC state at the UE is CONNECTED_NORMALLY
  - the UE context at the gNB is present
  - the RRC state of the UE Context at the gNB is CONNECTED_NORMALLY
+
+Energy consumption model validation
+====================================
+Beyond the unit tests that check each formula in :ref:`Energy consumption
+model` against its 3GPP reference value, the model has also been compared
+with real measured power, at three levels: the single-carrier gNB model, the
+multi-BWP combination rule (see :ref:`Multi-carrier and multi-BWP gNBs`), and
+the UE model.
+
+gNB, single carrier, against real base stations
+################################################
+The closed form :math:`P_{DL}(s_f)` was fitted per base station against the
+`NetData <https://github.com/tsinghua-fib-lab/NetData>`_ dataset (Tsinghua
+FIB Lab, about 20 000 real 5G cells with hourly PRB usage and measured RRU
+power). :numref:`fig-energy-val-gnb-single` overlays the model against four
+example cells (``B_387``, ``B_647``, ``B_753``, ``B_816``), each calibrated
+with its own ``PowerUnit``/``AntennaRatio_A`` by ordinary least squares.
+:math:`R^2` ranges from 0.78 to 0.89 and MAPE from 7.9% to 19.4% across the
+four cells, which is in line with fitting a two-parameter model to one
+month of hourly field data from a live network.
+
+.. _fig-energy-val-gnb-single:
+
+.. figure:: figures/energy/energy_gnb_validation_singlebwp.png
+   :align: center
+   :width: 95 %
+
+   ``NrGnbEnergyModel`` against measured hourly power for four NetData base
+   stations, each OLS-calibrated on its own trace.
+
+gNB, multiple bandwidth parts of one carrier
+#############################################
+The multi-BWP combination rule was checked against the same NetData source,
+this time by feeding two real cells' load traces into two bandwidth parts of
+*one* simulated carrier and letting the model combine their occupancy on its
+own, instead of fitting each bandwidth part separately.
+:numref:`fig-energy-val-gnb-multibwp` shows the result together with a
+scatter of energy against combined load.
+
+.. _fig-energy-val-gnb-multibwp:
+
+.. figure:: figures/energy/energy_gnb_validation_multibwp.png
+   :align: center
+   :width: 95 %
+
+   Two NetData cells driving two bandwidth parts of one simulated carrier,
+   combined by the union-of-occupancy rule and compared with the measured sum
+   of the two cells. :math:`R^2 = 0.767`, MAPE :math:`= 4.7\%`.
+
+The result does not prove the union rule is the only correct one, since real
+hardware does not expose bandwidth-part-level power for a direct check. But
+it shows that combining occupancy first and evaluating the formula once, the
+way :ref:`Multi-carrier and multi-BWP gNBs` describes, is not obviously wrong
+for the one case where a real two-cell reference is available, and its MAPE
+is in fact the best of the cells checked here.
+
+UE, against real device power
+##############################
+The UE model was checked against `"A Variegated Look at 5G in the Wild"
+<https://github.com/SIGCOMM21-5G/artifact>`_ (SIGCOMM'21), which measured the
+power a real phone drew (with Monsoon power monitors) while downloading over
+commercial 5G. :numref:`fig-energy-val-ue-sigcomm` compares the UE power the
+3GPP full-slot model produces against four such traces, once ``NrUeEnergyModel``
+is driven by the real scheduler's duty cycle (how often the UE is actually
+granted a slot) rather than by a throughput-dependent term, since TR 38.840
+does not define one. Correlation with the measured trace is between 0.91 and
+0.96 across the four traces.
+
+.. _fig-energy-val-ue-sigcomm:
+
+.. figure:: figures/energy/energy_ue_validation_sigcomm.png
+   :align: center
+   :width: 80 %
+
+   UE power from the 3GPP full-slot model (red) against measured phone power
+   (blue histogram) for four real base stations from the SIGCOMM'21 dataset.
+
+Datasets and licensing
+#######################
+Neither NetData nor the SIGCOMM'21 artifact is published under a license that
+allows redistribution, so their raw traces are not shipped inside this
+repository. What is included here is the fitted/derived comparison (plots and
+the numbers above), produced from data downloaded directly from the sources
+linked above, for validation purposes. Anyone who wants to reproduce a
+result needs to download the original dataset themselves from its source.
+
