@@ -437,6 +437,11 @@ class NR_EXPORT NrGnbPhy : public NrPhy
                                           uint16_t cellId);
 
     /**
+     * TracedCallback signature for UL HARQ feedback
+     */
+    typedef void (*UlHarqFeedbackTracedCallback)(uint16_t rnti, bool isReceivedOk);
+
+    /**
      * @brief Retrieve the number of RB per RBG
      * @return the number of RB per RBG
      *
@@ -856,6 +861,11 @@ class NR_EXPORT NrGnbPhy : public NrPhy
     //!< included, only data)
 
     TracedCallback<uint64_t, SpectrumValue&, SpectrumValue&> m_ulSinrTrace; //!< SINR trace
+
+    /**
+     * Trace for UL HARQ feedback (gNB PHY)
+     */
+    TracedCallback<uint16_t, bool> m_ulHarqFeedbackTrace; //!< UL HARQ trace (rnti, isReceivedOk)
 
     /**
      * Trace information regarding Received Control Messages
