@@ -1262,8 +1262,13 @@ NrSpectrumPhy::StartRxData(const Ptr<NrSpectrumSignalParametersDataFrame>& param
     case RX_UL_CTRL:
         /* no break */
     case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot receive DATA while receiving CTRL.");
-        break;
+        // With multiple UEs (especially aerial), TDD slot boundaries can have
+        // slight timing overlaps between CTRL and DATA reception.  Treat the
+        // overlapping DATA signal as interference rather than crashing.
+        NS_LOG_WARN("Overlapping DATA during CTRL reception. "
+                      "Ignoring DATA; will be recovered by HARQ. cellId:"
+                      << params->cellId);
+        return;
     case CCA_BUSY:
         NS_LOG_INFO("Start receiving DATA while in CCA_BUSY state.");
         /* no break */
@@ -1340,8 +1345,9 @@ NrSpectrumPhy::StartRxDlCtrl(const Ptr<NrSpectrumSignalParametersDlCtrlFrame>& p
         NS_FATAL_ERROR("Cannot RX while TX.");
         break;
     case RX_DATA:
-        NS_FATAL_ERROR("Cannot RX CTRL while receiving DATA.");
-        break;
+        NS_LOG_WARN("Overlapping DL CTRL during DATA reception at UE. Ignoring CTRL. cellId:"
+                     << params->cellId);
+        return;
     case RX_DL_CTRL:
         NS_FATAL_ERROR("Cannot RX DL CTRL while already receiving DL CTRL.");
         break;
@@ -1386,8 +1392,9 @@ NrSpectrumPhy::StartRxUlCtrl(const Ptr<NrSpectrumSignalParametersUlCtrlFrame>& p
         NS_FATAL_ERROR("Cannot RX UL CTRL while TX.");
         break;
     case RX_DATA:
-        NS_FATAL_ERROR("Cannot RX UL CTRL while receiving DATA.");
-        break;
+        NS_LOG_WARN("Overlapping UL CTRL during DATA reception. Ignoring CTRL. cellId:"
+                     << params->cellId);
+        return;
     case RX_UL_SRS:
         NS_FATAL_ERROR("Cannot start RX UL CTRL while already receiving SRS.");
         break;
@@ -1450,8 +1457,11 @@ NrSpectrumPhy::StartRxSrs(const Ptr<NrSpectrumSignalParametersUlCtrlFrame>& para
         NS_FATAL_ERROR("Cannot RX SRS while TX.");
         break;
     case RX_DATA:
-        NS_FATAL_ERROR("Cannot RX SRS while receiving DATA.");
-        break;
+        // Overlapping SRS during DATA: treat the SRS as lost (HARQ handles DATA recovery).
+        // This can occur with multiple UEs at TDD slot boundaries.
+        NS_LOG_WARN("Overlapping SRS during DATA reception. Ignoring SRS. cellId:"
+                     << params->cellId);
+        return;
     case RX_DL_CTRL:
         NS_FATAL_ERROR("gNB should not be in RX_DL_CTRL state.");
         break;

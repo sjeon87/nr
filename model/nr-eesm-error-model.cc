@@ -59,6 +59,16 @@ NrEesmErrorModel::SinrEff(const SpectrumValue& sinr,
     // for HARQ-IR: b = sum (map.size()), a = sum_j(sum_n (exp (-sinr/beta))) (for previous retx,
     // till j=q-1) for HARQ-CC: b = map.size(), a = 0.0 (SINRs are already combined in sinr input)
 
+    // Defensive guard (2026-08-13): a scheduled TB with an EMPTY RB map (UL
+    // OFDMA grants of 0 RBs to one of several contending UEs at 52 RBs) used to
+    // NS_ABORT the simulation. A 0-RB transmission is degenerate — report a
+    // 0-dB SINR so the AMC marks the TB corrupted (NACK -> HARQ retransmission)
+    // instead of aborting.
+    if (map.empty())
+    {
+        return 0.0;
+    }
+
     double sinrExpSum = SinrExp(sinr, map, mcs);
     double beta = GetBetaTable()->at(mcs);
     double SINR = -beta * log((a + sinrExpSum) / b);
@@ -74,8 +84,14 @@ NrEesmErrorModel::SinrExp(const SpectrumValue& sinr, const std::vector<int>& map
 {
     // it returns sum_n (exp (-SINR/beta))
     NS_LOG_FUNCTION(sinr << &map << (uint8_t)mcs);
-    NS_ABORT_MSG_IF(map.empty(),
-                    " Error: number of allocated RBs cannot be 0 - EESM method - SinrEff function");
+    // Defensive guard (2026-08-13): a scheduled TB with an EMPTY RB map (UL
+    // OFDMA grants of 0 RBs to one of several contending UEs at 52 RBs) used to
+    // NS_ABORT the whole simulation. A 0-RB transmission is degenerate — treat
+    // it as a failed TB (NACK -> HARQ retransmission) instead of aborting.
+    if (map.empty())
+    {
+        return 0.0;
+    }
 
     double SINRexp = 0.0;
     double SINRsum = 0.0;

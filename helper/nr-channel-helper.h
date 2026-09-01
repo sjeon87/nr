@@ -34,7 +34,7 @@ namespace ns3
  *
  * The available features are:
  *
- * - Scenarios: RMa, UMa, InH-OfficeOpen, InH-OfficeMixed, V2V-Highway, V2V-Urban, UMi, InH, InF,
+ * - Scenarios: RMa, UMa, UMa-AV InH-OfficeOpen, InH-OfficeMixed, V2V-Highway, V2V-Urban, UMi, InH, InF,
  *   NTN-DenseUrban, NTN-Urban, NTN-Suburban, NTN-Rural
  *
  * - Conditions: LOS, NLOS, Buildings, Default
@@ -162,6 +162,7 @@ class NR_EXPORT NrChannelHelper : public Object
     {
         RMa,             //!< Rural Macro
         UMa,             //!< Urban Macro
+        UMa_AV,          //!< Urban Macro Aerial Vehicles
         InH_OfficeOpen,  //!< Indoor Hotspot in an open plan office scenario
         InH_OfficeMixed, //!< Indoor Hotspot in a mixed plan office scenario
         V2V_Highway,     //!< Vehicle-to-vehicle in a highway scenario
@@ -237,6 +238,8 @@ class NR_EXPORT NrChannelHelper : public Object
         {ChannelModel::ThreeGpp, Scenario::UMi},
         // 3GPP-UMa
         {ChannelModel::ThreeGpp, Scenario::UMa},
+        // 3GPP-UMa-AV
+        {ChannelModel::ThreeGpp, Scenario::UMa_AV},
         // 3GPP-InH - OfficeMixed
         {ChannelModel::ThreeGpp, Scenario::InH_OfficeMixed},
         // 3GPP-InH - OfficeOpen

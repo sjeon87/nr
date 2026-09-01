@@ -122,6 +122,10 @@ NrGnbPhy::GetTypeId()
                             "UL SINR statistics.",
                             MakeTraceSourceAccessor(&NrGnbPhy::m_ulSinrTrace),
                             "ns3::UlSinr::TracedCallback")
+            .AddTraceSource("UlHarqFeedbackTrace",
+                            "UL HARQ feedback trace.",
+                            MakeTraceSourceAccessor(&NrGnbPhy::m_ulHarqFeedbackTrace),
+                            "ns3::NrGnbPhy::UlHarqFeedbackTracedCallback")
             .AddTraceSource("GnbPhyRxedCtrlMsgsTrace",
                             "Gnb PHY Rxed Control Messages Traces.",
                             MakeTraceSourceAccessor(&NrGnbPhy::m_phyRxedCtrlMsgsTrace),
@@ -2065,6 +2069,8 @@ void
 NrGnbPhy::ReportUlHarqFeedback(const UlHarqInfo& mes)
 {
     NS_LOG_FUNCTION(this);
+    // Fire trace
+    m_ulHarqFeedbackTrace(mes.m_rnti, mes.IsReceivedOk());
     // forward to scheduler
     if (m_ueAttachedRnti.find(mes.m_rnti) != m_ueAttachedRnti.end())
     {
