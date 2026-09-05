@@ -109,6 +109,12 @@ class NR_EXPORT NrGnbCphySapProvider
     virtual void SetSystemInformationBlockType1(NrRrcSap::SystemInformationBlockType1 sib1) = 0;
 
     /**
+     * @brief Enable or disable HARQ at the gNB PHY
+     * @param enable false to disable HARQ processing
+     */
+    virtual void SetEnableHarq(bool enable) = 0;
+
+    /**
      * Get reference signal power
      *
      * @return Reference Signal Power for SIB2
@@ -161,6 +167,7 @@ class MemberNrGnbCphySapProvider : public NrGnbCphySapProvider
     void SetMasterInformationBlock(NrRrcSap::MasterInformationBlock mib) override;
     void SetSystemInformationBlockType1(NrRrcSap::SystemInformationBlockType1 sib1) override;
     int8_t GetReferenceSignalPower() override;
+    void SetEnableHarq(bool enable) override;
 
   private:
     C* m_owner; ///< the owner class
@@ -248,6 +255,13 @@ int8_t
 MemberNrGnbCphySapProvider<C>::GetReferenceSignalPower()
 {
     return m_owner->DoGetReferenceSignalPower();
+}
+
+template <class C>
+void
+MemberNrGnbCphySapProvider<C>::SetEnableHarq(bool enable)
+{
+    m_owner->SetEnableHarq(enable);
 }
 
 /**

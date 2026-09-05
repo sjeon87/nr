@@ -169,6 +169,12 @@ NrSpectrumPhy::GetTypeId()
                 UintegerValue(1),
                 MakeUintegerAccessor(&NrSpectrumPhy::SetNumPanels, &NrSpectrumPhy::GetNumPanels),
                 MakeUintegerChecker<uint8_t>())
+            .AddAttribute(
+                "EnableHarq",
+                "If false, disables PHY HARQ combining/history (soft buffers).",
+                BooleanValue(true),
+                MakeBooleanAccessor(&NrSpectrumPhy::SetEnableHarq, &NrSpectrumPhy::IsHarqEnabled),
+                MakeBooleanChecker())
             .AddTraceSource("RxPacketTraceGnb",
                             "The no. of packets received and transmitted by the Base Station",
                             MakeTraceSourceAccessor(&NrSpectrumPhy::m_rxPacketTraceGnb),
@@ -260,6 +266,27 @@ void
 NrSpectrumPhy::IncrementActiveTransmissions()
 {
     m_activeTransmissions++;
+}
+
+void
+NrSpectrumPhy::SetEnableHarq(bool enable)
+{
+    NS_LOG_FUNCTION(this << enable);
+
+    if (m_enableHarq == enable)
+    {
+        return;
+    }
+
+    m_enableHarq = enable;
+    // NrHarqPhy::SetEnableHarq flushes the soft-combining history when disabled
+    m_harqPhyModule.SetEnableHarq(enable);
+}
+
+bool
+NrSpectrumPhy::IsHarqEnabled() const
+{
+    return m_enableHarq;
 }
 
 void
@@ -1648,7 +1675,7 @@ NrSpectrumPhy::CheckTransportBlockCorruptionStatus()
         // without a successful reception or an rv == 3 transmission (e.g.,
         // with HARQ retransmissions disabled), because those are the only
         // conditions that otherwise clear it.
-        if (tbInfo.m_expected.m_ndi == 1)
+        if (m_enableHarq && tbInfo.m_expected.m_ndi == 1)
         {
             if (tbInfo.m_expected.m_isDownlink)
             {
@@ -1660,10 +1687,14 @@ NrSpectrumPhy::CheckTransportBlockCorruptionStatus()
             }
         }
 
-        const NrErrorModel::NrErrorModelHistory& harqInfoList =
-            m_harqPhyModule.GetHarqProcessInfoDlUl(tbInfo.m_expected.m_isDownlink,
-                                                   rnti,
-                                                   tbInfo.m_expected.m_harqProcessId);
+        NrErrorModel::NrErrorModelHistory harqInfoList;
+        if (m_enableHarq)
+        {
+            harqInfoList =
+                m_harqPhyModule.GetHarqProcessInfoDlUl(tbInfo.m_expected.m_isDownlink,
+                                                       rnti,
+                                                       tbInfo.m_expected.m_harqProcessId);
+        }
 
         NS_ABORT_MSG_IF(!m_errorModelType.IsChildOf(NrErrorModel::GetTypeId()),
                         "The error model must be a child of NrErrorModel");
@@ -1725,31 +1756,44 @@ NrSpectrumPhy::CheckTransportBlockCorruptionStatus()
 void
 NrSpectrumPhy::SendUlHarqFeedback(uint16_t rnti, TransportBlockInfo& tbInfo)
 {
-    // Generate the feedback
     UlHarqInfo harqUlInfo;
     harqUlInfo.m_rnti = rnti;
     harqUlInfo.m_tpc = 0;
     harqUlInfo.m_harqProcessId = tbInfo.m_expected.m_harqProcessId;
     harqUlInfo.m_numRetx = tbInfo.m_expected.m_rv;
-    if (tbInfo.m_isCorrupted)
-    {
-        harqUlInfo.m_receptionStatus = UlHarqInfo::NotOk;
-    }
-    else
+
+    if (!m_enableHarq)
     {
         harqUlInfo.m_receptionStatus = UlHarqInfo::Ok;
+
+        NS_LOG_DEBUG("UL feedback sent: rnti=" << rnti << " harqId=" << +harqUlInfo.m_harqProcessId
+                                               << " status=ACK"
+                                               << " corrupted=" << tbInfo.m_isCorrupted);
+
+        m_phyUlHarqFeedbackCallback(harqUlInfo);
+        return;
     }
 
-    // Send the feedback
+    const bool isCorrupted = tbInfo.m_isCorrupted;
+    harqUlInfo.m_receptionStatus = isCorrupted ? UlHarqInfo::NotOk : UlHarqInfo::Ok;
+
+    NS_LOG_DEBUG("UL feedback sent: rnti="
+                 << rnti << " harqId=" << +harqUlInfo.m_harqProcessId
+                 << " status=" << (harqUlInfo.m_receptionStatus == UlHarqInfo::Ok ? "ACK" : "NACK")
+                 << " corrupted=" << isCorrupted);
+
     m_phyUlHarqFeedbackCallback(harqUlInfo);
 
-    // Arrange the history
-    if (!tbInfo.m_isCorrupted || tbInfo.m_expected.m_rv == 3)
+    if (!isCorrupted)
     {
+        NS_LOG_DEBUG("Reset Ul process: " << +tbInfo.m_expected.m_harqProcessId << " for RNTI "
+                                          << rnti);
         m_harqPhyModule.ResetUlHarqProcessStatus(rnti, tbInfo.m_expected.m_harqProcessId);
     }
     else
     {
+        NS_LOG_DEBUG("Update Ul process: " << +tbInfo.m_expected.m_harqProcessId << " for RNTI "
+                                           << rnti);
         m_harqPhyModule.UpdateUlHarqProcessStatus(rnti,
                                                   tbInfo.m_expected.m_harqProcessId,
                                                   tbInfo.m_outputOfEM);
@@ -1759,26 +1803,34 @@ NrSpectrumPhy::SendUlHarqFeedback(uint16_t rnti, TransportBlockInfo& tbInfo)
 DlHarqInfo
 NrSpectrumPhy::SendDlHarqFeedback(uint16_t rnti, TransportBlockInfo& tbInfo)
 {
-    // Generate the feedback
     DlHarqInfo harqDlInfo;
     harqDlInfo.m_rnti = rnti;
     harqDlInfo.m_harqProcessId = tbInfo.m_expected.m_harqProcessId;
     harqDlInfo.m_numRetx = tbInfo.m_expected.m_rv;
     harqDlInfo.m_bwpIndex = GetBwpId();
-    if (tbInfo.m_isCorrupted)
+
+    if (!m_enableHarq)
     {
-        harqDlInfo.m_harqStatus = DlHarqInfo::NACK;
-    }
-    else
-    {
-        harqDlInfo.m_harqStatus = DlHarqInfo::ACK;
+        // HARQ disabled: suppress feedback entirely — no PUCCH, no round-trip delay.
+        // Do NOT call m_phyDlHarqFeedbackCallback; also skip m_harqPhyModule updates
+        // since there is no process state to maintain.
+        NS_LOG_DEBUG("DL HARQ disabled: suppressing feedback for rnti="
+                     << rnti << " harqId=" << +harqDlInfo.m_harqProcessId
+                     << " corrupted=" << tbInfo.m_isCorrupted);
+        return harqDlInfo;
     }
 
-    // Send the feedback
+    const bool isCorrupted = tbInfo.m_isCorrupted;
+    harqDlInfo.m_harqStatus = isCorrupted ? DlHarqInfo::NACK : DlHarqInfo::ACK;
+
+    NS_LOG_DEBUG("DL feedback sent: rnti="
+                 << rnti << " harqId=" << +harqDlInfo.m_harqProcessId
+                 << " status=" << (harqDlInfo.m_harqStatus == DlHarqInfo::ACK ? "ACK" : "NACK")
+                 << " corrupted=" << isCorrupted);
+
     m_phyDlHarqFeedbackCallback(harqDlInfo);
 
-    // Arrange the history
-    if (!tbInfo.m_isCorrupted || tbInfo.m_expected.m_rv == 3)
+    if (!isCorrupted)
     {
         NS_LOG_DEBUG("Reset Dl process: " << +tbInfo.m_expected.m_harqProcessId << " for RNTI "
                                           << rnti);
@@ -1792,6 +1844,7 @@ NrSpectrumPhy::SendDlHarqFeedback(uint16_t rnti, TransportBlockInfo& tbInfo)
                                                   tbInfo.m_expected.m_harqProcessId,
                                                   tbInfo.m_outputOfEM);
     }
+
     return harqDlInfo;
 }
 

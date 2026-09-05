@@ -180,14 +180,13 @@ NrMacSchedulerHarqRr::ScheduleDlHarq(
                           "Process " << static_cast<uint32_t>(it->first)
                                      << " is not in RECEIVED_FEEDBACK status");
 
-            harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
-            harqProcess.m_timer = 0;
-
             auto& dciInfoReTx = harqProcess.m_dciElement;
 
-            uint32_t rbgAssigned =
-                std::count(dciInfoReTx->m_rbgBitmask.begin(), dciInfoReTx->m_rbgBitmask.end(), 1) *
-                dciInfoReTx->m_numSym;
+            uint32_t numRbg = std::count(dciInfoReTx->m_rbgBitmask.begin(),
+                                         dciInfoReTx->m_rbgBitmask.end(),
+                                         true);
+
+            uint32_t rbgAssigned = numRbg * dciInfoReTx->m_numSym;
             uint32_t rbgAvail = (GetBandwidthInRbg() - startingPoint->m_rbg) * symAvail;
 
             NS_LOG_INFO("Evaluating space to retransmit HARQ PID="
@@ -321,6 +320,8 @@ NrMacSchedulerHarqRr::ScheduleDlHarq(
             allocatedUe.push_back(dciInfoReTx->m_rnti);
 
             NS_ASSERT(dciInfoReTx->m_format == DciInfoElementTdma::DL);
+            const uint8_t nextAttempts = harqProcess.m_txAttempts + 1;
+
             auto dci = std::make_shared<DciInfoElementTdma>(dciInfoReTx->m_rnti,
                                                             dciInfoReTx->m_format,
                                                             dciInfoReTx->m_symStart,
@@ -355,8 +356,12 @@ NrMacSchedulerHarqRr::ScheduleDlHarq(
                 slotInfo.m_rlcPduInfo.push_back(rlcPdu);
             }
             slotAlloc->m_varTtiAllocInfo.push_back(slotInfo);
-            ueMap.find(dciInfoReTx->m_rnti)->second->m_dlMRBRetx =
-                dciInfoReTx->m_numSym * rbgAssigned;
+
+            harqProcess.m_txAttempts = nextAttempts;
+            harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
+            harqProcess.m_timer = 0;
+
+            ueMap.find(dciInfoReTx->m_rnti)->second->m_dlMRBRetx = dciInfoReTx->m_numSym * numRbg;
         }
         // If there are still symbols left for the next beam, reset RBG mask
         if (symAvail > 0)
@@ -439,8 +444,6 @@ NrMacSchedulerHarqRr::ScheduleUlHarq(
         HarqProcess& harqProcess = ueMap.find(rnti)->second->m_ulHarq.Find(harqId)->second;
         NS_ASSERT(harqProcess.m_status == HarqProcess::RECEIVED_FEEDBACK);
 
-        harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
-        harqProcess.m_timer = 0;
         auto& dciInfoReTx = harqProcess.m_dciElement;
 
         NS_LOG_INFO("Feedback is for UE " << rnti << " process " << +harqId
@@ -453,6 +456,7 @@ NrMacSchedulerHarqRr::ScheduleUlHarq(
 
             NS_ASSERT(dciInfoReTx->m_format == DciInfoElementTdma::UL);
 
+            const uint8_t nextAttempts = harqProcess.m_txAttempts + 1;
             auto dci =
                 std::make_shared<DciInfoElementTdma>(dciInfoReTx->m_rnti,
                                                      dciInfoReTx->m_format,
@@ -475,6 +479,7 @@ NrMacSchedulerHarqRr::ScheduleUlHarq(
             startingPoint->m_sym -= dciInfoReTx->m_numSym;
 
             VarTtiAllocInfo slotInfo(dciInfoReTx);
+
             NS_LOG_DEBUG(
                 "UE" << dciInfoReTx->m_rnti << " gets UL symbols "
                      << static_cast<uint32_t>(dciInfoReTx->m_symStart) << "-"
@@ -484,6 +489,10 @@ NrMacSchedulerHarqRr::ScheduleUlHarq(
                      << static_cast<uint32_t>(dciInfoReTx->m_rv) << " RETX");
             slotAlloc->m_varTtiAllocInfo.push_front(slotInfo);
             slotAlloc->m_numSymAlloc += dciInfoReTx->m_numSym;
+
+            harqProcess.m_txAttempts = nextAttempts;
+            harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
+            harqProcess.m_timer = 0;
 
             ueMap.find(rnti)->second->m_ulMRBRetx = dciInfoReTx->m_numSym * GetBandwidthInRbg();
         }
@@ -559,11 +568,31 @@ NrMacSchedulerHarqRr::BufferHARQFeedback(const std::vector<DlHarqInfo>& dlHarqFe
     {
         if (feedback.m_rnti == rnti && feedback.m_harqProcessId == harqProcess)
         {
-            dlHarqToRetransmit->push_back(feedback);
+            // Skip if this HARQ process is already queued for retransmission
+            bool duplicate =
+                std::any_of(dlHarqToRetransmit->begin(),
+                            dlHarqToRetransmit->end(),
+                            [&](const DlHarqInfo& e) {
+                                return e.m_rnti == rnti && e.m_harqProcessId == harqProcess;
+                            });
+            if (duplicate)
+            {
+                NS_LOG_DEBUG("harq duplicate buffer skipped rnti=" << rnti
+                                                                   << " harqId=" << +harqProcess);
+            }
+            else
+            {
+                dlHarqToRetransmit->push_back(feedback);
+                NS_LOG_DEBUG("harq buffer rnti=" << rnti << " harqId=" << +harqProcess
+                                                 << " attempts=" << +feedback.m_numRetx
+                                                 << " isAck=" << feedback.IsReceivedOk());
+            }
+
             found = true;
             break;
         }
     }
+
     NS_ASSERT(found);
 }
 

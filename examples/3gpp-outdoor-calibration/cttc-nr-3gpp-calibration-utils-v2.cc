@@ -762,7 +762,7 @@ LenaV2Utils::SetLenaV2SimulatorParameters(
             nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerOfdmaRR"));
         }
     }
-    nrHelper->SetSchedulerAttribute("EnableHarqReTx", BooleanValue(false));
+    nrHelper->SetSchedulerAttribute("MaxHarqReTx", UintegerValue(0));
 
     // configure SRS symbols
     nrHelper->SetSchedulerAttribute("SrsSymbols", UintegerValue(1));

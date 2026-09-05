@@ -104,6 +104,35 @@ class NR_EXPORT NrHarqPhy
      */
     void ResetUlHarqProcessStatus(uint16_t rnti, uint8_t id);
 
+    /**
+     * @brief Enable or disable HARQ processing.
+     *
+     * When HARQ is disabled, the accumulated DL and UL soft-combining
+     * history is cleared, so subsequent receptions are decoded without
+     * combining against earlier (re)transmissions.
+     *
+     * @param enable True to enable HARQ retransmissions, false to disable.
+     */
+    void SetEnableHarq(bool enable)
+    {
+        m_enableHarq = enable;
+        if (!m_enableHarq)
+        {
+            m_dlHistory.clear();
+            m_ulHistory.clear();
+        }
+    }
+
+    /**
+     * @brief Get the current HARQ enable status.
+     *
+     * @return True if HARQ retransmissions are enabled, false otherwise.
+     */
+    bool IsHarqEnabled() const
+    {
+        return m_enableHarq;
+    }
+
   protected:
     /**
      * @brief Map between a process id and its HARQ history (a vector of pointers)
@@ -162,6 +191,7 @@ class NR_EXPORT NrHarqPhy
   private:
     HistoryMap m_dlHistory; //!< HARQ history map for DL
     HistoryMap m_ulHistory; //!< HARQ history map for UL
+    bool m_enableHarq{true};
 };
 
 } // namespace ns3

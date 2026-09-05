@@ -897,7 +897,11 @@ main(int argc, char* argv[])
         nrHelper->SetSchedulerAttribute("DlCtrlSymbols", UintegerValue(dlCtrlSymbols));
     }
 
-    nrHelper->SetSchedulerAttribute("EnableHarqReTx", BooleanValue(enableHarqRetx));
+    if (!enableHarqRetx)
+    {
+        // Keep the scheduler default (3) when enabled; only override to disable.
+        nrHelper->SetSchedulerAttribute("MaxHarqReTx", UintegerValue(0));
+    }
     nrHelper->SetGnbPhyAttribute("TxPower", DoubleValue(txPower));
     nrHelper->SetGnbPhyAttribute("Numerology", UintegerValue(numerology));
     nrHelper->SetUePhyAttribute("TxPower", DoubleValue(ueTxPower));

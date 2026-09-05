@@ -194,11 +194,20 @@ NrMacSchedulerNs3::GetTypeId()
                           MakeIntegerAccessor(&NrMacSchedulerNs3::SetMaxDlMcs,
                                               &NrMacSchedulerNs3::GetMaxDlMcs),
                           MakeIntegerChecker<int8_t>(-1, 30))
-            .AddAttribute("EnableHarqReTx",
-                          "If true, it would set the max HARQ ReTx to 3; otherwise it set it to 0",
+            .AddAttribute("MaxHarqReTx",
+                          "Maximum number of HARQ retransmissions per transport block. "
+                          "0 disables retransmissions; the initial transmission always "
+                          "occurs.",
+                          UintegerValue(3), // default value
+                          MakeUintegerAccessor(&NrMacSchedulerNs3::m_maxHarqReTx),
+                          MakeUintegerChecker<uint8_t>(0, 10))
+            .AddAttribute("EnableHarq",
+                          "If false, disable HARQ lifecycle in the scheduler: "
+                          "skip HARQ timer aging, feedback processing, and HARQ scheduling. "
+                          "Only fresh data will be scheduled.",
                           BooleanValue(true),
-                          MakeBooleanAccessor(&NrMacSchedulerNs3::EnableHarqReTx,
-                                              &NrMacSchedulerNs3::IsHarqReTxEnable),
+                          MakeBooleanAccessor(&NrMacSchedulerNs3::EnableHarq,
+                                              &NrMacSchedulerNs3::IsHarqEnabled),
                           MakeBooleanChecker())
             .AddAttribute(
                 "SchedLcAlgorithmType",
@@ -237,9 +246,13 @@ NrMacSchedulerNs3::GetTypeId()
                     NrMacSchedulerUeInfo::McsCsiSource::WIDEBAND_MCS,
                     "WIDEBAND_MCS"))
             .AddTraceSource("CsiFeedbackReceived",
-                            "Received CSI feedback post-processed by the scheduler CQI management",
+                            "Trace fired when CSI feedback is received",
                             MakeTraceSourceAccessor(&NrMacSchedulerNs3::m_csiFeedbackReceived),
-                            "ns3::NrMacSchedulerNs3::CsiFeedbackReceived::TracedCallback");
+                            "ns3::NrMacSchedulerNs3::CsiFeedbackTracedCallback")
+            .AddTraceSource("HarqStatistics",
+                            "Trace fired when processing HARQ feedback",
+                            MakeTraceSourceAccessor(&NrMacSchedulerNs3::m_harqStats),
+                            "ns3::NrMacSchedulerNs3::HarqStatsTracedCallback");
 
     return tid;
 }
@@ -259,6 +272,26 @@ NrMacSchedulerNs3::DoSchedSetMcs(uint32_t mcs)
     m_fixedMcsUl = true;
     m_startMcsDl = static_cast<uint8_t>(mcs);
     m_startMcsUl = static_cast<uint8_t>(mcs);
+}
+
+NrMacHarqVector*
+NrMacSchedulerNs3::GetUeHarqVector(uint16_t rnti,
+                                   const NrMacSchedulerUeInfo::GetHarqVectorFn& getHarqVector) const
+{
+    auto ueIt = m_ueMap.find(rnti);
+    if (ueIt == m_ueMap.end())
+    {
+        return nullptr;
+    }
+    return &getHarqVector(ueIt->second);
+}
+
+HarqProcess
+NrMacSchedulerNs3::CreateNewHarqProcess(const std::shared_ptr<DciInfoElementTdma>& dci) const
+{
+    HarqProcess harqProcess(true, HarqProcess::WAITING_FEEDBACK, 0, dci);
+    harqProcess.m_txAttempts = 1;
+    return harqProcess;
 }
 
 void
@@ -469,15 +502,45 @@ NrMacSchedulerNs3::IsSrsInFSlots() const
 }
 
 void
-NrMacSchedulerNs3::EnableHarqReTx(bool enableFlag)
+NrMacSchedulerNs3::EnableHarq(bool enableFlag)
 {
-    m_enableHarqReTx = enableFlag;
+    if (m_enableHarq == enableFlag)
+    {
+        return;
+    }
+
+    m_enableHarq = enableFlag;
+
+    if (!enableFlag)
+    {
+        // Do NOT carry old HARQ work across a disable window
+        m_dlHarqToRetransmit.clear();
+        m_ulHarqToRetransmit.clear();
+
+        for (auto& itUe : m_ueMap)
+        {
+            itUe.second->m_dlHarq.Reset();
+            itUe.second->m_ulHarq.Reset();
+        }
+    }
+}
+
+bool
+NrMacSchedulerNs3::IsHarqEnabled() const
+{
+    return m_enableHarq;
 }
 
 bool
 NrMacSchedulerNs3::IsHarqReTxEnable() const
 {
-    return m_enableHarqReTx;
+    // Retransmissions require both the HARQ lifecycle and a non-zero limit
+    bool enabled = m_enableHarq && (m_maxHarqReTx > 0);
+
+    NS_LOG_DEBUG("IsHarqReTxEnable(): enableHarq=" << m_enableHarq << " maxHarqReTx="
+                                                   << +m_maxHarqReTx << " => " << enabled);
+
+    return enabled;
 }
 
 void
@@ -1134,6 +1197,7 @@ NrMacSchedulerNs3::MergeHARQ(std::vector<T>* existingFeedbacks,
  * @see UlHarqInfo
  * @see HarqProcess
  */
+
 template <typename T>
 void
 NrMacSchedulerNs3::ProcessHARQFeedbacks(
@@ -1142,44 +1206,135 @@ NrMacSchedulerNs3::ProcessHARQFeedbacks(
     const std::string& direction) const
 {
     NS_LOG_FUNCTION(this);
-    uint32_t nackReceived = 0;
 
-    // Check the HARQ feedback, erase ACKed, updated NACKed
-    for (auto harqFeedbackIt = harqInfo->begin(); harqFeedbackIt != harqInfo->end();
-         /* nothing as increment */)
+    NS_LOG_DEBUG("ProcessHARQFeedbacks: enableHarq=" << m_enableHarq
+                                                     << " maxHarqReTx=" << +m_maxHarqReTx
+                                                     << " direction=" << direction);
+
+    if (!m_enableHarq)
     {
-        uint8_t harqId = harqFeedbackIt->m_harqProcessId;
-        uint16_t rnti = harqFeedbackIt->m_rnti;
-        NrMacHarqVector& ueHarqVector = GetHarqVectorFn(m_ueMap.find(rnti)->second);
+        for (auto it = harqInfo->begin(); it != harqInfo->end(); /* no increment */)
+        {
+            const uint8_t harqId = it->m_harqProcessId;
+            NrMacHarqVector* ueHarqVector = GetUeHarqVector(it->m_rnti, GetHarqVectorFn);
+            if (!ueHarqVector)
+            {
+                it = harqInfo->erase(it);
+                continue;
+            }
+            // Treat everything as ACK → immediately release process
+            ueHarqVector->Erase(harqId);
+            it = harqInfo->erase(it);
+        }
+        return;
+    }
+
+    size_t nackReceived = 0;
+
+    for (auto it = harqInfo->begin(); it != harqInfo->end(); /* no increment */)
+    {
+        const uint8_t harqId = it->m_harqProcessId;
+        const uint16_t rnti = it->m_rnti;
+
+        auto ueIt = m_ueMap.find(rnti);
+        if (ueIt == m_ueMap.end())
+        {
+            it = harqInfo->erase(it);
+            continue;
+        }
+
+        NrMacHarqVector& ueHarqVector = GetHarqVectorFn(ueIt->second);
         HarqProcess& ueProcess = ueHarqVector.Get(harqId);
 
-        NS_LOG_INFO("Evaluating feedback: " << *harqFeedbackIt);
-        if (!ueProcess.m_active)
+        if (!ueProcess.m_active || ueProcess.m_dciElement == nullptr || ueProcess.m_txAttempts == 0)
         {
-            NS_LOG_INFO("UE " << rnti << " HARQ vector: " << ueHarqVector);
-            NS_FATAL_ERROR("Received feedback for a process which is not active");
+            NS_LOG_DEBUG("Skipping HARQ feedback for invalid process "
+                         << "rnti=" << rnti << " harqId=" << +harqId << " active="
+                         << ueProcess.m_active << " txAttempts=" << +ueProcess.m_txAttempts
+                         << " dci=" << (ueProcess.m_dciElement != nullptr));
+
+            it = harqInfo->erase(it);
+            continue;
         }
-        NS_ABORT_IF(ueProcess.m_dciElement == nullptr);
 
-        // RV number should not be greater than 3
-        NS_ASSERT(ueProcess.m_dciElement->m_rv < 4);
-        uint8_t maxHarqReTx = m_enableHarqReTx ? 3 : 0;
+        const bool isAck = it->IsReceivedOk();
+        const uint8_t attempts = ueProcess.m_txAttempts;
 
-        if (harqFeedbackIt->IsReceivedOk() || ueProcess.m_dciElement->m_rv == maxHarqReTx)
+        if (attempts == 1)
         {
+            ++m_totalTbFirstTx;
+            if (!isAck)
+            {
+                ++m_totalTbFirstTxNack;
+            }
+        }
+
+        NS_LOG_DEBUG("HARQ input: dir=" << direction << " rnti=" << rnti << " harqId=" << +harqId
+                                        << " isAck=" << isAck << " attempts=" << +attempts
+                                        << " rv=" << +ueProcess.m_dciElement->m_rv
+                                        << " maxHarqReTx=" << +m_maxHarqReTx);
+
+        const uint8_t retransmissions = attempts - 1;
+        const bool reachedMax = (!isAck && (retransmissions >= m_maxHarqReTx));
+
+        NS_LOG_DEBUG("HARQ decision: dir=" << direction << " rnti=" << rnti << " harqId=" << +harqId
+                                           << " reachedMax=" << reachedMax);
+
+        if (isAck || reachedMax)
+        {
+            NS_ASSERT(attempts > 0);
+
+            NS_LOG_DEBUG("HARQ END rnti=" << rnti << " harqId=" << +harqId << " attempts="
+                                          << +attempts << " rv=" << +ueProcess.m_dciElement->m_rv
+                                          << " max=" << +m_maxHarqReTx << " success=" << isAck);
+
+            NS_LOG_DEBUG("HARQ ERASE: rnti=" << rnti << " harqId=" << +harqId
+                                             << " reason=" << (isAck ? "ACK" : "MAX_RETX"));
+
+            NS_LOG_DEBUG("HARQ FINAL STATE rnti=" << rnti << " harqId=" << +harqId
+                                                  << " attempts=" << +attempts << " isAck=" << isAck
+                                                  << " reachedMax=" << reachedMax);
+
+            if (reachedMax)
+            {
+                ++m_totalTbReachedMax;
+            }
+
+            m_harqStats(rnti, harqId, attempts - 1, isAck, reachedMax, direction);
+
             ueHarqVector.Erase(harqId);
-            harqFeedbackIt = harqInfo->erase(harqFeedbackIt);
-            NS_LOG_INFO("Erased processID " << static_cast<uint32_t>(harqId) << " of UE " << rnti
-                                            << " direction " << direction);
+
+            auto itAfter = ueHarqVector.Find(harqId);
+            if (itAfter != ueHarqVector.End() && itAfter->second.m_active)
+            {
+                NS_LOG_DEBUG(
+                    "HARQ ERROR: still ACTIVE after erase! rnti=" << rnti << " harqId=" << +harqId);
+            }
+            else if (itAfter != ueHarqVector.End())
+            {
+                NS_LOG_DEBUG("HARQ POST-ERASE rnti=" << rnti << " harqId=" << +harqId << " active="
+                                                     << itAfter->second.m_active << " attempts="
+                                                     << +itAfter->second.m_txAttempts);
+            }
+
+            it = harqInfo->erase(it);
         }
-        else if (!harqFeedbackIt->IsReceivedOk())
+
+        else
         {
             ueProcess.m_status = HarqProcess::RECEIVED_FEEDBACK;
-            nackReceived++;
-            ++harqFeedbackIt;
-            NS_LOG_INFO("NACK received for UE " << static_cast<uint32_t>(rnti) << " process "
-                                                << static_cast<uint32_t>(harqId) << " direction "
-                                                << direction);
+
+            ++nackReceived;
+            ++m_totalHarqRetx;
+
+            m_harqStats(rnti, harqId, attempts - 1, isAck, reachedMax, direction);
+
+            ++it;
+
+            NS_LOG_DEBUG("HARQ RETX DECISION rnti=" << rnti << " harqId=" << +harqId
+                                                    << " attempts=" << +attempts
+                                                    << " rv=" << +ueProcess.m_dciElement->m_rv
+                                                    << " maxRetx=" << +m_maxHarqReTx);
         }
     }
 
@@ -1324,27 +1479,53 @@ NrMacSchedulerNs3::ComputeActiveHarq(ActiveHarqMap* activeDlHarq,
     for (const auto& feedback : dlHarqFeedback)
     {
         uint16_t rnti = feedback.m_rnti;
-        auto& schedInfo = m_ueMap.find(rnti)->second;
-        auto beamIterator = activeDlHarq->find(schedInfo->m_beamId);
 
-        if (beamIterator == activeDlHarq->end())
+        auto ueIt = m_ueMap.find(rnti);
+        NS_ASSERT(ueIt != m_ueMap.end());
+        auto& schedInfo = ueIt->second;
+
+        auto harqIt = schedInfo->m_dlHarq.Find(feedback.m_harqProcessId);
+        NS_ASSERT(harqIt->second.m_active);
+
+        auto& harqProcess = harqIt->second;
+
+        NS_LOG_INFO("HARQ feedback received: UE="
+                    << rnti << " harqId=" << +feedback.m_harqProcessId
+                    << " status=" << (feedback.IsReceivedOk() ? "ACK" : "NACK") << " attempts="
+                    << +harqProcess.m_txAttempts << " maxHarqReTx=" << +m_maxHarqReTx);
+
+        NS_ASSERT(harqProcess.m_status == HarqProcess::RECEIVED_FEEDBACK);
+
+        const uint8_t attempts = harqProcess.m_txAttempts;
+
+        const uint8_t retransmissions = (attempts > 0) ? static_cast<uint8_t>(attempts - 1) : 0;
+        if (!feedback.IsReceivedOk() && retransmissions < m_maxHarqReTx)
         {
-            std::vector<NrMacHarqVector::iterator> harqVector;
-            NS_ASSERT(schedInfo->m_dlHarq.Find(feedback.m_harqProcessId)->second.m_active);
+            auto beamIterator = activeDlHarq->find(schedInfo->m_beamId);
 
-            harqVector.emplace_back(schedInfo->m_dlHarq.Find(feedback.m_harqProcessId));
-            activeDlHarq->emplace(std::make_pair(schedInfo->m_beamId, harqVector));
+            if (beamIterator == activeDlHarq->end())
+            {
+                std::vector<NrMacHarqVector::iterator> harqVector;
+                harqVector.emplace_back(harqIt);
+                activeDlHarq->emplace(std::make_pair(schedInfo->m_beamId, harqVector));
+            }
+            else
+            {
+                beamIterator->second.emplace_back(harqIt);
+            }
+
+            NS_LOG_DEBUG("HARQ RETX ACTIVE DL rnti="
+                         << rnti << " harqId=" << +feedback.m_harqProcessId
+                         << " attempts=" << +attempts << " nextAttempt=" << +(attempts + 1)
+                         << " maxRetx=" << +m_maxHarqReTx);
         }
         else
         {
-            NS_ASSERT(schedInfo->m_dlHarq.Find(feedback.m_harqProcessId)->second.m_active);
-            beamIterator->second.emplace_back(schedInfo->m_dlHarq.Find(feedback.m_harqProcessId));
+            NS_LOG_INFO("HARQ stopped for UE="
+                        << rnti << " harqId=" << +feedback.m_harqProcessId
+                        << " reason=" << (feedback.IsReceivedOk() ? "ACK" : "MAX_TX_REACHED"));
         }
-        NS_LOG_INFO("Received feedback for UE " << rnti << " ID "
-                                                << static_cast<uint32_t>(feedback.m_harqProcessId)
-                                                << " marked as active");
-        NS_ASSERT(schedInfo->m_dlHarq.Find(feedback.m_harqProcessId)->second.m_status ==
-                  HarqProcess::RECEIVED_FEEDBACK);
+
         if (m_nrFhSchedSapProvider)
         {
             m_nrFhSchedSapProvider->SetActiveHarqUes(GetBwpId(), rnti);
@@ -1369,41 +1550,54 @@ NrMacSchedulerNs3::ComputeActiveHarq(ActiveHarqMap* activeUlHarq,
                                      const std::vector<UlHarqInfo>& ulHarqFeedback) const
 {
     NS_LOG_FUNCTION(this);
+    NS_ASSERT(activeUlHarq->empty());
 
     for (const auto& feedback : ulHarqFeedback)
     {
         uint16_t rnti = feedback.m_rnti;
-        auto& schedInfo = m_ueMap.find(rnti)->second;
-        auto beamIterator = activeUlHarq->find(schedInfo->m_beamId);
 
-        if (beamIterator == activeUlHarq->end())
+        auto ueIt = m_ueMap.find(rnti);
+        NS_ASSERT(ueIt != m_ueMap.end());
+        auto& schedInfo = ueIt->second;
+
+        auto harqIt = schedInfo->m_ulHarq.Find(feedback.m_harqProcessId);
+        NS_ASSERT(harqIt->second.m_active);
+
+        auto& harqProcess = harqIt->second;
+        const bool isAck = feedback.IsReceivedOk();
+        const uint8_t attempts = harqProcess.m_txAttempts;
+
+        NS_ASSERT(harqProcess.m_status == HarqProcess::RECEIVED_FEEDBACK);
+
+        const uint8_t retransmissions = (attempts > 0) ? static_cast<uint8_t>(attempts - 1) : 0;
+        if (!isAck && retransmissions < m_maxHarqReTx)
         {
-            std::vector<NrMacHarqVector::iterator> harqVector;
-            NS_ASSERT(schedInfo->m_ulHarq.Find(feedback.m_harqProcessId)->second.m_active);
-            harqVector.emplace_back(schedInfo->m_ulHarq.Find(feedback.m_harqProcessId));
-            activeUlHarq->emplace(std::make_pair(schedInfo->m_beamId, harqVector));
+            auto beamIterator = activeUlHarq->find(schedInfo->m_beamId);
+
+            if (beamIterator == activeUlHarq->end())
+            {
+                std::vector<NrMacHarqVector::iterator> harqVector;
+                harqVector.emplace_back(harqIt);
+                activeUlHarq->emplace(std::make_pair(schedInfo->m_beamId, harqVector));
+            }
+            else
+            {
+                beamIterator->second.emplace_back(harqIt);
+            }
+            NS_LOG_DEBUG("HARQ RETX ACTIVE UL rnti="
+                         << rnti << " harqId=" << +feedback.m_harqProcessId
+                         << " attempts=" << +attempts << " maxRetx=" << +m_maxHarqReTx);
         }
         else
         {
-            NS_ASSERT(schedInfo->m_ulHarq.Find(feedback.m_harqProcessId)->second.m_active);
-            beamIterator->second.emplace_back(schedInfo->m_ulHarq.Find(feedback.m_harqProcessId));
+            NS_LOG_INFO("HARQ stopped for UE=" << rnti << " harqId=" << +feedback.m_harqProcessId
+                                               << " reason=" << (isAck ? "ACK" : "MAX_TX_REACHED"));
         }
     }
+
     SortUlHarq(activeUlHarq);
 }
 
-/**
- * @brief Compute the number of active DL and UL UE
- * @param activeDlUe map of active DL UE to be filled
- * @param GetLCGFn Function to retrieve the LCG of a UE
- * @param mode UL or DL (to be printed in debug messages)
- *
- * The function loops all available UEs and checks their LC. If one (or more)
- * LC contains bytes, they are marked active and inserted in one of the
- * list passed as input parameters. Every UE is marked as active if it has
- * data to transmit; it is a duty for someone else to not assign two DCI for
- * the same RNTI.
- */
 void
 NrMacSchedulerNs3::ComputeActiveUe(ActiveUeMap* activeUe,
                                    const NrMacSchedulerUeInfo::GetLCGFn& GetLCGFn,
@@ -1411,13 +1605,14 @@ NrMacSchedulerNs3::ComputeActiveUe(ActiveUeMap* activeUe,
                                    const std::string& mode) const
 {
     NS_LOG_FUNCTION(this);
+
     const bool isDl = mode == "DL";
+
     for (const auto& ueInfo : m_ueMap)
     {
         uint32_t totBuffer = 0;
         const auto& ue = ueInfo.second;
 
-        // compute total DL and UL bytes buffered
         for (const auto& lcgInfo : GetLCGFn(ue))
         {
             const auto& lcg = lcgInfo.second;
@@ -1440,10 +1635,23 @@ NrMacSchedulerNs3::ComputeActiveUe(ActiveUeMap* activeUe,
         {
             totBuffer += ue->m_srBytesPending;
         }
+        bool canScheduleNewData = (totBuffer > 0);
 
-        const auto& harqV = GetHarqVector(ue);
+        if (m_enableHarq)
+        {
+            const auto& harqV = GetHarqVector(ue);
+            bool harqAvailable = harqV.CanInsert();
+            canScheduleNewData = canScheduleNewData && harqAvailable;
 
-        if (totBuffer > 0 && harqV.CanInsert())
+            if (!harqAvailable)
+            {
+                NS_LOG_INFO("UE " << ue->m_rnti << " " << mode
+                                  << " not eligible for new data because no HARQ process "
+                                     "is available");
+            }
+        }
+
+        if (canScheduleNewData)
         {
             auto it = activeUe->find(ue->m_beamId);
             if (it == activeUe->end())
@@ -1568,18 +1776,38 @@ NrMacSchedulerNs3::DoScheduleDlData(PointInFTPlane* spoint,
                               << " symEnd: " << static_cast<uint32_t>(dci->m_numSym) << " symbols: "
                               << static_cast<uint32_t>(m_macSchedSapUser->GetSymbolsPerSlot()));
 
-            HarqProcess harqProcess(true, HarqProcess::WAITING_FEEDBACK, 0, dci);
-            uint8_t id;
+            uint8_t id = 0;
 
-            if (!ue.first->m_dlHarq.CanInsert())
+            if (m_enableHarq)
             {
-                NS_LOG_INFO("Harq Vector condition for UE " << ue.first->m_rnti << std::endl
-                                                            << ue.first->m_dlHarq);
-                NS_FATAL_ERROR("UE " << ue.first->m_rnti << " does not have DL HARQ space");
-            }
+                HarqProcess harqProcess = CreateNewHarqProcess(dci);
 
-            ue.first->m_dlHarq.Insert(&id, harqProcess);
-            ue.first->m_dlHarq.Get(id).m_dciElement->m_harqProcess = id;
+                if (!ue.first->m_dlHarq.CanInsert())
+                {
+                    NS_LOG_INFO("Harq Vector condition for UE " << ue.first->m_rnti << std::endl
+                                                                << ue.first->m_dlHarq);
+                    NS_FATAL_ERROR("UE " << ue.first->m_rnti << " does not have DL HARQ space");
+                }
+
+                ue.first->m_dlHarq.Insert(&id, harqProcess);
+                ue.first->m_dlHarq.Get(id).m_dciElement->m_harqProcess = id;
+                dci->m_harqProcess = id;
+
+                NS_LOG_DEBUG("DL HARQ NEW | rnti="
+                             << ue.first->m_rnti << " harqId=" << +id << " attempts=1"
+                             << " rv=" << +dci->m_rv << " tbSize=" << dci->m_tbSize
+                             << " symStart=" << +dci->m_symStart << " numSym=" << +dci->m_numSym);
+            }
+            else
+            {
+                id = 0;
+                dci->m_harqProcess = 0;
+
+                NS_LOG_DEBUG("DL HARQ DISABLED | rnti="
+                             << ue.first->m_rnti << " assignedHarqId=" << +id
+                             << " rv=" << +dci->m_rv << " tbSize=" << dci->m_tbSize
+                             << " symStart=" << +dci->m_symStart << " numSym=" << +dci->m_numSym);
+            }
 
             // distribute tbsize among the LCs of the UE
             // distributedBytes size is equal to the number of LCs
@@ -1625,10 +1853,14 @@ NrMacSchedulerNs3::DoScheduleDlData(PointInFTPlane* spoint,
                 uint32_t bytes = byteDistribution.m_bytes - MAC_SUBHEADER_SIZE;
 
                 RlcPduInfo newRlcPdu(lcId, bytes);
-                HarqProcess& process = ue.first->m_dlHarq.Get(dci->m_harqProcess);
 
                 slotInfo.m_rlcPduInfo.push_back(newRlcPdu);
-                process.m_rlcPduInfo.push_back(newRlcPdu);
+
+                if (m_enableHarq)
+                {
+                    HarqProcess& process = ue.first->m_dlHarq.Get(dci->m_harqProcess);
+                    process.m_rlcPduInfo.push_back(newRlcPdu);
+                }
 
                 ue.first->m_dlLCG.at(lcgId)->AssignedData(lcId, bytes, "DL");
 
@@ -1791,18 +2023,38 @@ NrMacSchedulerNs3::DoScheduleUlData(PointInFTPlane* spoint,
                 allocSym += dci->m_numSym;
             }
 
-            if (!ue.first->m_ulHarq.CanInsert())
+            uint8_t id = 0;
+
+            if (m_enableHarq)
             {
-                NS_LOG_INFO("Harq Vector condition for UE " << ue.first->m_rnti << std::endl
-                                                            << ue.first->m_ulHarq);
-                NS_FATAL_ERROR("UE " << ue.first->m_rnti << " does not have UL HARQ space");
+                // Normal HARQ behavior: allocate a HARQ process and keep DCI semantics as produced
+                // by CreateUlDci()
+                if (!ue.first->m_ulHarq.CanInsert())
+                {
+                    NS_LOG_INFO("Harq Vector condition for UE " << ue.first->m_rnti << std::endl
+                                                                << ue.first->m_ulHarq);
+                    NS_FATAL_ERROR("UE " << ue.first->m_rnti << " does not have UL HARQ space");
+                }
+
+                HarqProcess harqProcess = CreateNewHarqProcess(dci);
+                ue.first->m_ulHarq.Insert(&id, harqProcess);
+                NS_LOG_DEBUG("HARQ NEW UL rnti=" << ue.first->m_rnti << " harqId=" << +id
+                                                 << " attempts=1"
+                                                 << " rv=" << +dci->m_rv);
+
+                // Make the DCI carry the allocated HARQ process id
+                ue.first->m_ulHarq.Get(id).m_dciElement->m_harqProcess = id;
+                dci->m_harqProcess = id;
             }
+            else
+            {
+                NS_LOG_INFO("Scheduler HARQ disabled: not allocating UL HARQ process for UE "
+                            << ue.first->m_rnti);
 
-            HarqProcess harqProcess(true, HarqProcess::WAITING_FEEDBACK, 0, dci);
-            uint8_t id;
-            ue.first->m_ulHarq.Insert(&id, harqProcess);
-
-            ue.first->m_ulHarq.Get(id).m_dciElement->m_harqProcess = id;
+                // HARQ disabled semantics: do not create HARQ state, force "new transmission"
+                // indicators
+                dci->m_harqProcess = 0;
+            }
 
             VarTtiAllocInfo slotInfo(dci);
 
@@ -2635,37 +2887,40 @@ NrMacSchedulerNs3::DoScheduleDl(const std::vector<DlHarqInfo>& dlHarqFeedback,
     return (dataSymPerSlot - ulAllocations.m_totUlSym) - dlSymAvail;
 }
 
-/**
- * @brief Decide how to fill the frequency/time of a DL slot
- * @param params parameters for the scheduler
- *
- * The function starts by refreshing the CQI received, and eventually resetting
- * the expired values. Then, the HARQ feedback are processed (ProcessHARQFeedbacks),
- * and finally the expired HARQs are canceled (ResetExpiredHARQ).
- *
- * @see ScheduleDl
- */
 void
 NrMacSchedulerNs3::DoSchedDlTriggerReq(
     const NrMacSchedSapProvider::SchedDlTriggerReqParameters& params)
 {
     NS_LOG_FUNCTION(this);
 
-    // process received CQIs
+    // Refresh DL CQI maps
     m_cqiManagement.RefreshDlCqiMaps(m_ueMap);
 
-    // reset expired HARQ
+    std::vector<DlHarqInfo> dlHarqFeedback;
+
+    if (!m_enableHarq)
+    {
+        NS_LOG_INFO("Scheduler HARQ disabled: skipping DL HARQ processing");
+
+        // No HARQ lifecycle when disabled
+        m_dlHarqToRetransmit.clear();
+
+        // Do not process params.m_dlHarqInfoList here:
+        // there is no active HARQ state in the scheduler when HARQ is disabled,
+        // so ProcessHARQFeedbacks() would abort.
+        ScheduleDl(params, dlHarqFeedback);
+        return;
+    }
+
+    // Reset expired HARQ processes
     for (const auto& itUe : m_ueMap)
     {
         ResetExpiredHARQ(itUe.second->m_rnti, &itUe.second->m_dlHarq);
     }
 
-    // Merge not-retransmitted and received feedback
-    std::vector<DlHarqInfo> dlHarqFeedback;
-
+    // Merge feedback and pending retransmissions
     if (!params.m_dlHarqInfoList.empty() || !m_dlHarqToRetransmit.empty())
     {
-        // m_dlHarqToRetransmit will be cleared inside MergeHARQ
         uint64_t existingSize = m_dlHarqToRetransmit.size();
         uint64_t inSize = params.m_dlHarqInfoList.size();
 
@@ -2673,63 +2928,38 @@ NrMacSchedulerNs3::DoSchedDlTriggerReq(
 
         NS_ASSERT(m_dlHarqToRetransmit.empty());
         NS_ASSERT_MSG(existingSize + inSize == dlHarqFeedback.size(),
-                      " existing: " << existingSize << " received: " << inSize
-                                    << " calculated: " << dlHarqFeedback.size());
+                      "existing: " << existingSize << " received: " << inSize
+                                   << " calculated: " << dlHarqFeedback.size());
 
         std::unordered_map<uint16_t, std::set<uint32_t>> feedbacksDup;
 
-        // Let's find out:
-        // 1) Feedback that arrived late (i.e., their process has been marked inactive
-        //    due to timings
-        // 2) Duplicated feedbacks (same UE, same process ID). I don't know why
-        //    these are generated.. but anyway..
-        for (auto it = dlHarqFeedback.begin(); it != dlHarqFeedback.end(); /* no inc */)
+        for (auto it = dlHarqFeedback.begin(); it != dlHarqFeedback.end();)
         {
-            if (m_ueMap.find(it->m_rnti) == m_ueMap.end())
+            auto ueIt = m_ueMap.find(it->m_rnti);
+            if (ueIt == m_ueMap.end())
             {
-                NS_LOG_INFO("UE was released, but HARQ feedback remained in a buffer. We dispose "
-                            "of it here.");
+                NS_LOG_INFO("UE was released, but HARQ feedback remained in a buffer. Discarding.");
                 it = dlHarqFeedback.erase(it);
                 continue;
             }
-            auto& ueInfo = m_ueMap.find(it->m_rnti)->second;
-            auto& process = ueInfo->m_dlHarq.Find(it->m_harqProcessId)->second;
-            NS_LOG_INFO("Analyzing feedback for UE " << it->m_rnti << " process "
-                                                     << static_cast<uint32_t>(it->m_harqProcessId));
-            if (!process.m_active)
+
+            auto harqIt = ueIt->second->m_dlHarq.Find(it->m_harqProcessId);
+            if (harqIt == ueIt->second->m_dlHarq.End() || !harqIt->second.m_active)
             {
-                NS_LOG_INFO("Feedback for UE " << it->m_rnti << " process "
-                                               << static_cast<uint32_t>(it->m_harqProcessId)
-                                               << " ignored because process is INACTIVE");
-                it = dlHarqFeedback.erase(it); /* INC */
+                NS_LOG_INFO("Feedback ignored (inactive process)");
+                it = dlHarqFeedback.erase(it);
+                continue;
             }
-            else
+
+            auto& ueSet = feedbacksDup[it->m_rnti];
+            if (!ueSet.insert(it->m_harqProcessId).second)
             {
-                auto itDuplicated = feedbacksDup.find(it->m_rnti);
-                if (itDuplicated == feedbacksDup.end())
-                {
-                    feedbacksDup.insert(std::make_pair(it->m_rnti, std::set<uint32_t>()));
-                    feedbacksDup.at(it->m_rnti).insert(it->m_harqProcessId);
-                    ++it; /* INC */
-                }
-                else
-                {
-                    if (itDuplicated->second.find(it->m_harqProcessId) ==
-                        itDuplicated->second.end())
-                    {
-                        itDuplicated->second.insert(it->m_harqProcessId);
-                        ++it; /* INC */
-                    }
-                    else
-                    {
-                        NS_LOG_INFO("Feedback for UE "
-                                    << it->m_rnti << " process "
-                                    << static_cast<uint32_t>(it->m_harqProcessId)
-                                    << " ignored because is a duplicate of another feedback");
-                        it = dlHarqFeedback.erase(it); /* INC */
-                    }
-                }
+                NS_LOG_INFO("Feedback ignored (duplicate)");
+                it = dlHarqFeedback.erase(it);
+                continue;
             }
+
+            ++it;
         }
 
         ProcessHARQFeedbacks(&dlHarqFeedback, NrMacSchedulerUeInfo::GetDlHarqVector, "DL");
@@ -2738,36 +2968,40 @@ NrMacSchedulerNs3::DoSchedDlTriggerReq(
     ScheduleDl(params, dlHarqFeedback);
 }
 
-/**
- * @brief Decide how to fill the frequency/time of a UL slot
- * @param params parameters for the scheduler
- *
- * The function starts by refreshing the CQI received, and eventually resetting
- * the expired values. Then, the HARQ feedback are processed (ProcessHARQFeedbacks),
- * and finally the expired HARQs are canceled (ResetExpiredHARQ).
- *
- * @see ScheduleUl
- */
 void
 NrMacSchedulerNs3::DoSchedUlTriggerReq(
     const NrMacSchedSapProvider::SchedUlTriggerReqParameters& params)
 {
     NS_LOG_FUNCTION(this);
 
-    // process received CQIs
+    // Process received CQIs
     m_cqiManagement.RefreshUlCqiMaps(m_ueMap);
 
-    // reset expired HARQ
+    std::vector<UlHarqInfo> ulHarqFeedback;
+
+    if (!m_enableHarq)
+    {
+        NS_LOG_INFO("Scheduler HARQ disabled: skipping UL HARQ processing");
+
+        // No HARQ lifecycle when disabled
+        m_ulHarqToRetransmit.clear();
+
+        // Do not process params.m_ulHarqInfoList here:
+        // there is no active HARQ state in the scheduler when HARQ is disabled,
+        // so ProcessHARQFeedbacks() would abort.
+        ScheduleUl(params, ulHarqFeedback);
+        return;
+    }
+
+    // Reset expired HARQ
     for (const auto& itUe : m_ueMap)
     {
         ResetExpiredHARQ(itUe.second->m_rnti, &itUe.second->m_ulHarq);
     }
 
     // Merge not-retransmitted and received feedback
-    std::vector<UlHarqInfo> ulHarqFeedback;
     if (!params.m_ulHarqInfoList.empty() || !m_ulHarqToRetransmit.empty())
     {
-        // m_ulHarqToRetransmit will be cleared inside MergeHARQ
         uint64_t existingSize = m_ulHarqToRetransmit.size();
         uint64_t inSize = params.m_ulHarqInfoList.size();
 
@@ -2775,11 +3009,10 @@ NrMacSchedulerNs3::DoSchedUlTriggerReq(
 
         NS_ASSERT(m_ulHarqToRetransmit.empty());
         NS_ASSERT_MSG(existingSize + inSize == ulHarqFeedback.size(),
-                      " existing: " << existingSize << " received: " << inSize
-                                    << " calculated: " << ulHarqFeedback.size());
+                      "existing: " << existingSize << " received: " << inSize
+                                   << " calculated: " << ulHarqFeedback.size());
 
-        // if there are feedbacks for expired process, remove them
-        for (auto it = ulHarqFeedback.begin(); it != ulHarqFeedback.end(); /* no inc */)
+        for (auto it = ulHarqFeedback.begin(); it != ulHarqFeedback.end();)
         {
             // msg3 (RRC Connection Request) HARQ feedback. The TC-RNTI is not yet
             // a registered UE (not in m_ueMap), so the regular HARQ machinery below
@@ -2825,19 +3058,25 @@ NrMacSchedulerNs3::DoSchedUlTriggerReq(
                 it = ulHarqFeedback.erase(it);
                 continue;
             }
-            auto& ueInfo = m_ueMap.find(it->m_rnti)->second;
-            auto& process = ueInfo->m_ulHarq.Find(it->m_harqProcessId)->second;
-            if (!process.m_active)
+
+            auto ueIt = m_ueMap.find(it->m_rnti);
+            if (ueIt == m_ueMap.end())
+            {
+                it = ulHarqFeedback.erase(it);
+                continue;
+            }
+
+            auto harqIt = ueIt->second->m_ulHarq.Find(it->m_harqProcessId);
+            if (harqIt == ueIt->second->m_ulHarq.End() || !harqIt->second.m_active)
             {
                 NS_LOG_INFO("Feedback for UE " << it->m_rnti << " process "
                                                << static_cast<uint32_t>(it->m_harqProcessId)
                                                << " ignored because process is INACTIVE");
                 it = ulHarqFeedback.erase(it);
+                continue;
             }
-            else
-            {
-                ++it;
-            }
+
+            ++it;
         }
 
         ProcessHARQFeedbacks(&ulHarqFeedback, NrMacSchedulerUeInfo::GetUlHarqVector, "UL");

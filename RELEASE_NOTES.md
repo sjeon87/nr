@@ -126,7 +126,14 @@ New user-visible features
   lizard-based code-linting check that fails a merge request when it raises the
   maximum cyclomatic complexity or adds duplicate code blocks relative to the
   upstream default branch (introduced late in the v5.0 cycle).
-
+- HARQ can now be disabled. A new ``EnableHarq`` attribute (available on the
+  scheduler, MAC and PHY layers) and the ``NrHelper::SetHarqEnabled(bool)``
+  helper allow turning HARQ off across all layers, while a ``MaxHarqReTx``
+  attribute on the scheduler bounds the number of retransmissions. With HARQ
+  disabled, the scheduler performs no HARQ feedback processing or
+  retransmission scheduling and the PHY suppresses HARQ feedback and
+  soft-combining. The default behavior is unchanged (HARQ enabled). See the
+  ``cttc-nr-harq-validation`` example.
 Bugs fixed
 ----------
 - Fixed a permanent uplink stall when the bootstrap BSR transport blocks are

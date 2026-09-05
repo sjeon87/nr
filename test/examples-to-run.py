@@ -177,7 +177,7 @@ cpp_examples = [
     ("rem-example", "True", "True"),
     ("cttc-nr-demo --ueNumPergNb=9", "True", "True"),
     (
-        "cttc-nr-demo --ns3::NrMacSchedulerNs3::EnableHarqReTx=false",
+        "cttc-nr-demo --ns3::NrMacSchedulerNs3::MaxHarqReTx=0",
         "True",
         "True",
     ),

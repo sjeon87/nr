@@ -463,7 +463,6 @@ NrRrcAsn1Header::SerializeLogicalChannelConfig(
         bucketSizeDuration = 5;
     }
     SerializeEnum(8, bucketSizeDuration);
-
     // Serialize logicalChannelGroup ::= INTEGER (0..3)
     SerializeInteger(logicalChannelConfig.logicalChannelGroup, 0, 3);
 
@@ -476,23 +475,26 @@ NrRrcAsn1Header::SerializePhysicalConfigDedicated(
     NrRrcSap::PhysicalConfigDedicated physicalConfigDedicated) const
 {
     // Serialize PhysicalConfigDedicated Sequence
-    std::bitset<10> optionalFieldsPhysicalConfigDedicated;
+    std::bitset<11> optionalFieldsPhysicalConfigDedicated;
     optionalFieldsPhysicalConfigDedicated.set(
-        9,
+        10,
         physicalConfigDedicated.havePdschConfigDedicated); // pdsch-ConfigDedicated
-    optionalFieldsPhysicalConfigDedicated.set(8, false);   // pucch-ConfigDedicated not present
-    optionalFieldsPhysicalConfigDedicated.set(7, false);   // pusch-ConfigDedicated not present
-    optionalFieldsPhysicalConfigDedicated.set(6, false); // uplinkPowerControlDedicated not present
-    optionalFieldsPhysicalConfigDedicated.set(5, false); // tpc-PDCCH-ConfigPUCCH not present
-    optionalFieldsPhysicalConfigDedicated.set(4, false); // tpc-PDCCH-ConfigPUSCH not present
-    optionalFieldsPhysicalConfigDedicated.set(3, false); // cqi-ReportConfig not present
+    optionalFieldsPhysicalConfigDedicated.set(9, false);   // pucch-ConfigDedicated not present
+    optionalFieldsPhysicalConfigDedicated.set(8, false);   // pusch-ConfigDedicated not present
+    optionalFieldsPhysicalConfigDedicated.set(7, false); // uplinkPowerControlDedicated not present
+    optionalFieldsPhysicalConfigDedicated.set(6, false); // tpc-PDCCH-ConfigPUCCH not present
+    optionalFieldsPhysicalConfigDedicated.set(5, false); // tpc-PDCCH-ConfigPUSCH not present
+    optionalFieldsPhysicalConfigDedicated.set(4, false); // cqi-ReportConfig not present
     optionalFieldsPhysicalConfigDedicated.set(
-        2,
+        3,
         physicalConfigDedicated.haveSoundingRsUlConfigDedicated); // soundingRS-UL-ConfigDedicated
     optionalFieldsPhysicalConfigDedicated.set(
-        1,
+        2,
         physicalConfigDedicated.haveAntennaInfoDedicated); // antennaInfo
-    optionalFieldsPhysicalConfigDedicated.set(0, false);   // schedulingRequestConfig not present
+    optionalFieldsPhysicalConfigDedicated.set(1, false);   // schedulingRequestConfig not present
+    optionalFieldsPhysicalConfigDedicated.set(
+        0,
+        physicalConfigDedicated.haveDownlinkHarqFeedbackDisabled); // downlinkHARQ-FeedbackDisabled
     SerializeSequence(optionalFieldsPhysicalConfigDedicated, true);
 
     if (physicalConfigDedicated.havePdschConfigDedicated)
@@ -574,6 +576,10 @@ NrRrcAsn1Header::SerializePhysicalConfigDedicated(
 
         // Serialize release
         SerializeNull();
+    }
+    if (physicalConfigDedicated.haveDownlinkHarqFeedbackDisabled)
+    {
+        SerializeBoolean(physicalConfigDedicated.downlinkHarqFeedbackDisabled);
     }
 }
 
@@ -2784,11 +2790,11 @@ NrRrcAsn1Header::DeserializePhysicalConfigDedicated(
     NrRrcSap::PhysicalConfigDedicated* physicalConfigDedicated,
     Buffer::Iterator bIterator)
 {
-    std::bitset<10> optionalFieldPresent;
+    std::bitset<11> optionalFieldPresent;
     bIterator = DeserializeSequence(&optionalFieldPresent, true, bIterator);
 
-    physicalConfigDedicated->havePdschConfigDedicated = optionalFieldPresent[9];
-    if (optionalFieldPresent[9])
+    physicalConfigDedicated->havePdschConfigDedicated = optionalFieldPresent[10];
+    if (optionalFieldPresent[10])
     {
         // Deserialize pdsch-ConfigDedicated
         std::bitset<0> bitset0;
@@ -2802,38 +2808,38 @@ NrRrcAsn1Header::DeserializePhysicalConfigDedicated(
 
         bIterator = DeserializeNull(bIterator);
     }
-    if (optionalFieldPresent[8])
+    if (optionalFieldPresent[9])
     {
         // Deserialize pucch-ConfigDedicated
         // ...
     }
-    if (optionalFieldPresent[7])
+    if (optionalFieldPresent[8])
     {
         // Deserialize pusch-ConfigDedicated
         // ...
     }
-    if (optionalFieldPresent[6])
+    if (optionalFieldPresent[7])
     {
         // Deserialize uplinkPowerControlDedicated
         // ...
     }
-    if (optionalFieldPresent[5])
+    if (optionalFieldPresent[6])
     {
         // Deserialize tpc-PDCCH-ConfigPUCCH
         // ...
     }
-    if (optionalFieldPresent[4])
+    if (optionalFieldPresent[5])
     {
         // Deserialize tpc-PDCCH-ConfigPUSCH
         // ...
     }
-    if (optionalFieldPresent[3])
+    if (optionalFieldPresent[4])
     {
         // Deserialize cqi-ReportConfig
         // ...
     }
-    physicalConfigDedicated->haveSoundingRsUlConfigDedicated = optionalFieldPresent[2];
-    if (optionalFieldPresent[2])
+    physicalConfigDedicated->haveSoundingRsUlConfigDedicated = optionalFieldPresent[3];
+    if (optionalFieldPresent[3])
     {
         // Deserialize soundingRS-UL-ConfigDedicated
         int sel;
@@ -2882,8 +2888,8 @@ NrRrcAsn1Header::DeserializePhysicalConfigDedicated(
             bIterator = DeserializeEnum(8, &slct, bIterator);
         }
     }
-    physicalConfigDedicated->haveAntennaInfoDedicated = optionalFieldPresent[1];
-    if (optionalFieldPresent[1])
+    physicalConfigDedicated->haveAntennaInfoDedicated = optionalFieldPresent[2];
+    if (optionalFieldPresent[2])
     {
         // Deserialize antennaInfo
         int sel;
@@ -2921,10 +2927,17 @@ NrRrcAsn1Header::DeserializePhysicalConfigDedicated(
             }
         }
     }
-    if (optionalFieldPresent[0])
+    if (optionalFieldPresent[1])
     {
         // Deserialize schedulingRequestConfig
         // ...
+    }
+    physicalConfigDedicated->haveDownlinkHarqFeedbackDisabled = optionalFieldPresent[0];
+    if (optionalFieldPresent[0])
+    {
+        bool v;
+        bIterator = DeserializeBoolean(&v, bIterator);
+        physicalConfigDedicated->downlinkHarqFeedbackDisabled = v;
     }
     return bIterator;
 }

@@ -467,6 +467,7 @@ NrTestMacSchedulerHarqRrScheduleDlHarq::DoRun()
             auto& harqProcess = ueInfo->m_dlHarq.Find(dci.m_rnti)->second;
             harqProcess.m_dciElement = std::make_shared<DciInfoElementTdma>(dci);
             harqProcess.m_active = true;
+            harqProcess.m_txAttempts = 1;
 
             DlHarqInfo harqInfo;
             harqInfo.m_harqStatus = DlHarqInfo::NACK;
@@ -557,6 +558,7 @@ NrTestMacSchedulerHarqRrBeamOrder::ScheduleRound(Ptr<NrMacSchedulerNs3> sched,
         dci.m_rbgBitmask.at(0) = true;
         harqProcess.m_dciElement = std::make_shared<DciInfoElementTdma>(dci);
         harqProcess.m_active = true;
+        harqProcess.m_txAttempts = 1;
         harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
 
         DlHarqInfo harqInfo;
@@ -787,6 +789,7 @@ NrTestMacSchedulerHarqRrSymbolBudget::DoRun()
         dci.m_rbgBitmask = std::vector<bool>(10, true); // full-band allocation
         harqProcess.m_dciElement = std::make_shared<DciInfoElementTdma>(dci);
         harqProcess.m_active = true;
+        harqProcess.m_txAttempts = 1;
         harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
 
         DlHarqInfo harqInfo;
@@ -957,6 +960,7 @@ NrTestMacSchedulerHarqRrOfdmaSharing::DoRun()
         dci.m_rbgBitmask = bitmask;
         harqProcess.m_dciElement = std::make_shared<DciInfoElementTdma>(dci);
         harqProcess.m_active = true;
+        harqProcess.m_txAttempts = 1;
         harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
 
         DlHarqInfo harqInfo;

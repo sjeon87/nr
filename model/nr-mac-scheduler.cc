@@ -137,6 +137,11 @@ class NrMacGeneralSchedSapProvider : public NrMacSchedSapProvider
         return m_scheduler->IsHarqReTxEnable();
     };
 
+    void EnableHarq(bool enable) override
+    {
+        m_scheduler->EnableHarq(enable);
+    }
+
     bool IsMaxSrsReached() const override
     {
         return m_scheduler->IsMaxSrsReached();

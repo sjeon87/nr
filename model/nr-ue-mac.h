@@ -282,6 +282,20 @@ class NR_EXPORT NrUeMac : public Object
      */
     int64_t AssignStreams(int64_t stream);
 
+    /**
+     * @brief Enable or disable HARQ at the UE MAC.
+     *
+     * When disabled, flushes buffered UL HARQ packet bursts and timers, and
+     * subsequent UL transmissions are signalled as new data only.
+     * @param enable true to enable UL HARQ retransmissions, false to disable
+     */
+    void SetEnableHarq(bool enable);
+    /**
+     * @brief Get the UE MAC HARQ enable status.
+     * @return true if UL HARQ retransmissions are enabled
+     */
+    bool IsHarqEnabled() const;
+
   protected:
     /**
      * @brief DoDispose method inherited from Object
@@ -553,10 +567,12 @@ class NR_EXPORT NrUeMac : public Object
         m_macUeStateMachine;
 
     void StartWaitingForRaResponse();
+
     bool m_rachConfigured = false;                  ///< is RACH configured?
     NrUeCmacSapProvider::RachConfig m_rachConfig{}; ///< RACH configuration
     uint8_t m_preambleTransmissionCounter{0};       ///< preamble transmission counter
     EventId m_noRaResponseReceivedEvent;            ///< no RA response received event ID
+    bool m_enableHarq{true};
 };
 
 } // namespace ns3

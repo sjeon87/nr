@@ -155,6 +155,18 @@ NrUePhy::GetTypeId()
                 UintegerValue(1),
                 MakeUintegerAccessor(&NrUePhy::SetCsiImDuration, &NrUePhy::GetCsiImDuration),
                 MakeUintegerChecker<uint8_t>(1, 12))
+            .AddAttribute("EnableHarq",
+                          "If false, UE will not generate HARQ feedback (ACK/NACK) and will behave "
+                          "as no-HARQ.",
+                          BooleanValue(true),
+                          MakeBooleanAccessor(&NrUePhy::SetEnableHarq, &NrUePhy::IsHarqEnabled),
+                          MakeBooleanChecker())
+            .AddAttribute("UeMeasurementsFilterPeriod",
+                          "Time period for reporting UE measurements, i.e., the"
+                          "length of layer-1 filtering.",
+                          TimeValue(MilliSeconds(200)),
+                          MakeTimeAccessor(&NrUePhy::m_ueMeasurementsFilterPeriod),
+                          MakeTimeChecker())
             // The reported value is NrUePhy::ComputeAvgSinr(): a linear SINR (apply 10*log10() for
             // dB) averaged over the RBs of the received PDSCH. Fired only in SISO CQI feedback
             // configurations (CsiFeedbackFlags = CQI_PDSCH_SISO, or a channel without a
@@ -171,12 +183,6 @@ NrUePhy::GetTypeId()
                             "Report the SINR computed for DL CTRL",
                             MakeTraceSourceAccessor(&NrUePhy::m_dlCtrlSinrTrace),
                             "ns3::NrUePhy::DlCtrlSinrTracedCallback")
-            .AddAttribute("UeMeasurementsFilterPeriod",
-                          "Time period for reporting UE measurements, i.e., the"
-                          "length of layer-1 filtering.",
-                          TimeValue(MilliSeconds(200)),
-                          MakeTimeAccessor(&NrUePhy::m_ueMeasurementsFilterPeriod),
-                          MakeTimeChecker())
             .AddTraceSource("ReportUplinkTbSize",
                             "Report allocated uplink TB size for trace.",
                             MakeTraceSourceAccessor(&NrUePhy::m_reportUlTbSize),
@@ -418,6 +424,29 @@ NrUePhy::DoSendControlMessageNow(Ptr<NrControlMessage> msg)
 }
 
 void
+NrUePhy::SetEnableHarq(bool enable)
+{
+    NS_LOG_FUNCTION(this << enable);
+
+    if (m_enableHarq == enable)
+    {
+        return;
+    }
+
+    m_enableHarq = enable;
+    if (m_spectrumPhy)
+    {
+        m_spectrumPhy->SetEnableHarq(enable);
+    }
+}
+
+bool
+NrUePhy::IsHarqEnabled() const
+{
+    return m_enableHarq;
+}
+
+void
 NrUePhy::ProcessDataDci(const SfnSf& ulSfnSf,
                         const std::shared_ptr<DciInfoElementTdma>& dciInfoElem)
 {
@@ -604,7 +633,7 @@ NrUePhy::InsertFutureAllocation(const SfnSf& sfnSf, const std::shared_ptr<DciInf
     }
     else
     {
-        SlotAllocInfo slotAllocInfo = SlotAllocInfo(sfnSf);
+        auto slotAllocInfo = SlotAllocInfo(sfnSf);
         slotAllocInfo.m_varTtiAllocInfo.push_back(varTtiInfo);
         PushBackSlotAllocInfo(slotAllocInfo);
     }
@@ -1458,12 +1487,13 @@ void
 NrUePhy::EnqueueDlHarqFeedback(const DlHarqInfo& m)
 {
     NS_LOG_FUNCTION(this);
-    // get the feedback from NrSpectrumPhy and send it through ideal PUCCH to gNB
+
     Ptr<NrDlHarqFeedbackMessage> msg = Create<NrDlHarqFeedbackMessage>();
     msg->SetSourceBwpArfcn(DoGetArfcn());
     msg->SetDlHarqFeedback(m);
 
     auto k1It = m_harqIdToK1Map.find(m.m_harqProcessId);
+    NS_ASSERT(k1It != m_harqIdToK1Map.end());
 
     NS_LOG_DEBUG("ReceiveNrDlHarqFeedback" << " Harq Process " << static_cast<uint32_t>(k1It->first)
                                            << " K1: " << k1It->second << " Frame "

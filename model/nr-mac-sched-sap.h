@@ -176,6 +176,12 @@ class NR_EXPORT NrMacSchedSapProvider
 
     virtual bool IsHarqReTxEnable() const = 0;
 
+    /**
+     * @brief Enable or disable HARQ processing in the scheduler
+     * @param enable false to disable the HARQ lifecycle and retransmissions
+     */
+    virtual void EnableHarq(bool enable) = 0;
+
     virtual bool IsMaxSrsReached() const = 0;
 
   private:

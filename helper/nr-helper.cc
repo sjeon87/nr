@@ -2219,4 +2219,19 @@ NrHelper::IsMimoFeedbackEnabled() const
     NS_ABORT_MSG("Unsupported NrHelper::CsiFeedbackFlags combination");
 }
 
+void
+NrHelper::SetHarqEnabled(bool enable)
+{
+    NS_LOG_FUNCTION(this << enable);
+
+    // gNB side: configured locally, no air-interface signalling involved
+    SetSchedulerAttribute("EnableHarq", BooleanValue(enable));
+    SetGnbMacAttribute("EnableHarq", BooleanValue(enable));
+    SetGnbPhyAttribute("EnableHarq", BooleanValue(enable));
+    SetGnbSpectrumAttribute("EnableHarq", BooleanValue(enable));
+
+    // UE side: signalled over the air by RRC (TS 38.331 PhysicalConfigDedicated)
+    Config::SetDefault("ns3::NrGnbRrc::EnableHarq", BooleanValue(enable));
+}
+
 } // namespace ns3

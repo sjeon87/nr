@@ -288,7 +288,7 @@ NrRadioLinkFailureTestCase::DoRun()
     //----others----
     nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaRR"));
     Config::SetDefault("ns3::NrAmc::AmcModel", EnumValue(NrAmc::ShannonModel));
-    Config::SetDefault("ns3::NrMacSchedulerNs3::EnableHarqReTx", BooleanValue(true));
+    Config::SetDefault("ns3::NrMacSchedulerNs3::MaxHarqReTx", UintegerValue(3));
 
     // Radio link failure detection parameters
     Config::SetDefault("ns3::NrUeRrc::N310", UintegerValue(1));

@@ -22,6 +22,7 @@
 #include "nr-phy-mac-common.h"
 #include "nr-radio-bearer-tag.h"
 
+#include "ns3/boolean.h"
 #include "ns3/log.h"
 #include "ns3/spectrum-model.h"
 #include "ns3/uinteger.h"
@@ -54,6 +55,7 @@ class NrGnbMacMemberGnbCmacSapProvider : public NrGnbCmacSapProvider
     RachConfig GetRachConfig() override;
     AllocateNcRaPreambleReturnValue AllocateNcRaPreamble(uint16_t rnti) override;
     bool IsMaxSrsReached() const override;
+    void SetEnableHarq(bool enable) override;
 
   private:
     NrGnbMac* m_mac;
@@ -122,6 +124,12 @@ bool
 NrGnbMacMemberGnbCmacSapProvider::IsMaxSrsReached() const
 {
     return m_mac->m_macSchedSapProvider->IsMaxSrsReached();
+}
+
+void
+NrGnbMacMemberGnbCmacSapProvider::SetEnableHarq(bool enable)
+{
+    m_mac->SetEnableHarq(enable);
 }
 
 // SAP interface between gNB PHY AND MAC
@@ -447,6 +455,11 @@ NrGnbMac::GetTypeId()
                           UintegerValue(50),
                           MakeUintegerAccessor(&NrGnbMac::SetPreambleTransMax),
                           MakeUintegerChecker<uint8_t>(3, 200))
+            .AddAttribute("EnableHarq",
+                          "If false, gNB MAC will not buffer HARQ TBs nor queue HARQ feedback.",
+                          BooleanValue(true),
+                          MakeBooleanAccessor(&NrGnbMac::SetEnableHarq, &NrGnbMac::IsHarqEnabled),
+                          MakeBooleanChecker())
             .AddAttribute(
                 "RaResponseWindowSize",
                 "Length of the window for the reception of the random access response (RAR); "
@@ -564,6 +577,45 @@ NrGnbMac::IsHarqReTxEnable() const
 }
 
 void
+NrGnbMac::SetEnableHarq(bool enable)
+{
+    if (m_enableHarq == enable)
+    {
+        return;
+    }
+
+    m_enableHarq = enable;
+    NS_LOG_INFO("gNB MAC HARQ " << (enable ? "enabled" : "disabled"));
+
+    if (!enable)
+    {
+        // Drop any pending feedback that was collected before disabling
+        m_dlHarqInfoReceived.clear();
+        m_ulHarqInfoReceived.clear();
+
+        // Clear any buffered DL HARQ TB bursts
+        for (auto& [rnti, vec] : m_miDlHarqProcessesPackets)
+        {
+            for (auto& proc : vec)
+            {
+                proc.m_pktBurst = CreateObject<PacketBurst>();
+            }
+        }
+    }
+
+    if (m_macSchedSapProvider)
+    {
+        m_macSchedSapProvider->EnableHarq(enable);
+    }
+}
+
+bool
+NrGnbMac::IsHarqEnabled() const
+{
+    return m_enableHarq;
+}
+
+void
 NrGnbMac::ReceiveRachPreamble(uint32_t raId)
 {
     NS_LOG_FUNCTION(this);
@@ -653,7 +705,6 @@ NrGnbMac::DoSlotDlIndication(const SfnSf& sfnSf, LteNrTddSlotType type)
     dlParams.m_slotType = type;
     dlParams.m_snfSf = sfnSf;
 
-    // Forward DL HARQ feedbacks collected during last subframe TTI
     if (!m_dlHarqInfoReceived.empty())
     {
         dlParams.m_dlHarqInfoList = m_dlHarqInfoReceived;
@@ -800,7 +851,6 @@ NrGnbMac::DoSlotUlIndication(const SfnSf& sfnSf, LteNrTddSlotType type)
     ulParams.m_snfSf = sfnSf;
     ulParams.m_slotType = type;
 
-    // Forward UL HARQ feebacks collected during last TTI
     if (!m_ulHarqInfoReceived.empty())
     {
         ulParams.m_ulHarqInfoList = m_ulHarqInfoReceived;
@@ -1047,6 +1097,7 @@ NrGnbMac::DoReceiveControlMessage(Ptr<NrControlMessage> msg)
         DoDlHarqFeedback(dlharq->GetDlHarqFeedback());
         break;
     }
+
     default:
         NS_LOG_WARN("Control message not supported/expected " << msg->GetMessageType());
     }
@@ -1056,6 +1107,16 @@ void
 NrGnbMac::DoUlHarqFeedback(const UlHarqInfo& params)
 {
     NS_LOG_FUNCTION(this);
+
+    if (!m_enableHarq)
+    {
+        NS_LOG_DEBUG("gNB MAC HARQ disabled: dropping UL HARQ feedback, rnti="
+                     << params.m_rnti << " harqId=" << unsigned(params.m_harqProcessId));
+
+        // Unlike the DL case, there is no UL HARQ feedback trace source to
+        // keep statistics with, so the feedback is simply discarded.
+        return;
+    }
     m_ulHarqInfoReceived.push_back(params);
 }
 
@@ -1063,6 +1124,18 @@ void
 NrGnbMac::DoDlHarqFeedback(const DlHarqInfo& params)
 {
     NS_LOG_FUNCTION(this);
+
+    if (!m_enableHarq)
+    {
+        NS_LOG_DEBUG("gNB MAC HARQ disabled: forwarding DL HARQ feedback for stats only, rnti="
+                     << params.m_rnti << " harqId=" << unsigned(params.m_harqProcessId));
+
+        //  keep stats
+        m_dlHarqFeedback(params);
+
+        //  skip HARQ buffer logic
+        return;
+    }
     // Update HARQ buffer
     auto it = m_miDlHarqProcessesPackets.find(params.m_rnti);
     NS_ASSERT(it != m_miDlHarqProcessesPackets.end());
@@ -1137,7 +1210,10 @@ NrGnbMac::DoTransmitPdu(NrMacSapProvider::TransmitPduParameters params)
     NrRadioBearerTag bearerTag(params.rnti, params.lcid, 0);
     params.pdu->AddPacketTag(bearerTag);
 
-    harqIt->second.at(params.harqProcessId).m_pktBurst->AddPacket(params.pdu);
+    if (m_enableHarq)
+    {
+        harqIt->second.at(params.harqProcessId).m_pktBurst->AddPacket(params.pdu);
+    }
 
     it->second.m_used += params.pdu->GetSize();
     NS_ASSERT_MSG(it->second.m_dci->m_tbSize >= it->second.m_used,

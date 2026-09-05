@@ -10,3 +10,6 @@ public/
 tutorial/build
 .idea
 .gitlab-ci-local
+tools/lizard/__pycache__/
+__pycache__/
+*.pyc

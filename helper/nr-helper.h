@@ -1061,6 +1061,19 @@ class NR_EXPORT NrHelper : public Object
                          Ptr<NetDevice> sourceGnbDev,
                          uint16_t targetCellId);
 
+    /**
+     * @brief Enable or disable HARQ on all layers of the installed NR devices.
+     *
+     * The gNB layers are configured directly; the UE is configured via the gNB
+     * RRC, which signals it over the air (TS 38.331).
+     *
+     * @note Must be called before installing the devices. For runtime toggling,
+     *       use NrGnbRrc::SetEnableHarq() (see the cttc-nr-harq-runtime example).
+     *
+     * @param enable true to enable HARQ, false to disable it.
+     */
+    void SetHarqEnabled(bool enable);
+
   private:
     bool IsMimoFeedbackEnabled() const; ///< Let UE compute MIMO feedback with PMI and RI
     ObjectFactory m_pmSearchFactory;    ///< Factory for precoding matrix search algorithm

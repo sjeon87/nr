@@ -63,6 +63,23 @@ class NR_EXPORT NrMacHarqVector : private std::unordered_map<uint8_t, HarqProces
     }
 
     /**
+     * @brief Reset all HARQ processes in the container.
+     *
+     * Marks each HARQ process as inactive while preserving the
+     * container structure. All internal state is cleared and the
+     * number of active processes is reset.
+     */
+    void Reset()
+    {
+        // Keep the slots, just make them all inactive
+        for (auto& kv : *this)
+        {
+            kv.second = HarqProcess(); // default ctor sets m_active=false etc.
+        }
+        m_usedSize = 0;
+    }
+
+    /**
      * @brief Erase the selected process
      * @param id ID of the process to erase
      * @return true if the process was erased successfully

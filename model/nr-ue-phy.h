@@ -610,6 +610,20 @@ class NR_EXPORT NrUePhy : public NrPhy
      * @param cb the genie RSRP callback (returns map cellId -> RSRP dB).
      */
     void SetGenieRsrpCallback(Callback<std::map<uint16_t, double>> cb);
+    /**
+     * @brief Enable or disable HARQ processing at the UE PHY.
+     *
+     * When disabled, HARQ feedback generation and related state
+     * updates are suppressed.
+     * @param enable True to enable HARQ processing, false to disable it.
+     */
+    void SetEnableHarq(bool enable);
+
+    /**
+     * @brief Get the current HARQ enable status.
+     * @return True if HARQ processing is enabled, false otherwise.
+     */
+    bool IsHarqEnabled() const;
 
   protected:
     /**
@@ -1161,6 +1175,7 @@ class NR_EXPORT NrUePhy : public NrPhy
     SpectrumValue m_ctrlSinrForRlf; ///< the CTRL SINR used for RLF detection
     bool m_enableRlfDetection;      ///< Flag to enable/disable RLF detection
     uint8_t m_csiFeedbackType;      ///< CSI feedback type configured by NrHelper
+    bool m_enableHarq{true};
 };
 
 } // namespace ns3

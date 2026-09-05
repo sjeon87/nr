@@ -113,6 +113,12 @@ class NR_EXPORT NrGnbCmacSapProvider
     virtual void UeUpdateConfigurationReq(UeConfig params) = 0;
 
     /**
+     * @brief Enable or disable HARQ at the gNB MAC and scheduler
+     * @param enable false to disable HARQ processing
+     */
+    virtual void SetEnableHarq(bool enable) = 0;
+
+    /**
      * struct defining the RACH configuration of the MAC
      *
      */

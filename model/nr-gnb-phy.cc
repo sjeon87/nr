@@ -187,6 +187,12 @@ NrGnbPhy::GetTypeId()
                           MakeUintegerAccessor(&NrGnbPhy::SetCsiRsPeriodicity,
                                                &NrGnbPhy::GetCsiRsPeriodicity),
                           MakeUintegerChecker<uint16_t>())
+            .AddAttribute("EnableHarq",
+                          "Enable/disable HARQ-related PHY feedback/control handling (DL_HARQ "
+                          "reception and UL HARQ feedback forwarding).",
+                          BooleanValue(true),
+                          MakeBooleanAccessor(&NrGnbPhy::SetEnableHarq, &NrGnbPhy::IsHarqEnabled),
+                          MakeBooleanChecker())
             .AddTraceSource("SlotDataStats",
                             "Data statistics for the current slot: SfnSf, active UE, used RE, "
                             "used symbols, available RBs, available symbols, bwp ID, cell ID",
@@ -1965,12 +1971,22 @@ NrGnbPhy::PhyCtrlMessagesReceived(const Ptr<NrControlMessage>& msg)
     {
         Ptr<NrDlHarqFeedbackMessage> dlharqMsg = DynamicCast<NrDlHarqFeedbackMessage>(msg);
         DlHarqInfo dlharq = dlharqMsg->GetDlHarqFeedback();
+
         if (m_ueAttachedRnti.find(dlharq.m_rnti) != m_ueAttachedRnti.end())
         {
             m_phyRxedCtrlMsgsTrace(m_currentSlot, GetCellId(), dlharq.m_rnti, GetBwpId(), msg);
 
-            NS_LOG_INFO("Received DL_HARQ for RNTI: " << dlharq.m_rnti << " in slot "
-                                                      << m_currentSlot);
+            if (!m_enableHarq)
+            {
+                NS_LOG_INFO("HARQ disabled: forwarding DL_HARQ ctrl msg at gNB PHY for RNTI "
+                            << dlharq.m_rnti << " in slot " << m_currentSlot);
+            }
+            else
+            {
+                NS_LOG_INFO("Received DL_HARQ for RNTI: " << dlharq.m_rnti << " in slot "
+                                                          << m_currentSlot);
+            }
+
             m_phySapUser->ReceiveControlMessage(msg);
         }
     }
@@ -2068,14 +2084,39 @@ NrGnbPhy::SetPhySapUser(NrGnbPhySapUser* ptr)
 }
 
 void
+NrGnbPhy::SetEnableHarq(bool enable)
+{
+    NS_LOG_FUNCTION(this << enable);
+    m_enableHarq = enable;
+}
+
+bool
+NrGnbPhy::IsHarqEnabled() const
+{
+    return m_enableHarq;
+}
+
+void
 NrGnbPhy::ReportUlHarqFeedback(const UlHarqInfo& mes)
 {
     NS_LOG_FUNCTION(this);
-    // forward to scheduler
+
+    // The gNB PHY always forwards UL HARQ feedback to the scheduler; when HARQ
+    // is disabled the feedback is handled (dropped) at the gNB MAC, so no
+    // suppression is needed here.
     if (m_ueAttachedRnti.find(mes.m_rnti) != m_ueAttachedRnti.end())
     {
-        NS_LOG_INFO("Received UL HARQ feedback " << mes.IsReceivedOk()
-                                                 << " and forwarding to the scheduler");
+        if (!m_enableHarq)
+        {
+            NS_LOG_INFO("HARQ disabled: forwarding UL HARQ feedback unchanged for RNTI "
+                        << mes.m_rnti << " (dropped at MAC)");
+        }
+        else
+        {
+            NS_LOG_INFO("Received UL HARQ feedback " << mes.IsReceivedOk()
+                                                     << " and forwarding to the scheduler");
+        }
+
         m_phySapUser->UlHarqFeedback(mes);
     }
 }

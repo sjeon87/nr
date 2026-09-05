@@ -585,6 +585,8 @@ class NR_EXPORT NrSpectrumPhy : public SpectrumPhy
      * @return true if this class is inside an gnb
      */
     bool IsGnb() const;
+    void SetEnableHarq(bool enable);
+    bool IsHarqEnabled() const;
 
   protected:
     /**
@@ -922,6 +924,7 @@ class NR_EXPORT NrSpectrumPhy : public SpectrumPhy
     bool m_isGnb = false;
     uint8_t m_numPanels{1};        //!< Number of panels in this spectrum
     uint8_t m_activePanelIndex{0}; //!< Active panel's index
+    bool m_enableHarq{true};
 };
 
 } // namespace ns3
