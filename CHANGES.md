@@ -52,6 +52,9 @@ us a note on ns-developers mailing list.
 
 ### New API:
 
+### Changes to Existing API
+- Following the ns-3 spectrum module change that passes beamforming vectors explicitly (ns-3 issue #1369), ``PhasedArraySpectrumPropagationLossModel::DoCalcRxPowerSpectralDensity()`` and, in ``ThreeGppSpectrumPropagationLossModel``, the protected ``GetLongTerm()``, ``CalcLongTerm()`` and ``CalcBeamformingGain()`` methods take two additional ``const PhasedArrayModel::ComplexVector&`` parameters (the beamforming vectors of the first and second array) instead of reading them from the arrays. The NR overrides ``NYUSpectrumPropagationLossModel::DoCalcRxPowerSpectralDensity()``, ``NYUSpectrumPropagationLossModel::GetLongTerm()`` and ``DistanceBasedThreeGppSpectrumPropagationLossModel::DoCalcRxPowerSpectralDensity()`` were updated accordingly. User code deriving from any of these classes must add the two parameters to its overrides and use them in place of ``PhasedArrayModel::GetBeamformingVector()``, and user code calling ``DoCalcRxPowerSpectralDensity()`` directly (as ``NrInitialAssociation``, ``NrRadioEnvironmentMapHelper`` and ``cttc-channel-randomness`` did) must pass the vectors, typically ``array->GetBeamformingVector()`` for the current beam; the public ``CalcRxPowerSpectralDensity()`` overload without vectors is unchanged and forwards the arrays' current vectors.
+
 ### Changed Behavior
 
 ## Changes from NR-v5.0 to v5.1
