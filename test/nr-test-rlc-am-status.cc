@@ -35,6 +35,9 @@
 #include "ns3/simulator.h"
 #include "ns3/uinteger.h"
 
+#include <algorithm>
+#include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -775,6 +778,184 @@ NrRlcAmWindowTestCase::DoRun()
     Simulator::Destroy();
 }
 
+/**
+ * @ingroup tests
+ *
+ * @brief Resegmentation test of the AM retransmission path (TS 36.322 5.2.1, 6.2.1.5).
+ *
+ * A NACKed AMD PDU that no longer fits the grant must be re-segmented into AMD
+ * PDU segments (RF = 1, SO/LSF set) covering successive byte ranges of the
+ * original PDU; the receiver buffers the ranges and reassembles the original
+ * AMD PDU once all bytes arrive, delivering the SDUs byte-exact.
+ */
+class NrRlcAmResegmentationTestCase : public NrRlcTestCaseBase
+{
+  public:
+    NrRlcAmResegmentationTestCase()
+        : NrRlcTestCaseBase("Test RLC AM: NACKed PDU is re-segmented and reassembled byte-exact")
+    {
+    }
+
+  private:
+    void DoRun() override;
+};
+
+void
+NrRlcAmResegmentationTestCase::DoRun()
+{
+    const std::vector<NrRlcSduSpec> txSdus = {{'A', 45}, {'B', 52}, {'C', 59}};
+
+    // One SDU per PDU: small grants force segmentation-free AMD PDUs whose
+    // total size (header + data) exceeds the later retransmission grants, so
+    // the retransmission path must re-segment.
+    Ptr<NrRlcAm> txRlc = CreateObject<NrRlcAm>();
+    NrRlcTestCaptureMac txCapture;
+    txRlc->SetNrMacSapProvider(&txCapture);
+    TransmitSdusAligned(txRlc, txSdus, 70);
+    NS_TEST_ASSERT_MSG_EQ(txCapture.m_pdus.size(),
+                          txSdus.size(),
+                          "one AMD PDU per SDU must be transmitted");
+    for (const auto& pdu : txCapture.m_pdus)
+    {
+        NrRlcAmHeader header;
+        pdu->PeekHeader(header);
+        NS_TEST_ASSERT_MSG_EQ((uint16_t)header.GetResegmentationFlag(),
+                              (uint16_t)NrRlcAmHeader::PDU,
+                              "new transmissions are AMD PDUs, not segments");
+    }
+
+    // NACK every PDU in a single STATUS: all move to the retransmission buffer.
+    // (One STATUS per SN would positively acknowledge the SNs NACKed earlier.)
+    DeliverStatusPdu(txRlc, txSdus.size(), {0, 1, 2});
+    for (uint16_t sn = 0; sn < txSdus.size(); sn++)
+    {
+        NS_TEST_ASSERT_MSG_EQ((txRlc->m_retxBuffer.at(sn).m_pdu != nullptr),
+                              true,
+                              "the NACKed SN=" << sn << " must move to the retx buffer");
+    }
+
+    // Retransmit with grants smaller than any AMD PDU: every grant must emit an
+    // AMD PDU segment (RF = 1) with a 4-byte header, all for the lowest
+    // outstanding SN first (in-sequence retransmission), until that SN's bytes
+    // are all covered; then the next SN starts at SO = 0.
+    const uint32_t segGrant = 20;
+    constexpr uint32_t SEGMENT_HEADER_SIZE = 4;
+    std::map<uint16_t, uint32_t> segBytesPerSn;
+    std::map<uint16_t, std::set<std::pair<uint16_t, uint16_t>>> segRangesPerSn;
+    std::map<uint16_t, uint16_t> lastSegEndPerSn;
+    uint32_t dataSizePerSn[3] = {0, 0, 0};
+    for (uint16_t sn = 0; sn < txSdus.size(); sn++)
+    {
+        NrRlcAmHeader original;
+        txCapture.m_pdus.at(sn)->PeekHeader(original);
+        dataSizePerSn[sn] = txCapture.m_pdus.at(sn)->GetSize() - original.GetSerializedSize();
+    }
+    for (uint32_t i = 0; i < 30; i++)
+    {
+        const size_t before = txCapture.m_pdus.size();
+        GrantTxOpportunities(txRlc, segGrant, 1);
+        NS_TEST_ASSERT_MSG_EQ(txCapture.m_pdus.size(),
+                              before + 1,
+                              "a small grant must still emit one AMD PDU segment");
+        NrRlcAmHeader segHeader;
+        txCapture.m_pdus.back()->PeekHeader(segHeader);
+        NS_TEST_ASSERT_MSG_EQ((uint16_t)segHeader.GetResegmentationFlag(),
+                              (uint16_t)NrRlcAmHeader::SEGMENT,
+                              "retransmissions that do not fit are AMD PDU segments");
+        const uint16_t sn = segHeader.GetSequenceNumber().GetValue();
+        const uint16_t so = segHeader.GetSegmentOffset();
+        // Non-last segments fill the grant; the last segment of an SN carries
+        // only the remaining bytes.
+        const bool isLast = (segHeader.GetLastSegmentFlag() == NrRlcAmHeader::LAST_PDU_SEGMENT);
+        const auto lastIt0 = lastSegEndPerSn.find(sn);
+        const uint16_t prevEnd = (lastIt0 == lastSegEndPerSn.end()) ? 0 : lastIt0->second;
+        NS_TEST_ASSERT_MSG_EQ(txCapture.m_pdus.back()->GetSize(),
+                              isLast ? (uint32_t)dataSizePerSn[sn] - prevEnd + SEGMENT_HEADER_SIZE
+                                     : segGrant,
+                              "non-last segments fill the grant, the last one carries the rest");
+        const uint16_t segData = txCapture.m_pdus.back()->GetSize() - segHeader.GetSerializedSize();
+        NS_TEST_ASSERT_MSG_EQ(segHeader.GetSerializedSize(),
+                              SEGMENT_HEADER_SIZE,
+                              "segments carry the 4-byte fixed header only");
+        segBytesPerSn[sn] += segData;
+        segRangesPerSn[sn].emplace(so, so + segData);
+        auto lastIt = lastSegEndPerSn.find(sn);
+        if (lastIt == lastSegEndPerSn.end())
+        {
+            NS_TEST_ASSERT_MSG_EQ(so, 0, "the first segment of SN=" << sn << " starts at offset 0");
+        }
+        else
+        {
+            NS_TEST_ASSERT_MSG_EQ(so,
+                                  lastIt->second,
+                                  "segments of SN=" << sn << " cover successive byte ranges");
+        }
+        lastSegEndPerSn[sn] = so + segData;
+        if (segHeader.GetLastSegmentFlag() == NrRlcAmHeader::LAST_PDU_SEGMENT)
+        {
+            NS_TEST_ASSERT_MSG_EQ(so + segData,
+                                  dataSizePerSn[sn],
+                                  "the last segment of SN=" << sn << " ends at the PDU size");
+        }
+        if (txRlc->m_retxBufferSize == 0)
+        {
+            break;
+        }
+    }
+    NS_TEST_ASSERT_MSG_EQ(txRlc->m_retxBufferSize,
+                          0,
+                          "all segments must complete every retransmission");
+    for (uint16_t sn = 0; sn < txSdus.size(); sn++)
+    {
+        NS_TEST_ASSERT_MSG_EQ(segBytesPerSn[sn],
+                              dataSizePerSn[sn],
+                              "segments of SN=" << sn << " must cover the PDU exactly once");
+        // Contiguity from 0: the union of the ranges covers [0, dataSize).
+        uint16_t covered = 0;
+        for (const auto& [begin, end] : segRangesPerSn[sn])
+        {
+            NS_TEST_ASSERT_MSG_EQ(begin <= covered,
+                                  true,
+                                  "segments of SN=" << sn << " must leave no gap");
+            covered = std::max(covered, end);
+        }
+        NS_TEST_ASSERT_MSG_EQ(covered,
+                              dataSizePerSn[sn],
+                              "segments of SN=" << sn << " must cover every byte");
+    }
+
+    // Feed every emitted segment to a fresh receiver in transmitted order: once
+    // all bytes of every SN arrive, every SDU is delivered byte-exact.
+    {
+        Ptr<NrRlcAm> rxRlc = CreateObject<NrRlcAm>();
+        NrRlcTestCaptureMac rxCapture;
+        rxRlc->SetNrMacSapProvider(&rxCapture);
+        NrRlcTestSduSink sink;
+        rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+        for (size_t i = txSdus.size(); i < txCapture.m_pdus.size(); i++)
+        {
+            DeliverPduToRlc(rxRlc, txCapture.m_pdus.at(i));
+        }
+        VerifyDelivered(sink, txSdus, "re-segmented retransmissions in order");
+    }
+
+    // Same segments in reverse order: SO-based reassembly is order-independent.
+    {
+        Ptr<NrRlcAm> rxRlc = CreateObject<NrRlcAm>();
+        NrRlcTestCaptureMac rxCapture;
+        rxRlc->SetNrMacSapProvider(&rxCapture);
+        NrRlcTestSduSink sink;
+        rxRlc->SetNrRlcSapUser(sink.GetSapUser());
+        for (size_t i = txCapture.m_pdus.size(); i > txSdus.size(); i--)
+        {
+            DeliverPduToRlc(rxRlc, txCapture.m_pdus.at(i - 1));
+        }
+        VerifyDelivered(sink, txSdus, "re-segmented retransmissions reversed");
+    }
+
+    Simulator::Destroy();
+}
+
 class NrRlcAmStatusTestSuite : public TestSuite
 {
   public:
@@ -787,6 +968,7 @@ class NrRlcAmStatusTestSuite : public TestSuite
         AddTestCase(new NrRlcAmStatusTriggerTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcAmPollingTestCase(), Duration::QUICK);
         AddTestCase(new NrRlcAmWindowTestCase(), Duration::QUICK);
+        AddTestCase(new NrRlcAmResegmentationTestCase(), Duration::QUICK);
     }
 };
 

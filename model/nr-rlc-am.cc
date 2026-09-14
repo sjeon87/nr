@@ -133,7 +133,10 @@ NrRlcAm::DoDispose()
     m_txedBufferSize = 0;
     m_retxBuffer.clear();
     m_retxBufferSize = 0;
+    m_nextSegmentOffset.clear();
     m_rxonBuffer.clear();
+    m_rxSegmentRanges.clear();
+    m_rxPduDataSize.clear();
     m_sdusBuffer.clear();
     m_keepS0 = nullptr;
 
@@ -181,6 +184,160 @@ NrRlcAm::DoTransmitPdcpPdu(Ptr<Packet> p)
 /**
  * MAC SAP
  */
+
+uint32_t
+NrRlcAm::BuildRetxSegment(uint16_t seqNumberValue,
+                          uint32_t txOpportunityBytes,
+                          const NrMacSapUser::TxOpportunityParameters& txOpParams)
+{
+    NS_LOG_FUNCTION(this << seqNumberValue << txOpportunityBytes);
+
+    // TS 36.322 5.2.1: only re-segment when the whole AMD PDU does not fit.
+    Ptr<Packet> original = m_retxBuffer.at(seqNumberValue).m_pdu;
+    NS_ASSERT(original);
+    if (original->GetSize() <= txOpportunityBytes || m_txOpportunityForRetxAlwaysBigEnough)
+    {
+        return 0;
+    }
+
+    // Peel the original header to reach the original AMD PDU Data field. Per
+    // TS 36.322 6.2.2.2 only that Data field (SDU bytes, no RLC headers) may
+    // be mapped into the segment payload; the segment carries one slice of it
+    // as a single Data field element, so no E/LI extension part is needed and
+    // FI stays as in the original PDU.
+    NrRlcAmHeader originalHeader;
+    Ptr<Packet> data = original->Copy();
+    data->RemoveHeader(originalHeader);
+    NS_ASSERT_MSG(originalHeader.IsDataPdu(), "retx buffer must hold AMD PDUs");
+    NS_ASSERT_MSG(originalHeader.GetResegmentationFlag() == NrRlcAmHeader::PDU,
+                  "only whole AMD PDUs are kept for retransmission");
+    const uint32_t dataFieldSize = data->GetSize();
+
+    uint16_t segmentOffset = 0;
+    auto offsetIt = m_nextSegmentOffset.find(seqNumberValue);
+    if (offsetIt != m_nextSegmentOffset.end())
+    {
+        segmentOffset = offsetIt->second;
+    }
+    NS_ASSERT_MSG(segmentOffset < dataFieldSize, "segment offset beyond the AMD PDU data");
+
+    // A segment needs at least one data byte on top of the 4-byte fixed header;
+    // otherwise leave the grant to a later NACKed SN (or a bigger grant).
+    static constexpr uint32_t SEGMENT_HEADER_SIZE = 4;
+    if (txOpportunityBytes <= SEGMENT_HEADER_SIZE)
+    {
+        return 0;
+    }
+    const uint32_t segmentDataSize =
+        std::min(dataFieldSize - segmentOffset, txOpportunityBytes - SEGMENT_HEADER_SIZE);
+    const bool isLastSegment = (segmentOffset + segmentDataSize == dataFieldSize);
+
+    Ptr<Packet> segment = data->CreateFragment(segmentOffset, segmentDataSize);
+
+    NrRlcAmHeader segmentHeader;
+    segmentHeader.SetDataPdu();
+    segmentHeader.SetSequenceNumber(originalHeader.GetSequenceNumber());
+    segmentHeader.SetResegmentationFlag(NrRlcAmHeader::SEGMENT);
+    segmentHeader.SetSegmentOffset(segmentOffset);
+    segmentHeader.SetLastSegmentFlag(isLastSegment ? NrRlcAmHeader::LAST_PDU_SEGMENT
+                                                   : NrRlcAmHeader::NO_LAST_PDU_SEGMENT);
+    segmentHeader.SetFramingInfo(originalHeader.GetFramingInfo());
+    segmentHeader.SetPollingBit(NrRlcAmHeader::STATUS_REPORT_NOT_REQUESTED);
+    segmentHeader.PushExtensionBit(NrRlcAmHeader::DATA_FIELD_FOLLOWS);
+
+    // Polling (5.2.2.1), same conditions as the whole-PDU retransmission path.
+    NS_LOG_LOGIC("polling conditions: m_txonBuffer.empty="
+                 << m_txonBuffer.empty() << " retxBufferSize=" << m_retxBufferSize
+                 << " packet->GetSize ()=" << segment->GetSize());
+    if (((m_txonBuffer.empty()) &&
+         (m_retxBufferSize == segment->GetSize() + segmentHeader.GetSerializedSize())) ||
+        (m_vtS >= m_vtMs) || m_pollRetransmitTimerJustExpired)
+    {
+        m_pollRetransmitTimerJustExpired = false;
+        segmentHeader.SetPollingBit(NrRlcAmHeader::STATUS_REPORT_IS_REQUESTED);
+        m_pduWithoutPoll = 0;
+        m_byteWithoutPoll = 0;
+
+        m_pollSn = m_vtS - 1;
+        NS_LOG_LOGIC("New POLL_SN = " << m_pollSn);
+
+        if (!m_pollRetransmitTimer.IsPending())
+        {
+            NS_LOG_LOGIC("Start PollRetransmit timer");
+
+            m_pollRetransmitTimer = Simulator::Schedule(m_pollRetransmitTimerValue,
+                                                        &NrRlcAm::ExpirePollRetransmitTimer,
+                                                        this);
+        }
+        else
+        {
+            NS_LOG_LOGIC("Restart PollRetransmit timer");
+
+            m_pollRetransmitTimer.Cancel();
+            m_pollRetransmitTimer = Simulator::Schedule(m_pollRetransmitTimerValue,
+                                                        &NrRlcAm::ExpirePollRetransmitTimer,
+                                                        this);
+        }
+    }
+
+    segment->AddHeader(segmentHeader);
+    NS_LOG_LOGIC("AMD PDU segment header: " << segmentHeader);
+
+    NrRlcTag rlcTag;
+    rlcTag.SetSenderTimestamp(Simulator::Now());
+    rlcTag.SetTxEntityId(m_rlcEntityId);
+    segment->AddByteTag(rlcTag, 1, segmentHeader.GetSerializedSize());
+
+    m_txPdu(m_rnti, m_lcid, segment->GetSize());
+
+    NrMacSapProvider::TransmitPduParameters params;
+    params.pdu = segment;
+    params.rnti = m_rnti;
+    params.lcid = m_lcid;
+    params.layer = txOpParams.layer;
+    params.harqProcessId = txOpParams.harqId;
+    params.componentCarrierId = txOpParams.componentCarrierId;
+    m_macSapProvider->TransmitPdu(params);
+
+    m_retxBuffer.at(seqNumberValue).m_retxCount++;
+    m_retxBuffer.at(seqNumberValue).m_waitingSince = Simulator::Now();
+    NS_LOG_INFO("Incr RETX_COUNT for SN = " << seqNumberValue);
+    if (m_retxBuffer.at(seqNumberValue).m_retxCount >= m_maxRetxThreshold)
+    {
+        NS_LOG_INFO("Max RETX_COUNT for SN = " << seqNumberValue);
+        if (!m_maxRetxReachedNotified && !m_maxRetxReachedCallback.IsNull())
+        {
+            m_maxRetxReachedNotified = true;
+            m_maxRetxReachedCallback();
+        }
+    }
+
+    // Advance to the next untransmitted byte range, or forget the SN entirely:
+    // the last segment completes the retransmission, so the original PDU moves
+    // back to the txed buffer to await its acknowledgement (as if it had been
+    // retransmitted whole).
+    if (isLastSegment)
+    {
+        NS_LOG_INFO("Move SN = " << seqNumberValue << " back to txedBuffer");
+        m_txedBuffer.at(seqNumberValue).m_pdu = m_retxBuffer.at(seqNumberValue).m_pdu->Copy();
+        m_txedBuffer.at(seqNumberValue).m_retxCount = m_retxBuffer.at(seqNumberValue).m_retxCount;
+        m_txedBuffer.at(seqNumberValue).m_waitingSince =
+            m_retxBuffer.at(seqNumberValue).m_waitingSince;
+        m_txedBufferSize += m_txedBuffer.at(seqNumberValue).m_pdu->GetSize();
+
+        m_retxBufferSize -= m_retxBuffer.at(seqNumberValue).m_pdu->GetSize();
+        m_retxBuffer.at(seqNumberValue).m_pdu = nullptr;
+        m_retxBuffer.at(seqNumberValue).m_retxCount = 0;
+        m_retxBuffer.at(seqNumberValue).m_waitingSince = MilliSeconds(0);
+        m_nextSegmentOffset.erase(seqNumberValue);
+    }
+    else
+    {
+        m_nextSegmentOffset[seqNumberValue] = segmentOffset + segmentDataSize;
+    }
+
+    return segment->GetSize();
+}
 
 void
 NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
@@ -300,6 +457,20 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
             if (m_retxBuffer.at(seqNumberValue).m_pdu)
             {
                 anyRetxPduFound = true;
+                // TS 36.322 5.2.1: if the AMD PDU does not fit in the grant,
+                // re-segment it: emit an AMD PDU segment covering the next
+                // untransmitted byte range of the original PDU (RF = 1, with SO
+                // and LSF set), keeping the original PDU for the next segments.
+                // Only when the whole PDU fits is it retransmitted as is (RF = 0).
+                const uint32_t resegmentedSize =
+                    BuildRetxSegment(seqNumberValue, txOpParams.bytes, txOpParams);
+                if (resegmentedSize > 0)
+                {
+                    NS_LOG_LOGIC("Retransmitted AMD PDU segment ( SN = "
+                                 << seqNumberValue << ", size = " << resegmentedSize << " )");
+                    return;
+                }
+
                 Ptr<Packet> packet = m_retxBuffer.at(seqNumberValue).m_pdu->Copy();
 
                 if ((packet->GetSize() <= txOpParams.bytes) ||
@@ -406,6 +577,7 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
                     m_retxBuffer.at(seqNumberValue).m_pdu = nullptr;
                     m_retxBuffer.at(seqNumberValue).m_retxCount = 0;
                     m_retxBuffer.at(seqNumberValue).m_waitingSince = MilliSeconds(0);
+                    m_nextSegmentOffset.erase(seqNumberValue);
 
                     NS_LOG_LOGIC("retxBufferSize = " << m_retxBufferSize);
 
@@ -413,9 +585,11 @@ NrRlcAm::DoNotifyTxOpportunity(NrMacSapUser::TxOpportunityParameters txOpParams)
                 }
                 else
                 {
-                    // This PDU does not fit; a later NACKed SN might (AM PDUs are
-                    // not re-segmented, so PDU sizes vary). Do not let one oversized
-                    // PDU head-of-line block every other pending retransmission.
+                    // This PDU does not fit and cannot be re-segmented usefully
+                    // (the grant leaves no room for segment data, e.g. it only
+                    // fits the 4-byte segment header). A later NACKed SN might
+                    // still fit, so do not let one unusable grant head-of-line
+                    // block every other pending retransmission.
                     NS_LOG_LOGIC("TxOpportunity (size = "
                                  << txOpParams.bytes
                                  << ") too small for retransmission of the packet (size = "
@@ -930,26 +1104,83 @@ NrRlcAm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
             NS_LOG_LOGIC("PDU discarded");
             return;
         }
-        else
+
+        // TS 36.322 5.1.3.2.2: an AMD PDU (RF = 0) carries byte range
+        // [0, dataSize) of SN = x; an AMD PDU segment (RF = 1) carries
+        // [SO, SO + dataSize), extended to dataSize if LSF = 1. Place the
+        // received range in the reception buffer and discard duplicate bytes;
+        // a PDU whose bytes were all received before is discarded. The entry
+        // is complete once the received ranges cover [0, dataSize)
+        // contiguously (IsPduComplete), which also handles segments arriving
+        // out of order. m_seqNumber is only assigned on first insertion:
+        // SequenceNumber10 assignment keeps the left-hand modulus base, so
+        // overwriting it on later segments of the same SN would corrupt the
+        // modulus base used by the window comparisons.
         {
-            // - if some byte segments of the AMD PDU contained in the RLC data PDU have been
-            // received before:
-            //         - discard the duplicate byte segments.
-            // note: re-segmentation of AMD PDU is currently not supported,
-            // so we just check that the segment was not received before
-            auto it = m_rxonBuffer.find(seqNumber.GetValue());
-            if (it != m_rxonBuffer.end())
+            NrRlcAmHeader peekHeader;
+            rxPduParams.p->PeekHeader(peekHeader);
+            const uint16_t snValue = seqNumber.GetValue();
+            const bool isSegment = (peekHeader.GetResegmentationFlag() == NrRlcAmHeader::SEGMENT);
+            const uint32_t payloadSize = rxPduParams.p->GetSize() - peekHeader.GetSerializedSize();
+            const uint16_t segStart = isSegment ? peekHeader.GetSegmentOffset() : 0;
+            uint16_t segEnd = segStart + static_cast<uint16_t>(payloadSize);
+            if (isSegment && peekHeader.GetLastSegmentFlag() == NrRlcAmHeader::LAST_PDU_SEGMENT)
             {
-                NS_ASSERT(!it->second.m_byteSegments.empty());
-                NS_ASSERT_MSG(it->second.m_byteSegments.size() == 1,
-                              "re-segmentation not supported");
-                NS_LOG_LOGIC("PDU segment already received, discarded");
+                m_rxPduDataSize[snValue] = segEnd;
+            }
+            if (!isSegment)
+            {
+                m_rxPduDataSize[snValue] = static_cast<uint16_t>(payloadSize);
+            }
+
+            auto& ranges = m_rxSegmentRanges[snValue];
+            bool allDuplicate = false;
+            auto sizeIt = m_rxPduDataSize.find(snValue);
+            if (sizeIt != m_rxPduDataSize.end())
+            {
+                segEnd = std::min(segEnd, sizeIt->second);
+                uint16_t covered = segStart;
+                for (const auto& [begin, end] : ranges)
+                {
+                    if (begin > covered)
+                    {
+                        break;
+                    }
+                    covered = std::max(covered, end);
+                    if (covered >= segEnd)
+                    {
+                        break;
+                    }
+                }
+                allDuplicate = (covered >= segEnd);
             }
             else
             {
-                NS_LOG_LOGIC("Place PDU in the reception buffer ( SN = " << seqNumber << " )");
-                m_rxonBuffer[seqNumber.GetValue()].m_byteSegments.push_back(rxPduParams.p);
-                m_rxonBuffer[seqNumber.GetValue()].m_pduComplete = true;
+                // The total size is only known once a segment with LSF = 1 (or
+                // a whole AMD PDU) arrives, so earlier segments cannot be
+                // coverage-checked; only an exact-range repeat is a duplicate.
+                allDuplicate = (ranges.find({segStart, segEnd}) != ranges.end());
+            }
+
+            if (segEnd > segStart && !allDuplicate)
+            {
+                auto it = m_rxonBuffer.find(snValue);
+                if (it == m_rxonBuffer.end())
+                {
+                    m_rxonBuffer[snValue].m_seqNumber = seqNumber;
+                    m_rxonBuffer[snValue].m_pduComplete = false;
+                    it = m_rxonBuffer.find(snValue);
+                }
+                NS_LOG_LOGIC("Place PDU bytes [" << segStart << ", " << segEnd
+                                                 << ") in the reception buffer ( SN = " << seqNumber
+                                                 << " )");
+                it->second.m_byteSegments.push_back(rxPduParams.p);
+                ranges.emplace(segStart, segEnd);
+                it->second.m_pduComplete = IsPduComplete(snValue);
+            }
+            else
+            {
+                NS_LOG_LOGIC("PDU bytes already received, discarded ( SN = " << seqNumber << " )");
             }
         }
 
@@ -994,6 +1225,10 @@ NrRlcAm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
         //     of the receiving window and in-sequence byte segments of the AMD PDU with SN = VR(R),
         //     remove RLC headers when doing so and deliver the reassembled RLC SDUs to upper layer
         //     in sequence if not delivered before;
+        //
+        // Reassembly from segments: the byte segments of one SN are concatenated
+        // in SO order into the original AMD PDU (headers stripped), which is
+        // then reassembled and delivered exactly like a received whole PDU.
 
         if (seqNumber == m_vrR)
         {
@@ -1005,10 +1240,10 @@ NrRlcAm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
                 while (it != m_rxonBuffer.end() && it->second.m_pduComplete)
                 {
                     NS_LOG_LOGIC("Reassemble and Deliver ( SN = " << m_vrR << " )");
-                    NS_ASSERT_MSG(it->second.m_byteSegments.size() == 1,
-                                  "Too many segments. PDU Reassembly process didn't work");
-                    ReassembleAndDeliver(it->second.m_byteSegments.front());
+                    ReassembleCompletePdu(it->second);
                     m_rxonBuffer.erase(m_vrR.GetValue());
+                    m_rxSegmentRanges.erase(m_vrR.GetValue());
+                    m_rxPduDataSize.erase(m_vrR.GetValue());
 
                     m_vrR++;
                     m_vrR.SetModulusBase(m_vrR);
@@ -1145,6 +1380,8 @@ NrRlcAm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
                     m_txedBuffer.at(seqNumberValue).m_pdu = nullptr;
                     m_txedBuffer.at(seqNumberValue).m_retxCount = 0;
                     m_txedBuffer.at(seqNumberValue).m_waitingSince = MilliSeconds(0);
+                    // A requeued PDU is retransmitted from its first byte again.
+                    m_nextSegmentOffset.erase(seqNumberValue);
                 }
 
                 NS_ASSERT(m_retxBuffer.at(seqNumberValue).m_pdu);
@@ -1171,6 +1408,7 @@ NrRlcAm::DoReceivePdu(NrMacSapUser::ReceivePduParameters rxPduParams)
                     m_retxBuffer.at(seqNumberValue).m_pdu = nullptr;
                     m_retxBuffer.at(seqNumberValue).m_retxCount = 0;
                     m_retxBuffer.at(seqNumberValue).m_waitingSince = MilliSeconds(0);
+                    m_nextSegmentOffset.erase(seqNumberValue);
                 }
             }
 
@@ -1233,6 +1471,8 @@ NrRlcAm::ReestablishRxSide()
     m_reorderingTimer.Cancel();
     m_statusProhibitTimer.Cancel();
     m_rxonBuffer.clear();
+    m_rxSegmentRanges.clear();
+    m_rxPduDataSize.clear();
     m_keepS0 = nullptr;
     m_reassemblingState = WAITING_S0_FULL;
     // Assign fresh SequenceNumber10 objects rather than raw values:
@@ -1247,6 +1487,76 @@ NrRlcAm::ReestablishRxSide()
     m_vrH = nr::SequenceNumber10(0);
     m_statusPduRequested = false;
     m_statusPduBufferSize = 0;
+}
+
+bool
+NrRlcAm::IsPduComplete(uint16_t seqNumberValue) const
+{
+    auto sizeIt = m_rxPduDataSize.find(seqNumberValue);
+    auto rangeIt = m_rxSegmentRanges.find(seqNumberValue);
+    if (sizeIt == m_rxPduDataSize.end() || rangeIt == m_rxSegmentRanges.end() ||
+        rangeIt->second.empty())
+    {
+        return false;
+    }
+    uint16_t covered = 0;
+    for (const auto& [begin, end] : rangeIt->second)
+    {
+        if (begin > covered)
+        {
+            return false;
+        }
+        covered = std::max(covered, end);
+    }
+    return covered >= sizeIt->second;
+}
+
+void
+NrRlcAm::ReassembleCompletePdu(NrRlcAm::PduBuffer& pduBuffer)
+{
+    NS_LOG_FUNCTION(this);
+
+    if (pduBuffer.m_byteSegments.size() == 1)
+    {
+        ReassembleAndDeliver(pduBuffer.m_byteSegments.front());
+        return;
+    }
+
+    // Concatenate the Data fields of the segments in SO order into the
+    // original AMD PDU payload. The first segment in SO order carries the
+    // original FI/E state; later segments repeat it (the transmitter copies
+    // FI and emits no E/LI extension), so their headers are stripped and only
+    // the first segment's packet -- header plus its payload -- is kept.
+    pduBuffer.m_byteSegments.sort([](const Ptr<Packet>& a, const Ptr<Packet>& b) {
+        NrRlcAmHeader ha;
+        NrRlcAmHeader hb;
+        a->PeekHeader(ha);
+        b->PeekHeader(hb);
+        return ha.GetSegmentOffset() < hb.GetSegmentOffset();
+    });
+
+    // Byte tags live on absolute packet offsets; stripping each segment header
+    // shifts its tag range, so preserve the first segment's tag (sender
+    // timestamp) explicitly and drop the rest. ReassembleAndDeliver requires
+    // exactly one tag covering the reassembled header; AddAtEnd keeps tags
+    // only when the appended packet is non-empty, and RemoveAllByteTags on the
+    // merged payload avoids duplicates.
+    auto first = pduBuffer.m_byteSegments.begin();
+    NrRlcAmHeader firstHeader;
+    (*first)->RemoveHeader(firstHeader);
+    (*first)->RemoveAllByteTags();
+    for (auto it = std::next(first); it != pduBuffer.m_byteSegments.end(); ++it)
+    {
+        NrRlcAmHeader segmentHeader;
+        (*it)->RemoveHeader(segmentHeader);
+        (*it)->RemoveAllByteTags();
+        (*first)->AddAtEnd(*it);
+    }
+    NrRlcTag firstTag;
+    firstTag.SetSenderTimestamp(Simulator::Now());
+    (*first)->AddHeader(firstHeader);
+    (*first)->AddByteTag(firstTag, 1, firstHeader.GetSerializedSize());
+    ReassembleAndDeliver(*first);
 }
 
 void
@@ -1482,6 +1792,8 @@ NrRlcAm::ExpirePollRetransmitTimer()
                 m_txedBuffer.at(snValue).m_pdu = nullptr;
                 m_txedBuffer.at(snValue).m_retxCount = 0;
                 m_txedBuffer.at(snValue).m_waitingSince = MilliSeconds(0);
+                // A requeued PDU is retransmitted from its first byte again.
+                m_nextSegmentOffset.erase(snValue);
             }
         }
     }
