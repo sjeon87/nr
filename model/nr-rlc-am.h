@@ -140,6 +140,17 @@ class NR_EXPORT NrRlcAm : public NrRlc
                                        ///< for retransmission
     std::vector<RetxPdu> m_retxBuffer; ///< Buffer for PDUs considered for retransmission
 
+    /// RetxSegPdu structure: holds the not-yet-sent tail of a partially
+    /// retransmitted AMD PDU (see TS 36.322 section 5.2.1)
+    struct RetxSegPdu
+    {
+        Ptr<Packet> m_pdu{nullptr}; ///< PDU segment (with its header), or null
+        uint16_t m_retxCount{0};    ///< retransmit count
+        bool m_lastSegSent{false};  ///< all segments sent, waiting for ACK
+    };
+
+    std::vector<RetxSegPdu> m_retxSegBuffer; ///< Buffer for AMD PDU segments
+
     uint32_t m_maxTxBufferSize; ///< maximum transmission buffer size
     uint32_t m_txonBufferSize;  ///< transmit on buffer size
     uint32_t m_retxBufferSize;  ///< retransmit buffer size

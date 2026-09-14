@@ -137,8 +137,12 @@ ToString(NrUeManager::State state)
     }
 }
 
-std::ostream&
-operator<<(std::ostream& os, NrUeManager::State state)
+/**
+ * \param s The UE manager state.
+ * \return The string representation of the given state.
+ */
+static const std::string&
+ToString(NrUeManager::State s)
 {
     os << ToString(state);
     return os;
@@ -171,17 +175,7 @@ NrUeManager::NrUeManager(Ptr<NrGnbRrc> rrc, uint16_t rnti, State s, uint8_t comp
 }
 
 void
-NrUeManager::Configure()
-{
-    NS_LOG_FUNCTION(this);
-    ConfigureSap();
-    ConfigureSrb0();
-    ConfigureSrb1();
-    ConfigureMacPhy();
-}
-
-void
-NrUeManager::ConfigureSap()
+NrUeManager::DoInitialize()
 {
     NS_LOG_FUNCTION(this);
     m_drbPdcpSapUser = new NrPdcpSpecificNrPdcpSapUser<NrUeManager>(this);
@@ -202,12 +196,7 @@ NrUeManager::ConfigureSap()
         m_rrc->m_cmacSapProvider.at(i)->AddUe(m_rnti);
         m_rrc->m_cphySapProvider.at(i)->AddUe(m_rnti);
     }
-}
 
-void
-NrUeManager::ConfigureSrb0()
-{
-    NS_LOG_FUNCTION(this);
     // setup the gNB side of SRB0
     {
         uint8_t lcid = 0;
@@ -239,21 +228,11 @@ NrUeManager::ConfigureSrb0()
         // MacSapUserForRlc in the ComponentCarrierManager MacSapUser
         NrMacSapUser* nrMacSapUser =
             m_rrc->m_ccmRrcSapProvider->ConfigureSignalBearer(lcinfo, rlc->GetNrMacSapUser());
-        // Install signal channel on all carriers.
-        // Just avoiding issues when carrier is strictly downlink or uplink,
-        // But messages still need to be routed properly to primary downlink and uplink carriers.
-        for (uint16_t i = 0; i < m_rrc->m_numberOfComponentCarriers; i++)
-        {
-            m_rrc->m_cmacSapProvider.at(i)->AddLc(lcinfo, nrMacSapUser);
-        }
+        // Signal Channel are only on Primary Carrier
+        m_rrc->m_cmacSapProvider.at(m_componentCarrierId)->AddLc(lcinfo, nrMacSapUser);
         m_rrc->m_ccmRrcSapProvider->AddLc(lcinfo, nrMacSapUser);
     }
-}
 
-void
-NrUeManager::ConfigureSrb1()
-{
-    NS_LOG_FUNCTION(this);
     // setup the gNB side of SRB1; the UE side will be set up upon RRC connection establishment
     {
         uint8_t lcid = 1;
@@ -306,12 +285,7 @@ NrUeManager::ConfigureSrb1()
     ueParams.srb0SapProvider = m_srb0->m_rlc->GetNrRlcSapProvider();
     ueParams.srb1SapProvider = m_srb1->m_pdcp->GetNrPdcpSapProvider();
     m_rrc->m_rrcSapUser->SetupUe(m_rnti, ueParams);
-}
 
-void
-NrUeManager::ConfigureMacPhy()
-{
-    NS_LOG_FUNCTION(this);
     // configure MAC (and scheduler)
     NrGnbCmacSapProvider::UeConfig req;
     req.m_rnti = m_rnti;
@@ -341,6 +315,10 @@ NrUeManager::ConfigureMacPhy()
         break;
 
     case HANDOVER_JOINING:
+        m_handoverJoiningTimeout = Simulator::Schedule(m_rrc->m_handoverJoiningTimeoutDuration,
+                                                       &NrGnbRrc::HandoverJoiningTimeout,
+                                                       m_rrc,
+                                                       m_rnti);
         break;
 
     default:
@@ -410,12 +388,6 @@ NrUeManager::SetSource(uint16_t sourceCellId, uint16_t sourceX2apId)
 {
     m_sourceX2apId = sourceX2apId;
     m_sourceCellId = sourceCellId;
-}
-
-uint16_t
-NrUeManager::GetSourceCellId() const
-{
-    return m_sourceCellId;
 }
 
 void
@@ -586,7 +558,11 @@ NrUeManager::StartDataRadioBearers()
     {
         auto drbIt = m_drbMap.find(*drbIdIt);
         NS_ASSERT(drbIt != m_drbMap.end());
-        drbIt->second->Initialize();
+        drbIt->second->m_rlc->Initialize();
+        if (drbIt->second->m_pdcp)
+        {
+            drbIt->second->m_pdcp->Initialize();
+        }
     }
     m_drbsToBeStarted.clear();
 }
@@ -719,86 +695,126 @@ NrUeManager::PrepareHandover(uint16_t cellId)
             m_rrc->m_componentCarrierPhyConf.at(m_componentCarrierId));
         NS_ASSERT(m_targetCellId != sourceComponentCarrier->GetCellId());
 
-        // Inter-gNB aka X2 handover
-        NS_LOG_DEBUG("Inter-gNB handover (i.e., X2) for cellId " << cellId);
-        NrEpcX2SapProvider::HandoverRequestParams params;
-        params.oldGnbUeX2apId = m_rnti;
-        params.cause = NrEpcX2SapProvider::HandoverDesirableForRadioReason;
-        params.sourceCellId = m_rrc->ComponentCarrierToCellId(m_componentCarrierId);
-        params.targetCellId = cellId;
-        params.mmeUeS1apId = m_imsi;
-        params.ueAggregateMaxBitRateDownlink = 200 * 1000;
-        params.ueAggregateMaxBitRateUplink = 100 * 1000;
-        params.bearers = GetErabList();
+        if (m_rrc->HasCellId(cellId))
+        {
+            // Intra-gNB handover
+            NS_LOG_DEBUG("Intra-gNB handover for cellId " << cellId);
+            uint8_t componentCarrierId = m_rrc->CellToComponentCarrierId(cellId);
+            uint16_t rnti = m_rrc->AddUe(NrUeManager::HANDOVER_JOINING, componentCarrierId);
+            NrGnbCmacSapProvider::AllocateNcRaPreambleReturnValue anrcrv =
+                m_rrc->m_cmacSapProvider.at(componentCarrierId)->AllocateNcRaPreamble(rnti);
+            if (!anrcrv.valid)
+            {
+                NS_LOG_INFO(this << " failed to allocate a preamble for non-contention based RA => "
+                                    "cannot perform HO");
+                NS_FATAL_ERROR("should trigger HO Preparation Failure, but it is not implemented");
+                return;
+            }
 
-        NrRrcSap::HandoverPreparationInfo hpi;
-        hpi.asConfig.sourceUeIdentity = m_rnti;
-        hpi.asConfig.sourceDlCarrierFreq = sourceComponentCarrier->GetArfcn();
-        hpi.asConfig.sourceMeasConfig = m_rrc->m_ueMeasConfig;
-        hpi.asConfig.sourceRadioResourceConfig = GetRadioResourceConfigForHandoverPreparationInfo();
-        hpi.asConfig.sourceMasterInformationBlock.numerology =
-            sourceComponentCarrier->GetPhy()->GetNumerology();
-        hpi.asConfig.sourceMasterInformationBlock.dlBandwidth =
-            sourceComponentCarrier->GetDlBandwidth();
-        hpi.asConfig.sourceMasterInformationBlock.systemFrameNumber = 0;
-        hpi.asConfig.sourceSystemInformationBlockType1.cellAccessRelatedInfo.plmnIdentityInfo
-            .plmnIdentity = m_rrc->m_sib1.at(m_componentCarrierId)
-                                .cellAccessRelatedInfo.plmnIdentityInfo.plmnIdentity;
-        hpi.asConfig.sourceSystemInformationBlockType1.cellAccessRelatedInfo.cellIdentity =
-            m_rrc->ComponentCarrierToCellId(m_componentCarrierId);
-        hpi.asConfig.sourceSystemInformationBlockType1.cellAccessRelatedInfo.csgIndication =
-            m_rrc->m_sib1.at(m_componentCarrierId).cellAccessRelatedInfo.csgIndication;
-        hpi.asConfig.sourceSystemInformationBlockType1.cellAccessRelatedInfo.csgIdentity =
-            m_rrc->m_sib1.at(m_componentCarrierId).cellAccessRelatedInfo.csgIdentity;
-        NrGnbCmacSapProvider::RachConfig rc =
-            m_rrc->m_cmacSapProvider.at(m_componentCarrierId)->GetRachConfig();
-        hpi.asConfig.sourceSystemInformationBlockType2.radioResourceConfigCommon.rachConfigCommon
-            .preambleInfo.numberOfRaPreambles = rc.numberOfRaPreambles;
-        hpi.asConfig.sourceSystemInformationBlockType2.radioResourceConfigCommon.rachConfigCommon
-            .raSupervisionInfo.preambleTransMax = rc.preambleTransMax;
-        hpi.asConfig.sourceSystemInformationBlockType2.radioResourceConfigCommon.rachConfigCommon
-            .raSupervisionInfo.raResponseWindowSize = rc.raResponseWindowSize;
-        hpi.asConfig.sourceSystemInformationBlockType2.radioResourceConfigCommon.rachConfigCommon
-            .txFailParam.connEstFailCount = rc.connEstFailCount;
-        hpi.asConfig.sourceSystemInformationBlockType2.freqInfo.ulCarrierFreq =
-            sourceComponentCarrier->GetArfcn();
-        hpi.asConfig.sourceSystemInformationBlockType2.freqInfo.ulBandwidth =
-            sourceComponentCarrier->GetUlBandwidth();
-        params.rrcContext = m_rrc->m_rrcSapUser->EncodeHandoverPreparationInformation(hpi);
+            Ptr<NrUeManager> ueManager = m_rrc->GetUeManager(rnti);
+            ueManager->SetSource(sourceComponentCarrier->GetCellId(), m_rnti);
+            ueManager->SetImsi(m_imsi);
 
-        NS_LOG_LOGIC("oldGnbUeX2apId = " << params.oldGnbUeX2apId);
-        NS_LOG_LOGIC("sourceCellId = " << params.sourceCellId);
-        NS_LOG_LOGIC("targetCellId = " << params.targetCellId);
-        NS_LOG_LOGIC("mmeUeS1apId = " << params.mmeUeS1apId);
-        NS_LOG_LOGIC("rrcContext   = " << params.rrcContext);
+            // Setup data radio bearers
+            for (auto& it : m_drbMap)
+            {
+                ueManager->SetupDataRadioBearer(it.second->m_epsBearer,
+                                                it.second->m_epsBearerIdentity,
+                                                it.second->m_gtpTeid,
+                                                it.second->m_transportLayerAddress);
+            }
 
-        m_rrc->m_x2SapProvider->SendHandoverRequest(params);
-        SwitchToState(HANDOVER_PREPARATION);
+            NrRrcSap::RrcConnectionReconfiguration handoverCommand =
+                GetRrcConnectionReconfigurationForHandover(componentCarrierId);
+
+            handoverCommand.mobilityControlInfo.newUeIdentity = rnti;
+            handoverCommand.mobilityControlInfo.haveRachConfigDedicated = true;
+            handoverCommand.mobilityControlInfo.rachConfigDedicated.raPreambleIndex =
+                anrcrv.raPreambleId;
+            handoverCommand.mobilityControlInfo.rachConfigDedicated.raPrachMaskIndex =
+                anrcrv.raPrachMaskIndex;
+
+            NrGnbCmacSapProvider::RachConfig rc =
+                m_rrc->m_cmacSapProvider.at(componentCarrierId)->GetRachConfig();
+            handoverCommand.mobilityControlInfo.radioResourceConfigCommon.rachConfigCommon
+                .preambleInfo.numberOfRaPreambles = rc.numberOfRaPreambles;
+            handoverCommand.mobilityControlInfo.radioResourceConfigCommon.rachConfigCommon
+                .raSupervisionInfo.preambleTransMax = rc.preambleTransMax;
+            handoverCommand.mobilityControlInfo.radioResourceConfigCommon.rachConfigCommon
+                .raSupervisionInfo.raResponseWindowSize = rc.raResponseWindowSize;
+
+            m_rrc->m_rrcSapUser->SendRrcConnectionReconfiguration(m_rnti, handoverCommand);
+
+            // We skip handover preparation
+            SwitchToState(HANDOVER_LEAVING);
+            m_handoverLeavingTimeout = Simulator::Schedule(m_rrc->m_handoverLeavingTimeoutDuration,
+                                                           &NrGnbRrc::HandoverLeavingTimeout,
+                                                           m_rrc,
+                                                           m_rnti);
+            m_rrc->m_handoverStartTrace(m_imsi,
+                                        sourceComponentCarrier->GetCellId(),
+                                        m_rnti,
+                                        handoverCommand.mobilityControlInfo.targetPhysCellId);
+        }
+        else
+        {
+            // Inter-gNB aka X2 handover
+            NS_LOG_DEBUG("Inter-gNB handover (i.e., X2) for cellId " << cellId);
+            NrEpcX2SapProvider::HandoverRequestParams params;
+            params.oldGnbUeX2apId = m_rnti;
+            params.cause = NrEpcX2SapProvider::HandoverDesirableForRadioReason;
+            params.sourceCellId = m_rrc->ComponentCarrierToCellId(m_componentCarrierId);
+            params.targetCellId = cellId;
+            params.mmeUeS1apId = m_imsi;
+            params.ueAggregateMaxBitRateDownlink = 200 * 1000;
+            params.ueAggregateMaxBitRateUplink = 100 * 1000;
+            params.bearers = GetErabList();
+
+            NrRrcSap::HandoverPreparationInfo hpi;
+            hpi.asConfig.sourceUeIdentity = m_rnti;
+            hpi.asConfig.sourceDlCarrierFreq = sourceComponentCarrier->GetDlEarfcn();
+            hpi.asConfig.sourceMeasConfig = m_rrc->m_ueMeasConfig;
+            hpi.asConfig.sourceRadioResourceConfig =
+                GetRadioResourceConfigForHandoverPreparationInfo();
+            hpi.asConfig.sourceMasterInformationBlock.dlBandwidth =
+                sourceComponentCarrier->GetDlBandwidth();
+            hpi.asConfig.sourceMasterInformationBlock.systemFrameNumber = 0;
+            hpi.asConfig.sourceSystemInformationBlockType1.cellAccessRelatedInfo.plmnIdentityInfo
+                .plmnIdentity = m_rrc->m_sib1.at(m_componentCarrierId)
+                                    .cellAccessRelatedInfo.plmnIdentityInfo.plmnIdentity;
+            hpi.asConfig.sourceSystemInformationBlockType1.cellAccessRelatedInfo.cellIdentity =
+                m_rrc->ComponentCarrierToCellId(m_componentCarrierId);
+            hpi.asConfig.sourceSystemInformationBlockType1.cellAccessRelatedInfo.csgIndication =
+                m_rrc->m_sib1.at(m_componentCarrierId).cellAccessRelatedInfo.csgIndication;
+            hpi.asConfig.sourceSystemInformationBlockType1.cellAccessRelatedInfo.csgIdentity =
+                m_rrc->m_sib1.at(m_componentCarrierId).cellAccessRelatedInfo.csgIdentity;
+            NrGnbCmacSapProvider::RachConfig rc =
+                m_rrc->m_cmacSapProvider.at(m_componentCarrierId)->GetRachConfig();
+            hpi.asConfig.sourceSystemInformationBlockType2.radioResourceConfigCommon
+                .rachConfigCommon.preambleInfo.numberOfRaPreambles = rc.numberOfRaPreambles;
+            hpi.asConfig.sourceSystemInformationBlockType2.radioResourceConfigCommon
+                .rachConfigCommon.raSupervisionInfo.preambleTransMax = rc.preambleTransMax;
+            hpi.asConfig.sourceSystemInformationBlockType2.radioResourceConfigCommon
+                .rachConfigCommon.raSupervisionInfo.raResponseWindowSize = rc.raResponseWindowSize;
+            hpi.asConfig.sourceSystemInformationBlockType2.radioResourceConfigCommon
+                .rachConfigCommon.txFailParam.connEstFailCount = rc.connEstFailCount;
+            hpi.asConfig.sourceSystemInformationBlockType2.freqInfo.ulCarrierFreq =
+                sourceComponentCarrier->GetUlEarfcn();
+            hpi.asConfig.sourceSystemInformationBlockType2.freqInfo.ulBandwidth =
+                sourceComponentCarrier->GetUlBandwidth();
+            params.rrcContext = m_rrc->m_rrcSapUser->EncodeHandoverPreparationInformation(hpi);
+
+            NS_LOG_LOGIC("oldGnbUeX2apId = " << params.oldGnbUeX2apId);
+            NS_LOG_LOGIC("sourceCellId = " << params.sourceCellId);
+            NS_LOG_LOGIC("targetCellId = " << params.targetCellId);
+            NS_LOG_LOGIC("mmeUeS1apId = " << params.mmeUeS1apId);
+            NS_LOG_LOGIC("rrcContext   = " << params.rrcContext);
+
+            m_rrc->m_x2SapProvider->SendHandoverRequest(params);
+            SwitchToState(HANDOVER_PREPARATION);
+        }
     }
     break;
-    case CONNECTION_SETUP:
-        // The UE has not yet sent RrcConnectionSetupComplete; it will
-        // transition to CONNECTED_NORMALLY shortly. Store the request
-        // and let RecvRrcConnectionSetupCompleted() dispatch it.
-        if (m_pendingHandoverTargetCellId != 0)
-        {
-            NS_LOG_WARN("NrUeManager::PrepareHandover: RNTI="
-                        << m_rnti << " already has a pending HO to cell="
-                        << m_pendingHandoverTargetCellId << "; overwriting with cell=" << cellId);
-        }
-        NS_LOG_INFO("NrUeManager::PrepareHandover: RNTI="
-                    << m_rnti << " is in CONNECTION_SETUP; deferring HO to cell=" << cellId
-                    << " until CONNECTED_NORMALLY");
-        m_pendingHandoverTargetCellId = cellId;
-        return; // do NOT fall through; no X2 message yet
-
-    case HANDOVER_PATH_SWITCH: // already handed-over UE
-    case HANDOVER_LEAVING:     // concurrent HO in progress
-    case HANDOVER_JOINING:
-        NS_LOG_WARN("NrUeManager::PrepareHandover: RNTI="
-                    << m_rnti << " ignoring HO request to cell=" << cellId
-                    << " — already in handover state " << ToString(m_state));
-        return; // silently drop, retrying here would corrupt state
 
     default:
         NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
@@ -842,6 +858,10 @@ NrUeManager::RecvHandoverRequestAck(NrEpcX2SapUser::HandoverRequestAckParams par
     }
     m_rrc->m_rrcSapUser->SendRrcConnectionReconfiguration(m_rnti, handoverCommand);
     SwitchToState(HANDOVER_LEAVING);
+    m_handoverLeavingTimeout = Simulator::Schedule(m_rrc->m_handoverLeavingTimeoutDuration,
+                                                   &NrGnbRrc::HandoverLeavingTimeout,
+                                                   m_rrc,
+                                                   m_rnti);
     NS_ASSERT(handoverCommand.haveMobilityControlInfo);
     m_rrc->m_handoverStartTrace(m_imsi,
                                 m_rrc->ComponentCarrierToCellId(m_componentCarrierId),
@@ -864,17 +884,17 @@ NrUeManager::RecvHandoverRequestAck(NrEpcX2SapUser::HandoverRequestAckParams par
         {
             NrPdcp::Status status = drbIt->second->m_pdcp->GetStatus();
             NrEpcX2Sap::ErabsSubjectToStatusTransferItem i;
-            i.erabId = drbIt->second->m_qosFlowIdentity;
+            // FIX (ho-cc): erabId was never assigned -> uninitialized garbage
+            // on the wire -> target's Bid2Drbid lookup misses m_drbMap and
+            // RecvSnStatusTransfer asserts at HO time. UM never hits this
+            // path (AM-only transfer), which is why it stayed hidden.
+            i.erabId = drbIt->second->m_epsBearerIdentity;
             i.dlPdcpSn = status.txSn;
             i.ulPdcpSn = status.rxSn;
             sst.erabsSubjectToStatusTransferList.push_back(i);
         }
     }
     m_rrc->m_x2SapProvider->SendSnStatusTransfer(sst);
-    m_handoverLeavingTimeout = Simulator::Schedule(m_rrc->m_handoverLeavingTimeoutDuration,
-                                                   &NrGnbRrc::HandoverLeavingTimeout,
-                                                   m_rrc,
-                                                   m_rnti);
 }
 
 NrRrcSap::RadioResourceConfigDedicated
@@ -892,53 +912,16 @@ NrUeManager::GetRrcConnectionReconfigurationForHandover(uint8_t componentCarrier
     NrRrcSap::RrcConnectionReconfiguration result = BuildRrcConnectionReconfiguration();
 
     auto targetComponentCarrier = m_rrc->m_componentCarrierPhyConf.at(componentCarrierId);
-    // An FDD cell receives uplink on a dedicated UL-only carrier rather than on
-    // the (DL) primary one, and the UE has no other way to learn it: it never
-    // read this cell's system information. Point the UL parts of the handover
-    // command at that carrier, if there is one.
-    auto ulComponentCarrier = targetComponentCarrier;
-    for (auto& it : m_rrc->m_componentCarrierPhyConf)
-    {
-        if (!it.second->GetPhy()->HasDlSlot())
-        {
-            ulComponentCarrier = it.second;
-            break;
-        }
-    }
     result.haveMobilityControlInfo = true;
     result.mobilityControlInfo.targetPhysCellId = targetComponentCarrier->GetCellId();
     result.mobilityControlInfo.haveCarrierFreq = true;
-    result.mobilityControlInfo.carrierFreq.dlCarrierFreq = targetComponentCarrier->GetArfcn();
-    result.mobilityControlInfo.carrierFreq.ulCarrierFreq = ulComponentCarrier->GetArfcn();
+    result.mobilityControlInfo.carrierFreq.dlCarrierFreq = targetComponentCarrier->GetDlEarfcn();
+    result.mobilityControlInfo.carrierFreq.ulCarrierFreq = targetComponentCarrier->GetUlEarfcn();
     result.mobilityControlInfo.haveCarrierBandwidth = true;
     result.mobilityControlInfo.carrierBandwidth.dlBandwidth =
         targetComponentCarrier->GetDlBandwidth();
-    result.mobilityControlInfo.carrierBandwidth.ulBandwidth = ulComponentCarrier->GetUlBandwidth();
-
-    // Carry the target cell's broadcast PHY configuration in the handover
-    // command so the UE re-tunes its target BWP to the *target* numerology,
-    // TDD pattern and control-symbol layout. Without this the UE would fall
-    // back to the (stale) serving-cell SIB1 it last decoded on the source
-    // cell, which breaks inter-numerology handover: the target BWP would keep
-    // the source numerology, so DL data reception (and hence the DL-CQI
-    // feedback that lets the target gNB schedule downlink) never recovers.
-    result.mobilityControlInfo.haveServingCellConfigCommon = true;
-    result.mobilityControlInfo.servingCellConfigCommon.numerology =
-        targetComponentCarrier->GetPhy()->GetNumerology();
-    result.mobilityControlInfo.servingCellConfigCommon.ulNumerology =
-        ulComponentCarrier->GetPhy()->GetNumerology();
-    result.mobilityControlInfo.servingCellConfigCommon.ulCarrierFreq =
-        ulComponentCarrier->GetArfcn();
-    result.mobilityControlInfo.servingCellConfigCommon.symbolsPerSlot =
-        targetComponentCarrier->GetPhy()->GetSymbolsPerSlot();
-    result.mobilityControlInfo.servingCellConfigCommon.dlCtrlSymsNum =
-        targetComponentCarrier->GetMac()->GetDlCtrlSyms();
-    result.mobilityControlInfo.servingCellConfigCommon.ulCtrlSymsNum =
-        targetComponentCarrier->GetMac()->GetUlCtrlSyms();
-    result.mobilityControlInfo.servingCellConfigCommon.tddPattern =
-        targetComponentCarrier->GetPhy()->GetPattern();
-    result.mobilityControlInfo.servingCellConfigCommon.rbgSize =
-        targetComponentCarrier->GetPhy()->GetNumRbPerRbg();
+    result.mobilityControlInfo.carrierBandwidth.ulBandwidth =
+        targetComponentCarrier->GetUlBandwidth();
 
     if (m_caSupportConfigured && m_rrc->m_numberOfComponentCarriers > 1)
     {
@@ -1138,18 +1121,6 @@ NrUeManager::RecvUeContextRelease(NrEpcX2SapUser::UeContextReleaseParams params)
     NS_LOG_FUNCTION(this);
     NS_ASSERT_MSG(m_state == HANDOVER_LEAVING, "method unexpected in state " << ToString(m_state));
     m_handoverLeavingTimeout.Cancel();
-
-    // Source-side handover completion: the target released the UE context back to us.
-    // Report the total handover time measured from the A3 trigger, if recorded.
-    auto triggerIt = m_rrc->m_handoverTriggerTime.find(m_imsi);
-    if (triggerIt != m_rrc->m_handoverTriggerTime.end())
-    {
-        m_rrc->m_handoverTotalTimeTrace(m_imsi,
-                                        params.sourceCellId,
-                                        params.targetCellId,
-                                        Simulator::Now() - triggerIt->second);
-        m_rrc->m_handoverTriggerTime.erase(triggerIt);
-    }
 }
 
 void
@@ -1194,37 +1165,6 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
     NS_LOG_FUNCTION(this);
     switch (m_state)
     {
-    case CONNECTED_NORMALLY: {
-        // UE context exists but UE attempts new connection (e.g., after RLF or
-        // handover failure). Reset context and treat as fresh connection.
-        NS_LOG_INFO("Resetting UE context from CONNECTED_NORMALLY for new RRC Connection Request");
-        m_state = NrUeManager::INITIAL_RANDOM_ACCESS;
-        // Fall through to handle as fresh connection
-    }
-    case HANDOVER_LEAVING: {
-        // Handover is in progress but UE attempts to reconnect to the source gNB.
-        // This can happen if the handover to the target gNB fails. Clean up the
-        // stale context and treat as a fresh connection.
-        NS_LOG_INFO("Cleaning up stale UE context in HANDOVER_LEAVING state for RNTI "
-                    << m_rnti << " — treating as fresh connection");
-        m_handoverLeavingTimeout.Cancel();
-        m_state = NrUeManager::INITIAL_RANDOM_ACCESS;
-        // Fall through to handle as fresh connection
-    }
-    case HANDOVER_JOINING:
-        // The target gNB is awaiting the incoming handover to complete, but the UE
-        // instead sends a fresh RRC Connection Request -- this happens when the UE
-        // declared RLF instead of joining (e.g. the TR 36.839 too-late handover
-        // model) and re-selected this cell during re-establishment. Re-attaching
-        // here would re-run the full S1 InitialContextSetup for an already-attached
-        // UE and drift the MME/RRC bearer (QFI) allocation. Instead ignore the
-        // request and let the already-scheduled handover-joining timeout perform the
-        // canonical failure cleanup (fire HO_FAIL_JOINING, notify the source over X2,
-        // release the UE context); the UE falls back to IDLE and re-attaches cleanly.
-        NS_LOG_INFO("Ignoring RRC Connection Request in HANDOVER_JOINING for RNTI "
-                    << m_rnti << "; handover join will be failed by its timeout");
-        break;
-
     case INITIAL_RANDOM_ACCESS: {
         m_connectionRequestTimeout.Cancel();
 
@@ -1236,11 +1176,6 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
             NrRrcSap::RrcConnectionSetup msg2;
             msg2.rrcTransactionIdentifier = GetNewRrcTransactionIdentifier();
             msg2.radioResourceConfigDedicated = BuildRadioResourceConfigDedicated();
-            // The setup message rides SRB0 (RLC-TM), which cannot segment and
-            // whose grant would not fit the BWP configuration: it is sent in
-            // the RRC connection reconfiguration (SRB1, RLC-AM) instead
-            msg2.radioResourceConfigDedicated.bwpConfigList.clear();
-            msg2.radioResourceConfigDedicated.qosFlowToBwpList.clear();
             m_rrc->m_rrcSapUser->SendRrcConnectionSetup(m_rnti, msg2);
 
             RecordDataRadioBearersToBeStarted();
@@ -1269,27 +1204,8 @@ NrUeManager::RecvRrcConnectionRequest(NrRrcSap::RrcConnectionRequest msg)
     }
     break;
 
-    case CONNECTION_SETUP:
-        // Duplicate RRC Connection Request: the gNB has already received msg3,
-        // sent msg4 (RRC Connection Setup) and is awaiting Setup Complete. A
-        // second copy of the same Connection Request can be delivered when msg3
-        // HARQ (re)transmissions are combined/decoded more than once. It is a
-        // lower-layer artefact, so ignore it rather than restarting setup.
-        NS_LOG_INFO("Ignoring duplicate RRC Connection Request in CONNECTION_SETUP for RNTI "
-                    << m_rnti);
-        break;
-
     default:
-        // Any other (already-active) state receiving a fresh RRC Connection Request
-        // means an RLF'd UE re-selected this cell and re-attached before the gNB
-        // released its context -- e.g. mid-reconfiguration (CONNECTION_RECONFIGURATION)
-        // or during a handover path switch (HANDOVER_PATH_SWITCH), typically via the
-        // TR 36.839 too-late-handover RLF. As in HANDOVER_JOINING, ignore it:
-        // re-admitting would re-run S1 InitialContextSetup for an already-known UE and
-        // drift the bearer (QFI) allocation. The state's own timeout / RLF cleanup
-        // releases this context and the UE re-attaches cleanly.
-        NS_LOG_INFO("Ignoring RRC Connection Request in state " << ToString(m_state) << " for RNTI "
-                                                                << m_rnti);
+        NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
         break;
     }
 }
@@ -1316,17 +1232,6 @@ NrUeManager::RecvRrcConnectionSetupCompleted(NrRrcSap::RrcConnectionSetupComplet
         else
         {
             SwitchToState(CONNECTED_NORMALLY);
-            // Fire a deferred handover request if one arrived during CONNECTION_SETUP.
-            // ScheduleNow avoids re-entrancy: PrepareHandover() sends X2 messages and
-            // modifies m_state, which must not happen inside this callback's stack.
-            if (m_pendingHandoverTargetCellId != 0)
-            {
-                uint16_t targetCell = m_pendingHandoverTargetCellId;
-                m_pendingHandoverTargetCellId = 0; // clear before scheduling
-                NS_LOG_INFO("NrUeManager: executing deferred HO to cell="
-                            << targetCell << " for RNTI=" << m_rnti);
-                Simulator::ScheduleNow(&NrUeManager::PrepareHandover, this, targetCell);
-            }
         }
         m_rrc->m_connectionEstablishedTrace(m_imsi,
                                             m_rrc->ComponentCarrierToCellId(m_componentCarrierId),
@@ -1378,6 +1283,10 @@ NrUeManager::RecvRrcConnectionReconfigurationCompleted(
     // This case is added to NS-3 in order to handle bearer de-activation scenario for CONNECTED
     // state UE
     case CONNECTED_NORMALLY:
+        NS_LOG_INFO("ignoring RecvRrcConnectionReconfigurationCompleted in state "
+                    << ToString(m_state));
+        break;
+
     case HANDOVER_LEAVING:
         NS_LOG_INFO("ignoring RecvRrcConnectionReconfigurationCompleted in state "
                     << ToString(m_state));
@@ -1415,14 +1324,7 @@ NrUeManager::RecvRrcConnectionReconfigurationCompleted(
         m_rrc->m_s1SapProvider->PathSwitchRequest(params);
     }
     break;
-    case INITIAL_RANDOM_ACCESS:
-        // Stale RrcConnectionReconfigurationCompleted from a previous failed
-        // handover attempt whose UE context was not yet fully cleaned up.
-        // The RNTI was recycled for a fresh attach; safely ignore the message.
-        NS_LOG_WARN("NrUeManager: ignoring stale "
-                    "RecvRrcConnectionReconfigurationCompleted in state "
-                    << ToString(m_state) << " (RNTI " << m_rnti << ")");
-        break;
+
     default:
         NS_FATAL_ERROR("method unexpected in state " << ToString(m_state));
         break;
@@ -1448,21 +1350,11 @@ NrUeManager::RecvRrcConnectionReestablishmentRequest(
         break;
     }
 
-    if (m_rrc->m_useRrcReestablishment)
-    {
-        NS_LOG_INFO("Accepting RRC connection reestablishment request for RNTI " << m_rnti);
-        NrRrcSap::RrcConnectionReestablishment msg2;
-        msg2.rrcTransactionIdentifier = GetNewRrcTransactionIdentifier();
-        msg2.radioResourceConfigDedicated = BuildRadioResourceConfigDedicated();
-        m_rrc->m_rrcSapUser->SendRrcConnectionReestablishment(m_rnti, msg2);
-        SwitchToState(CONNECTION_REESTABLISHMENT);
-    }
-    else
-    {
-        NS_LOG_INFO("RRC reestablishment disabled. Rejecting reestablishment request for RNTI "
-                    << m_rnti);
-        m_rrc->DoRecvIdealUeContextRemoveRequest(m_rnti);
-    }
+    NrRrcSap::RrcConnectionReestablishment msg2;
+    msg2.rrcTransactionIdentifier = GetNewRrcTransactionIdentifier();
+    msg2.radioResourceConfigDedicated = BuildRadioResourceConfigDedicated();
+    m_rrc->m_rrcSapUser->SendRrcConnectionReestablishment(m_rnti, msg2);
+    SwitchToState(CONNECTION_REESTABLISHMENT);
 }
 
 void
@@ -1477,7 +1369,6 @@ void
 NrUeManager::RecvMeasurementReport(NrRrcSap::MeasurementReport msg)
 {
     uint8_t measId = msg.measResults.measId;
-    auto cellId = m_rrc->ComponentCarrierToCellId(m_componentCarrierId);
     NS_LOG_FUNCTION(this << (uint16_t)measId);
     NS_LOG_LOGIC(
         "measId " << (uint16_t)measId << " haveMeasResultNeighCells "
@@ -1584,37 +1475,10 @@ NrUeManager::GetComponentCarrierId() const
     return m_componentCarrierId;
 }
 
-void
-NrUeManager::SetPrimaryBwp(uint8_t bwpId)
-{
-    NS_LOG_FUNCTION(this << m_rnti << +bwpId);
-    m_primaryBwpId = bwpId;
-    // Re-point this UE's downlink scheduling to the new BWP so DL data follows
-    // the UE's same-cell primary-BWP switch. The component carrier manager
-    // (e.g. BwpManagerGnb) records the per-UE override; subsequent BSR-driven
-    // DL scheduling for this UE is then placed on the new BWP.
-    if (m_rrc->m_ccmRrcSapProvider != nullptr)
-    {
-        m_rrc->m_ccmRrcSapProvider->SetUePrimaryBwp(m_rnti, bwpId);
-    }
-}
-
-uint8_t
-NrUeManager::GetPrimaryBwp() const
-{
-    return m_primaryBwpId;
-}
-
 uint16_t
 NrUeManager::GetSrsConfigurationIndex() const
 {
     return m_physicalConfigDedicated.soundingRsUlConfigDedicated.srsConfigIndex;
-}
-
-Ptr<NrSignalingRadioBearerInfo>
-NrUeManager::GetSrb0() const
-{
-    return m_srb0;
 }
 
 void
@@ -1643,18 +1507,6 @@ NrUeManager::State
 NrUeManager::GetState() const
 {
     return m_state;
-}
-
-Time
-NrUeManager::GetConnectedNormallyAt() const
-{
-    return m_connectedNormallyAt;
-}
-
-ns3::TracedCallback<uint64_t, uint16_t, uint16_t, NrUeManager::State, NrUeManager::State>
-NrUeManager::GetStateTransitionTrace() const
-{
-    return m_stateTransitionTrace;
 }
 
 void
@@ -1716,16 +1568,13 @@ NrUeManager::AddDataRadioBearerInfo(Ptr<NrDataRadioBearerInfo> drbInfo)
     for (int drbid = (m_lastAllocatedDrbid + 1) % MAX_DRB_ID; drbid != m_lastAllocatedDrbid;
          drbid = (drbid + 1) % MAX_DRB_ID)
     {
-        // Skip DRBID 0 (not allowed), 1-2 (reserved), 4 (reserved for sidelink)
-        if (drbid != 0 && drbid != 1 && drbid != 2 && drbid != 4)
+        if (drbid != 0) // 0 is not allowed
         {
             if (m_drbMap.find(drbid) == m_drbMap.end())
             {
                 m_drbMap.insert(std::pair<uint8_t, Ptr<NrDataRadioBearerInfo>>(drbid, drbInfo));
                 drbInfo->m_drbIdentity = drbid;
                 m_lastAllocatedDrbid = drbid;
-                NS_LOG_DEBUG("Allocated DRBID " << (uint32_t)drbid << " (LCID " << (uint32_t)drbid
-                                                << ") for RNTI " << m_rnti);
                 return drbid;
             }
         }
@@ -1781,39 +1630,6 @@ NrUeManager::BuildRrcConnectionReconfiguration()
     return msg;
 }
 
-/**
- * @brief Build the ServingCellConfigCommon describing a carrier
- * @param cc the carrier
- * @param fddUlCarrier the cell's dedicated UL-only carrier, if any
- * @return the ServingCellConfigCommon of the carrier
- *
- * A DL-only carrier (FDD) points its UL fields at the cell's dedicated UL-only
- * carrier; any UL-capable carrier points at itself.
- */
-static NrRrcSap::ServingCellConfigCommon
-BuildServingCellConfigCommon(const Ptr<BandwidthPartGnb>& cc,
-                             const Ptr<BandwidthPartGnb>& fddUlCarrier)
-{
-    NrRrcSap::ServingCellConfigCommon scc;
-    scc.numerology = cc->GetPhy()->GetNumerology();
-    if (!cc->GetPhy()->HasUlSlot() && fddUlCarrier)
-    {
-        scc.ulNumerology = fddUlCarrier->GetPhy()->GetNumerology();
-        scc.ulCarrierFreq = fddUlCarrier->GetArfcn();
-    }
-    else
-    {
-        scc.ulNumerology = cc->GetPhy()->GetNumerology();
-        scc.ulCarrierFreq = cc->GetArfcn();
-    }
-    scc.symbolsPerSlot = cc->GetPhy()->GetSymbolsPerSlot();
-    scc.dlCtrlSymsNum = cc->GetMac()->GetDlCtrlSyms();
-    scc.ulCtrlSymsNum = cc->GetMac()->GetUlCtrlSyms();
-    scc.tddPattern = cc->GetPhy()->GetPattern();
-    scc.rbgSize = cc->GetPhy()->GetNumRbPerRbg();
-    return scc;
-}
-
 NrRrcSap::RadioResourceConfigDedicated
 NrUeManager::BuildRadioResourceConfigDedicated()
 {
@@ -1841,48 +1657,6 @@ NrUeManager::BuildRadioResourceConfigDedicated()
 
     rrcd.havePhysicalConfigDedicated = true;
     rrcd.physicalConfigDedicated = m_physicalConfigDedicated;
-
-    // Describe every BWP/carrier of the cell, so the UE configures its extra
-    // BWPs and derives the UL pairing of DL-only (FDD) carriers from dedicated
-    // signaling instead of manual UE-side configuration
-    Ptr<BandwidthPartGnb> fddUlCarrier;
-    for (const auto& it : m_rrc->m_componentCarrierPhyConf)
-    {
-        if (!it.second->GetPhy()->HasDlSlot())
-        {
-            fddUlCarrier = it.second;
-            break;
-        }
-    }
-    for (const auto& it : m_rrc->m_componentCarrierPhyConf)
-    {
-        NrRrcSap::BwpConfig bwpConfig;
-        bwpConfig.arfcn = it.second->GetArfcn();
-        bwpConfig.config = BuildServingCellConfigCommon(it.second, fddUlCarrier);
-        // A DL-only carrier paired explicitly (e.g. a secondary FDD pair in a
-        // mixed TDD/FDD carrier aggregation setup) points at its own UL
-        // carrier rather than the cell's default one
-        auto pairIt = m_rrc->m_ulCarrierPairing.find(bwpConfig.arfcn);
-        if (!it.second->GetPhy()->HasUlSlot() && pairIt != m_rrc->m_ulCarrierPairing.end())
-        {
-            bwpConfig.config.ulCarrierFreq = pairIt->second;
-            for (const auto& cc : m_rrc->m_componentCarrierPhyConf)
-            {
-                if (cc.second->GetArfcn() == pairIt->second)
-                {
-                    bwpConfig.config.ulNumerology = cc.second->GetPhy()->GetNumerology();
-                    break;
-                }
-            }
-        }
-        rrcd.bwpConfigList.push_back(bwpConfig);
-    }
-    // Mirror the gNB's QoS flow to BWP mapping, so the UE routes its uplink
-    // flows the way the network schedules them
-    for (const auto& [fiveQi, arfcn] : m_rrc->m_qosFlowToBwpArfcn)
-    {
-        rrcd.qosFlowToBwpList.push_back({fiveQi, arfcn});
-    }
     return rrcd;
 }
 
@@ -1893,6 +1667,44 @@ NrUeManager::GetNewRrcTransactionIdentifier()
     ++m_lastRrcTransactionIdentifier;
     m_lastRrcTransactionIdentifier %= 4;
     return m_lastRrcTransactionIdentifier;
+}
+
+uint8_t
+NrUeManager::Lcid2Drbid(uint8_t lcid)
+{
+    NS_ASSERT(lcid > 2);
+    return lcid - 2;
+}
+
+uint8_t
+NrUeManager::Drbid2Lcid(uint8_t drbid)
+{
+    return drbid + 2;
+}
+
+uint8_t
+NrUeManager::Lcid2Bid(uint8_t lcid)
+{
+    NS_ASSERT(lcid > 2);
+    return lcid - 2;
+}
+
+uint8_t
+NrUeManager::Bid2Lcid(uint8_t bid)
+{
+    return bid + 2;
+}
+
+uint8_t
+NrUeManager::Drbid2Bid(uint8_t drbid)
+{
+    return drbid;
+}
+
+uint8_t
+NrUeManager::Bid2Drbid(uint8_t bid)
+{
+    return bid;
 }
 
 void
@@ -1921,10 +1733,6 @@ NrUeManager::SwitchToState(State newState)
         break;
 
     case CONNECTED_NORMALLY: {
-        // Record when the UE became actively served by this cell (initial connection
-        // or handover completion). Used by the minimum-time-of-stay handover guard to
-        // suppress ping-pong (a UE handed in then immediately handed back out).
-        m_connectedNormallyAt = Simulator::Now();
         if (m_pendingRrcConnectionReconfiguration)
         {
             ScheduleRrcConnectionReconfiguration();
@@ -1942,16 +1750,6 @@ NrUeManager::SwitchToState(State newState)
     default:
         break;
     }
-}
-
-void
-NrUeManager::StartHandoverJoiningTimer()
-{
-    NS_ASSERT_MSG(m_state == HANDOVER_JOINING, "unexpected state " << ToString(m_state));
-    m_handoverJoiningTimeout = Simulator::Schedule(m_rrc->m_handoverJoiningTimeoutDuration,
-                                                   &NrGnbRrc::HandoverJoiningTimeout,
-                                                   m_rrc,
-                                                   m_rnti);
 }
 
 NrRrcSap::NonCriticalExtensionConfiguration
@@ -2059,12 +1857,11 @@ NrGnbRrc::NrGnbRrc()
       m_cphySapProvider(0),
       m_configured(false),
       m_lastAllocatedRnti(0),
+      m_srsCurrentPeriodicityId(0),
       m_lastAllocatedConfigurationIndex(0),
       m_reconfigureUes(false),
       m_numberOfComponentCarriers(0),
-      m_carriersConfigured(false),
-      m_handoverDecisionDelay(Seconds(0)),
-      m_handoverTriggeringDelay(Seconds(0))
+      m_carriersConfigured(false)
 {
     NS_LOG_FUNCTION(this);
     m_cmacSapUser.push_back(new GnbRrcMemberNrGnbCmacSapUser(this, 0));
@@ -2104,15 +1901,16 @@ void
 NrGnbRrc::DoDispose()
 {
     NS_LOG_FUNCTION(this);
-    for (auto cphySapUser : m_cphySapUser)
+    for (uint16_t i = 0; i < m_numberOfComponentCarriers; i++)
     {
-        delete cphySapUser;
+        delete m_cphySapUser[i];
+        delete m_cmacSapUser[i];
     }
+    // delete m_cphySapUser;
+    m_cphySapUser.erase(m_cphySapUser.begin(), m_cphySapUser.end());
     m_cphySapUser.clear();
-    for (auto cmacSapUser : m_cmacSapUser)
-    {
-        delete cmacSapUser;
-    }
+    // delete m_cmacSapUser;
+    m_cmacSapUser.erase(m_cmacSapUser.begin(), m_cmacSapUser.end());
     m_cmacSapUser.clear();
     m_ueMap.clear();
     delete m_handoverManagementSapUser;
@@ -2131,12 +1929,6 @@ NrGnbRrc::GetTypeId()
             .SetParent<Object>()
             .SetGroupName("Nr")
             .AddConstructor<NrGnbRrc>()
-            .AddTraceSource(
-                "RxRrcConnectionReconfigurationCompleted",
-                "Trace fired when the gNB RRC receives an RRC Connection "
-                "Reconfiguration Complete message for the given UE.",
-                MakeTraceSourceAccessor(&NrGnbRrc::m_rxRrcConnectionReconfigurationCompletedTrace),
-                "uint16_t")
             .AddAttribute("UeMap",
                           "List of NrUeManager by C-RNTI.",
                           ObjectMapValue(),
@@ -2148,10 +1940,10 @@ NrGnbRrc::GetTypeId()
                           MakeUintegerAccessor(&NrGnbRrc::m_defaultTransmissionMode),
                           MakeUintegerChecker<uint8_t>())
             .AddAttribute(
-                "QosFlowToRlcMapping",
-                "Specify which type of RLC will be used for each type of QoS flow.",
+                "EpsBearerToRlcMapping",
+                "Specify which type of RLC will be used for each type of EPS bearer.",
                 EnumValue(RLC_SM_ALWAYS),
-                MakeEnumAccessor<NrQosFlowToRlcMapping_t>(&NrGnbRrc::m_qosFlowToRlcMapping),
+                MakeEnumAccessor<NrEpsBearerToRlcMapping_t>(&NrGnbRrc::m_epsBearerToRlcMapping),
                 MakeEnumChecker(RLC_SM_ALWAYS,
                                 "RlcSmAlways",
                                 RLC_UM_ALWAYS,
@@ -2165,6 +1957,14 @@ NrGnbRrc::GetTypeId()
                           TimeValue(MilliSeconds(80)),
                           MakeTimeAccessor(&NrGnbRrc::m_systemInformationPeriodicity),
                           MakeTimeChecker())
+
+            // SRS related attributes
+            .AddAttribute(
+                "SrsPeriodicity",
+                "The SRS periodicity in milliseconds",
+                UintegerValue(40),
+                MakeUintegerAccessor(&NrGnbRrc::SetSrsPeriodicity, &NrGnbRrc::GetSrsPeriodicity),
+                MakeUintegerChecker<uint32_t>())
 
             // Timeout related attributes
             .AddAttribute("ConnectionRequestTimeoutDuration",
@@ -2200,17 +2000,6 @@ NrGnbRrc::GetTypeId()
                           "of the RRC CONNECTION RECONFIGURATION COMPLETE message.",
                           TimeValue(MilliSeconds(200)),
                           MakeTimeAccessor(&NrGnbRrc::m_handoverJoiningTimeoutDuration),
-                          MakeTimeChecker())
-            .AddAttribute("HandoverMinTimeOfStay",
-                          "Reversal-only ping-pong handover guard: a handover is suppressed "
-                          "only if it would send the UE BACK to the cell it just came from "
-                          "(the source of the handover that brought it here) less than this "
-                          "long after arriving. This breaks A->B->A oscillation -- which the "
-                          "A3 algorithm alone does not prevent when the net A3 margin is near "
-                          "zero -- without stranding a UE that genuinely needs to move forward "
-                          "(A->B->C is still allowed). 0 (the default) disables the guard.",
-                          TimeValue(MilliSeconds(0)),
-                          MakeTimeAccessor(&NrGnbRrc::m_handoverMinTimeOfStay),
                           MakeTimeChecker())
             .AddAttribute("HandoverLeavingTimeoutDuration",
                           "After issuing a Handover Command, if neither RRC "
@@ -2250,25 +2039,6 @@ NrGnbRrc::GetTypeId()
                           BooleanValue(true),
                           MakeBooleanAccessor(&NrGnbRrc::m_admitRrcConnectionRequest),
                           MakeBooleanChecker())
-            .AddAttribute(
-                "UseRrcReestablishment",
-                "Whether to accept RRC connection reestablishment requests from UEs. "
-                "When disabled, the gNB rejects reestablishment requests and clears UE context.",
-                BooleanValue(true),
-                MakeBooleanAccessor(&NrGnbRrc::m_useRrcReestablishment),
-                MakeBooleanChecker())
-            .AddAttribute("HandoverDecisionDelay",
-                          "Time delay between receiving a measurement report and "
-                          "forwarding it to the handover algorithm for decision making.",
-                          TimeValue(MilliSeconds(0)), // 50 ms in TR 36.839
-                          MakeTimeAccessor(&NrGnbRrc::m_handoverDecisionDelay),
-                          MakeTimeChecker())
-            .AddAttribute("HandoverTriggeringDelay",
-                          "Time delay between the handover algorithm deciding to handover "
-                          "and the gNB RRC actually triggering the handover procedure.",
-                          TimeValue(MilliSeconds(0)), // 40 ms in TR 36.839
-                          MakeTimeAccessor(&NrGnbRrc::m_handoverTriggeringDelay),
-                          MakeTimeChecker())
 
             // UE measurements related attributes
             .AddAttribute("RsrpFilterCoefficient",
@@ -2309,12 +2079,6 @@ NrGnbRrc::GetTypeId()
                             "trace fired upon successful termination of a handover procedure",
                             MakeTraceSourceAccessor(&NrGnbRrc::m_handoverEndOkTrace),
                             "ns3::NrGnbRrc::ConnectionHandoverTracedCallback")
-            .AddTraceSource("HandoverTotalTime",
-                            "total time from the A3 handover trigger (condition met at the "
-                            "source gNB) to handover completion, fired at the source gNB "
-                            "on successful handover",
-                            MakeTraceSourceAccessor(&NrGnbRrc::m_handoverTotalTimeTrace),
-                            "ns3::NrGnbRrc::HandoverTotalTimeTracedCallback")
             .AddTraceSource("RecvMeasurementReport",
                             "trace fired when measurement report is received",
                             MakeTraceSourceAccessor(&NrGnbRrc::m_recvMeasurementReportTrace),
@@ -2347,14 +2111,7 @@ NrGnbRrc::GetTypeId()
                 "HandoverFailureJoining",
                 "trace fired upon handover failure due to handover joining timeout at target eNB",
                 MakeTraceSourceAccessor(&NrGnbRrc::m_handoverFailureJoiningTrace),
-                "ns3::NrGnbRrc::HandoverFailureTracedCallback")
-            .AddTraceSource(
-                "X2DataForwardingDrop",
-                "trace fired when a UE-data packet forwarded over X2-U is dropped because no "
-                "matching X2-U TEID mapping exists (the packet arrived outside the handover "
-                "data-forwarding window)",
-                MakeTraceSourceAccessor(&NrGnbRrc::m_x2DataForwardingDropTrace),
-                "ns3::NrGnbRrc::X2DataForwardingDropTracedCallback");
+                "ns3::NrGnbRrc::HandoverFailureTracedCallback");
     return tid;
 }
 
@@ -2464,20 +2221,6 @@ NrGnbRrc::GetNrGnbRrcSapProvider()
     return m_rrcSapProvider;
 }
 
-NrGnbRrcSapUser*
-NrGnbRrc::GetNrGnbRrcSapUser()
-{
-    NS_LOG_FUNCTION(this);
-    return m_rrcSapUser;
-}
-
-ns3::TracedCallback<uint16_t>
-NrGnbRrc::GetRxRrcConnectionReconfigurationCompletedTrace() const
-{
-    NS_LOG_FUNCTION(this);
-    return m_rxRrcConnectionReconfigurationCompletedTrace;
-}
-
 void
 NrGnbRrc::SetNrMacSapProvider(NrMacSapProvider* s)
 {
@@ -2554,19 +2297,8 @@ NrGnbRrc::GetUeManager(uint16_t rnti)
     NS_LOG_FUNCTION(this << (uint32_t)rnti);
     NS_ASSERT(0 != rnti);
     auto it = m_ueMap.find(rnti);
-    if (it == m_ueMap.end())
-    {
-        NS_LOG_WARN("UE manager for RNTI " << rnti << " not found");
-        return nullptr;
-    }
+    NS_ASSERT_MSG(it != m_ueMap.end(), "UE manager for RNTI " << rnti << " not found");
     return it->second;
-}
-
-std::map<uint16_t, Ptr<NrUeManager>>
-NrGnbRrc::GetUeMap() const
-{
-    NS_LOG_FUNCTION(this);
-    return m_ueMap;
 }
 
 std::vector<uint8_t>
@@ -2575,24 +2307,10 @@ NrGnbRrc::AddUeMeasReportConfig(NrRrcSap::ReportConfigEutra config)
     NS_LOG_FUNCTION(this);
 
     // SANITY CHECK
-    // Each reporting configuration is linked to the gNB's own carriers
-    // (m_numberOfComponentCarriers objects) plus every registered inter-frequency
-    // neighbour measurement object (those with measObjectId beyond the own-carrier
-    // range). The number of measurement identities must therefore equal the number
-    // of reporting configurations times the number of linked measurement objects.
 
-    std::size_t neighbourMeasObjects = 0;
-    for (const auto& measObject : m_ueMeasConfig.measObjectToAddModList)
-    {
-        if (measObject.measObjectId > m_numberOfComponentCarriers)
-        {
-            neighbourMeasObjects++;
-        }
-    }
     NS_ASSERT_MSG(
         m_ueMeasConfig.measIdToAddModList.size() ==
-            m_ueMeasConfig.reportConfigToAddModList.size() *
-                (m_numberOfComponentCarriers + neighbourMeasObjects),
+            m_ueMeasConfig.reportConfigToAddModList.size() * m_numberOfComponentCarriers,
         "Measurement identities and reporting configuration should not have different quantity");
 
     if (Simulator::Now() != Seconds(0))
@@ -2669,45 +2387,16 @@ NrGnbRrc::AddUeMeasReportConfig(NrRrcSap::ReportConfigEutra config)
 
     std::vector<uint8_t> measIds;
 
-    // Create measurement identities, linking the reporting configuration to the
-    // gNB's own carrier measurement objects (one per component carrier, with
-    // predictable measObjectId 1..m_numberOfComponentCarriers). These objects
-    // are created in ConfigureCell(), which may run after this method, so the
-    // component carrier count is used rather than the current object list size.
-    for (uint16_t componentCarrier = 0; componentCarrier < m_numberOfComponentCarriers;
-         componentCarrier++)
+    // create measurement identities, linking reporting configuration to all objects
+    for (uint16_t BandwidthPartGnb = 0; BandwidthPartGnb < m_numberOfComponentCarriers;
+         BandwidthPartGnb++)
     {
         NrRrcSap::MeasIdToAddMod measIdToAddMod;
 
         uint8_t measId = m_ueMeasConfig.measIdToAddModList.size() + 1;
 
         measIdToAddMod.measId = measId;
-        measIdToAddMod.measObjectId = componentCarrier + 1;
-        measIdToAddMod.reportConfigId = nextId;
-
-        m_ueMeasConfig.measIdToAddModList.push_back(measIdToAddMod);
-        measIds.push_back(measId);
-    }
-
-    // Additionally link the reporting configuration to every inter-frequency
-    // neighbour measurement object registered via AddNeighbourMeasFrequency().
-    // This lets a single report configuration (e.g. the A3 handover report)
-    // evaluate neighbours on other carrier frequencies, enabling inter-frequency
-    // handover. The returned measIds therefore cover both own and neighbour
-    // frequencies, so the requesting algorithm recognises cross-frequency
-    // measurement reports.
-    for (const auto& measObject : m_ueMeasConfig.measObjectToAddModList)
-    {
-        if (measObject.measObjectId <= m_numberOfComponentCarriers)
-        {
-            continue; // own-carrier object, already linked above
-        }
-
-        NrRrcSap::MeasIdToAddMod measIdToAddMod;
-        uint8_t measId = m_ueMeasConfig.measIdToAddModList.size() + 1;
-
-        measIdToAddMod.measId = measId;
-        measIdToAddMod.measObjectId = measObject.measObjectId;
+        measIdToAddMod.measObjectId = BandwidthPartGnb + 1;
         measIdToAddMod.reportConfigId = nextId;
 
         m_ueMeasConfig.measIdToAddModList.push_back(measIdToAddMod);
@@ -2718,73 +2407,43 @@ NrGnbRrc::AddUeMeasReportConfig(NrRrcSap::ReportConfigEutra config)
 }
 
 void
-NrGnbRrc::AddNeighbourMeasFrequency(uint32_t arfcn, uint8_t dlBandwidth)
+NrGnbRrc::ConfigureCell(std::map<uint8_t, Ptr<BandwidthPartGnb>> ccPhyConf)
 {
-    NS_LOG_FUNCTION(this << arfcn << +dlBandwidth);
-    NS_ASSERT_MSG(!m_configured, "AddNeighbourMeasFrequency must be called before ConfigureCell()");
+    auto it = ccPhyConf.begin();
+    NS_ASSERT(it != ccPhyConf.end());
+    uint16_t ulBandwidth = it->second->GetUlBandwidth();
+    uint16_t dlBandwidth = it->second->GetDlBandwidth();
+    uint32_t ulEarfcn = it->second->GetUlEarfcn();
+    uint32_t dlEarfcn = it->second->GetDlEarfcn();
+    NS_LOG_FUNCTION(this << ulBandwidth << dlBandwidth << ulEarfcn << dlEarfcn);
+    NS_ASSERT(!m_configured);
 
-    // Ignore duplicates (a neighbour frequency may be registered more than once).
-    if (m_neighbourMeasFreqs.find(arfcn) != m_neighbourMeasFreqs.end())
-    {
-        return;
-    }
-    m_neighbourMeasFreqs[arfcn] = dlBandwidth;
-
-    // Create the inter-frequency measurement object immediately, with a
-    // measObjectId placed after the gNB's own carrier objects (which use ids
-    // 1..m_numberOfComponentCarriers, assigned in ConfigureCell). Doing this
-    // before the handover algorithm registers its reporting configuration lets
-    // AddUeMeasReportConfig() link the report configs to this neighbour object
-    // as well, so cross-frequency neighbours are measured and reported.
-    NrRrcSap::MeasObjectToAddMod measObject;
-    measObject.measObjectId = m_numberOfComponentCarriers + m_neighbourMeasFreqs.size();
-    measObject.measObjectEutra.carrierFreq = arfcn;
-    measObject.measObjectEutra.allowedMeasBandwidth = dlBandwidth;
-    measObject.measObjectEutra.presenceAntennaPort1 = false;
-    measObject.measObjectEutra.neighCellConfig = 0;
-    measObject.measObjectEutra.offsetFreq = 0;
-    measObject.measObjectEutra.haveCellForWhichToReportCGI = false;
-    m_ueMeasConfig.measObjectToAddModList.push_back(measObject);
-}
-
-void
-NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyConf)
-{
-    {
-        auto it = ccPhyConf.begin();
-        NS_ASSERT(it != ccPhyConf.end());
-        m_ulBandwidth = it->second->GetUlBandwidth();
-        m_dlBandwidth = it->second->GetDlBandwidth();
-        auto arfcn = it->second->GetArfcn();
-
-        NS_LOG_FUNCTION(this << m_ulBandwidth << m_dlBandwidth << arfcn);
-        NS_ASSERT_MSG(!m_configured, "NrGnbRrc::ConfigureCell called more than once");
-    }
     for (const auto& it : ccPhyConf)
     {
         m_cphySapProvider.at(it.first)->SetBandwidth(it.second->GetUlBandwidth(),
                                                      it.second->GetDlBandwidth());
-        m_cphySapProvider.at(it.first)->SetArfcn(it.second->GetArfcn());
+        m_cphySapProvider.at(it.first)->SetEarfcn(it.second->GetUlEarfcn(),
+                                                  it.second->GetDlEarfcn());
         m_cphySapProvider.at(it.first)->SetCellId(it.second->GetCellId());
         m_cmacSapProvider.at(it.first)->ConfigureMac(it.second->GetUlBandwidth(),
                                                      it.second->GetDlBandwidth());
     }
 
+    m_dlEarfcn = dlEarfcn;
+    m_ulEarfcn = ulEarfcn;
+    m_dlBandwidth = dlBandwidth;
+    m_ulBandwidth = ulBandwidth;
+
     /*
      * Initializing the list of measurement objects.
-     * One intra-frequency measurement object is created for each of this gNB's
-     * own carrier frequencies (measObjectId 1..m_numberOfComponentCarriers).
-     * Inter-frequency neighbour measurement objects, if any, were already added
-     * to m_ueMeasConfig by AddNeighbourMeasFrequency() before this call, using
-     * measObjectIds beyond the own-carrier range. Together they enable both
-     * intra-frequency and inter-frequency (and, by extension, inter-numerology)
-     * measurements and handover.
+     * Only intra-frequency measurements are supported,
+     * so one measurement object is created for each carrier frequency.
      */
     for (const auto& it : ccPhyConf)
     {
         NrRrcSap::MeasObjectToAddMod measObject;
         measObject.measObjectId = it.first + 1;
-        measObject.measObjectEutra.carrierFreq = it.second->GetArfcn();
+        measObject.measObjectEutra.carrierFreq = it.second->GetDlEarfcn();
         measObject.measObjectEutra.allowedMeasBandwidth = it.second->GetDlBandwidth();
         measObject.measObjectEutra.presenceAntennaPort1 = false;
         measObject.measObjectEutra.neighCellConfig = 0;
@@ -2797,27 +2456,9 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
     m_ueMeasConfig.haveQuantityConfig = true;
     m_ueMeasConfig.quantityConfig.filterCoefficientRSRP = m_rsrpFilterCoefficient;
     m_ueMeasConfig.quantityConfig.filterCoefficientRSRQ = m_rsrqFilterCoefficient;
-    // The NR PHY model measures all configured BWPs simultaneously, so no
-    // measurement gaps are required for inter-frequency measurements. The flag
-    // is kept false even when neighbour frequencies are registered.
     m_ueMeasConfig.haveMeasGapConfig = false;
-    NS_LOG_INFO(this << " configured " << m_ueMeasConfig.measObjectToAddModList.size()
-                     << " measurement objects (inter-frequency neighbours: "
-                     << m_neighbourMeasFreqs.size() << ")");
     m_ueMeasConfig.haveSmeasure = false;
     m_ueMeasConfig.haveSpeedStatePars = false;
-
-    // The UL carrier advertised in SIB1: a DL-only carrier points at the cell's
-    // dedicated UL-only carrier (FDD); any UL-capable carrier points at itself
-    Ptr<BandwidthPartGnb> fddUlCarrier;
-    for (const auto& it : ccPhyConf)
-    {
-        if (!it.second->GetPhy()->HasDlSlot())
-        {
-            fddUlCarrier = it.second;
-            break;
-        }
-    }
 
     m_sib1.clear();
     m_sib1.reserve(ccPhyConf.size());
@@ -2825,7 +2466,6 @@ NrGnbRrc::ConfigureCell(const std::map<uint8_t, Ptr<BandwidthPartGnb>>& ccPhyCon
     {
         // Enabling MIB transmission
         NrRrcSap::MasterInformationBlock mib;
-        mib.numerology = it.second->GetPhy()->GetNumerology();
         mib.dlBandwidth = it.second->GetDlBandwidth();
         mib.systemFrameNumber = 0;
         m_cphySapProvider.at(it.first)->SetMasterInformationBlock(mib);
@@ -3349,9 +2989,6 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
     NS_LOG_LOGIC("targetCellId = " << ackParams.targetCellId);
 
     m_x2SapProvider->SendHandoverRequestAck(ackParams);
-
-    // Arm the HANDOVER JOINING watchdog only now that the ACK is committed.
-    ueManager->StartHandoverJoiningTimer();
 }
 
 void
@@ -3478,23 +3115,7 @@ NrGnbRrc::DoRecvUeData(NrEpcX2SapUser::UeDataParams params)
     }
     else
     {
-        // The X2-U TEID mapping is registered on the target gNB while the UE
-        // manager is in HANDOVER_JOINING state (SetupDataRadioBearer), and is
-        // removed once the bearer is released after the path switch. Packets
-        // forwarded over X2-U can race against either edge of that window:
-        // they may arrive before the target bearer is set up, or after it has
-        // been torn down at handover completion. Such a packet has no valid
-        // target bearer, so drop it (the lost user-plane packet is recovered by
-        // higher-layer retransmission) instead of aborting the simulation.
-        NS_LOG_WARN("X2-U data received for unknown TEID "
-                    << params.gtpTeid << " (no X2uTeidInfo): forwarded packet arrived outside the "
-                    << "handover data-forwarding window; dropping it");
-        // Notify interested observers (e.g. tests, flow monitors) so this drop
-        // can be detected without parsing logs.
-        m_x2DataForwardingDropTrace(params.sourceCellId,
-                                    params.targetCellId,
-                                    params.gtpTeid,
-                                    params.ueData);
+        NS_FATAL_ERROR("X2-U data received but no X2uTeidInfo found");
     }
 }
 
@@ -3576,44 +3197,6 @@ NrGnbRrc::DoTriggerHandover(uint16_t rnti, uint16_t targetCellId)
 {
     NS_LOG_FUNCTION(this << rnti << targetCellId);
 
-    // Stamp the A3-trigger instant (condition met at the source gNB) so the total
-    // handover time can be measured when the handover completes. This precedes the
-    // triggering delay, so that delay is included in the reported total.
-    if (HasUeManager(rnti))
-    {
-        m_handoverTriggerTime[GetUeManager(rnti)->GetImsi()] = Simulator::Now();
-    }
-
-    if (m_handoverTriggeringDelay.IsStrictlyPositive())
-    {
-        NS_LOG_INFO("Scheduling handover for RNTI " << rnti << " to cell " << targetCellId
-                                                    << " with delay " << m_handoverTriggeringDelay);
-        // The delayed event must go to ExecuteHandover, not back here, or the
-        // handover would reschedule itself forever and never execute.
-        Simulator::Schedule(m_handoverTriggeringDelay,
-                            &NrGnbRrc::ExecuteHandover,
-                            this,
-                            rnti,
-                            targetCellId);
-        return;
-    }
-    ExecuteHandover(rnti, targetCellId);
-}
-
-void
-NrGnbRrc::ExecuteHandover(uint16_t rnti, uint16_t targetCellId)
-{
-    NS_LOG_FUNCTION(this << rnti << targetCellId);
-
-    // The UE may have detached or failed while the handover was being delayed.
-    if (!HasUeManager(rnti))
-    {
-        NS_LOG_WARN("UE with RNTI " << rnti
-                                    << " was removed before the delayed handover could "
-                                       "be executed; canceling handover");
-        return;
-    }
-
     bool isHandoverAllowed = true;
 
     Ptr<NrUeManager> ueManager = GetUeManager(rnti);
@@ -3644,36 +3227,10 @@ NrGnbRrc::ExecuteHandover(uint16_t rnti, uint16_t targetCellId)
                           << " state");
     }
 
-    // Reversal-only ping-pong guard: suppress a handover only if it sends the UE BACK to
-    // the cell it just came from (target == the source of the handover that brought the UE
-    // here) within HandoverMinTimeOfStay of arriving. This breaks A->B->A oscillation -- the
-    // A3 algorithm alone does not prevent it when the net A3 margin is near zero (e.g. a
-    // small/negative offset with no hysteresis) -- WITHOUT stranding a UE that genuinely needs
-    // to move forward (A->B->C is still allowed, unlike a blunt suppress-any-handover guard).
-    if (isHandoverAllowed && m_handoverMinTimeOfStay.IsStrictlyPositive() &&
-        targetCellId == ueManager->GetSourceCellId())
-    {
-        const Time timeOfStay = Simulator::Now() - ueManager->GetConnectedNormallyAt();
-        if (timeOfStay < m_handoverMinTimeOfStay)
-        {
-            isHandoverAllowed = false;
-            NS_LOG_LOGIC(this << " handover of rnti=" << rnti << " back to source cell "
-                              << targetCellId << " suppressed by reversal ping-pong guard: "
-                              << "time of stay " << timeOfStay.As(Time::MS) << " < "
-                              << m_handoverMinTimeOfStay.As(Time::MS));
-        }
-    }
-
     if (isHandoverAllowed)
     {
         // initiate handover execution
         ueManager->PrepareHandover(targetCellId);
-    }
-    else
-    {
-        // Handover was triggered but suppressed: drop the pending trigger timestamp
-        // so it does not leak or later mismatch a subsequent handover.
-        m_handoverTriggerTime.erase(ueManager->GetImsi());
     }
 }
 
@@ -3823,34 +3380,112 @@ NrGnbRrc::SetCsgId(uint32_t csgId, bool csgIndication)
     }
 }
 
+/// Number of distinct SRS periodicity plus one.
+static const uint8_t SRS_ENTRIES = 9;
+/**
+ * Sounding Reference Symbol (SRS) periodicity (TSRS) in milliseconds. Taken
+ * from 3GPP TS 36.213 Table 8.2-1. Index starts from 1.
+ */
+static const uint16_t g_srsPeriodicity[SRS_ENTRIES] = {0, 2, 5, 10, 20, 40, 80, 160, 320};
+/**
+ * The lower bound (inclusive) of the SRS configuration indices (ISRS) which
+ * use the corresponding SRS periodicity (TSRS). Taken from 3GPP TS 36.213
+ * Table 8.2-1. Index starts from 1.
+ */
+static const uint16_t g_srsCiLow[SRS_ENTRIES] = {0, 0, 2, 7, 17, 37, 77, 157, 317};
+/**
+ * The upper bound (inclusive) of the SRS configuration indices (ISRS) which
+ * use the corresponding SRS periodicity (TSRS). Taken from 3GPP TS 36.213
+ * Table 8.2-1. Index starts from 1.
+ */
+static const uint16_t g_srsCiHigh[SRS_ENTRIES] = {0, 1, 6, 16, 36, 76, 156, 316, 636};
+
+void
+NrGnbRrc::SetSrsPeriodicity(uint32_t p)
+{
+    NS_LOG_FUNCTION(this << p);
+    for (uint32_t id = 1; id < SRS_ENTRIES; ++id)
+    {
+        if (g_srsPeriodicity[id] == p)
+        {
+            m_srsCurrentPeriodicityId = id;
+            return;
+        }
+    }
+    // no match found
+    std::ostringstream allowedValues;
+    for (uint32_t id = 1; id < SRS_ENTRIES; ++id)
+    {
+        allowedValues << g_srsPeriodicity[id] << " ";
+    }
+    NS_FATAL_ERROR("illecit SRS periodicity value " << p
+                                                    << ". Allowed values: " << allowedValues.str());
+}
+
+uint32_t
+NrGnbRrc::GetSrsPeriodicity() const
+{
+    NS_LOG_FUNCTION(this);
+    NS_ASSERT(m_srsCurrentPeriodicityId > 0);
+    NS_ASSERT(m_srsCurrentPeriodicityId < SRS_ENTRIES);
+    return g_srsPeriodicity[m_srsCurrentPeriodicityId];
+}
+
 uint16_t
 NrGnbRrc::GetNewSrsConfigurationIndex()
 {
     NS_LOG_FUNCTION(this << m_ueSrsConfigurationIndexSet.size());
-
-    uint16_t configIndex = 0;
-    if (IsMaxSrsReached() && m_unusedUeSrsConfigurationIndexSet.empty())
+    // SRS
+    NS_ASSERT(m_srsCurrentPeriodicityId > 0);
+    NS_ASSERT(m_srsCurrentPeriodicityId < SRS_ENTRIES);
+    NS_LOG_DEBUG(this << " SRS p " << g_srsPeriodicity[m_srsCurrentPeriodicityId] << " set "
+                      << m_ueSrsConfigurationIndexSet.size());
+    if (m_ueSrsConfigurationIndexSet.size() >= g_srsPeriodicity[m_srsCurrentPeriodicityId])
     {
-        // There are absolutely no more SRS offsets, and SRS periodicity cannot be further
-        // increased, so we need to interrupt
-        NS_ABORT_MSG("Out of SRS configuration indices");
+        NS_FATAL_ERROR("too many UEs ("
+                       << m_ueSrsConfigurationIndexSet.size() + 1
+                       << ") for current SRS periodicity "
+                       << g_srsPeriodicity[m_srsCurrentPeriodicityId]
+                       << ", consider increasing the value of ns3::NrGnbRrc::SrsPeriodicity");
     }
-    else if (!IsMaxSrsReached() && m_unusedUeSrsConfigurationIndexSet.empty())
+
+    if (m_ueSrsConfigurationIndexSet.empty())
     {
-        // We ran out of configuration indices, but we still can have more
-        // since we can have more SRS offsets available, so create a new one
-        configIndex = m_lastAllocatedConfigurationIndex++;
-        m_ueSrsConfigurationIndexSet.emplace(m_lastAllocatedConfigurationIndex);
+        // first entry
+        m_lastAllocatedConfigurationIndex = g_srsCiLow[m_srsCurrentPeriodicityId];
+        m_ueSrsConfigurationIndexSet.insert(m_lastAllocatedConfigurationIndex);
     }
     else
     {
-        // We have available configuration indices, so use them
-        auto it = m_unusedUeSrsConfigurationIndexSet.begin();
-        configIndex = *it;
-        m_unusedUeSrsConfigurationIndexSet.erase(it);
-        m_ueSrsConfigurationIndexSet.emplace(configIndex);
+        // find a CI from the available ones
+        auto rit = m_ueSrsConfigurationIndexSet.rbegin();
+        NS_ASSERT(rit != m_ueSrsConfigurationIndexSet.rend());
+        NS_LOG_DEBUG(this << " lower bound " << (*rit) << " of "
+                          << g_srsCiHigh[m_srsCurrentPeriodicityId]);
+        if ((*rit) < g_srsCiHigh[m_srsCurrentPeriodicityId])
+        {
+            // got it from the upper bound
+            m_lastAllocatedConfigurationIndex = (*rit) + 1;
+            m_ueSrsConfigurationIndexSet.insert(m_lastAllocatedConfigurationIndex);
+        }
+        else
+        {
+            // look for released ones
+            for (uint16_t srcCi = g_srsCiLow[m_srsCurrentPeriodicityId];
+                 srcCi < g_srsCiHigh[m_srsCurrentPeriodicityId];
+                 srcCi++)
+            {
+                auto it = m_ueSrsConfigurationIndexSet.find(srcCi);
+                if (it == m_ueSrsConfigurationIndexSet.end())
+                {
+                    m_lastAllocatedConfigurationIndex = srcCi;
+                    m_ueSrsConfigurationIndexSet.insert(srcCi);
+                    break;
+                }
+            }
+        }
     }
-    return configIndex;
+    return m_lastAllocatedConfigurationIndex;
 }
 
 void

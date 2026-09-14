@@ -462,9 +462,35 @@ set(test_sources
     ${eigen_tests}
     ${opengym_tests}
     test/nr-amc-tb-size-test.cc
+    test/nr-system-test-configurations.cc
+    test/nr-test-numerology-delay.cc
+    test/nr-test-fdm-of-numerologies.cc
+    test/nr-test-sched.cc
+    test/nr-system-test-schedulers-tdma-rr.cc
+    test/nr-system-test-schedulers-tdma-pf.cc
+    test/nr-system-test-schedulers-tdma-mr.cc
+    test/nr-system-test-schedulers-ofdma-rr.cc
+    test/nr-system-test-schedulers-ofdma-pf.cc
+    test/nr-system-test-schedulers-ofdma-mr.cc
     test/nr-antenna-3gpp-model-conf.cc
+    test/nr-test-l2sm-eesm.cc
+    test/nr-lte-pattern-generation.cc
+    test/nr-phy-patterns.cc
+    test/nr-test-sfnsf.cc
+    test/nr-test-timings.cc
+    test/nr-spectrum-phy-test.cc
     test/nr-cc-bwp-configuration.cc
     test/nr-channel-setup-test.cc
+    test/system-scheduler-test.cc
+    test/nr-mac-short-bsr-ce-test.cc
+    test/nr-test-notching.cc
+    test/nr-realistic-beamforming-test.cc
+    test/nr-uplink-power-control-test.cc
+    test/nr-power-allocation.cc
+    test/nr-test-harq.cc
+    utils/traffic-generators/test/traffic-generator-test.cc
+    test/system-scheduler-test-qos.cc
+    test/nr-test-entities.cc
     test/nr-epc-test-gtpu.cc
     test/nr-epc-test-s1u-downlink.cc
     test/nr-epc-test-s1u-uplink.cc
@@ -512,6 +538,7 @@ set(test_sources
     test/nr-test-rlc-am-transmitter.cc
     test/nr-test-rlc-header.cc
     test/nr-test-rlc-tm.cc
+    test/nr-test-rlc-am-retx-seg.cc
     test/nr-test-rlc-um-e2e.cc
     test/nr-test-rlc-um-transmitter.cc
     test/nr-test-rlc-um-rx.cc
@@ -559,6 +586,9 @@ set(test_sources
     test/nr-test-mib-wait-reselection.cc
     test/nr-test-stray-rrc-request.cc
     test/nr-test-mobility-state-ttt.cc
+    test/nr-test-ipv6-routing.cc
+    test/nr-test-epc-e2e-data.cc
+    test/nr-test-deactivate-bearer.cc
     # cmake-format: off
     # todo:
     # test/nr-test-primary-cell-change.cc         /  requires handover
