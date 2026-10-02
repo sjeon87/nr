@@ -24,6 +24,7 @@
 #include "ns3/nr-ue-net-device.h"
 #include "ns3/packet-socket-address.h"
 #include "ns3/point-to-point-helper.h"
+#include "ns3/iana-ieee802-numbers.h"
 
 namespace ns3
 {
@@ -324,13 +325,13 @@ NrNoBackhaulEpcHelper::AddGnb(Ptr<Node> gnb, Ptr<NetDevice> nrGnbNetDevice, uint
         Socket::CreateSocket(gnb, TypeId::LookupByName("ns3::PacketSocketFactory"));
     PacketSocketAddress nrGnbSocketBindAddress;
     nrGnbSocketBindAddress.SetSingleDevice(nrGnbNetDevice->GetIfIndex());
-    nrGnbSocketBindAddress.SetProtocol(Ipv4L3Protocol::PROT_NUMBER);
+    nrGnbSocketBindAddress.SetProtocol(iana::ieee802numbers::IPV4);
     retval = nrGnbSocket->Bind(nrGnbSocketBindAddress);
     NS_ASSERT(retval == 0);
     PacketSocketAddress nrGnbSocketConnectAddress;
     nrGnbSocketConnectAddress.SetPhysicalAddress(Mac48Address::GetBroadcast());
     nrGnbSocketConnectAddress.SetSingleDevice(nrGnbNetDevice->GetIfIndex());
-    nrGnbSocketConnectAddress.SetProtocol(Ipv4L3Protocol::PROT_NUMBER);
+    nrGnbSocketConnectAddress.SetProtocol(iana::ieee802numbers::IPV4);
     retval = nrGnbSocket->Connect(nrGnbSocketConnectAddress);
     NS_ASSERT(retval == 0);
 
@@ -339,13 +340,13 @@ NrNoBackhaulEpcHelper::AddGnb(Ptr<Node> gnb, Ptr<NetDevice> nrGnbNetDevice, uint
         Socket::CreateSocket(gnb, TypeId::LookupByName("ns3::PacketSocketFactory"));
     PacketSocketAddress nrGnbSocketBindAddress6;
     nrGnbSocketBindAddress6.SetSingleDevice(nrGnbNetDevice->GetIfIndex());
-    nrGnbSocketBindAddress6.SetProtocol(Ipv6L3Protocol::PROT_NUMBER);
+    nrGnbSocketBindAddress6.SetProtocol(iana::ieee802numbers::IPV6);
     retval = nrGnbSocket6->Bind(nrGnbSocketBindAddress6);
     NS_ASSERT(retval == 0);
     PacketSocketAddress nrGnbSocketConnectAddress6;
     nrGnbSocketConnectAddress6.SetPhysicalAddress(Mac48Address::GetBroadcast());
     nrGnbSocketConnectAddress6.SetSingleDevice(nrGnbNetDevice->GetIfIndex());
-    nrGnbSocketConnectAddress6.SetProtocol(Ipv6L3Protocol::PROT_NUMBER);
+    nrGnbSocketConnectAddress6.SetProtocol(iana::ieee802numbers::IPV6);
     retval = nrGnbSocket6->Connect(nrGnbSocketConnectAddress6);
     NS_ASSERT(retval == 0);
 

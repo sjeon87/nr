@@ -11,6 +11,7 @@
 #include "ns3/nr-module.h"
 #include "ns3/nr-qos-flow-tag.h"
 #include "ns3/point-to-point-helper.h"
+#include "ns3/iana-ieee802-numbers.h"
 
 // Do not put your test classes in namespace ns3.  You may find it useful
 // to use the using directive to access the ns3 namespace directly
@@ -180,7 +181,7 @@ SendPacket(Ptr<NetDevice> device, Address& addr)
     pkt->AddHeader(ipHeader);
     NrQosFlowTag tag(1, 1);
     pkt->AddPacketTag(tag);
-    device->Send(pkt, addr, Ipv4L3Protocol::PROT_NUMBER);
+    device->Send(pkt, addr, iana::ieee802numbers::IPV4);
 }
 
 void

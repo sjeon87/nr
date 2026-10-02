@@ -18,6 +18,7 @@
 #include "ns3/ipv6.h"
 #include "ns3/log.h"
 #include "ns3/mac48-address.h"
+#include "ns3/iana-ieee802-numbers.h"
 
 namespace ns3
 {
@@ -209,7 +210,7 @@ NrEpcPgwApplication::RecvFromTunDevice(Ptr<Packet> packet,
     // the correct bearer.
 
     // get IP address of UE
-    if (protocolNumber == Ipv4L3Protocol::PROT_NUMBER)
+    if (protocolNumber == iana::ieee802numbers::IPV4)
     {
         Ipv4Header ipv4Header;
         packet->PeekHeader(ipv4Header);
@@ -236,7 +237,7 @@ NrEpcPgwApplication::RecvFromTunDevice(Ptr<Packet> packet,
             }
         }
     }
-    else if (protocolNumber == Ipv6L3Protocol::PROT_NUMBER)
+    else if (protocolNumber == iana::ieee802numbers::IPV6)
     {
         Ipv6Header ipv6Header;
         packet->PeekHeader(ipv6Header);

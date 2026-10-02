@@ -22,6 +22,8 @@
 #include "ns3/mobility-module.h"
 #include "ns3/network-module.h"
 #include "ns3/nr-module.h"
+#include "ns3/iana-ieee802-numbers.h"
+#include "ns3/iana-internet-protocol-numbers.h"
 
 using namespace ns3;
 
@@ -47,11 +49,11 @@ SendPacket(Ptr<NetDevice> device, Address& addr, uint32_t packetSize)
 {
     Ptr<Packet> pkt = Create<Packet>(packetSize);
     Ipv4Header ipv4Header;
-    ipv4Header.SetProtocol(UdpL4Protocol::PROT_NUMBER);
+    ipv4Header.SetProtocol(iana::internetprotocolnumbers::UDP);
     pkt->AddHeader(ipv4Header);
     NrQosFlowTag tag(1 /* RNTI */, 1 /* QFI */);
     pkt->AddPacketTag(tag);
-    device->Send(pkt, addr, Ipv4L3Protocol::PROT_NUMBER);
+    device->Send(pkt, addr, iana::ieee802numbers::IPV4);
 }
 
 /**

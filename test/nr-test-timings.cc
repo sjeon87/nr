@@ -12,6 +12,7 @@
 #include "ns3/nr-qos-flow-tag.h"
 #include "ns3/point-to-point-helper.h"
 #include "ns3/rng-seed-manager.h"
+#include "ns3/iana-ieee802-numbers.h"
 
 #include <unordered_map>
 
@@ -129,7 +130,7 @@ SendPacket(const Ptr<NetDevice>& device, const Address& addr)
     NrQosFlowTag tag(1, 1);
     pkt->AddPacketTag(tag);
     pkt->AddHeader(header);
-    device->Send(pkt, addr, Ipv4L3Protocol::PROT_NUMBER);
+    device->Send(pkt, addr, iana::ieee802numbers::IPV4);
 }
 
 static const std::unordered_map<NrControlMessage::messageType, std::string, std::hash<int>>

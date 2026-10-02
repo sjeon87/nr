@@ -49,6 +49,7 @@
 #include "ns3/network-module.h"
 #include "ns3/nr-module.h"
 #include "ns3/three-gpp-spectrum-propagation-loss-model.h"
+#include "ns3/iana-ieee802-numbers.h"
 
 using namespace ns3;
 
@@ -83,7 +84,7 @@ SendPacket(Ptr<NetDevice> device, Address& addr, uint32_t packetSize)
     // will have QoS Flow ID = 3;
     NrQosFlowTag tag(1, 3);
     pkt->AddPacketTag(tag);
-    device->Send(pkt, addr, Ipv4L3Protocol::PROT_NUMBER);
+    device->Send(pkt, addr, iana::ieee802numbers::IPV4);
 }
 
 /**
