@@ -556,6 +556,13 @@ NrSpectrumPhy::SetDataErrorModelEnabled(bool dataErrorModelEnabled)
     m_dataErrorModelEnabled = dataErrorModelEnabled;
 }
 
+bool
+NrSpectrumPhy::IsDataErrorModelEnabled() const
+{
+    NS_LOG_FUNCTION(this);
+    return m_dataErrorModelEnabled;
+}
+
 void
 NrSpectrumPhy::SetErrorModelType(TypeId errorModelType)
 {
@@ -835,7 +842,10 @@ NrSpectrumPhy::StartTxDataFrames(const Ptr<PacketBurst>& pb,
         /* no break*/
         [[fallthrough]];
     case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot TX while RX.");
+        // A TDD node cannot transmit and receive on one carrier at the same instant;
+        // the modelled outcome is that the transmission does not happen.
+        ++m_dataDroppedHalfDuplex;
+        NS_LOG_WARN("Dropping DATA: half-duplex node is receiving (state " << m_state << ")");
         break;
     case TX:
         // No break, gNB may transmit multiple times to multiple UEs
@@ -914,7 +924,10 @@ NrSpectrumPhy::StartTxDlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
     case RX_UL_CTRL:
         /* no break*/
     case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot TX while RX.");
+        // A TDD gNB cannot send downlink control while it is receiving on the same
+        // carrier; the modelled outcome is that it does not send.
+        ++m_dlCtrlDroppedHalfDuplex;
+        NS_LOG_WARN("Dropping DL CTRL: half-duplex node is receiving (state " << m_state << ")");
         break;
     case TX:
         NS_FATAL_ERROR("Cannot TX while already TX.");
@@ -1015,7 +1028,10 @@ NrSpectrumPhy::StartTxUlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
     case RX_UL_CTRL:
         /* no break */
     case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot TX while RX.");
+        // A half-duplex UE asked to transmit uplink control while it is receiving
+        // does not crash; it does not transmit.
+        ++m_ulCtrlDroppedHalfDuplex;
+        NS_LOG_WARN("Dropping UL CTRL: half-duplex UE is receiving (state " << m_state << ")");
         break;
     case TX:
         NS_FATAL_ERROR("Cannot TX while already TX.");
@@ -1504,8 +1520,10 @@ NrSpectrumPhy::StartRxSrs(const Ptr<NrSpectrumSignalParametersUlCtrlFrame>& para
     }
     break;
     default: {
-        // not allowed state for starting the SRS reception
-        NS_FATAL_ERROR("Not allowed state for starting SRS reception.");
+        // A TDD gNB that is transmitting cannot simultaneously receive an SRS on the
+        // same carrier; the modelled outcome is that it does not receive it.
+        ++m_srsDroppedHalfDuplex;
+        NS_LOG_WARN("Dropping SRS reception: node is not IDLE/BUSY (state " << m_state << ")");
         break;
     }
     }

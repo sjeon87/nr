@@ -320,6 +320,18 @@ class NR_EXPORT NrSpectrumPhy : public SpectrumPhy
      */
     void SetDataErrorModelEnabled(bool dataErrorModelEnabled);
     /**
+     * @brief Read back whether the data error model is enabled.
+     *
+     * The DataErrorModelEnabled attribute is registered with a setter-only
+     * accessor, so GetAttribute on it aborts and a health gate cannot tell a
+     * disabled error model from a pristine link that simply produced no block
+     * errors. Both report a TBLER of exactly zero. This getter makes the
+     * distinction readable.
+     *
+     * @return true when the data error model is applied to received TBs
+     */
+    bool IsDataErrorModelEnabled() const;
+    /**
      * @brief Sets the error model type
      */
     void SetErrorModelType(TypeId errorModelType);
@@ -586,6 +598,64 @@ class NR_EXPORT NrSpectrumPhy : public SpectrumPhy
      */
     bool IsGnb() const;
 
+    /**
+     * @brief Uplink control transmissions dropped because the half-duplex UE
+     *        was receiving at the time.
+     *
+     * Non-zero means the scheduler asked this UE to transmit uplink control in a
+     * slot it was already using to receive. Over NTN that is expected under a
+     * large cell-specific K_offset; a large count means the uplink is
+     * over-subscribed and the run should report it rather than hide it.
+     *
+     * @return the uplink-control drop count
+     */
+    uint64_t GetUlCtrlDropCount() const
+    {
+        return m_ulCtrlDroppedHalfDuplex;
+    }
+
+    /**
+     * @brief Data transmissions dropped because the half-duplex node was
+     *        receiving at the time.
+     *
+     * More consequential than a control drop: this is user traffic that never
+     * went out, so a non-zero count changes what the throughput figure means.
+     *
+     * @return the data drop count
+     */
+    uint64_t GetDataDropCount() const
+    {
+        return m_dataDroppedHalfDuplex;
+    }
+
+    /**
+     * @brief SRS receptions dropped because the node was not IDLE or BUSY.
+     *
+     * An SRS the gNB never heard degrades its channel estimate for that UE, so
+     * a non-zero count is worth reporting rather than assuming away.
+     *
+     * @return the SRS drop count
+     */
+    uint64_t GetSrsDropCount() const
+    {
+        return m_srsDroppedHalfDuplex;
+    }
+
+    /**
+     * @brief Downlink control transmissions dropped because the half-duplex
+     *        node was receiving at the time.
+     *
+     * A lost downlink control message costs the UE a grant or an
+     * acknowledgement, which is a different kind of damage from a lost SRS, so
+     * it is counted apart from the uplink figure.
+     *
+     * @return the downlink-control drop count
+     */
+    uint64_t GetDlCtrlDropCount() const
+    {
+        return m_dlCtrlDroppedHalfDuplex;
+    }
+
   protected:
     /**
      * @brief DoDispose method inherited from Object
@@ -656,6 +726,15 @@ class NR_EXPORT NrSpectrumPhy : public SpectrumPhy
     void NotifyTxDataTrace(Time duration) const;
 
   private:
+    /// Half-duplex uplink-control drops, see GetUlCtrlDropCount().
+    uint64_t m_ulCtrlDroppedHalfDuplex{0};
+    /// Half-duplex data drops, see GetDataDropCount().
+    uint64_t m_dataDroppedHalfDuplex{0};
+    /// SRS receptions dropped, see GetSrsDropCount().
+    uint64_t m_srsDroppedHalfDuplex{0};
+    /// Downlink-control drops, see GetDlCtrlDropCount().
+    uint64_t m_dlCtrlDroppedHalfDuplex{0};
+
     std::vector<MimoSinrChunk>
         m_mimoSinrPerceived; //!< received SINR values during data reception for TB decoding, to
                              //!< replace m_sinrPerceived for all (MIMO and SISO) receivers
