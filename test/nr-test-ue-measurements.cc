@@ -475,6 +475,9 @@ NrUeMeasurementsTestCase::RecvMeasurementReport(uint64_t imsi,
  * Overloaded operators, for the convenience of defining test cases
  */
 
+namespace
+{
+
 std::vector<Time>&
 operator<<(std::vector<Time>& v, const uint64_t& ms)
 {
@@ -492,6 +495,8 @@ operator<<(std::vector<uint8_t>& v, const uint8_t& range)
     v.push_back(range);
     return v;
 }
+
+} // namespace
 
 /*
  * Test Suite

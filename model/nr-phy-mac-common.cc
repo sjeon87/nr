@@ -10,6 +10,7 @@
 #include "ns3/log.h"
 
 #include <algorithm>
+#include <array>
 
 namespace ns3
 {
