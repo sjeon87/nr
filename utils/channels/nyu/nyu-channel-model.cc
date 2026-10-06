@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <complex>
 #include <math.h>
+#include <numeric>
 #include <random>
 
 namespace ns3

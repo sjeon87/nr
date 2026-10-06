@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <numeric>
 #include <random>
 #include <string>
 #include <unordered_set>

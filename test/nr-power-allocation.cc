@@ -6,6 +6,8 @@
 #include "ns3/nr-spectrum-value-helper.h"
 #include "ns3/test.h"
 
+#include <numeric>
+
 using namespace ns3;
 
 /**

@@ -17,6 +17,7 @@
 #include "ns3/shuffle.h"
 
 #include <algorithm>
+#include <numeric>
 #include <random>
 
 namespace ns3

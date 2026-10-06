@@ -33,6 +33,8 @@ $ ./ns3 run "cttc-channel-randomness --PrintHelp"
 #include "ns3/three-gpp-propagation-loss-model.h"
 #include "ns3/three-gpp-spectrum-propagation-loss-model.h"
 
+#include <numeric>
+
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("CttcChannelRandomness");

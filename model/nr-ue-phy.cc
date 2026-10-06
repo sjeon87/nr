@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <numeric>
 
 namespace ns3
 {

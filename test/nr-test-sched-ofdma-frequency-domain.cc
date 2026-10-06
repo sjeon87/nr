@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <numeric>
 #include <set>
 #include <sstream>
 
